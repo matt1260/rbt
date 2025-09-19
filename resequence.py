@@ -1,8 +1,23 @@
-import sqlite3
+import psycopg2
+import os
 import re
 from collections import defaultdict
 
-def resequence_footnotes(db_path='rbt_new_testament.sqlite3', verses_table='nt_old', output_table='nt'):
+def get_db_connection():
+    """Get PostgreSQL database connection"""
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url:
+        return psycopg2.connect(database_url)
+    else:
+        # Fallback for local development
+        return psycopg2.connect(
+            host='localhost',
+            database='your_database_name',
+            user='your_username',
+            password='your_password'
+        )
+
+def resequence_footnotes(verses_table='nt', output_table='nt_resequenced', schema='new_testament'):
     """
     Resequences footnotes per book and stores updated verses in a new table.
     """
@@ -13,13 +28,19 @@ def resequence_footnotes(db_path='rbt_new_testament.sqlite3', verses_table='nt_o
         '1Jo', '2Jo', '3Jo', 'Jud', 'Rev'
     ]
 
-    with sqlite3.connect(db_path) as conn:
+    with get_db_connection() as conn:
         cursor = conn.cursor()
+        
+        # Set schema
+        cursor.execute(f"SET search_path TO {schema}")
 
         # Create or reset resequenced_footnotes table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS resequenced_footnotes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cursor.execute(f'''
+            DROP TABLE IF EXISTS {schema}.resequenced_footnotes CASCADE
+        ''')
+        cursor.execute(f'''
+            CREATE TABLE {schema}.resequenced_footnotes (
+                id SERIAL PRIMARY KEY,
                 verse_id TEXT,
                 footnote_number INTEGER,
                 original_footnote_id TEXT,
@@ -29,19 +50,18 @@ def resequence_footnotes(db_path='rbt_new_testament.sqlite3', verses_table='nt_o
                 verse INTEGER
             )
         ''')
-        cursor.execute('DELETE FROM resequenced_footnotes')
 
         # Create or reset output verse table
+        cursor.execute(f'DROP TABLE IF EXISTS {schema}.{output_table} CASCADE')
         cursor.execute(f'''
-            CREATE TABLE IF NOT EXISTS {output_table} AS 
-            SELECT * FROM {verses_table} WHERE 0
+            CREATE TABLE {schema}.{output_table} AS 
+            SELECT * FROM {schema}.{verses_table} WHERE 1=0
         ''')
-        cursor.execute(f'DELETE FROM {output_table}')
 
         # Retrieve all verses
         cursor.execute(f'''
             SELECT verseID, book, chapter, startVerse, verseText, rbt, nt_id
-            FROM {verses_table} 
+            FROM {schema}.{verses_table} 
             ORDER BY nt_id
         ''')
         verses = cursor.fetchall()
@@ -55,8 +75,8 @@ def resequence_footnotes(db_path='rbt_new_testament.sqlite3', verses_table='nt_o
             if rbt is None:
                 # Copy verse with null rbt without modification
                 cursor.execute(f'''
-                    INSERT INTO {output_table} (verseID, book, chapter, startVerse, verseText, rbt, nt_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO {schema}.{output_table} (verseID, book, chapter, startVerse, verseText, rbt, nt_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ''', (verseID, book, chapter, startVerse, verseText, rbt, nt_id))
                 continue
 
@@ -91,7 +111,7 @@ def resequence_footnotes(db_path='rbt_new_testament.sqlite3', verses_table='nt_o
                 full_match = full_match
                 
                 if original_footnote_id not in footnote_replacements:
-                    footnote_html = get_original_footnote(cursor, original_footnote_id, book, nt_abbrev)
+                    footnote_html = get_original_footnote(cursor, original_footnote_id, book, nt_abbrev, schema)
                     print(f"  Footnote ID: {original_footnote_id} => Content: {footnote_html is not None}")
                     
                     if footnote_html:
@@ -100,10 +120,10 @@ def resequence_footnotes(db_path='rbt_new_testament.sqlite3', verses_table='nt_o
                         footnote_counters[book] = footnote_counter
                         total_footnotes += 1
 
-                        cursor.execute('''
-                            INSERT INTO resequenced_footnotes 
+                        cursor.execute(f'''
+                            INSERT INTO {schema}.resequenced_footnotes 
                             (verse_id, footnote_number, original_footnote_id, footnote_html, book, chapter, verse)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ''', (verseID, footnote_counter, original_footnote_id, footnote_html, book, chapter, startVerse))
 
                         # Create new footnote reference
@@ -128,15 +148,15 @@ def resequence_footnotes(db_path='rbt_new_testament.sqlite3', verses_table='nt_o
 
             # Insert updated verse into output table
             cursor.execute(f'''
-                INSERT INTO {output_table} (verseID, book, chapter, startVerse, rbt, verseText, nt_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO {schema}.{output_table} (verseID, book, chapter, startVerse, rbt, verseText, nt_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             ''', (verseID, book, chapter, startVerse, updated_html, verseText, nt_id))
 
         conn.commit()
         print(f"\nResequencing complete. Total footnotes processed: {total_footnotes}")
-        print(f"Updated verses written to table: {output_table}")
+        print(f"Updated verses written to table: {schema}.{output_table}")
 
-def get_original_footnote(cursor, footnote_id, book, nt_abbrev):
+def get_original_footnote(cursor, footnote_id, book, nt_abbrev, schema):
     """
     Retrieves the original footnote HTML from the appropriate footnote table.
     Enhanced to handle footnote IDs with letters and various formats.
@@ -169,14 +189,14 @@ def get_original_footnote(cursor, footnote_id, book, nt_abbrev):
 
     try:
         for footnote_ref in possible_footnote_refs:
-            cursor.execute(f"SELECT footnote_html FROM {table} WHERE footnote_id = ?", (footnote_ref,))
+            cursor.execute(f"SELECT footnote_html FROM {schema}.{table} WHERE footnote_id = %s", (footnote_ref,))
             result = cursor.fetchone()
             if result:
                 print(f"    Found footnote with ID: {footnote_ref}")
                 return result[0]
         
         # If no exact match found, try searching for similar IDs
-        cursor.execute(f"SELECT footnote_id, footnote_html FROM {table}")
+        cursor.execute(f"SELECT footnote_id, footnote_html FROM {schema}.{table}")
         all_footnotes = cursor.fetchall()
         
         for db_footnote_id, footnote_html in all_footnotes:
@@ -188,7 +208,7 @@ def get_original_footnote(cursor, footnote_id, book, nt_abbrev):
         print(f"    No footnote found for any of: {possible_footnote_refs}")
         return None
         
-    except sqlite3.OperationalError as e:
+    except psycopg2.Error as e:
         print(f"  Error accessing table {table}: {e}")
         return None
 
@@ -197,15 +217,30 @@ def create_footnote_lookup_function():
     Returns Python code for looking up resequenced footnotes by number.
     """
     return '''
-def get_resequenced_footnote(footnote_number, book, db_path='rbt_new_testament.sqlite3'):
+def get_resequenced_footnote(footnote_number, book, schema='new_testament'):
     \"""
     Retrieves resequenced footnote HTML by footnote number and book.
     \"""
-    import sqlite3
-    with sqlite3.connect(db_path) as conn:
+    import psycopg2
+    import os
+    
+    def get_db_connection():
+        database_url = os.environ.get('DATABASE_URL')
+        if database_url:
+            return psycopg2.connect(database_url)
+        else:
+            return psycopg2.connect(
+                host='localhost',
+                database='your_database_name',
+                user='your_username',
+                password='your_password'
+            )
+    
+    with get_db_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute(f"SET search_path TO {schema}")
         cursor.execute(
-            "SELECT footnote_html FROM resequenced_footnotes WHERE footnote_number = ? AND book = ?", 
+            "SELECT footnote_html FROM resequenced_footnotes WHERE footnote_number = %s AND book = %s", 
             (footnote_number, book)
         )
         result = cursor.fetchone()
@@ -215,12 +250,13 @@ def get_resequenced_footnote(footnote_number, book, db_path='rbt_new_testament.s
         return ''
 '''
 
-def test_resequencing(db_path='rbt_new_testament.sqlite3'):
+def test_resequencing(schema='new_testament'):
     """
     Prints sample rows from the resequenced_footnotes table and shows before/after comparison.
     """
-    with sqlite3.connect(db_path) as conn:
+    with get_db_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute(f"SET search_path TO {schema}")
         
         # Show resequenced footnotes
         cursor.execute('''
@@ -237,9 +273,9 @@ def test_resequencing(db_path='rbt_new_testament.sqlite3'):
         cursor.execute('''
             SELECT book, chapter, startVerse, rbt
             FROM nt 
-            WHERE rbt LIKE '%<a class="sdfootnoteanc"%' 
+            WHERE rbt LIKE %s 
             LIMIT 3
-        ''')
+        ''', ('%<a class="sdfootnoteanc"%',))
         print("\nSample updated verses:")
         for row in cursor.fetchall():
             book, chapter, verse, rbt = row
@@ -258,13 +294,13 @@ def test_resequencing(db_path='rbt_new_testament.sqlite3'):
             print(f"  Footnote links: {footnote_links}")
 
 if __name__ == "__main__":
-    DATABASE_PATH = 'rbt_new_testament.sqlite3'
-    VERSES_TABLE = 'nt_old'
-    OUTPUT_TABLE = 'nt'
+    VERSES_TABLE = 'nt'
+    OUTPUT_TABLE = 'nt_resequenced'
+    SCHEMA = 'new_testament'
 
     print("Starting footnote resequencing...\n")
-    resequence_footnotes(DATABASE_PATH, VERSES_TABLE, OUTPUT_TABLE)
-    test_resequencing(DATABASE_PATH)
+    resequence_footnotes(VERSES_TABLE, OUTPUT_TABLE, SCHEMA)
+    test_resequencing(SCHEMA)
 
     print("\nFootnote lookup function:")
     print(create_footnote_lookup_function())
