@@ -34,7 +34,10 @@ def execute_query(query, params=None, fetch=False):
     """Execute a single query with optional parameters"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute(query, params or ())
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
         
         if fetch:
             if fetch == 'one':
@@ -44,6 +47,7 @@ def execute_query(query, params=None, fetch=False):
         
         conn.commit()
         return cursor.rowcount if not fetch else None
+
 
 def execute_many(query, params_list):
     """Execute query with multiple parameter sets"""

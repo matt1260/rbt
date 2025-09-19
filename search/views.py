@@ -1733,7 +1733,7 @@ def update_statistics_api(request):
         )
 
         # Generate links for each reference (Format A only)
-        base_url = "https://rbt.realbible.tech/"
+        base_url = "https://rbtproject.up.railway.app"
         for item in top_references:
             reference = item['reference']
             try:
@@ -1825,9 +1825,6 @@ def update_statistics_api(request):
         # add the Genesis footnote count
         ot_footnote_count = ot_footnote_count + GenesisFootnotes.objects.filter(footnote_id__isnull=False).count()
 
-        # Set schema for New Testament
-        execute_query("SET search_path TO new_testament;")
-
         # Get all footnote tables
         footnote_tables = execute_query("""
             SELECT table_name 
@@ -1841,7 +1838,7 @@ def update_statistics_api(request):
         for table_row in footnote_tables:
             table_name = table_row[0]
             count_result = execute_query(
-                f"SELECT COUNT(*) FROM {table_name} WHERE footnote_id IS NOT NULL",
+                f"SELECT COUNT(*) FROM new_testament.{table_name} WHERE footnote_id IS NOT NULL",
                 fetch='one'
             )
             if count_result:
