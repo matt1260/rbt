@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- search script -->
+<script>
+  $(document).ready(function () {
+      // Function to perform the search
+      function performSearch() {
+          var query = $("#query").val().toLowerCase(); // Convert query to lowercase
+          
+          // Perform the search only if the query is not empty
+          if (query.trim() !== "") {
+              $.ajax({
+                  url: '../search_footnotes/', 
+                  method: 'GET',
+                  data: {query: query},
+                  dataType: 'json',
+                  success: function (data) {
+                      var results = data.results;
+                      var resultHtml = "";
+
+                      // Loop through the search results to generate HTML
+                      for (var i = 0; i < results.length; i++) {
+                          
+                          var resultText = results[i]; 
+
+                          resultHtml += "<div><table><tbody>" + resultText + "</tbody></table></div>";
+                      }
+
+                      // Display the results in the search-results div
+                      $("#search-results").html(resultHtml);
+                  },
+                  error: function (xhr, status, error) {
+                      console.log(error);
+                  }
+              });
+          }
+      }
+
+      // Attach an event listener to the input field to detect Enter key press
+      $("#query").keydown(function (event) {
+          if (event.key === "Enter") {
+              // Prevent the default form submission behavior
+              event.preventDefault();
+              
+              // Trigger the search by simulating a click on the search button
+              $("#search-button").click();
+          }
+      });
+
+      // Attach a click event to the search button
+      $("#search-button").click(performSearch);
+
+      tinymce.init({
+        selector: 'textarea',
+        plugins: 'anchor autolink charmap codesample code emoticons image link lists media searchreplace table visualblocks wordcount',
+        toolbar: 'undo redo  | blocks fontfamily fontsize | code bold italic underline | link image media table mergetags | align lineheight | tinycomments | checklist numlist bullist indent outdent | charmap | removeformat',
+        tinycomments_mode: 'embedded',
+        tinycomments_author: 'Author name',
+        mergetags_list: [
+          { value: 'First.Name', title: 'First Name' },
+          { value: 'Email', title: 'Email' },
+        ],
+        branding: false,  // Hide the TinyMCE branding
+        ai_request: (request, respondWith) => respondWith.string(() => Promise.reject("See docs to implement AI Assistant"))
+      });
+  });
+
+</script>
+
+
+
+  <div class="container">
+    <p><a href="../edit">Back to Edit Search</a></p>
+    <h4><a href="../edit/?book={{ book }}&chapter={{ chapter_ref }}&verse={{ verse_ref }}">{{book}} {{ chapter_ref }}:{{ verse_ref }}</a></h4>
+    {{ verse_html|safe }}
+<hr />
+
+        <h3>Footnote #{{ footnote_ref }} Content:</h3>
+        {{ footnote_html|safe }}
+
+<hr />
+
+
+        <h3>Edit Footnote:</h3>
+        <style>
+            textarea {
+                width: 100%;
+            }
+        </style>
+
+
+        <form method="POST" action="../edit_footnote/">
+          {% csrf_token %}
+          <textarea id="footnote_edit" name="footnote_edit" rows="10">{{ footnote_edit }}</textarea>
+            <input type="hidden" name="footnote_id" value="{{ footnote_id }}">
+            <input type="hidden" name="book" value="{{ book }}">
+            <input type="hidden" name="chapter_num" value="{{ chapter_ref }}">
+            <input type="hidden" name="verse_num" value="{{ verse_ref }}">
+          <br>
+          <input type="submit" value="Save">
+        </form>
+
+<hr />
+
+        <h3>Search Footnotes:</h3>
+        <form id="search-form">
+            <input type="text" id="query" name="query" placeholder="Search...">
+            <button type="button" id="search-button">Search</button>
+        </form>
+        <p id="result-count"></p>
+        <div id="search-results"></div>
+        
+      </div>
+        
+
+
+{% endblock %}

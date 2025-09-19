@@ -1,0 +1,376 @@
+{% extends 'base.html' %}
+{% load custom_tags %}
+{% block content %}
+
+<style>
+    /* Default styles for the desktop view */
+    .desktop-view {
+        display: block;
+    }
+
+    .mobile-view {
+        display: none;
+    }
+
+    .front_search {
+        border: none;
+        display: table;
+    }
+
+    .front_search form {
+        text-align: left;
+        margin-bottom: 10px;
+    }
+
+    /* Styles for the mobile view */
+    @media only screen and (max-width: 767px) {
+        .desktop-view {
+            display: none;
+        }
+
+        .mobile-view {
+            display: block;
+            margin-bottom: 10px;
+        }
+    }
+
+    .verse-view {
+        margin-top: 1px;
+    }
+</style>
+
+<h1>Real Bible Search</h1>
+
+<div class="desktop-view">
+    <table class="front_search" style="border: none;">
+        <tbody>
+            <tr>
+                <td>
+                    <form method="get" action="/" style="text-align: left;">
+                        <input type="text" name="ref" placeholder="Enter a reference...">
+                        <button type="submit">Search</button>
+                    </form>
+                </td>
+                <td class="front">
+                    <form method="get" action="/" style="text-align: left;">
+                        <input type="text" name="q" placeholder="Enter a search word...">
+                        <select name="book">
+                            <option value="all">Search all books</option>
+                            <option value="OT">Search all Hebrew books</option>
+                            <option value="NT">Search all Greek books</option>
+                            <option value="Gen">In the Head</option>
+                            <option value="Exo">And a Mighty One</option>
+                            <option value="Lev">And He is Reading</option>
+                            <option value="Num">And He is Ordering Words</option>
+                            <option value="Deu">A Mighty One of the Words</option>
+                            <option value="Jos">He is Salvation</option>
+                            <option value="Jdg">Rulers</option>
+                            <option value="Rut">Companion</option>
+                            <option value="1Sa">His Name is God 1</option>
+                            <option value="2Sa">His Name is God 2</option>
+                            <option value="1Ki">Kings 1</option>
+                            <option value="2Ki">Kings 2</option>
+                            <option value="1Ch">Words of the Days 1</option>
+                            <option value="2Ch">Words of the Days 2</option>
+                            <option value="Ezr">Helper</option>
+                            <option value="Neh">He is Comfort</option>
+                            <option value="Est">Star</option>
+                            <option value="Job">Hated One</option>
+                            <option value="Psa">Melodies</option>
+                            <option value="Pro">Comparisons</option>
+                            <option value="Ecc">Words of the Teacher</option>
+                            <option value="Son">Song of Singing Ones</option>
+                            <option value="Isa">He Is Liberator</option>
+                            <option value="Jer">He Is Lifting Up</option>
+                            <option value="Lam">How She has Sat Separated!</option>
+                            <option value="Eze">God Holds Strongly</option>
+                            <option value="Dan">God Has Judged</option>
+                            <option value="Hos">Salvation</option>
+                            <option value="Joe">He is a Mighty One</option>
+                            <option value="Amo">Heavy Burdened</option>
+                            <option value="Oba">Slave of He Is</option>
+                            <option value="Jon">Dove</option>
+                            <option value="Mic">Who is Like Her?</option>
+                            <option value="Nah">Sorry/Consolation</option>
+                            <option value="Hab">Embrace Himself</option>
+                            <option value="Zep">He is Concealed</option>
+                            <option value="Hag">Festival</option>
+                            <option value="Zec">He Is Remembered</option>
+                            <option value="Mal">Angel of Myself</option>
+                            <option value="Mat">He Is a Gift</option>
+                            <option value="Mar">Hammer</option>
+                            <option value="Luk">Light Giver</option>
+                            <option value="Joh">He Is Favored</option>
+                            <option value="Act">Acts of the Sent Away Ones</option>
+                            <option value="Rom">The People of Bodily Strength</option>
+                            <option value="1Co">The People of Youth 1</option>
+                            <option value="2Co">The People of Youth 2</option>
+                            <option value="Gal">The People of the Land of Milk</option>
+                            <option value="Eph">The People of the Land of Bees</option>
+                            <option value="Php">The People of the Horse</option>
+                            <option value="Col">The People of the Colossal Ones</option>
+                            <option value="1Th">The People of the Prayer of Victory 1</option>
+                            <option value="2Th">The People of the Prayer of Victory 2</option>
+                            <option value="1Ti">Honored One 1</option>
+                            <option value="2Ti">Honored One 2</option>
+                            <option value="Tit">Avenged</option>
+                            <option value="Phm">Affectionate One</option>
+                            <option value="Heb">Beyond Ones</option>
+                            <option value="Jas">Heel Chaser</option>
+                            <option value="1Pe">Small Stone 1</option>
+                            <option value="2Pe">Small Stone 2</option>
+                            <option value="1Jo">Favored 1</option>
+                            <option value="2Jo">Favored 2</option>
+                            <option value="3Jo">Favored 3</option>
+                            <option value="Jud">Cast One</option>
+                            <option value="Rev">The Unveiling</option>
+                        </select>
+                        <button type="submit">Search</button>
+                    </form>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Mobile view -->
+<div class="mobile-view">
+    <table class="front_search" style="border: none;">
+        <tbody>
+            <tr>
+                <td class="front">
+                    <form method="get" action="/">
+                        <input type="text" name="ref" placeholder="Enter a reference...">
+                        <button type="submit">Search</button>
+                    </form>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <table class="front_search" style="border: none;">
+        <tbody>
+            <tr>
+                <td class="front">
+                    <form method="get" action="/">
+                        <input type="text" name="q" placeholder="Enter a search word...">
+                        <select name="book">
+                            <option value="all">Search all books</option>
+                            <option value="OT">Search all Hebrew books</option>
+                            <option value="NT">Search all Greek books</option>
+                            <option value="Gen">In the Head</option>
+                            <option value="Exo">Mighty One of Names</option>
+                            <option value="Lev">And He is Reading</option>
+                            <option value="Num">And He is Ordering Words</option>
+                            <option value="Deu">A Mighty One of the Words</option>
+                            <option value="Jos">He is Salvation</option>
+                            <option value="Jdg">Rulers</option>
+                            <option value="Rut">Companion</option>
+                            <option value="1Sa">1 His Name is God</option>
+                            <option value="2Sa">2 His Name is God</option>
+                            <option value="1Ki">1 Kings</option>
+                            <option value="2Ki">2 Kings</option>
+                            <option value="1Ch">1 Words of the Days</option>
+                            <option value="2Ch">2 Words of the Days</option>
+                            <option value="Ezr">Helper</option>
+                            <option value="Neh">He is Comfort</option>
+                            <option value="Est">Star</option>
+                            <option value="Job">Hated One</option>
+                            <option value="Psa">Melodies</option>
+                            <option value="Pro">Parables</option>
+                            <option value="Ecc">Words of the Teacher</option>
+                            <option value="Son">Song of Singers</option>
+                            <option value="Isa">He is Liberates Him</option>
+                            <option value="Jer">He is Lifts Him</option>
+                            <option value="Lam">How She has Sat Separate!</option>
+                            <option value="Eze">God Holds Strong</option>
+                            <option value="Dan">God is My Judge</option>
+                            <option value="Hos">Salvation</option>
+                            <option value="Joe">He is God</option>
+                            <option value="Amo">Heavy Burdened</option>
+                            <option value="Oba">Slave of He Is</option>
+                            <option value="Jon">Dove</option>
+                            <option value="Mic">Who is Like Her?</option>
+                            <option value="Nah">Consolation</option>
+                            <option value="Hab">Embrace Him</option>
+                            <option value="Zep">He Is Concealed</option>
+                            <option value="Hag">Festival</option>
+                            <option value="Zec">He is has Remembered</option>
+                            <option value="Mal">Angel of Myself</option>
+                            <option value="Mat">Gift of Himself</option>
+                            <option value="Mar">Hammer</option>
+                            <option value="Luk">Light-Giver</option>
+                            <option value="Joh">He is Favored</option>
+                            <option value="Act">Acts</option>
+                            <option value="Rom">Romans</option>
+                            <option value="1Co">1 Corinthians</option>
+                            <option value="2Co">2 Corinthians</option>
+                            <option value="Gal">People of the Land of Milk</option>
+                            <option value="Eph">People of the Land of Bees</option>
+                            <option value="Php">People of the Horse</option>
+                            <option value="Col">People of the Colossal Ones</option>
+                            <option value="1Th">1 Thessalonians</option>
+                            <option value="2Th">2 Thessalonians</option>
+                            <option value="1Ti">Honor of God 1</option>
+                            <option value="2Ti">Honor of God 2</option>
+                            <option value="Tit">Titus</option>
+                            <option value="Phm">Affectionate One</option>
+                            <option value="Heb">Beyond Ones</option>
+                            <option value="Jas">Heel Chaser</option>
+                            <option value="1Pe">Small Stone 1</option>
+                            <option value="2Pe">Small Stone 2</option>
+                            <option value="1Jo">Favored 1</option>
+                            <option value="2Jo">Favored 2</option>
+                            <option value="3Jo">Favored 3</option>
+                            <option value="Jud">Caster</option>
+                            <option value="Rev">The Unveiling</option>
+                        </select>
+                        <button type="submit">Search</button>
+                    </form>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+</div>
+{% if error %}
+    <font color="red">{{ error }}</font>
+{% endif %}
+
+<h3>Completed Real Bible Translation</h3>
+
+<h5>New Testament</h5>
+<p>He is a Gift: <a href="/?book=Matthew&amp;chapter=1">1</a> | <a href="/?book=Matthew&amp;chapter=2">2</a> |
+    <a href="/?book=Matthew&amp;chapter=3">3</a> | <a href="/?book=Matthew&amp;chapter=4">4</a> | <a
+        href="/?book=Matthew&amp;chapter=4">5</a> | <a href="/?book=Matthew&amp;chapter=6">6</a> | <a
+        href="/?book=Matthew&amp;chapter=7">7</a> | <a href="/?book=Matthew&amp;chapter=8">8</a> | <a
+        href="/?book=Matthew&amp;chapter=9">9</a> | <a href="/?book=Matthew&amp;chapter=10">10</a> | <a
+        href="/?book=Matthew&amp;chapter=11">11</a> | <a href="/?book=Matthew&amp;chapter=12">12</a> | <a
+        href="/?book=Matthew&amp;chapter=13">13</a> | <a href="/?book=Matthew&amp;chapter=14">14</a> | <a
+        href="/?book=Matthew&amp;chapter=15">15</a> | <a href="/?book=Matthew&amp;chapter=16">16</a> | <a
+        href="/?book=Matthew&amp;chapter=17">17</a> | <a href="/?book=Matthew&amp;chapter=18">18</a> | <a
+        href="/?book=Matthew&amp;chapter=19">19</a> | <a href="/?book=Matthew&amp;chapter=20">20</a> | <a
+        href="/?book=Matthew&amp;chapter=21">21</a> | <a href="/?book=Matthew&amp;chapter=22">22</a> | <a
+        href="/?book=Matthew&amp;chapter=23">23</a> | <a href="/?book=Matthew&amp;chapter=24">24</a> | <a
+        href="/?book=Matthew&amp;chapter=25">25</a> | <a href="/?book=Matthew&amp;chapter=26">26</a> | <a
+        href="/?book=Matthew&amp;chapter=27">27</a> | <a href="/?book=Matthew&amp;chapter=28">28</a></p>
+<p>Hammer: <a href="/?book=Mark&amp;chapter=1">1</a> | <a href="/?book=Mark&amp;chapter=2">2</a> | <a
+        href="/?book=Mark&amp;chapter=3">3</a> | <a href="/?book=Mark&amp;chapter=4">4</a> | <a
+        href="/?book=Mark&amp;chapter=5">5</a> | <a href="/?book=Mark&amp;chapter=6">6</a> | <a
+        href="/?book=Mark&amp;chapter=7">7</a> | <a href="/?book=Mark&amp;chapter=8">8</a> | <a
+        href="/?book=Mark&amp;chapter=9">9</a> | <a href="/?book=Mark&amp;chapter=10">10</a> | <a
+        href="/?book=Mark&amp;chapter=11">11</a> | <a href="/?book=Mark&amp;chapter=12">12</a> | <a
+        href="/?book=Mark&amp;chapter=13">13</a> | <a href="/?book=Mark&amp;chapter=14">14</a> | <a
+        href="/?book=Mark&amp;chapter=15">15</a> | <a href="/?book=Mark&amp;chapter=16">16</a></p>
+<p>He is Favored: <a href="/?book=John&amp;chapter=1">1</a> | <a
+        href="/?book=John&amp;chapter=2">2</a> | <a
+        href="/?book=John&amp;chapter=3">3</a> | <a
+        href="/?book=John&amp;chapter=4">4</a> | <a
+        href="/?book=John&amp;chapter=5">5</a> | <a
+        href="/?book=John&amp;chapter=6">6</a> | <a
+        href="/?book=John&amp;chapter=7">7</a> | <a
+        href="/?book=John&amp;chapter=8">8</a> | <a
+        href="/?book=John&amp;chapter=9">9</a> | <a
+        href="/?book=John&amp;chapter=10">10</a> | <a
+        href="/?book=John&amp;chapter=11">11</a> | <a
+        href="/?book=John&amp;chapter=12">12</a> | <a
+        href="/?book=John&amp;chapter=13">13</a> | <a
+        href="/?book=John&amp;chapter=14">14</a> | <a
+        href="/?book=John&amp;chapter=15">15</a> | <a
+        href="/?book=John&amp;chapter=16">16</a> | <a
+        href="/?book=John&amp;chapter=17">17</a> | <a
+        href="/?book=John&amp;chapter=18">18</a> | <a
+        href="/?book=John&amp;chapter=19">19</a> | <a
+        href="/?book=John&amp;chapter=20">20</a> | <a
+        href="/?book=John&amp;chapter=21">21</a></p>
+<p>Light Giver: <a href="/?book=Luke&amp;chapter=1">1</a> | <a href="/?book=Luke&amp;chapter=2">2</a> | <a
+        href="/?book=Luke&amp;chapter=3">3</a> | <a href="/?book=Luke&amp;chapter=4">4</a> | <a
+        href="/?book=Luke&amp;chapter=5">5</a> | <a href="/?book=Luke&amp;chapter=6">6</a> | <a
+        href="/?book=Luke&amp;chapter=7">7</a> | <a href="/?book=Luke&amp;chapter=8">8</a> | <a
+        href="/?book=Luke&amp;chapter=9">9</a> | <a href="/?book=Luke&amp;chapter=10">10</a> | <a
+        href="/?book=Luke&amp;chapter=11">11</a> | <a href="/?book=Luke&amp;chapter=12">12</a> | <a
+        href="/?book=Luke&amp;chapter=13">13</a> | <a href="/?book=Luke&amp;chapter=14">14</a> | <a
+        href="/?book=Luke&amp;chapter=15">15</a> | <a href="/?book=Luke&amp;chapter=16">16</a> | <a
+        href="/?book=Luke&amp;chapter=17">17</a> | <a href="/?book=Luke&amp;chapter=18">18</a> | <a
+        href="/?book=Luke&amp;chapter=19">19</a> | <a href="/?book=Luke&amp;chapter=20">20</a> | <a
+        href="/?book=Luke&amp;chapter=21">21</a> | <a href="/?book=Luke&amp;chapter=22">22</a> | <a
+        href="/?book=Luke&amp;chapter=23">23</a> | <a href="/?book=Luke&amp;chapter=24">24</a></p>
+<p>The Acts of the Sent Away Ones: <a href="/?book=Acts&amp;chapter=5">5</a></p>
+<p>The People of Bodily Strength <a href="/?book=Romans&amp;chapter=1">1</a> |</p>
+<p>The People of Youth <a href="/?book=1Corinthians&amp;chapter=1">1</a> | <a href="/?book=1Corinthians&amp;chapter=13">13</a> |</p>
+<p>The People of the Land of Bees <a href="/?book=Ephesians&amp;chapter=1">1</a> | <a
+        href="/?book=Ephesians&amp;chapter=2">2</a> | <a href="/?book=Ephesians&amp;chapter=3">3</a> | <a
+        href="/?book=Ephesians&amp;chapter=4">4</a> | <a href="/?book=Ephesians&amp;chapter=5">5</a> | <a
+        href="/?book=Ephesians&amp;chapter=6">6</a></p>
+<p>The People of the Horse <a href="/?book=Philippians&amp;chapter=1">1</a> | <a
+        href="/?book=Philippians&amp;chapter=2">2</a> | <a href="/?book=Philippians&amp;chapter=3">3</a> | <a
+        href="/?book=Philippians&amp;chapter=4">4</a></p>
+<p>The People of the Colossal Ones <a href="/?book=Colossians&amp;chapter=1">1</a> | <a
+        href="/?book=Colossians&amp;chapter=2">2</a> | <a href="/?book=Colossians&amp;chapter=3">3</a> | <a
+        href="/?book=Colossians&amp;chapter=4">4</a></p>    
+<p>The People of the Land of Milk: <a href="/?book=Galatians&amp;chapter=1">1</a> | <a
+        href="/?book=Galatians&amp;chapter=2">2</a> | <a href="/?book=Galatians&amp;chapter=3">3</a> | <a
+        href="/?book=Galatians&amp;chapter=4">4</a> | <a href="/?book=Galatians&amp;chapter=5">5</a> | <a
+        href="/?book=Galatians&amp;chapter=6">6</a></p>
+
+<p>Heel Chaser <a href="/?book=James&amp;chapter=1">1</a> |</p>
+<p>Favored 1 <a href="/?book=1John&amp;chapter=1">1</a> | <a href="/?book=1John&amp;chapter=2">2</a> | <a
+        href="/?book=1John&amp;chapter=3">3</a> | <a href="/?book=1John&amp;chapter=4">4</a> | <a
+        href="/?book=1John&amp;chapter=5">5</a></p>
+<p>Favored 2 <a href="/?book=2John&amp;chapter=1">1</a></p>
+<p>Favored 3 <a href="/?book=3John&amp;chapter=1">1</a></p>
+<p>The Unveiling <a href="/?book=Revelation&amp;chapter=1">1</a> | <a
+        href="/?book=Revelation&amp;chapter=2">2</a> | <a href="/?book=Revelation&amp;chapter=3">3</a> | <a
+        href="/?book=Revelation&amp;chapter=4">4</a> | <a href="/?book=Revelation&amp;chapter=5">5</a> | <a
+        href="/?book=Revelation&amp;chapter=6">6</a> | <a href="/?book=Revelation&amp;chapter=7">7</a> | <a
+        href="/?book=Revelation&amp;chapter=8">8</a> | <a href="/?book=Revelation&amp;chapter=9">9</a> | <a
+        href="/?book=Revelation&amp;chapter=10">10</a> | <a href="/?book=Revelation&amp;chapter=11">11</a> | <a
+        href="/?book=Revelation&amp;chapter=12">12</a> | <a href="/?book=Revelation&amp;chapter=13">13</a> | <a
+        href="/?book=Revelation&amp;chapter=14">14</a> | <a href="/?book=Revelation&amp;chapter=15">15</a> | <a
+        href="/?book=Revelation&amp;chapter=16">16</a> | <a href="/?book=Revelation&amp;chapter=17">17</a> | <a
+        href="/?book=Revelation&amp;chapter=18">18</a> | <a href="/?book=Revelation&amp;chapter=19">19</a> | <a
+        href="/?book=Revelation&amp;chapter=20">20</a> | <a href="/?book=Revelation&amp;chapter=21">21</a> | <a
+        href="/?book=Revelation&amp;chapter=22">22</a></p>
+<h5>Old Testament</h5>
+<p>Within the <span style="color: #ff00ff;">Head</span>: <a
+        href="/?book=Genesis&amp;chapter=1">1</a> | <a
+        href="/?book=Genesis&amp;chapter=2">2</a> | <a
+        href="/?book=Genesis&amp;chapter=3">3</a> | <a
+        href="/?book=Genesis&amp;chapter=4">4</a> | <a
+        href="/?book=Genesis&amp;chapter=5">5</a> | 6 | 7 | 8 | 9 | 10 | <a
+        href="/?book=Genesis&amp;chapter=11">11</a> | 12 | 13 | 14 | <a
+        href="/?book=Genesis&amp;chapter=15">15</a> | 16 | 17 | 18 | 19 | 20 | <a
+        href="/?book=Genesis&amp;chapter=21">21</a> | <a href="/?book=Genesis&amp;chapter=22">22</a> | 23 | 24 |
+    25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | <a href="/?book=Genesis&amp;chapter=33">33</a>
+    | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50</p>
+<p><span style="color: #ff00ff;">Mighty One</span> of <span style="color: #ff00ff;">Names</span>: <a
+        href="/?book=Exodus&amp;chapter=3">3</a> | <a href="/?book=Exodus&amp;chapter=20">20</a> |</p>
+<p>And He is Reading: <a href="/?book=Leviticus&amp;chapter=1">1</a> |
+<p>And He is Ordering Words 1 | 2 |</p>
+<p>A Mighty One of the Words 1 | </p>
+<p>First Kings <a href="/?book=1%20Kings&amp;chapter=18">18</a> |</p>
+<p>Hated One <a href="/?book=Job&amp;chapter=36">36</a> | <a href="/?book=Job&amp;chapter=38">38</a></p>
+<p>Melodies: <a href="/?book=Psalms&amp;chapter=1">1</a> | <a href="/?book=Psalms&amp;chapter=8">8</a> | <a
+        href="/?book=Psalms&amp;chapter=23">23</a> | <a href="/?book=Psalms&amp;chapter=42">42</a> | <a
+        href="/?book=Psalms&amp;chapter=56">56</a> | <a href="/?book=Psalms&amp;chapter=82">82</a> | <a
+        href="/?book=Psalms&amp;chapter=117">117</a> | <a href="/?book=Psalms&amp;chapter=128">128 </a> | <a
+        href="/?book=Psalms&amp;chapter=150">150</a></p>
+<p>Parables/Comparisons: <a href="/?book=Proverbs&amp;chapter=5">5</a> | <a
+        href="/?book=Proverbs&amp;chapter=6">6</a> |</p>
+<p>The <span style="color: #ff00ff;">Song</span> of <span style="color: blue;">Singers</span>: <a
+        href="/?book=Song of Solomon&amp;chapter=1">1</a> | <a href="/?book=Song of Solomon&amp;chapter=2">2</a>
+    | <a href="/?book=Song of Solomon&amp;chapter=3">3</a> | <a
+        href="/?book=Song of Solomon&amp;chapter=4">4</a> | <a href="/?book=Song of Solomon&amp;chapter=5">5</a>
+    | <a href="/?book=Song of Solomon&amp;chapter=6">6</a> | <a
+        href="/?book=Song of Solomon&amp;chapter=7">7</a> | <a href="/?book=Song of Solomon&amp;chapter=8">8</a>
+</p>
+<p>He Is Liberator: <a href="/?book=Isaiah&amp;chapter=1">1</a> | 2 | 3 | 4 | 5 | 6 | 7 | <a
+        href="/?book=Isaiah&amp;chapter=9">9</a> | <a href="/?book=Isaiah&amp;chapter=53">53</a></p>
+<p>God Has Judged: <a href="/?book=Daniel&amp;chapter=7">7</a></p>
+<p>Dove: <a href="/?book=Jonah&amp;chapter=1">1</a> |<a
+        href="/?book=Jonah&amp;chapter=2">2</a> |<a
+        href="/?book=Jonah&amp;chapter=3">3</a> |<a
+        href="/?book=Jonah&amp;chapter=4">4</a></p>
+<p>Who is Like Her: <a href="/?book=Micah&amp;chapter=1">1</a> |</p>
+<p>He Is Remembered: <a href="/?book=Zechariah&amp;chapter=4">4</a> | <a
+        href="/?book=Zechariah&amp;chapter=5">5</a></p>
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}Add AI Commentary{% endblock %}
+
+{% block content %}
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<!-- Load jQuery and TinyMCE -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<script>
+    $(document).ready(function () {
+        // Form validation
+        $('form').on('submit', function(e) {
+            const book = $('#book').val();
+            const chapter = $('#chapter').val();
+            const content = tinymce.get('html').getContent();
+            
+            if (!book || !chapter || !content) {
+                e.preventDefault();
+                alert('All fields are required');
+                return false;
+            }
+        });
+    
+        // TinyMCE initialization
+        tinymce.init({
+            selector: 'textarea.my-tinymce',
+            plugins: 'anchor autolink charmap codesample code emoticons image link lists media searchreplace table visualblocks wordcount',
+            toolbar: 'undo redo | blocks fontfamily fontsize | code bold italic underline | link image media table mergetags | align lineheight | tinycomments | checklist numlist bullist indent outdent | charmap | removeformat',
+            tinycomments_mode: 'embedded',
+            tinycomments_author: 'Author name',
+            branding: false,
+            height: 500,
+            ai_request: (request, respondWith) => respondWith.string(() => Promise.reject("See docs to implement AI Assistant"))
+        });
+    });
+    </script>
+
+<div class="min-h-screen bg-gray-50 py-12">
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+        <h1 class="text-3xl font-bold mb-8 text-gray-900">Add AI Commentary</h1>
+
+        {% if messages %}
+        <div class="mb-8">
+            {% for message in messages %}
+            <div class="p-4 mb-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="bg-white shadow rounded-lg p-8">
+            <form method="post" class="space-y-8">
+                {% csrf_token %}
+                
+                <div class="space-y-4">
+                    <label for="book" class="block text-lg font-medium text-gray-700">Book</label>
+                    <select 
+                        id="book" 
+                        name="book" 
+                        required
+                        class="block w-full h-12 px-4 border border-gray-300 rounded-lg shadow-sm bg-white"
+                    >
+                        <option value="" disabled selected>Select a book</option>
+                        {% for book, abbreviation in book_abbreviations.items %}
+                        <option value="{{ abbreviation }}">{{ book }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="space-y-4">
+                    <label for="chapter" class="block text-lg font-medium text-gray-700">Chapter</label>
+                    <input 
+                        type="number" 
+                        id="chapter" 
+                        name="chapter" 
+                        required
+                        min="1"
+                        class="block w-full h-12 px-4 border border-gray-300 rounded-lg shadow-sm"
+                        placeholder="Enter chapter number"
+                    >
+                </div>
+
+                <div class="space-y-4">
+                    <label for="html" class="block text-lg font-medium text-gray-700">Commentary (HTML)</label>
+                    <textarea 
+                        id="html" 
+                        name="html" 
+                        rows="12" 
+                        required
+                        class="my-tinymce block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm"
+                        placeholder="Enter your commentary here..."
+                    ></textarea>
+                </div>
+
+                <div class="pt-6">
+                    <button 
+                        type="submit"
+                        class="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white text-lg font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        Save Commentary
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

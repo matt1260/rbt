@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit {{ book }} {{ chapter_num }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script src="https://cdn.tiny.cloud/1/your-tinymce-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #ffffff;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .header h2 {
+            margin: 0;
+            font-size: 24px;
+            color: #333;
+        }
+        .chapters-nav {
+            font-size: 16px;
+        }
+        .split-container {
+            display: flex;
+            gap: 20px;
+            height: calc(100vh - 200px);
+            overflow: hidden;
+        }
+        .wysiwyg-panel, .html-panel {
+            flex: 1;
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+        }
+        .wysiwyg-panel h3, .html-panel h3 {
+            margin-top: 0;
+            font-size: 18px;
+            color: #333;
+        }
+        .verse {
+            margin-bottom: 20px;
+        }
+        .verse-header {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        textarea.html-editor {
+            width: 100%;
+            height: 100px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            resize: vertical;
+        }
+        .notice-bar {
+            background-color: #7BD77F;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        .notice-bar .icon {
+            margin-right: 10px;
+        }
+        .save-button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .save-button:hover {
+            background-color: #0056b3;
+        }
+        @media (max-width: 768px) {
+            .split-container {
+                flex-direction: column;
+                height: auto;
+            }
+            .wysiwyg-panel, .html-panel {
+                height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Edit {{ book }} {{ chapter_num }}</h2>
+            <div class="chapters-nav">
+                <strong>Select a Chapter:</strong> {{ chapters|safe }}
+            </div>
+        </div>
+
+        {% if error %}
+            <div class="notice-bar">
+                <span class="icon"><i class="fas fa-exclamation-circle"></i></span>
+                {{ error }}
+            </div>
+        {% endif %}
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="notice-bar">
+                    <span class="icon"><i class="fas fa-check-circle"></i></span>
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post" id="edit-form">
+            {% csrf_token %}
+            <div class="split-container">
+                <div class="wysiwyg-panel">
+                    <h3>WYSIWYG Editor</h3>
+                    {% for verse in verses %}
+                        <div class="verse">
+                            <div class="verse-header">Verse {{ verse.2 }}</div>
+                            <textarea class="wysiwyg-editor" name="verse_{{ verse.0 }}">{{ verse.1|safe }}</textarea>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="html-panel">
+                    <h3>HTML Editor</h3>
+                    {% for verse in verses %}
+                        <div class="verse">
+                            <div class="verse-header">Verse {{ verse.2 }}</div>
+                            <textarea class="html-editor" name="verse_{{ verse.0 }}">{{ verse.1|safe }}</textarea>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <button type="submit" class="save-button">Save Changes</button>
+        </form>
+    </div>
+
+    <script>
+        tinymce.init({
+            selector: '.wysiwyg-editor',
+            plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table paste code help wordcount',
+            toolbar: 'undo redo | formatselect | bold italic | alignleft aligncenter alignright | bullist numlist outdent indent | link image | code',
+            content_style: 'body { font-family: Inter, sans-serif; font-size: 14px; }',
+            height: 100,
+            setup: function (editor) {
+                editor.on('Change', function (e) {
+                    // Sync WYSIWYG content to HTML textarea
+                    var verseId = editor.id.replace('verse_', '');
+                    var htmlTextarea = document.querySelector(`textarea[name="verse_${verseId}"]:not(.wysiwyg-editor)`);
+                    if (htmlTextarea) {
+                        htmlTextarea.value = editor.getContent();
+                    }
+                });
+            }
+        });
+
+        // Sync HTML textarea to WYSIWYG editor
+        document.querySelectorAll('.html-editor').forEach(textarea => {
+            textarea.addEventListener('input', function () {
+                var verseId = this.name.replace('verse_', '');
+                var editor = tinymce.get(`verse_${verseId}`);
+                if (editor) {
+                    editor.setContent(this.value);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+{% endblock %}

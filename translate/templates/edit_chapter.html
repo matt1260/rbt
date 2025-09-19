@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% load custom_tags %}
+{% block content %}
+<p><a href="./">Back to Edit Search</a></p>
+
+<div style="padding-bottom: 20px;">
+    <strong>Select a Chapter:</strong>
+        {{ chapters|safe }}
+</div>
+
+Cached: {{ cached_hit }}
+    <h1>{{book}} Chapter {{ chapter_num }}</h1>
+    {% if html %}
+        {{ html|safe }}
+    {% elif chapter_reader %}
+        {{ chapter_reader|safe }}
+
+
+    {% else %}
+    
+        <p>No results found for chapter {{ chapter_num }}.</p>
+    {% endif %}
+
+
+    {% if messages %}
+        <div class="alert alert-success">
+            <ul>
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div style="padding-bottom: 20px;">
+        <strong>Input a Chapter to Edit:</strong>
+        <form method="GET">
+            <label for="book">Book:</label>
+            <select name="book" id="book">
+                {% for book in unique_books %}
+                    <option value="{{ book }}">{{ book }}</option>
+                {% endfor %}
+            </select>
+            <label for="chapter_num">Chapter:</label>
+            <input type="text" name="chapter_num" id="chapter_num" maxlength="2" style="width: 5ch;">
+            <button type="submit">Go</button>
+        </form>
+    </div>
+    
+
+    {% if rbt_chapter_data %}
+    <form method="POST">
+        {% csrf_token %}
+        {% for verse in rbt_chapter_data %}
+            <p>Verse ID: {{ verse.0 }}</p>
+            <div id="preview_{{ verse.0 }}"></div>
+            <textarea name="{{ verse.0 }}" id="{{ verse.0 }}" style="width: 100%;" oninput="updatePreview(this)">{{ verse.1 }}</textarea>
+        {% endfor %}
+        <button type="submit">Save Changes</button>
+    </form>
+    {% endif %}
+
+    <script>
+        function updatePreview(textarea) {
+            var verseId = textarea.id;
+            var previewId = 'preview_' + verseId;
+            var previewElement = document.getElementById(previewId);
+            if (previewElement) {
+                previewElement.textContent = textarea.value;
+            }
+        }
+    </script>
+    
+{% endblock %}
+

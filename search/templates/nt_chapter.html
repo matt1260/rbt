@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block title %}Real Bible Translation - {{ page_title }}{% endblock %}
+{% load custom_tags %}
+{% block content %}
+<p><a href="/">Back to Search</a></p>
+
+<div style="padding-bottom: 20px;">
+<strong>Select a Chapter:</strong>
+    {{ chapters|safe }}
+</div>
+
+<h1>{{book}} {{ chapter_num }}</h1>
+{% with title_prefix=book|title %}
+<div id="toggleButtonsContainer" style="display: flex; justify-content: flex-end;">
+    <div id="h5ToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-eye-slash"></i> Hide Headers (H)
+    </div>
+    <div id="imageToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-eye-slash"></i> Hide Images (I)
+    </div>
+    <div id="verseRefToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-eye"></i> Show Verse References (V)
+    </div>
+</div>
+{% endwith %}
+{% if html %}
+
+<div style="display: flex; justify-content: space-between;">
+    
+    <div style="width: 50%; border-right: 1px solid #000; padding-right: 10px;">
+
+        {% if paraphrase %}
+            {{ paraphrase|safe }}
+
+        {% else %}
+            <p>No results found for chapter {{ chapter_num }}.</p>
+        {% endif %}
+    </div>
+
+    <div style="width: 50%; padding-left: 10px;">
+        <h4>RBT Greek Literal</h4>
+            {{ html|safe }}
+    </div>
+
+</div>
+
+
+{% else %}
+
+    {% if paraphrase %}
+        {{ paraphrase|safe }}
+
+        {% else %}
+        <p>No results found for chapter {{ chapter_num }}.</p>
+    {% endif %}
+
+{% endif %}
+
+<div style="padding-top: 20px;">
+    <strong>Select a Chapter:</strong>
+        {{ chapters|safe }}
+    </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const literalToggleButton = document.getElementById("literalToggleButton");
+        const imageToggleButton = document.getElementById("imageToggleButton");
+        const h5ToggleButton = document.getElementById("h5ToggleButton");
+        const verseRefToggleButton = document.getElementById("verseRefToggleButton");
+        const toggleDivContainer = document.getElementById("toggleDivContainer");
+        const paraphraseContainer = document.getElementById("paraphraseContainer");
+        const container = document.getElementById("container");
+        const verseRefs = document.querySelectorAll(".verse_ref");
+        let isLiteralVisible = false;
+        let isImageVisible = true;
+        let isH5Visible = true;
+        let isVerseRefVisible = false;
+        
+        function toggleVerseRefs() {
+            verseRefs.forEach(function(ref) {
+                if (isVerseRefVisible) {
+                    ref.style.display = "none";
+                } else {
+                    ref.style.display = "inline"; // Change to "block" if necessary
+                }
+            });
+            isVerseRefVisible = !isVerseRefVisible; // Toggle the visibility state
+            verseRefToggleButton.innerHTML = isVerseRefVisible ? '<i class="fas fa-eye-slash"></i> Hide Verse References (V)' : '<i class="fas fa-eye"></i> Show Verse References (V)';       
+        }
+
+        function toggleH5Headers() {
+            const h5Elements = document.querySelectorAll("h5");
+            h5Elements.forEach(function(element) {
+                if (isH5Visible) {
+                    element.style.display = "none";
+                    h5ToggleButton.innerHTML = '<i class="fas fa-eye"></i> Show Headers (H)';
+                } else {
+                    element.style.display = "block";
+                    h5ToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Headers (H)';
+                }
+            });
+            isH5Visible = !isH5Visible; // Toggle the visibility state
+        }
+
+        function toggleImages() {
+            const tooltipContainers = document.querySelectorAll(".tooltip-container");
+            tooltipContainers.forEach(function(container) {
+                if (isImageVisible) {
+                    container.style.display = "none";
+                    imageToggleButton.innerHTML = '<i class="fas fa-eye"></i> Show Images (I)';
+                } else {
+                    container.style.display = "block";
+                    imageToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Images (I)';
+                }
+            });
+            isImageVisible = !isImageVisible; // Toggle the visibility state
+        }
+
+        function handleKeyDown(event) {
+            if (event.key === "v") {
+                toggleVerseRefs();
+            } else if (event.key === "h") { 
+                toggleH5Headers();
+            } else if (event.key === "i") { 
+                toggleImages();
+            }
+        }
+
+        document.addEventListener("keydown", handleKeyDown);
+        h5ToggleButton.addEventListener("click", toggleH5Headers);
+        imageToggleButton.addEventListener("click", toggleImages);
+        verseRefToggleButton.addEventListener("click", toggleVerseRefs);
+        toggleVerseRefs();
+    });
+</script>
+
+<script>
+    {% if cache_hit %}
+        console.log("Verse(s) served from cache.");
+    {% else %}
+        console.log("Verse(s) not served from cache.");
+    {% endif %}
+</script>
+
+{% endblock %}
+

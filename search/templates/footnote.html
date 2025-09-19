@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% block title %}Real Bible Translation - {{ page_title }}{% endblock %}
+{% block content %}
+
+<table class="front_search" style="border: none;">
+    <tbody>
+        <tr>
+            <td class="front">
+                <form method="get" action="/search/" style="text-align: left;">
+                    <input type="text" name="q" placeholder="Enter a search word...">
+                        <select name="book">
+                            <option value="all">Search all books</option>
+                            <option value="OT">Search all Hebrew books</option>
+                            <option value="NT">Search all Greek books</option>
+                            <option value="Gen">In the Head</option>
+                            <option value="Exo">And a Mighty One</option>
+                            <option value="Lev">And He is Reading</option>
+                            <option value="Num">And He is Ordering Words</option>
+                            <option value="Deu">A Mighty One of the Words</option>
+                            <option value="Jos">He is Salvation</option>
+                            <option value="Jdg">Rulers</option>
+                            <option value="Rut">Companion</option>
+                            <option value="1Sa">His Name is God 1</option>
+                            <option value="2Sa">His Name is God 2</option>
+                            <option value="1Ki">Kings 1</option>
+                            <option value="2Ki">Kings 2</option>
+                            <option value="1Ch">Words of the Days 1</option>
+                            <option value="2Ch">Words of the Days 2</option>
+                            <option value="Ezr">Helper</option>
+                            <option value="Neh">He is Comfort</option>
+                            <option value="Est">Star</option>
+                            <option value="Job">Hated One</option>
+                            <option value="Psa">Melodies</option>
+                            <option value="Pro">Comparisons</option>
+                            <option value="Ecc">Words of the Teacher</option>
+                            <option value="Son">Song of Singing Ones</option>
+                            <option value="Isa">He Is Liberator</option>
+                            <option value="Jer">He Is Lifting Up</option>
+                            <option value="Lam">How She has Sat Separated!</option>
+                            <option value="Eze">God Holds Strongly</option>
+                            <option value="Dan">God Has Judged</option>
+                            <option value="Hos">Salvation</option>
+                            <option value="Joe">He is a Mighty One</option>
+                            <option value="Amo">Heavy Burdened</option>
+                            <option value="Oba">Slave of He Is</option>
+                            <option value="Jon">Dove</option>
+                            <option value="Mic">Who is Like Her?</option>
+                            <option value="Nah">Sorry/Consolation</option>
+                            <option value="Hab">Embrace Himself</option>
+                            <option value="Zep">He is Concealed</option>
+                            <option value="Hag">Festival</option>
+                            <option value="Zec">He Is Remembered</option>
+                            <option value="Mal">Angel of Myself</option>
+                            <option value="Mat">He Is a Gift</option>
+                            <option value="Mar">Hammer</option>
+                            <option value="Luk">Light Giver</option>
+                            <option value="Joh">He Is Favored</option>
+                            <option value="Act">Acts of the Sent Away Ones</option>
+                            <option value="Rom">The People of Bodily Strength</option>
+                            <option value="1Co">The People of Youth 1</option>
+                            <option value="2Co">The People of Youth 2</option>
+                            <option value="Gal">The People of the Land of Milk</option>
+                            <option value="Eph">The People of the Land of Bees</option>
+                            <option value="Php">The People of the Horse</option>
+                            <option value="Col">The People of the Colossal Ones</option>
+                            <option value="1Th">The People of the Prayer of Victory 1</option>
+                            <option value="2Th">The People of the Prayer of Victory 2</option>
+                            <option value="1Ti">Honored One 1</option>
+                            <option value="2Ti">Honored One 2</option>
+                            <option value="Tit">Avenged</option>
+                            <option value="Phm">Affectionate One</option>
+                            <option value="Heb">Beyond Ones</option>
+                            <option value="Jas">Heel Chaser</option>
+                            <option value="1Pe">Small Stone 1</option>
+                            <option value="2Pe">Small Stone 2</option>
+                            <option value="1Jo">Favored 1</option>
+                            <option value="2Jo">Favored 2</option>
+                            <option value="3Jo">Favored 3</option>
+                            <option value="Jud">Cast One</option>
+                            <option value="Rev">The Unveiling</option>
+                        </select>
+
+                    <button type="submit">Search</button>
+                </form>
+            </td>
+            <td>
+                <form method="get" action="/search/" style="text-align: left;">
+                    <input type="text" name="ref" placeholder="Enter a reference...">
+                    <button type="submit">Search</button>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<h1>{{book}} {{ chapter_ref }}:{{ verse_ref }}</h1>
+{% if hebrew %}
+<div style="display: flex; justify-content: flex-end;">
+    <label for="niqqudSwitch" style="font-size: 12px;">Show Niqqud &nbsp</label>
+    <input type="checkbox" id="niqqudSwitch" onclick="toggleNiqqud()">
+</div>
+<div>
+    <div style="display: flex; justify-content: flex-end;">
+        <div style="font-size: 28px;text-align: right;" id="hebText"></div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    // Assuming you have already defined the 'rbt_heb' variable from Python
+    var rbt_heb = `{{ hebrew | safe }}`;  // To safely pass the Python variable to JavaScript
+
+    // Function to remove niqqud characters from the Hebrew text
+    function removeNiqqud(text) {
+        // Regular expression pattern to match niqqud characters
+        var niqqudPattern = /[\u0591-\u05BD\u05BF\u05C1-\u05C5\u05C7]/g;
+        return text.replace(niqqudPattern, '');
+    }
+
+    // Function to toggle the niqqud visibility based on the checkbox state
+    function toggleNiqqud() {
+        var hebText = document.getElementById("hebText");
+        var niqqudSwitch = document.getElementById("niqqudSwitch");
+
+        if (niqqudSwitch.checked) {
+            hebText.innerHTML = rbt_heb;
+        } else {
+            hebText.innerHTML = removeNiqqud(rbt_heb);
+        }
+    }
+
+    // Initially, set the innerHTML to the original rbt_heb content with niqqud removed
+    document.getElementById("hebText").innerHTML = removeNiqqud(rbt_heb);
+</script>
+
+{{ verse_html|safe }}
+
+<hr />
+<h4>Footnote:</h4>
+
+{{footnote_html|safe}}
+
+
+
+{% endblock %}

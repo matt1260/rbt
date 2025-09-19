@@ -1,0 +1,1 @@
+web: gunicorn hebrewtool.wsgi --log-file -

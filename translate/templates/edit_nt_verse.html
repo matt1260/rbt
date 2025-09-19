@@ -1,0 +1,438 @@
+{% extends 'base.html' %}
+{% load custom_tags %}
+{% block content %}
+<p><a href="./">Back to Edit Search</a></p>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+<style>
+    .highlight {
+        background-color: yellow;
+    }
+</style>
+
+<script>
+    function applyHayahStyle(style) {
+        var textArea = document.getElementById('editor-texto');
+        var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+        if (selectedText) {
+            var styledText = `<span class="hayah">${selectedText}</span>`;
+            var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+            textArea.value = newText;
+        }
+    }
+</script>
+
+
+<script>
+    $(document).ready(function () {
+        // Function to update dynamic content
+        function updateDynamicContent() {
+            // Get the values for chapter_num and verse_num
+            var chapterNum = '{{chapter_num}}';
+            var verseNum = '{{verse_num}}';
+
+            // Get the value from the input field
+            var inputValue = $('#footnote_id').val();
+
+            // Prepend '{{chapter_num}}-{{verse_num}}-' to the input value
+            inputValue = chapterNum + '-' + verseNum + '-' + inputValue;
+
+            // Append '&{book}' to the end of the input value
+            inputValue += '&book={{book_abbrev}}';
+
+            // Update the content of the span element
+            $('#dynamic_content').text(inputValue);
+        }
+
+        // Attach an event listener to the input field to detect changes
+        $('#footnote_id').on('input', updateDynamicContent);
+    });
+</script>
+
+<script>
+    $(document).ready(function () {
+        // Function to update dynamic content
+        function updateDynamicContent2() {
+
+            // Get the value from the input field
+            var inputValue = $('#footnote_id').val();
+
+            // Update the content of the span element
+            $('#dynamic_content2').text(inputValue);
+        }
+
+        // Attach an event listener to the input field to detect changes
+        $('#footnote_id').on('input', updateDynamicContent2);
+    });
+</script>
+
+
+<script>
+    function copyText() {
+        // Get the text from rbt_display
+        var rbtText = document.querySelector('.single_verse').innerText;
+
+        // Replace dashes with spaces
+        var editedParaphraseText = rbtText.replace(/-/g, ' ');
+
+        // Remove the word 'becoming' from the text
+        editedParaphraseText = editedParaphraseText.replace(/\bbecoming\b/g, '');
+
+        // Replace 'אֶת' with '[from beginning to end]'
+        editedParaphraseText = editedParaphraseText.replace(/אֶת/g, '[from beginning to end]');
+
+        // Replace 'את' with '[from beginning to end with]'
+        editedParaphraseText = editedParaphraseText.replace(/את/g, '[from beginning to end with]');
+
+        // Replace 'elohim' with 'mighty ones'
+        editedParaphraseText = editedParaphraseText.replace(/elohim/g, 'mighty ones');
+
+        // Replace 'heavens' with 'mighty ones'
+        editedParaphraseText = editedParaphraseText.replace(/heavens/g, 'heavenly ones');
+
+        // Replace 'waters' with 'mighty ones'
+        editedParaphraseText = editedParaphraseText.replace(/waters/g, 'water ones');
+
+        // Replace 'Heavens' with 'mighty ones'
+        editedParaphraseText = editedParaphraseText.replace(/Heavens/g, 'Heavenly ones');
+
+        // Replace 'Waters' with 'mighty ones'
+        editedParaphraseText = editedParaphraseText.replace(/Waters/g, 'Water ones');
+
+        // Replace 'whole' with 'all'
+        editedParaphraseText = editedParaphraseText.replace(/the whole/g, 'all');
+
+        editedParaphraseText = editedParaphraseText.replace(/amen/g, '<b>amen</b>');
+
+        // Remove numbers from the text
+        editedParaphraseText = editedParaphraseText.replace(/\d+/g, '');
+
+        // Set the modified text in the edited_paraphrase textarea
+        document.getElementById('edited_paraphrase').value = editedParaphraseText;
+    }
+</script>
+
+
+<style>
+    /* Style for the green notice bar */
+    .notice-bar {
+        background-color: #7BD77F;
+        color: white;
+        font-size: 14px;
+        text-align: left;
+        padding: 4px;
+        border-radius: 5px;
+        font-family: sans-serif;
+        float: left;
+        width: 100%;
+
+    }
+
+    /* Style for the checkmark icon */
+    .icon {
+        margin-right: 10px;
+        /* Add space between the icon and text */
+        margin-left: 5px;
+    }
+
+    textarea#replacements {
+        height: 285px;
+        font-family: Courier, monospace;
+        font-size: 12px;
+        width: 100%;
+    }
+</style>
+
+
+
+<div style="padding-bottom: 20px;">
+    <strong>Select a Chapter:</strong>
+    {{ chapters|safe }}
+</div>
+Cached: {{ cached_hit }}
+<div class="arrow-links">
+
+    <h3>
+        <a href="{{ previous_verse }}"><i class="fas fa-chevron-circle-left"></i></a>
+        {{book}} {{ chapter_num }}:{{ verse_num }}<a href="{{ next_verse }}"><i
+                class="fas fa-chevron-circle-right"></i></a>
+    </h3>
+    Skip to verse:
+    <form method="post" action="./" id="edit-form">
+        {% csrf_token %}
+        <input name="book" id="book" value="{{ book }}">
+        <input name="chapter" id="chapter" maxlength="2" size="2" value="{{ chapter_num }}">
+        <input id="verse_input" name="verse_input" maxlength="2" size="2"></input>
+        <button type="submit" id="go-button">Go</button>
+    </form>`
+</div>
+<span style="font-size: 18px;">{{ rbt_greek }}</span>
+<div class="greek_interlinear">
+    {% if interlinear %}
+    {{ interlinear|safe }}
+
+    {% else %}
+    <p>No interlinear for {{ chapter_num }}.</p>
+    {% endif %}
+
+    </div>
+
+    <div class="clearfix">
+        {{ edit_result|safe }}
+    </div>
+
+    <strong>RBT Translation:</strong><br>
+    <div class="single_verse">
+        <span id="englishReader">{{ rbt_display|safe }}</span>
+    </div>
+
+    <form method="post" action="./" id="edit-form">
+        {% csrf_token %}
+        <textarea id="editor-texto" name="edited_content" rows="8" cols="80"
+            oninput="updateReader(this.value)">{{ rbt|safe }}</textarea>
+        <input type="hidden" name="verse_id" id="verse_id" value="{{ verse_id }}">
+        <input type="hidden" name="book" id="book" value="{{ book2 }}">
+        <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
+        <input type="hidden" name="verse" id="verse" value="{{ verse_num }}"><br>
+        <button type="submit" id="save-button">Save</button>
+        <input type="text" id="imageUrlInput" placeholder="Enter Image URL">
+        <button type="button" id="generate-code-button">Insert Image URL</button>
+        <button type="button"
+            onclick="applyHayahStyle('hayah'); updateReader(document.getElementById('editor-texto').value)"><i>היה</i></button>
+        <button type="button"
+            onclick="applyh5Style(); updateReader(document.getElementById('editor-texto').value)">h5</button>
+        <button type="button"
+            onclick="applyBoldStyle(); updateReader(document.getElementById('editor-texto').value)"><b>B</b></button>
+        <button type="button" style="background-color: #ff00aa;"
+            onclick="applyFontColor('#ff00aa'); updateReader(document.getElementById('editor-texto').value)"><i
+                class="fas fa-circle" style="font-size: 18px; color: pink;"></i></button>
+        <button type="button" style="background-color: blue;"
+            onclick="applyFontColor('blue'); updateReader(document.getElementById('editor-texto').value)"><i
+                class="fas fa-circle" style="font-size: 18px; color: rgb(58, 147, 198);"></i></button>
+        <button type="button" onclick="applyCenterStyle(); updateReader(document.getElementById('editor-texto').value)">
+            <i class="fas fa-align-center" style="font-size: 18px;"></i>
+        </button>
+        <button type="button"
+            onclick="applyLastCenterStyle(); updateReader(document.getElementById('editor-texto').value)">
+            <i class="fas fa-align-center" style="font-size: 18px;"></i> Last
+        </button>
+        <button type="button"
+            onclick="applySunStyle(); updateReader(document.getElementById('editor-texto').value)">☀️</button>
+        <button type="button" id="copy-linear">Copy Eng</button>
+        {% if sentence_suggestion %}
+            <button type="button" onclick="document.getElementById('editor-texto').value = '{{ sentence_suggestion|escapejs }}'; updateReader('{{ sentence_suggestion|escapejs }}');">
+                Load Gemini Suggestion
+            </button>
+        {% endif %}
+    </form>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            document.getElementById("generate-code-button").addEventListener("click", function () {
+                var imageUrl = document.getElementById("imageUrlInput").value;
+                var generatedCode = '<div class="tooltip-container"><img src="' + imageUrl + '" style="width: 500px; display: block; margin: 0 auto;">  <i class="touch-indicator fas fa-hand-pointer"></i><div class="tooltip">Image description.</div></div>';
+                document.getElementById("editor-texto").value += generatedCode;
+                document.getElementById("englishReader").innerHTML = document.getElementById("editor-texto").value;
+            });
+        });
+
+        document.getElementById("copy-linear").addEventListener("click", function () {
+            var textarea = document.getElementById("editor-texto");
+            var selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
+            var newText = '{{ linear_english }}';
+            var beforeSelection = textarea.value.substring(0, textarea.selectionStart);
+            var afterSelection = textarea.value.substring(textarea.selectionEnd, textarea.value.length);
+            textarea.value = beforeSelection + newText + afterSelection;
+            document.getElementById("englishReader").innerHTML = document.getElementById("editor-texto").value;
+        });
+
+        function applySunStyle(style) {
+            var textArea = document.getElementById('editor-texto');
+            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+            if (selectedText) {
+                var styledText = `<div class="sun-icon">${selectedText}</div>`;
+                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+                textArea.value = newText;
+            }
+        }
+
+        function applyFontColor(color) {
+            var textArea = document.getElementById('editor-texto');
+            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+            if (selectedText) {
+                var coloredText = `<span style="color: ${color};">${selectedText}</span>`;
+                var newText = textArea.value.substring(0, textArea.selectionStart) + coloredText + textArea.value.substring(textArea.selectionEnd);
+                textArea.value = newText;
+            }
+        }
+
+        function applyh5Style(style) {
+            var textArea = document.getElementById('editor-texto');
+            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+            if (selectedText) {
+                var styledText = `<h5>${selectedText}</h5>`;
+                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+                textArea.value = newText;
+            }
+        }
+        function applyBoldStyle(style) {
+            var textArea = document.getElementById('editor-texto');
+            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+            if (selectedText) {
+                var styledText = `<strong>${selectedText}</strong>`;
+                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+                textArea.value = newText;
+            }
+        }
+
+        function applyCenterStyle(style) {
+            var textArea = document.getElementById('editor-texto');
+            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+            if (selectedText) {
+                var styledText = `<span style="display: block; text-align: center;">${selectedText}</span>`;
+                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+                textArea.value = newText;
+            }
+        }
+
+        function applyLastCenterStyle(style) {
+            var textArea = document.getElementById('editor-texto');
+            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+            if (selectedText) {
+                var styledText = `<span class="last_center">${selectedText}</span>`;
+                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+                textArea.value = newText;
+            }
+        }
+
+        function updateReader(text) {
+            var englishReader = document.getElementById('englishReader');
+            englishReader.innerHTML = text;
+        }
+    </script>
+
+    <p></p>
+    {{ litv|safe }}
+    {{ slt|safe }}
+    {{ eng_lxx|safe }}
+
+    <h4>NT Linear Replacements</h4>
+    <form method="post">
+        {% csrf_token %}
+        <pre><textarea name="replacements" id="replacements" rows="10" cols="50">{{ replacements }}</textarea></pre>
+        <input type="hidden" name="book" id="book" value="{{ book }}">
+        <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
+        <input type="hidden" name="verse" id="verse" value="{{ verse_num }}"><br>
+        <input type="hidden" name="nt_book" id="nt_book" value="{{ book }}">
+        <button type="submit">Save Changes</button>
+    </form>
+    <script>
+        var textarea = document.getElementById("replacements");
+
+        // Get the content of the textarea
+        var content = textarea.value;
+
+        // Replace single quotes with double quotes
+        content = content.replace(/'/g, '"');
+
+        // Set the modified content back to the textarea
+        textarea.value = content;
+
+        const replacementsTextarea = document.getElementById('replacements');
+
+        replacementsTextarea.addEventListener('input', function () {
+            const jsonString = this.value;
+            try {
+                JSON.parse(jsonString);
+                this.style.borderColor = 'green'; // JSON is valid, set border color to green
+            } catch (error) {
+                this.style.borderColor = 'red'; // JSON is invalid, set border color to red
+            }
+        });
+
+
+    </script>
+
+
+
+    <h4>Footnotes</h4>
+    <div>
+        {{ footnotes|safe }}
+    </div>
+
+    <strong>Add Footnote:</strong><br>
+    Previous footnote: {{ previous_footnote }}<br>
+    Next footnote: {{ next_footnote }}<br>
+    <div id="textToCopy">
+        &lt;a class=&quot;sdfootnoteanc&quot; href=&quot;?footnote=<span
+            id="dynamic_content"></span>&quot;&gt;&lt;sup&gt;<span id="dynamic_content2"></span>&lt;/sup&gt;&lt;/a&gt;
+    </div>
+    <button onclick="copyText()">Copy Footnote</button>
+    <form method="post" action="./" id="edit-form">
+        {% csrf_token %}
+        Footnote ID: <input type="text" id="footnote_id" name="footnote_id" value="xx" autocomplete="off"> Add Header:
+        <input type="text" id="footnote_header" name="footnote_header" autocomplete="off"><br>
+
+        <textarea id="editor-text" name="add_footnote" rows="4" cols="80"></textarea>
+        <input type="hidden" name="book" id="book" value="{{ book }}">
+        <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
+        <input type="hidden" name="verse" id="verse" value="{{ verse_num }}"><br>
+        <input type="hidden" name="nt_book" id="nt_book" value="{{ book }}">
+        <button type="submit" id="save-button">Add</button>
+
+
+    </form>
+
+    <h4><a href="../find_and_replace_nt/">Replace a Text in Entire New Testament</a></h4>
+    
+
+    <script>
+        // Add an event listener for the "Save" button
+        document.getElementById('save-button').addEventListener('click', function () {
+            // Get the edited content from the textarea
+            var editedContent = document.getElementById('editor-texto').value.trim();
+
+            // Update the hidden form field with the edited content
+            document.getElementById('edited_content').value = editedContent;
+
+            // Submit the form via the 'edit' view
+            document.getElementById('edit-form').submit();
+        });
+    </script>
+
+    <script>
+        function copyText() {
+            // Select the text to copy
+            var text = document.getElementById("textToCopy").innerText;
+
+            // Create a temporary textarea element to hold the text
+            var tempTextArea = document.createElement("textarea");
+            tempTextArea.value = text;
+
+            // Append the textarea to the body
+            document.body.appendChild(tempTextArea);
+
+            // Select the text inside the textarea
+            tempTextArea.select();
+
+            // Copy the selected text
+            document.execCommand("copy");
+
+            // Remove the temporary textarea
+            document.body.removeChild(tempTextArea);
+
+            // Alert the user that the text has been copied
+            alert("Text copied to clipboard!");
+        }
+    </script>
+
+    {% endblock %}

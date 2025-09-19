@@ -1,0 +1,1053 @@
+{% extends 'base.html' %}
+{% block title %}RBT Translator - {{ page_title }}{% endblock %}
+{% load custom_tags %}
+{% block content %}
+
+<style>
+.tablefloat td {
+  max-width: 200px; /* Adjust based on your content */
+  overflow: hidden; /* Hides overflow content */
+  text-overflow: ellipsis; /* Adds "..." for overflow text */
+  white-space: nowrap; /* Prevents text from wrapping */
+}
+</style>
+
+
+
+<script>
+  function toggleFootnote(button) {
+    const target = button.getAttribute('data-target');
+    const footnote = document.querySelector(`.${target}`);
+
+    if (footnote.style.display === 'none') {
+      showFootnote(target);
+    } else {
+      hideFootnote(target);
+    }
+  }
+
+  function hideFootnote(target) {
+    document.querySelector(`.${target}`).style.display = 'none';
+  }
+
+  function showFootnote(target) {
+    document.querySelector(`.${target}`).style.display = 'table-cell';
+  }
+
+</script>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+  $(document).ready(function () {
+      tinymce.init({
+        selector: 'textarea.my-tinymce', // Use a class selector for textareas
+        plugins: 'anchor autolink charmap codesample code emoticons image link lists media searchreplace table visualblocks wordcount',
+        toolbar: 'undo redo  | blocks fontfamily fontsize | code bold italic underline | link image media table mergetags | align lineheight | tinycomments | checklist numlist bullist indent outdent | charmap | removeformat',
+        tinycomments_mode: 'embedded',
+        tinycomments_author: 'Author name',
+        mergetags_list: [
+          { value: 'First.Name', title: 'First Name' },
+          { value: 'Email', title: 'Email' },
+        ],
+        branding: false,  // Hide the TinyMCE branding
+        ai_request: (request, respondWith) => respondWith.string(() => Promise.reject("See docs to implement AI Assistant"))
+      });
+  });
+</script>
+
+<!-- <script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // Get all elements with class "morph-cell"
+    var morphCells = document.querySelectorAll(".morph-cell");
+
+    // Add event listeners to show and hide the pop-up
+    morphCells.forEach(function (cell) {
+      cell.addEventListener("mouseover", function () {
+        var morphPopup = this.querySelector(".morph-popup");
+        morphPopup.style.display = "block";
+      });
+
+      cell.addEventListener("mouseout", function () {
+        var morphPopup = this.querySelector(".morph-popup");
+        morphPopup.style.display = "none";
+      });
+    });
+  });
+</script> -->
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+
+
+<style>
+  /* Style for the slider (the visual part of the toggle) */
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    -webkit-transition: .4s;
+    transition: .4s;
+  }
+
+  /* Style for the slider when the checkbox is checked */
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    -webkit-transition: .4s;
+    transition: .4s;
+  }
+
+  /* Style for the checkbox when it's checked */
+  input:checked+.slider {
+    background-color: #2196F3;
+  }
+
+  /* Style for the slider when it's checked */
+  input:checked+.slider:before {
+    -webkit-transform: translateX(20px);
+    -ms-transform: translateX(20px);
+    transform: translateX(20px);
+  }
+
+  .container.single-page-container {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 80%
+  }
+
+  .morph-popup {
+    display: block;
+    position: relative;
+    /* background-color: #f9f9f9; */
+    /* border: 1px solid #ccc; */
+    /* padding: 5px; */
+    /* z-index: 1; */
+  }
+
+  /* .morph-cell:hover .morph-popup {
+    display: relative;
+    font-size: 12px;
+    text-align: left;
+  } */
+
+  /* Style for the STRONGS pop-up container */
+  .popup-container {
+    position: relative;
+    /* Create a positioning context */
+    display: inline-block;
+    /* Display the container inline */
+  }
+
+  /* Style for the pop-up content */
+  .popup-content {
+    display: none;
+    /* Initially hide the content */
+    position: absolute;
+    /* Position it absolutely within the container */
+    top: 100%;
+    /* Position below the container */
+    background-color: #fff;
+    /* Background color */
+    border: 1px solid #ccc;
+    /* Border */
+    padding: 10px;
+    /* Padding */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    /* Add a shadow */
+    z-index: 1;
+    /* Ensure it's above other content */
+    width: 400px;
+    /* Adjust the width as needed */
+    font-size: 12px;
+    text-align: left;
+    left: -185px;
+    /* Shift the content 50px to the left */
+  }
+
+  /* Style to show the pop-up content on hover */
+  .popup-container:hover .popup-content {
+    display: block;
+    /* Show the content on hover */
+  }
+
+  .table-container {
+    overflow: visible;
+  }
+
+  .popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    border: 1px solid black;
+    padding: 20px;
+    z-index: 9999;
+  }
+
+  .close {
+    display: block;
+    margin: 0 auto;
+    /* Center the button horizontally */
+    background-color: #808080;
+    padding: 3px;
+    height: 28px;
+    width: 60px;
+    /* Adjust width as needed */
+    text-align: center;
+    /* Center the text inside the button */
+    line-height: 22px;
+    /* Center vertically */
+    cursor: pointer;
+  }
+
+  td.checkbox-cell {
+    text-align: center;
+    /* Center horizontally */
+    vertical-align: middle;
+    /* Center vertically */
+  }
+
+  #englishReader {
+    margin-bottom: 10px;
+    /* Adjust the bottom margin as needed */
+    display: block;
+  }
+
+  #textArea {
+    margin-top: 10px;
+    width: 100%;
+    font-family: 'Times New Roman', Times, serif;
+  }
+
+  .right-panel button {
+    margin-top: 2px;
+  }
+
+  .heb {
+    font-size: 20px;
+  }
+
+  .arrow-links {
+    text-align: center;
+    padding: 10px;
+    /* Adjust the padding as needed */
+  }
+
+  .arrow-links h3 {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .arrow-links a {
+    text-decoration: none;
+    color: #007bff;
+    /* Change the color to your preferred link color */
+    margin: 0 10px;
+    /* Add space between the text and arrows */
+  }
+
+  .fas.fa-chevron-circle-left::before,
+  .fas.fa-chevron-circle-right::before {
+    font-size: 24px;
+    /* Adjust the font size as needed */
+    margin: 0 5px;
+    /* Add space between the icon and text */
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    line-height: 1.4;
+  }
+
+  .replace_input {
+    padding: 0px !important;
+    padding-left: 4px !important;
+  }
+
+  .find_replace {
+    background-color: gray;
+    padding: 8px;
+    border-radius: 10px;
+    margin-top: 6px;
+  }
+
+  .strongs {
+        font-size: 10px;
+    }
+
+  .eng_reader{
+        font-size: 16px;
+    }
+
+  .hebrew_reader{
+        font-size: 26px;
+    }
+
+</style>
+
+<div class="search">
+  <form method="get" action="./" style="text-align: left;">
+    <input type="text" name="q" placeholder="Enter a reference...">
+    <button type="submit">Go</button>
+  </form>
+  {{ invalid_verse|safe }}
+</div>
+
+<div class="arrow-links">
+
+  <h3>
+    <a href="{{ prev_ref }}"><i class="fas fa-chevron-circle-left"></i></a>
+    {{ verse }}<a href="{{ next_ref }}"><i class="fas fa-chevron-circle-right"></i></a>
+  </h3>
+
+</div>
+{% if rbt %}
+<b>Hebrew RBT Translation:</b> {{ rbt|safe }}
+{% endif %}
+
+{% if english_row %}
+
+<!--DISPLAY INTERLINEAR TABLE-->
+<div style="text-align: right;">
+  {{ hebrew|safe }}
+</div>
+<div style="text-align: left;">
+  <strong>Smith Literal:</strong> {{ smith|safe }}
+</div>
+<table class="readerTable">
+  <tbody>
+
+
+
+    {{ hebrew_row|safe }}
+    {{ english_row|safe }}
+    {{ strong_row|safe }}
+
+
+  </tbody>
+</table>
+
+<!-- EDIT TABLE -->
+<div class="table-container">
+  <form method="post">
+  {% csrf_token %}
+
+  <table class="hebrewTable" style="float: left;">
+
+    <tbody>
+      {% for id, ref_data, eng_data, unique, heb_data, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote in edit_table_data %}
+      <tr>
+        <td>{{ ref_data }}</td>
+        <td>
+          <input type="text" name="eng_data" autocomplete="off" value="{{ eng_data }}" size="14" class="edit-input">
+          <input type="hidden" name="eng_id" value="{{ id }}">
+          <input type="hidden" name="original_eng" value="{{ eng_data }}">
+          <input type="hidden" name="combined_heb" value="{{ combined_heb }}">
+          <input type="hidden" name="combined_heb_niqqud" value="{{ combined_heb_niqqud }}">
+        </td>
+        <td style="font-size: 20px; text-align: right;">
+          <span class="heb">{{ combined_heb }}</span>
+          {{ search_count2|safe }}
+        </td>
+        <td class="morph-cell">
+          {{ morph|safe }}
+        </td>
+        <td>
+          {{ formatted_strongs_list|safe }}
+        </td>
+
+        <td>
+          {{ footnote_btn|safe }}
+        </td>
+        <td>{{ color|safe }}{{ unique|safe }}</td>
+
+        <td>
+          <span class="heb">{{ combined_heb_niqqud }}</span>
+          {{ search_count|safe }}
+          
+        </td>
+
+
+        
+      </tr>
+      <tr>
+        {{ footnote|safe }}
+      </tr>
+
+      {% endfor %}
+      
+    </tbody>
+  </table>
+
+</div>
+
+<div class="right-panel">
+  <h4>Paraphrase Editor</h4>
+
+  <span id="englishReader">{{ english_reader|safe }}</span>
+
+  <textarea name="html" id="textArea" autocomplete="off" rows="6"
+    oninput="updateEnglishReader(this.value)">{{ english_reader }}</textarea>
+  <input type="hidden" name="verse_id" value="{{ verse_id }}">
+  <input type="hidden" name="original_english_reader" value="{{ english_reader }}">
+  <br>
+  <button type="button"
+    style="background-color: #b78550; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
+    onclick="applyFontStyle('italic'); updateEnglishReader(document.getElementById('textArea').value)"><i>I</i></button>
+  <button type="button"
+    style="background-color: #b78550; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
+    onclick="applyFontStyle('bold'); updateEnglishReader(document.getElementById('textArea').value)"><b>B</b></button>
+  <button type="button"
+    style="background-color: #b78550; padding: 5px; width: 28px; height: 28px; vertical-align: middle;"
+    onclick="applyCenterStyle(); updateEnglishReader(document.getElementById('textArea').value)">
+    <i class="fas fa-align-center" style="font-size: 18px;"></i>
+  </button>
+  <button type="button"
+    style="background-color: #b78550; padding: 5px; height: 28px; vertical-align: middle;"
+    onclick="applyLastCenterStyle(); updateEnglishReader(document.getElementById('textArea').value)">
+    <i class="fas fa-align-center" style="font-size: 18px;"></i> Last
+  </button>
+  <button type="button"
+    style="background-color: #b78550; padding: 5px; width: 28px; height: 28px; vertical-align: middle;"
+    onclick="applyIndent(); updateEnglishReader(document.getElementById('textArea').value)">
+    <i class="fas fa-indent" style="font-size: 18px;"></i>
+  </button>
+  <button type="button"
+    style="background-color: #b78550; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
+    onclick="applyHayahStyle(); updateEnglishReader(document.getElementById('textArea').value)"><i>היה</i></button>
+  
+    <button type="button" style="background-color: red; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
+    onclick="applyFontColor('red'); updateEnglishReader(document.getElementById('textArea').value)"></button>
+  <button type="button"
+    style="background-color: #ff00aa; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
+    onclick="applyFontColor('#ff00aa'); updateEnglishReader(document.getElementById('textArea').value)"></button>
+  <button type="button" style="background-color: blue; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
+    onclick="applyFontColor('blue'); updateEnglishReader(document.getElementById('textArea').value)"></button>
+  <button type="button" style="background-color: #b78550; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
+            onclick="applySunStyle(); updateReader(document.getElementById('editor-texto').value)">☀️</button>
+    
+  <button type="button"
+    style="background-color: black; padding: 3px; width: 28px; height: 28px; vertical-align: middle; line-height: 0px;"
+    onclick="resetText(); updateEnglishReader(document.getElementById('textArea').value)"><b>&#8630;</b></button>
+  
+  
+  <input type="text" id="imageUrlInput" placeholder="Enter Image URL">
+  <button type="button" id="generate-code-button">Insert Image URL</button><br>
+
+
+</div>
+
+<div style="clear: both; margin-bottom: 10px;"></div>
+<button type="submit">Save Changes</button>
+<label for="use_niqqud">Use Niqqud</label>
+<input type="checkbox" id="use_niqqud" name="use_niqqud" value="true"> <!--sends 'true' if checked -->
+
+</form>
+
+
+
+
+
+<p>
+<h4>Chapter Reader</h4>
+{{ chapter_reader|safe }}
+</p>
+
+{% if updates %}
+<div class="popup" id="popupDiv">
+
+  <ul style="margin-bottom: 0px; margin-top: 0px; font-size: 14px; color: green;">
+    {% for update in updates %}
+    <li>{{ update }}</li>
+    {% endfor %}
+  </ul>
+
+  <button class="close" type="button" onclick="closePopup()"><i>Close</i></button>
+</div>
+{% endif %}
+
+
+
+{% else %}
+<h1>No Rows Found</h1>
+<p>No rows matching the reference '{{ rbt_heb_ref }}' with a wildcard '*' at the end.</p>
+{% endif %}
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    document.getElementById("generate-code-button").addEventListener("click", function () {
+      var imageUrl = document.getElementById("imageUrlInput").value;
+      var generatedCode = '<div class="tooltip-container"><img src="' + imageUrl + '" style="width: 500px; display: block; margin: 0 auto;">  <i class="touch-indicator fas fa-hand-pointer"></i><div class="tooltip">Image description.</div></div>';
+      document.getElementById("textArea").value += generatedCode;
+    });
+  });
+</script>
+
+<script>
+  var originalText = '{{ english_verse|safe }}';
+
+  function applyFontColor(color) {
+    var textArea = document.getElementById('textArea');
+    var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+    if (selectedText) {
+      var coloredText = `<span style="color: ${color};">${selectedText}</span>`;
+      var newText = textArea.value.substring(0, textArea.selectionStart) + coloredText + textArea.value.substring(textArea.selectionEnd);
+      textArea.value = newText;
+    }
+  }
+
+  function applySunStyle(style) {
+            var textArea = document.getElementById('textArea');
+            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+            if (selectedText) {
+                var styledText = `<div class="sun-icon">${selectedText}</div>`;
+                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+                textArea.value = newText;
+            }
+        }
+
+  function applyFontStyle(style) {
+      var textArea = document.getElementById('textArea');
+      var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+      if (selectedText) {
+          var styledText = selectedText;
+          if (style.includes('italic')) {
+              styledText = `<em>${styledText}</em>`;
+          }
+          if (style.includes('bold')) {
+              styledText = `<strong>${styledText}</strong>`;
+          }
+
+          var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+          textArea.value = newText;
+      }
+    }
+
+  function applyIndent() {
+    var textArea = document.getElementById('textArea');
+    var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+    if (selectedText) {
+      var styledText = `<span class="poetry-indent">${selectedText}</span>`;
+      var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+      textArea.value = newText;
+    }
+  }
+
+  function applyLastCenterStyle() {
+    var textArea = document.getElementById('textArea');
+    var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+    if (selectedText) {
+      var styledText = `<span class="last_center">${selectedText}</span>`;
+      var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+      textArea.value = newText;
+    }
+  }
+
+  function applyCenterStyle() {
+    var textArea = document.getElementById('textArea');
+    var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+    if (selectedText) {
+      var styledText = `<span style="display: block; text-align: center;">${selectedText}</span>`;
+      var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+      textArea.value = newText;
+    }
+  }
+
+  function applyHayahStyle() {
+    var textArea = document.getElementById('textArea');
+    var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+    if (selectedText) {
+      var styledText = `<span class="hayah">${selectedText}</span>`;
+      var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+      textArea.value = newText;
+    }
+  }
+
+  function resetText() {
+    var textArea = document.getElementById('textArea');
+    textArea.value = originalText;
+    updateEnglishReader(originalText);
+  }
+
+  function updateEnglishReader(text) {
+    var englishReader = document.getElementById('englishReader');
+    englishReader.innerHTML = text;
+  }
+
+</script>
+
+
+<script>
+  window.onload = function () {
+    var popupDiv = document.getElementById('popupDiv');
+    if (popupDiv) {
+      popupDiv.style.display = 'block';
+    }
+  }
+
+  function closePopup() {
+    document.getElementById('popupDiv').style.display = 'none';
+  }
+</script>
+
+<script>
+  var morphCodes = {
+    'partOfSpeech': {
+      'A': 'Adjective',
+      'C': 'Conjunction',
+      'D': 'Adverb',
+      'N': 'Noun',
+      'P': 'Pronoun',
+      'R': 'Prep',
+      'S': 'Suffix',
+      'T': '',
+      'V': 'Verb',
+      'B': 'Prep-B',
+      'K': 'Prep-K',
+      'L': 'Prep-L'
+    },
+    'adjectiveType': {
+      'a': '', // adjective
+      'c': 'cardinal number',
+      'g': 'gentilic',
+      'o': 'ordinal number',
+      'x': ''
+    },
+    'conjunctionType': {
+      'c': 'conjunctive',
+      'v': 'vav consecutive'
+    },
+    'nounType': {
+      'c': '', // common
+      'g': '', // gentilic
+      'p': '', // proper name
+      'x': '',
+    },
+    'pronounType': {
+      'd': 'demonstrative',
+      'f': 'indefinite',
+      'i': 'interrogative',
+      'p': 'personal',
+      'r': 'relative',
+      'x': ''
+    },
+    'suffixType': {
+      'd': 'directional he',
+      'h': 'paragogic he',
+      'n': 'paragogic nun',
+      'p': 'pronominal',
+      'x': ''
+    },
+    'particleType': {
+      'a': 'affirmation',
+      'd': 'Art',
+      'e': 'exhortation',
+      'i': 'Int',
+      'j': 'interjection',
+      'm': 'demonstrative',
+      'n': 'negative',
+      'o': 'את',
+      'p': 'Art with inseparable preposition',
+      'r': 'Rel'
+    },
+    'verbStemHebrew': {
+      'q': 'Qal',
+      'N': 'Niphal',
+      'p': 'Piel',
+      'P': 'Pual',
+      'h': 'Hiphil',
+      'H': 'Hophal',
+      't': 'Hithpael',
+      'o': 'Polel',
+      'O': 'Polal',
+      'r': 'Hithpolel',
+      'm': 'Poel',
+      'M': 'Poal',
+      'k': 'Palel',
+      'K': 'Pulal',
+      'Q': 'Qal passive',
+      'l': 'Pilpel',
+      'L': 'Polpal',
+      'f': 'Hithpalpel',
+      'D': 'Nithpael',
+      'j': 'Pealal',
+      'i': 'Pilel',
+      'u': 'Hothpaal',
+      'c': 'Tiphil',
+      'v': 'Hishtaphel',
+      'w': 'Nithpalel',
+      'y': 'Nithpoel',
+      'z': 'Hithpoel',
+      'x': ''
+    },
+    'verbStemAramaic': {
+      'q': 'peal',
+      'Q': 'peil',
+      'u': 'hithpeel',
+      'N': 'niphal',
+      'p': 'pael',
+      'P': 'ithpaal',
+      'M': 'hithpaal',
+      'a': 'aphel',
+      'h': 'haphel',
+      's': 'saphel',
+      'e': 'shaphel',
+      'H': 'hophal',
+      'i': 'ithpeel',
+      't': 'hishtaphel',
+      'v': 'ishtaphel',
+      'w': 'hithaphel',
+      'o': 'polel',
+      'z': 'ithpoel',
+      'r': 'hithpolel',
+      'f': 'hithpalpel',
+      'b': 'hephal',
+      'c': 'tiphel',
+      'm': 'poel',
+      'l': 'palpel',
+      'L': 'ithpalpel',
+      'O': 'ithpolel',
+      'G': 'ittaphal',
+      'x': ''
+    },
+    'verbAspect': {
+      'a': 'infinitive abs',
+      'c': 'infinitive con',
+      'h': 'cohortative',
+      'i': 'imperfect',
+      'j': 'jussive',
+      'p': 'perfect',
+      'q': 'sequential perfect',
+      'r': 'participle active',
+      's': 'participle passive',
+      'v': 'imperative',
+      'w': 'sequential imperfect',
+      'x': ''
+    },
+    'adjCase': {
+      'a': 'accusative',
+      'n': 'nominative',
+      'x': ''
+    },
+    'person': {
+      '1': '1st',
+      '2': '2nd',
+      '3': '3rd',
+      'x': ''
+    },
+    'gender': {
+      'b': 'both',
+      'c': 'common',
+      'f': 'feminine',
+      'm': 'masculine',
+      'x': ''
+    },
+    'number': {
+      'd': 'dual',
+      'p': 'plural',
+      's': 'singular',
+      'x': ''
+    },
+    'state': {
+      'a': 'absolute',
+      'c': 'construct',
+      'd': 'determined'
+    },
+    'language': {
+      'H': 'Hebrew',
+      'A': 'Aramaic'
+    },
+    'prepTypeK': {
+      'd': '-Like Art',
+    },
+    'prepTypeB': {
+      'd': '-Within Art',
+    },
+    'prepTypeL': {
+      'd': '-For/Into Art',
+    }
+  }
+</script>
+<script>/**
+* @fileOverview MorphParse is a parser for morphology codes,
+* based on MorphCodes.js.
+* @version 1.2
+* @author David
+*/
+  var MorphParse = function () {
+    var language;
+    /**
+     * Parses the given code.
+     * @param {string} code A morph code
+     * @returns (string} The morphology
+     */
+    this.Parse = function (code) {
+      language = code.charAt(0);
+      code = code.substring(1);
+      var parts = code.split('/');
+      var morph = parseCode(parts[0]);
+      for (var i = 1; i < parts.length; i++) {
+        morph += ', ' + parseCode(parts[i]);
+      }
+      return morph;
+    };
+
+    var parseCode = function (code) {
+      // console.log('Original Code:', code);
+      var pos = code.charAt(0);
+      var morph = morphCodes.partOfSpeech[pos];
+
+      if (code.length > 1) {
+        switch (pos) {
+          case 'A':
+            morph += ' ' + parseAdjective(code);
+            break;
+          case 'C':
+            morph += ' ' + parseConjunction(code);
+            break;
+          case 'N':
+            // console.log('Parsing Noun:', code);
+            morph += ' ' + parseNoun(code);
+            break;
+          case 'P':
+            morph += ' ' + parsePronoun(code);
+            break;
+          case 'S':
+            morph += ' ' + parseSuffix(code);
+            break;
+          case 'T':
+            morph += ' ' + parseParticle(code);
+            break;
+          case 'V':
+            morph += ' ' + parseVerb(code);
+            break;
+          case 'B':
+            morph += ' ' + parsePrepB(code);
+            break;
+          case 'K':
+            morph += ' ' + parsePrepK(code);
+            break;
+
+
+          default:
+            morph += ' ' + code;
+        }
+      }
+      return morph;
+    };
+
+    var parseAdjective = function (code) {
+      var morph = morphCodes.adjectiveType[code.charAt(1)];
+      if (code.length > 2) {
+        morph += ' ' + parseGender(code, 2);
+      }
+      return morph;
+    };
+
+    var parseConjunction = function (code) {
+      var morph = morphCodes.conjunctionType[code.charAt(1)];
+      return morph;
+    };
+
+    var parseNoun = function (code) {
+      if (code === 'Npl') {
+        return 'Place';  
+      }
+
+      var morph = morphCodes.nounType[code.charAt(1)];
+      if (code.length > 2) {
+        morph += ' ' + parseGender(code, 2);
+      }
+      return morph;
+    };
+
+    var parsePronoun = function (code) {
+      var morph = morphCodes.pronounType[code.charAt(1)];
+      if (code.length > 2) {
+        morph += ' ' + parseCase(code);
+      }
+      return morph;
+    };
+
+    var parseSuffix = function (code) {
+      var morph = morphCodes.suffixType[code.charAt(1)];
+      if (code.length > 2) {
+        morph += ' ' + parsePerson(code, 2);
+      }
+      return morph;
+    };
+
+    var parseParticle = function (code) {
+      if (code === 'Tc') {
+        return 'Conj';  
+      }
+      var morph = morphCodes.particleType[code.charAt(1)];
+      return morph;
+    };
+
+    var parseVerb = function (code) {
+      var morph;
+      if (language === 'H') {
+        morph = morphCodes.verbStemHebrew[code.charAt(1)];
+      } else {
+        morph = morphCodes.verbStemAramaic[code.charAt(1)];
+      }
+      if (code.length > 2) {
+        morph += ' ' + parseAspect(code);
+      }
+      return morph;
+    };
+
+    var parseAspect = function (code) {
+      var morph = morphCodes.verbAspect[code.charAt(2)];
+      if (code.length > 3) {
+        morph += ' ' + parsePerson(code, 3);
+      }
+      return morph;
+    };
+
+    var parseCase = function (code) {
+      var morph = morphCodes.adjCase[code.charAt(2)];
+      if (morph === undefined) {
+        morph = parsePerson(code, 2);
+      } else if (code.length > 3) {
+        morph += ' ' + parsePerson(code, 3);
+      }
+      return morph;
+    };
+
+    var parsePerson = function (code, pos) {
+      var morph = morphCodes.person[code.charAt(pos)];
+      if (morph === undefined) {
+        morph = parseGender(code, pos);
+      } else {
+        pos++;
+        if (code.length > pos) {
+          morph += ' ' + parseGender(code, pos);
+        }
+      }
+
+      return morph;
+    };
+
+    var parseGender = function (code, pos) {
+      var morph = morphCodes.gender[code.charAt(pos)];
+      pos++;
+      if (code.length > pos) {
+        morph += ' ' + parseNumber(code, pos);
+      }
+      return morph;
+    };
+
+    var parseNumber = function (code, pos) {
+      var morph = morphCodes.number[code.charAt(pos)];
+      pos++;
+      if (code.length > pos) {
+        morph += ' ' + parseState(code, pos);
+      }
+      return morph;
+    };
+
+    var parseState = function (code, pos) {
+      var morph = morphCodes.state[code.charAt(pos)];
+      return morph;
+    };
+
+    var parsePrepK = function (code) {
+      var morph = morphCodes.prepTypeK[code.charAt(1)];
+
+      return morph;
+    };
+
+    var parsePrepB = function (code) {
+      var morph = morphCodes.prepTypeB[code.charAt(1)];
+      return morph;
+    };
+
+    var parsePrepL = function (code) {
+      var morph = morphCodes.prepTypeL[code.charAt(1)];
+      return morph;
+    };
+
+  };
+</script>
+<script>
+
+  mp = {
+    code: null,
+    parse: null,
+    morph: null,
+    parser: null,
+
+    init: function () {
+      code = document.getElementById("code");
+      parse = document.getElementById("parse");
+      morph = document.getElementById("morph");
+      parser = new MorphParse();
+      code.select();
+    }(),
+
+    parseClick: function () {
+      var morphCode = code.value;
+      morph.value = parser.Parse(morphCode);
+    }
+  }</script>
+
+<script>
+  // Function to be executed when the window is loaded
+  window.onload = function () {
+    // Call the parseClick() function for each element with class "morph-cell"
+    var morphCells = document.querySelectorAll('.morph-cell');
+    morphCells.forEach(function (cell) {
+      var codeInput = cell.querySelector('input[type="hidden"]'); // Find the hidden input element
+      var morphDiv = cell.querySelector('.morph-popup'); // Find the div for displaying parsed morph
+
+      // Call the parseClick() function for this cell
+      mp.parseClick(codeInput, morphDiv);
+    });
+  };
+
+  var mp = {
+    parser: null, // Define parser here
+
+    init: function () {
+      this.parser = new MorphParse(); // Initialize parser
+    },
+
+    parseClick: function (codeInput, morphDiv) {
+      // Get the morph code value from the hidden input
+      var morphCode = codeInput.value.trim();
+
+      // Parse the morph code using the parser defined within the object
+      var parsedMorph = this.parser.Parse(morphCode);
+
+      // Set the parsed value to the morph div
+      morphDiv.innerText = parsedMorph;
+    }
+  };
+
+  // Initialize the mp object
+  mp.init();
+</script>
+
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Updates for {{ month }}{% endblock %}
+
+{% block content %}
+<style>
+  table {
+      width: 100%;
+      border-collapse: collapse;
+  }
+
+  td {
+      font-size: 0.7em;
+      border-bottom: 1px solid #dfdcdc;
+      padding: 4px; 
+  }
+  th {
+      font-size: 0.9em;
+      border-bottom: 1px solid #6e6d6d;
+      padding: 4px; 
+  }
+
+  .date-cell {
+      width: 20%; 
+  }
+
+  .reference-cell {
+
+  }
+
+  .update-text-cell {
+      width: 50%; 
+  }
+</style>
+
+
+    <h1>Translation Updates for {{ month }}</h1>
+  <a href="?month={{previous_month}}"">See previous month</a> | <a href="?month={{current_month}}"">See current month</a> | <a href="?date={{current_day}}"">See current day</a>
+    {% if updates %}
+    <p>{{ update_count }} updates</p>
+
+    <table>
+      <thead>
+          <tr>
+              <th class="date-cell">Date</th>
+              <th class="reference-cell">Reference</th>
+              <th class="reference-cell">Version</th>
+          </tr>
+      </thead>
+      <tbody>
+          {% for update in updates reversed %}
+          <tr>
+              <td class="date-cell">{{ update.date }}</td>
+              <td class="reference-cell"><a href="../{{update.url}}">{{ update.reference }}</a></td>
+              <td class="reference-cell">{{update.version}}</td>
+
+            </tr>
+          {% endfor %}
+      </tbody>
+  </table>
+
+    {% else %}
+        <p>No results found.</p>
+    {% endif %}
+{% endblock %}

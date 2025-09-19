@@ -1,0 +1,58 @@
+<!-- find_replace_review_ot.html -->
+{% extends 'base.html' %}
+{% block content %}
+<style>
+.highlight-find {
+    background-color: yellow;
+    font-weight: bold;
+}
+.highlight-replace {
+    background-color: lightgreen;
+    font-weight: bold;
+}
+</style>
+
+<div class="container">
+    <h4>Review and Approve Old Testament Replacements</h4>
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="replacement_id" value="{{ replacement_id }}">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>
+                        <input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"> Select All
+                    </th>
+                    <th>Reference</th>
+                    <th>Original Text</th>
+                    <th>Updated Text</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for replacement in replacements %}
+                <tr>
+                    <td>
+                        <input type="checkbox" name="approve_replacements" value="{{ replacement.verse_id }}" class="replacement-checkbox">
+                    </td>
+                    <td><a href="{{ replacement.verse_link }}" target="_blank">{{ replacement.reference }}</a></td>
+                    <td>{{ replacement.old_text|safe }}</td>
+                    <td>{{ replacement.new_text|safe }}</td>
+                    <input type="hidden" name="old_text_{{ replacement.verse_id }}" value="{{ replacement.old_text }}">
+                    <input type="hidden" name="new_text_{{ replacement.verse_id }}" value="{{ replacement.new_text_raw }}">
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <input type="submit" value="Apply Selected Replacements">
+    </form>
+</div>
+
+<script>
+function toggleSelectAll(selectAllCheckbox) {
+    const checkboxes = document.querySelectorAll('.replacement-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+}
+</script>
+{% endblock %}

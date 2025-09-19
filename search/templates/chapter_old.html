@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}Real Bible Translation - {{ page_title }}{% endblock %}
+{% load custom_tags %}
+{% block content %}
+<p><a href="/">Back to Search</a></p>
+
+<!-- make this a python generated variable depending on book i.e. 'Genesis Chapters: '-->
+<div style="padding-bottom: 20px;">
+<strong>Select a Chapter:</strong>
+    {{ chapters|safe }}
+</div>
+
+<h1>{{ book }} {{ chapter_num }}</h1>
+{% with title_prefix=book|title %}
+<div id="toggleButtonsContainer" style="display: flex; justify-content: flex-end;">
+    <div id="h5ToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-eye-slash"></i> Hide Headers (H)
+    </div>
+    <div id="imageToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-eye-slash"></i> Hide Images (I)
+    </div>
+    <div id="literalToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-eye"></i> Hide Literal (L)
+    </div>
+    <div id="verseRefToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-eye-slash"></i> Hide Verse References (V)
+    </div>
+
+</div>
+
+{% endwith %}
+<div id="container" style="display: flex; justify-content: space-between;">
+    <div id="paraphraseContainer" style="width: 50%; padding-right: 10px;">
+        <h4>RBT Paraphrase</h4>
+        {% if paraphrase %}
+            {{ paraphrase|safe }}
+        {% else %}
+            <p>No results found for chapter {{ chapter_num }}.</p>
+        {% endif %}
+    </div>
+
+    <div id="toggleDivContainer" style="width: 50%; padding-left: 10px; border-left: 1px solid #000;">
+        <h4>RBT Hebrew Literal</h4>
+        {% if html %}
+            {{ html|safe }}
+        {% else %}
+            <p>No results found for chapter {{ chapter_num }}.</p>
+        {% endif %}
+    </div>
+    
+
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const literalToggleButton = document.getElementById("literalToggleButton");
+        const imageToggleButton = document.getElementById("imageToggleButton");
+        const h5ToggleButton = document.getElementById("h5ToggleButton");
+        const verseRefToggleButton = document.getElementById("verseRefToggleButton");
+        const toggleDivContainer = document.getElementById("toggleDivContainer");
+        const paraphraseContainer = document.getElementById("paraphraseContainer");
+        const container = document.getElementById("container");
+        const verseRefs = document.querySelectorAll(".verse_ref");
+        let isLiteralVisible = true;
+        let isImageVisible = true;
+        let isH5Visible = true;
+        let isVerseRefVisible = false;
+        
+        function toggleVerseRefs() {
+            verseRefs.forEach(function(ref) {
+                if (isVerseRefVisible) {
+                    ref.style.display = "none";
+                } else {
+                    ref.style.display = "inline"; // Change to "block" if necessary
+                }
+            });
+            isVerseRefVisible = !isVerseRefVisible; // Toggle the visibility state
+            verseRefToggleButton.innerHTML = isVerseRefVisible ? '<i class="fas fa-eye-slash"></i> Hide Verse References (V)' : '<i class="fas fa-eye"></i> Show Verse References (V)';        }
+
+    
+
+        literalToggleButton.addEventListener("click", function() {
+            if (isLiteralVisible) {
+                toggleDivContainer.style.display = "none";
+                paraphraseContainer.style.width = "100%";
+                literalToggleButton.innerHTML = '<i class="fas fa-eye"></i> Show Literal (L)';
+                isLiteralVisible = false;
+            } else {
+                toggleDivContainer.style.display = "block";
+                paraphraseContainer.style.width = "50%";
+                literalToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Literal (L)';
+                isLiteralVisible = true;
+            }
+
+        });
+
+        h5ToggleButton.addEventListener("click", function() {
+            const h5Elements = document.querySelectorAll("h3, h4, h5, h6");
+            h5Elements.forEach(function(element) {
+                if (isH5Visible) {
+                    element.style.display = "none";
+                    h5ToggleButton.innerHTML = '<i class="fas fa-eye"></i> Show Headers (H)';
+                } else {
+                    element.style.display = "block";
+                    h5ToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Headers (H)';
+                }
+            });
+            isH5Visible = !isH5Visible; // Toggle the visibility state
+        });
+
+        imageToggleButton.addEventListener("click", function() {
+            const tooltipContainers = document.querySelectorAll(".tooltip-container");
+            tooltipContainers.forEach(function(container) {
+                if (isImageVisible) {
+                    container.style.display = "none";
+                    imageToggleButton.innerHTML = '<i class="fas fa-eye"></i> Show Images (I)';
+                } else {
+                    container.style.display = "block";
+                    imageToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Images (I)';
+                }
+            });
+            isImageVisible = !isImageVisible; // Toggle the visibility state
+        });
+
+        verseRefToggleButton.addEventListener("click", function() {
+            toggleVerseRefs();
+        });
+
+        function handleKeyDown(event) {
+            if (event.key === "v") {
+                toggleVerseRefs();
+            } else if (event.key === "h") { 
+                h5ToggleButton.click();
+            } else if (event.key === "i") { 
+                imageToggleButton.click();
+            } else if (event.key === "l") { 
+                literalToggleButton.click();
+            }
+        }
+        document.addEventListener("keydown", handleKeyDown);
+
+        // imageToggleButton.click();
+        // h5ToggleButton.click();
+        toggleVerseRefs();
+    });
+</script>
+
+
+
+{% endblock %}

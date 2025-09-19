@@ -1,0 +1,39 @@
+<!-- find_replace_ot.html -->
+{% extends 'base.html' %}
+{% block content %}
+<style>
+.notice-bar {
+    background-color: #7BD77F;
+    color: white;
+    font-size: 14px;
+    text-align: left;
+    padding: 4px;
+    border-radius: 5px;
+    font-family: sans-serif;
+    float: left;
+    width: 100%;
+}
+.icon {
+    margin-right: 10px;
+    margin-left: 5px;
+}
+</style>
+
+<div class="clearfix">
+    {{ edit_result|safe }}
+</div>
+
+<div class="container">
+    <h4>Find and Update Old Testament Words:</h4>
+    <form method="POST">
+        {% csrf_token %}
+        <label for="find_text">Word:</label>
+        <input type="text" name="find_text" id="find_text">
+        <br>
+        <label for="replace_text">Replacement:</label>
+        <input type="text" name="replace_text" id="replace_text">
+        <input type="submit" value="Find and Update">
+    </form>
+</div>
+{% endblock %}
+

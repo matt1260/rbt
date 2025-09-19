@@ -1,0 +1,24 @@
+<!-- find_replace_result.html -->
+
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="container">
+  <strong>Find and Replace Genesis Footnote Result: </strong>
+  {% if genesis_footnote_replacement_count > 0 %}
+  {{ genesis_footnote_replacement_count }} replacements made.
+  {% else %}
+  No replacements made.
+  {% endif %}
+</div>
+<div class="container">
+  <strong>Hebrew Word Update Result: </strong>
+  {% if replacement_count > 0 %}
+  {{ replacement_count }} replacements made.
+  {{ replacement_list }}
+  {% else %}
+  No replacements made.
+  {% endif %}
+</div>
+{% endblock %}

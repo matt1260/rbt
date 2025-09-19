@@ -1,0 +1,304 @@
+{% extends 'base.html' %}
+{% load custom_tags %}
+{% block content %}
+<p><a href="./">Back to Edit Search</a></p>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+<script>
+    $(document).ready(function () {
+      // Function to update dynamic content
+      function updateDynamicContent() {
+        // Get the value from the input field
+        var inputValue = $('#footnote_id').val();
+  
+        // Update the content of the span element
+        $('#dynamic_content').text(inputValue);
+      }
+  
+      // Attach an event listener to the input field to detect changes
+      $('#footnote_id').on('input', updateDynamicContent);
+    });
+  </script>
+  <script>
+    function copyText() {
+        // Get the text from rbt_display
+        var rbtText = document.querySelector('.single_verse').innerText;
+
+        // Replace dashes with spaces
+        var editedParaphraseText = rbtText.replace(/-/g, ' ');
+
+        // Remove the word 'becoming' from the text
+        editedParaphraseText = editedParaphraseText.replace(/\bbecoming\b/g, '');
+
+        // Replace 'אֶת' with 'eternal self'
+        editedParaphraseText = editedParaphraseText.replace(/אֶת/g, 'self eternal');
+
+        // Replace 'את' with 'eternal self with'
+        editedParaphraseText = editedParaphraseText.replace(/את/g, 'self eternal with');
+
+        // Replace 'elohim' with 'mighty ones'
+        editedParaphraseText = editedParaphraseText.replace(/elohim/g, 'mighty ones');
+
+        // Replace 'heavens' with 'mighty ones'
+        editedParaphraseText = editedParaphraseText.replace(/heavens/g, 'heavenly ones');
+
+        editedParaphraseText = editedParaphraseText.replace(/Heavens/g, 'Heavenly ones');
+
+        // Replace 'Waters' with 'mighty ones'
+        editedParaphraseText = editedParaphraseText.replace(/Waters/g, 'Waters');
+
+        // Replace 'whole' with 'all'
+        editedParaphraseText = editedParaphraseText.replace(/the whole/g, 'all');
+
+        // Replace 'is saying' with 'say'
+        editedParaphraseText = editedParaphraseText.replace(/is saying/g, 'is saying');
+
+        // Remove numbers from the text
+        editedParaphraseText = editedParaphraseText.replace(/\d+/g, '');
+
+        // Set the modified text in the edited_paraphrase textarea
+        document.getElementById('edited_paraphrase').value = editedParaphraseText;
+    }
+</script>
+  
+  
+<style>
+    /* Style for the green notice bar */
+    .notice-bar {
+        background-color: #7BD77F;
+        color: white;
+        font-size: 14px;
+        text-align: left;
+        padding: 4px; 
+        border-radius: 5px; 
+        font-family: sans-serif;
+
+    }
+
+    /* Style for the checkmark icon */
+    .icon {
+        margin-right: 10px; /* Add space between the icon and text */
+        margin-left: 5px;
+    }
+</style>
+
+
+
+<div style="padding-bottom: 20px;">
+    <strong>Select a Chapter:</strong>
+        {{ chapters|safe }}
+</div>
+Cached: {{ cached_hit }}
+<div class="arrow-links">
+    
+    <h3>
+        <a href="{{ previous_verse }}"><i class="fas fa-chevron-circle-left"></i></a>
+        {{book}} {{ chapter_num }}:{{ verse_num }}<a href="{{ next_verse }}"><i class="fas fa-chevron-circle-right"></i></a>
+    </h3>
+    Skip to verse: 
+    <form method="post" action="./" id="edit-form">            
+        {% csrf_token %}
+        <input id="verse_input" name="verse_input" maxlength="2" size="2"></input>
+        <input type="hidden" name="book" id="book" value="{{ book }}">
+        <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
+        <button type="submit" id="go-button">Go</button>
+    </form>
+</div>
+
+<h4>Verse</h4>
+{{ edit_result|safe }}
+<div style="display: flex; justify-content: flex-end;">
+    <label for="niqqudSwitch" style="font-size: 12px;">Show Niqqud &nbsp</label>
+    <input type="checkbox" id="niqqudSwitch" onclick="toggleNiqqud()">
+</div>
+<div>
+    <div style="display: flex; justify-content: flex-end;">
+        <div style="font-size: 28px;text-align: right;" id="hebText"></div>
+    </div>
+</div>
+
+<script>
+    // Assuming you have already defined the 'rbt_heb' variable from Python
+    var rbt_heb = `{{ hebrew | safe }}`;  // To safely pass the Python variable to JavaScript
+
+    // Function to remove niqqud characters from the Hebrew text
+    function removeNiqqud(text) {
+        // Regular expression pattern to match niqqud characters
+        var niqqudPattern = /[\u0591-\u05BD\u05BF\u05C1-\u05C5\u05C7]/g;
+        return text.replace(niqqudPattern, '');
+    }
+
+    // Function to toggle the niqqud visibility based on the checkbox state
+    function toggleNiqqud() {
+        var hebText = document.getElementById("hebText");
+        var niqqudSwitch = document.getElementById("niqqudSwitch");
+
+        if (niqqudSwitch.checked) {
+            hebText.innerHTML = rbt_heb;
+        } else {
+            hebText.innerHTML = removeNiqqud(rbt_heb);
+        }
+    }
+
+    // Initially, set the innerHTML to the original rbt_heb content with niqqud removed
+    document.getElementById("hebText").innerHTML = removeNiqqud(rbt_heb);
+</script>
+
+<strong>RBT Translation:</strong><br>
+ <div class="single_verse">{{ rbt_display|safe }}</div>   
+   
+<form method="post" action="./" id="edit-form">            
+    {% csrf_token %}
+    <textarea id="editor-texto" name="edited_content" rows="4" cols="80">{{ rbt|safe }}</textarea>
+    <input type="hidden" name="record_id" id="record_id" value="{{ record_id }}">
+    <input type="hidden" name="book" id="book" value="{{ book }}">
+    <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
+    <input type="hidden" name="verse" id="verse" value="{{ verse_num }}"><br>
+    <button type="submit" id="save-button">Save</button>
+</form>
+
+<strong>RBT Paraphrase:</strong><br>
+ <div class="single_verse">{{ rbt_paraphrase|safe }}</div>   
+<form method="post" action="./" id="edit-form">            
+    {% csrf_token %}
+    <textarea id="edited_paraphrase" name="edited_paraphrase" rows="4" cols="80">{{ rbt_paraphrase|safe }}</textarea>
+    <input type="hidden" name="record_id" id="record_id" value="{{ record_id }}">
+    <input type="hidden" name="book" id="book" value="{{ book }}">
+    <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
+    <input type="hidden" name="verse" id="verse" value="{{ verse_num }}"><br>
+    <button type="submit" id="save-button">Save</button>
+    <button type="button" id="copy-button" onclick="copyText()">Copy</button>
+    <input type="text" id="imageUrlInput" placeholder="Enter Image URL">
+    <button type="button" id="generate-code-button">Insert Image URL</button>
+    <button type="button" id="h5-button">h5</button>
+    <button type="button" onclick="applyHayahStyle('hayah');"><i>היה</i></button>
+    <button type="button" onclick="applyCenterStyle('center');">
+        <i class="fas fa-align-center" style="font-size: 18px;"></i>
+      </button>
+    <button type="button" onclick="applyLastCenterStyle('center');">
+    <i class="fas fa-align-center" style="font-size: 18px;"></i> Last
+    </button>
+    <button type="button" id="sun-button">☀️</button>
+    <button type="button" style="background-color: #ff00aa;"
+    onclick="applyFontColor('#ff00aa'); updateReader(document.getElementById('edited_paraphrase').value)"><i
+        class="fas fa-circle" style="font-size: 18px; color: pink;"></i></button>
+<button type="button" style="background-color: blue;"
+    onclick="applyFontColor('blue'); updateReader(document.getElementById('edited_paraphrase').value)"><i
+        class="fas fa-circle" style="font-size: 18px; color: rgb(58, 147, 198);"></i></button>
+</form>
+
+
+
+<p></p>
+{{ litv|safe }}
+{{ eng_lxx|safe }}
+
+<h4>Footnotes</h4>
+<div>
+    {{ footnotes|safe }}
+</div>
+
+<strong>Add Footnote:</strong><br>
+&lt;span class="footnote_header"&gt;Add Header&lt;/span&gt;
+
+<form method="post" action="./" id="edit-form">            
+    {% csrf_token %}
+    Footnote ID: <input type="text" id="footnote_id" name="footnote_id" value="{{chapter_num }}-{{verse_num}}-" autocomplete="off">
+    <br>Copy & Paste:<font style="color:blue;">  &lt;a class=&quot;sdfootnoteanc&quot; href=&quot;?footnote=<span id="dynamic_content"></span>&quot;&gt;&lt;sup&gt;num&lt;/sup&gt;&lt;/a&gt;</font><br>
+    <textarea id="editor-text" name="add_footnote" rows="4" cols="80"></textarea>
+    <input type="hidden" name="book" id="book" value="{{ book }}">
+    <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
+    <input type="hidden" name="verse" id="verse" value="{{ verse_num }}"><br>
+    <button type="submit" id="save-button">Add</button>
+    
+
+</form>
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+      document.getElementById("generate-code-button").addEventListener("click", function() {
+        var imageUrl = document.getElementById("imageUrlInput").value;
+        var generatedCode = '<div class="tooltip-container"><img src="' + imageUrl + '" style="width: 500px; display: block; margin: 0 auto;">  <i class="touch-indicator fas fa-hand-pointer"></i><div class="tooltip">Image description.</div></div>';
+        document.getElementById("edited_paraphrase").value += generatedCode;
+      });
+    });
+
+    document.getElementById("h5-button").addEventListener("click", function() {
+        var textarea = document.getElementById("edited_paraphrase");
+        var selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
+        var newText = '<h5>' + selectedText + '</h5>';
+        var beforeSelection = textarea.value.substring(0, textarea.selectionStart);
+        var afterSelection = textarea.value.substring(textarea.selectionEnd, textarea.value.length);
+        textarea.value = beforeSelection + newText + afterSelection;
+    });
+
+    document.getElementById("sun-button").addEventListener("click", function() {
+        var textarea = document.getElementById("edited_paraphrase");
+        var selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
+        var newText = '<div class="sun-icon">' + selectedText + '</div>';
+        var beforeSelection = textarea.value.substring(0, textarea.selectionStart);
+        var afterSelection = textarea.value.substring(textarea.selectionEnd, textarea.value.length);
+        textarea.value = beforeSelection + newText + afterSelection;
+    });
+
+    function applyCenterStyle(style) {
+        var textArea = document.getElementById('edited_paraphrase');
+        var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+        if (selectedText) {
+            var styledText = `<span style="display: block; text-align: center;">${selectedText}</span>`;
+            var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+            textArea.value = newText;
+        }
+    }
+    
+    function applyHayahStyle(style) {
+        var textArea = document.getElementById('edited_paraphrase');
+        var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+        if (selectedText) {
+            var styledText = `<span class="hayah">${selectedText}</span>`;
+            var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+            textArea.value = newText;
+        }
+    }
+
+    function applyLastCenterStyle(style) {
+        var textArea = document.getElementById('edited_paraphrase');
+        var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+        if (selectedText) {
+            var styledText = `<span class="last_center">${selectedText}</span>`;
+            var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+            textArea.value = newText;
+        }
+    }
+
+    function applyFontColor(color) {
+            var textArea = document.getElementById('edited_paraphrase');
+            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+            if (selectedText) {
+                var coloredText = `<span style="color: ${color};">${selectedText}</span>`;
+                var newText = textArea.value.substring(0, textArea.selectionStart) + coloredText + textArea.value.substring(textArea.selectionEnd);
+                textArea.value = newText;
+            }
+        }
+
+    // Add an event listener for the "Save" button
+    document.getElementById('save-button').addEventListener('click', function () {
+        // Get the edited content from the textarea
+        var editedContent = document.getElementById('edited_paraphrase').value.trim();
+
+        // Update the hidden form field with the edited content
+        document.getElementById('edited_content').value = editedContent;
+
+        // Submit the form via the 'edit' view
+        document.getElementById('edit-form').submit();
+});
+</script>
+
+{% endblock %}
