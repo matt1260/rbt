@@ -35,7 +35,7 @@ ALLOWED_HOSTS = ["*"]
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
 
-CSRF_TRUSTED_ORIGINS = ['https://rbtproject-production.up.railway.app', 'https://www.realbible.tech', 'https://realbible.tech', 'http://rbt.realbible.tech', 'http://localhost', 'http://127.0.0.1']
+CSRF_TRUSTED_ORIGINS = ['https://rbtproject.up.railway.app', 'https://www.realbible.tech', 'https://realbible.tech', 'http://rbt.realbible.tech', 'http://localhost', 'http://127.0.0.1']
 
 LOGIN_URL = 'accounts/login/'
 
