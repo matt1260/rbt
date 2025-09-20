@@ -2294,85 +2294,85 @@ def find_and_replace_ot(request):
     return render(request, 'find_replace_ot.html', context)
 
 
-@login_required
-def add_ai_commentary(request):
-    book_abbreviations = {
-        'Genesis': 'Gen', 'Exodus': 'Exo', 'Leviticus': 'Lev', 'Numbers': 'Num', 'Deuteronomy': 'Deu',
-        'Joshua': 'Jos', 'Judges': 'Jdg', 'Ruth': 'Rut', '1 Samuel': '1Sa', '2 Samuel': '2Sa',
-        '1 Kings': '1Ki', '2 Kings': '2Ki', '1 Chronicles': '1Ch', '2 Chronicles': '2Ch',
-        'Ezra': 'Ezr', 'Nehemiah': 'Neh', 'Esther': 'Est', 'Job': 'Job', 'Psalms': 'Psa',
-        'Proverbs': 'Pro', 'Ecclesiastes': 'Ecc', 'Song of Solomon': 'Sng', 'Isaiah': 'Isa',
-        'Jeremiah': 'Jer', 'Lamentations': 'Lam', 'Ezekiel': 'Eze', 'Daniel': 'Dan', 'Hosea': 'Hos',
-        'Joel': 'Joe', 'Amos': 'Amo', 'Obadiah': 'Oba', 'Jonah': 'Jon', 'Micah': 'Mic',
-        'Nahum': 'Nah', 'Habakkuk': 'Hab', 'Zephaniah': 'Zep', 'Haggai': 'Hag', 'Zechariah': 'Zec',
-        'Malachi': 'Mal', 'Matthew': 'Mat', 'Mark': 'Mar', 'Luke': 'Luk', 'John': 'Joh',
-        'Acts': 'Act', 'Romans': 'Rom', '1 Corinthians': '1Co', '2 Corinthians': '2Co',
-        'Galatians': 'Gal', 'Ephesians': 'Eph', 'Philippians': 'Php', 'Colossians': 'Col',
-        '1 Thessalonians': '1Th', '2 Thessalonians': '2Th', '1 Timothy': '1Ti', '2 Timothy': '2Ti',
-        'Titus': 'Tit', 'Philemon': 'Phm', 'Hebrews': 'Heb', 'James': 'Jam', '1 Peter': '1Pe',
-        '2 Peter': '2Pe', '1 John': '1Jo', '2 John': '2Jo', '3 John': '3Jo', 'Jude': 'Jud',
-        'Revelation': 'Rev'
-    }
+# @login_required
+# def add_ai_commentary(request):
+#     book_abbreviations = {
+#         'Genesis': 'Gen', 'Exodus': 'Exo', 'Leviticus': 'Lev', 'Numbers': 'Num', 'Deuteronomy': 'Deu',
+#         'Joshua': 'Jos', 'Judges': 'Jdg', 'Ruth': 'Rut', '1 Samuel': '1Sa', '2 Samuel': '2Sa',
+#         '1 Kings': '1Ki', '2 Kings': '2Ki', '1 Chronicles': '1Ch', '2 Chronicles': '2Ch',
+#         'Ezra': 'Ezr', 'Nehemiah': 'Neh', 'Esther': 'Est', 'Job': 'Job', 'Psalms': 'Psa',
+#         'Proverbs': 'Pro', 'Ecclesiastes': 'Ecc', 'Song of Solomon': 'Sng', 'Isaiah': 'Isa',
+#         'Jeremiah': 'Jer', 'Lamentations': 'Lam', 'Ezekiel': 'Eze', 'Daniel': 'Dan', 'Hosea': 'Hos',
+#         'Joel': 'Joe', 'Amos': 'Amo', 'Obadiah': 'Oba', 'Jonah': 'Jon', 'Micah': 'Mic',
+#         'Nahum': 'Nah', 'Habakkuk': 'Hab', 'Zephaniah': 'Zep', 'Haggai': 'Hag', 'Zechariah': 'Zec',
+#         'Malachi': 'Mal', 'Matthew': 'Mat', 'Mark': 'Mar', 'Luke': 'Luk', 'John': 'Joh',
+#         'Acts': 'Act', 'Romans': 'Rom', '1 Corinthians': '1Co', '2 Corinthians': '2Co',
+#         'Galatians': 'Gal', 'Ephesians': 'Eph', 'Philippians': 'Php', 'Colossians': 'Col',
+#         '1 Thessalonians': '1Th', '2 Thessalonians': '2Th', '1 Timothy': '1Ti', '2 Timothy': '2Ti',
+#         'Titus': 'Tit', 'Philemon': 'Phm', 'Hebrews': 'Heb', 'James': 'Jam', '1 Peter': '1Pe',
+#         '2 Peter': '2Pe', '1 John': '1Jo', '2 John': '2Jo', '3 John': '3Jo', 'Jude': 'Jud',
+#         'Revelation': 'Rev'
+#     }
         
-    # if request.method == "POST":
-    #     book_abbr = request.POST.get("book", "").strip()
-    #     chapter = request.POST.get("chapter", "").strip()
-    #     html_content = request.POST.get("html", "").strip()
+#     # if request.method == "POST":
+#     #     book_abbr = request.POST.get("book", "").strip()
+#     #     chapter = request.POST.get("chapter", "").strip()
+#     #     html_content = request.POST.get("html", "").strip()
         
-    #     # Validate input
-    #     if not all([book_abbr, chapter, html_content]):
-    #         messages.error(request, "All fields are required.")
-    #         return redirect("add_ai_commentary")
+#     #     # Validate input
+#     #     if not all([book_abbr, chapter, html_content]):
+#     #         messages.error(request, "All fields are required.")
+#     #         return redirect("add_ai_commentary")
             
-    #     if not chapter.isdigit():
-    #         messages.error(request, "Chapter must be a number.")
-    #         return redirect("add_ai_commentary")
+#     #     if not chapter.isdigit():
+#     #         messages.error(request, "Chapter must be a number.")
+#     #         return redirect("add_ai_commentary")
             
-    #     # Validate book abbreviation
-    #     if book_abbr not in book_abbreviations.values():
-    #         messages.error(request, "Invalid book selection.")
-    #         return redirect("add_ai_commentary")
+#     #     # Validate book abbreviation
+#     #     if book_abbr not in book_abbreviations.values():
+#     #         messages.error(request, "Invalid book selection.")
+#     #         return redirect("add_ai_commentary")
 
-    #     try:
-    #         # Use context manager for database connection
-    #         with sqlite3.connect("rbt_hebrew.sqlite3") as conn:
-    #             cursor = conn.cursor()
-    #             cursor.execute("""
-    #                 CREATE TABLE IF NOT EXISTS ai_commentary (
-    #                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    #                     book TEXT NOT NULL,
-    #                     chapter INTEGER NOT NULL,
-    #                     html TEXT NOT NULL
-    #                 )
-    #             """)
+#     #     try:
+#     #         # Use context manager for database connection
+#     #         with sqlite3.connect("rbt_hebrew.sqlite3") as conn:
+#     #             cursor = conn.cursor()
+#     #             cursor.execute("""
+#     #                 CREATE TABLE IF NOT EXISTS ai_commentary (
+#     #                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+#     #                     book TEXT NOT NULL,
+#     #                     chapter INTEGER NOT NULL,
+#     #                     html TEXT NOT NULL
+#     #                 )
+#     #             """)
                 
-    #             # Check for existing entry
-    #             cursor.execute(
-    #                 "SELECT id FROM ai_commentary WHERE book = ? AND chapter = ?",
-    #                 (book_abbr, int(chapter))
-    #             )
-    #             existing_entry = cursor.fetchone()
+#     #             # Check for existing entry
+#     #             cursor.execute(
+#     #                 "SELECT id FROM ai_commentary WHERE book = ? AND chapter = ?",
+#     #                 (book_abbr, int(chapter))
+#     #             )
+#     #             existing_entry = cursor.fetchone()
                 
-    #             if existing_entry:
-    #                 cursor.execute(
-    #                     "UPDATE ai_commentary SET html = ? WHERE id = ?",
-    #                     (html_content, existing_entry[0])
-    #                 )
-    #             else:
-    #                 cursor.execute(
-    #                     "INSERT INTO ai_commentary (book, chapter, html) VALUES (?, ?, ?)",
-    #                     (book_abbr, int(chapter), html_content)
-    #                 )
+#     #             if existing_entry:
+#     #                 cursor.execute(
+#     #                     "UPDATE ai_commentary SET html = ? WHERE id = ?",
+#     #                     (html_content, existing_entry[0])
+#     #                 )
+#     #             else:
+#     #                 cursor.execute(
+#     #                     "INSERT INTO ai_commentary (book, chapter, html) VALUES (?, ?, ?)",
+#     #                     (book_abbr, int(chapter), html_content)
+#     #                 )
                 
-    #             conn.commit()
-    #             messages.success(request, "AI commentary added successfully.")
+#     #             conn.commit()
+#     #             messages.success(request, "AI commentary added successfully.")
                 
-    #     except sqlite3.Error as e:
-    #         messages.error(request, f"Database error: {e}")
+#     #     except sqlite3.Error as e:
+#     #         messages.error(request, f"Database error: {e}")
             
-    #     return redirect("add_ai_commentary")
+#     #     return redirect("add_ai_commentary")
         
-    return render(request, "add_ai_commentary.html", {"book_abbreviations": book_abbreviations})
+#     return render(request, "add_ai_commentary.html", {"book_abbreviations": book_abbreviations})
 
 @login_required
 def edit_nt_chapter(request):
@@ -2389,19 +2389,13 @@ def edit_nt_chapter(request):
     #         'unique_books': nt_abbrev
     #     })
 
-    # # Connect to the SQLite database
-    # with sqlite3.connect('rbt_new_testament.sqlite3') as conn:
-    #     cursor = conn.cursor()
-
     #     # Fetch all unique books for the dropdown
-    #     cursor.execute('SELECT DISTINCT book FROM nt')
-    #     unique_books = [row[0] for row in cursor.fetchall()]
+    #     unique_books = execute_query('SELECT DISTINCT book FROM new_testament.nt')
+    #     unique_books = [row[0] for row in unique_books]
 
-    #     if request.method == 'GET':
+    #     if request.method == 'GET':   
     #         # Fetch all verses for the given book and chapter
-    #         cursor.execute('SELECT verseID, rbt, startVerse FROM nt WHERE book = ? AND chapter = ?', (book, chapter_num))
-    #         verses = cursor.fetchall()
-
+    #         verses = execute_query('SELECT verseID, rbt, startVerse FROM new_testament.nt WHERE book = %s AND chapter = %s', (book, chapter_num))
     #         if not verses:
     #             return render(request, 'edit_nt_chapter.html', {
     #                 'error': f'No verses found for {book} {chapter_num}.',
@@ -2411,8 +2405,8 @@ def edit_nt_chapter(request):
     #             })
 
     #         # Fetch chapter list for navigation
-    #         cursor.execute('SELECT DISTINCT chapter FROM nt WHERE book = ?', (book,))
-    #         chapter_list = sorted([row[0] for row in cursor.fetchall()])
+    #         chapter_list = execute_query('SELECT DISTINCT chapter FROM new_testament.nt WHERE book = %s', (book,))
+    #         chapter_list = sorted([row[0] for row in chapter_list])
     #         chapters = ''.join([f'<a href="?book={book}&chapter={number}" style="text-decoration: none;">{number}</a> |' for number in chapter_list])
 
     #         context = {
@@ -2431,7 +2425,10 @@ def edit_nt_chapter(request):
     #         for verse_id, edited_text in request.POST.items():
     #             if verse_id.startswith('verse_') and edited_text:
     #                 verse_id = verse_id.replace('verse_', '')
-    #                 cursor.execute('UPDATE nt SET rbt = ? WHERE verseID = ?', (edited_text.strip(), verse_id))
+                    # execute_query(
+                    #                 "UPDATE new_testament.nt SET rbt = %s WHERE verseID = %s;",
+                    #                 (edited_text.strip(), verse_id)
+                    #             )
     #                 updates.append(f'Updated verse {verse_id}')
 
     #         conn.commit()
@@ -2454,4 +2451,4 @@ def edit_nt_chapter(request):
     #         messages.success(request, f'Successfully updated {len(updates)} verses.')
     #         return redirect(f'/edit_nt_chapter/?book={book}&chapter={chapter_num}')
 
-    return render(request, 'edit_nt_chapter.html', {'unique_books': unique_books})
+    return render(request, 'edit_nt_chapter.html')

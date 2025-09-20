@@ -41,7 +41,7 @@ urlpatterns = [
     path('edit/', views.edit, name='edit'),
     path('edit_nt_chapter/', views.edit_nt_chapter, name='edit_nt_chapter'),
     path('paraphrase/', include('search.urls')),
-    path("add-commentary/", views.add_ai_commentary, name="add_ai_commentary"),
+    path("edit_nt_chapter/", views.edit_nt_chapter, name="edit_nt_chapter"),
     path('RBT/', include('search.urls')),
     path('', include('search.urls')),
     path('chapter_editor/', views.chapter_editor, name='chapter_editor'),
