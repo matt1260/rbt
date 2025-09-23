@@ -580,7 +580,8 @@ def get_results(book, chapter_num, verse_num=None):
                 sql_query = """
                     SELECT verse, strongs, translit, lemma, english, morph, morph_desc
                     FROM rbt_greek.strongs_greek
-                    WHERE verse LIKE %s;
+                    WHERE verse LIKE %s
+                    ORDER BY id ASC;
                 """
                 result = execute_query(sql_query, (f'{rbt_grk_ref}%',), fetch='all')
                 interlinear = ''
