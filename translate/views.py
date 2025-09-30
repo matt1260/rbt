@@ -242,20 +242,23 @@ def gemini_translate(entries):
         5. Add "of" for genitive constructions, or "while/as" if genitive absolute
         6. Choose the most ideal word if multiple English options are given (separated by slashes)
         7. Use blue color (<span style="color: blue;">) for masculine words, pink color (<span style="color: #ff00aa;">) for feminine words
-        8. Always render participles with who/which/that (e.g., "the one who", "those who", "that which") 
-        9. Render personal/possessive pronouns with -self or -selves (e.g., "himself", "themselves")
-        10. If there are articular infinitives or substantive clause, capitalize and substantivize (e.g., "the Journeying of Himself", "the Fearing of the Water")
-        11. Return ONLY the HTML sentence with proper span tags for colors
+        8. Include any definite articles in the coloring.
+        9. Always render participles with who/which/that (e.g., "the one who", "those who", "that which") 
+        10. Render personal/possessive pronouns with -self or -selves (e.g., "himself", "themselves")
+        11. If there are articular infinitives or substantive clause, capitalize and substantivize (e.g., "the Journeying of Himself", "the Fearing of the Water")
+        12. Render any intensive pronouns with verbs as "You, yourselves are" or "I, myself am"
+        13. Return ONLY the HTML sentence with proper span tags for colors
 
 
         GREEK TEXT: {greek_text}
         ENGLISH WORDS: {interlinear_english}
         MORPHOLOGY: {morphology_info}
 
-        Example: he asked close beside <span style="color: blue;">himself</span> for epistles into <span style="color: #ff00aa;">Fertile Land</span> 
+        Example 1: he asked close beside <span style="color: blue;">himself</span> for epistles into <span style="color: #ff00aa;">Fertile Land</span> 
         ("<span style="color: #ff00aa;">Damascus</span>") toward <span style="color: #ff00aa;">the Congregations</span> in such a manner that if he found <span style="color: blue;">anyone</span> who are being of <span style="color: #ff00aa;">the Road</span>, both men and women, he might lead those who have been bound into <span style="color: #ff00aa;">Foundation of Peace</span>. 
         And <span style="color: blue;">a certain man</span>, he who is presently existing as <span style="color: blue;">a limping one</span> from out of <span style="color: #ff00aa;">a belly</span> of <span style="color: #ff00aa;">a mother</span> of <span style="color: blue;">himself</span>, kept being carried, him whom they were placing according to <span style="color: #ff00aa;">a day</span> toward <span style="color: #ff00aa;">the Doorway</span> of the Sacred Place, <span style="color: #ff00aa;">the one who is being called</span> '<span style="color: #ff00aa;">Seasonable</span>,' of the Begging for Mercy close beside the ones who were leading into the Sacred Place. 
         
+        Example 2: And he is bringing to light, "<span style="color: blue;">Little Horn</span>, <span style="color: #ff00aa;">the Prayer</span> of <span style="color: blue;">yourself</span> has been heard and <span style="color: #ff00aa;">the Charities</span> of <span style="color: blue;">yourself</span> have been remembered in the eye of <span style="color: blue;">the God</span>.
         Return only the formatted HTML sentence.
         """
         

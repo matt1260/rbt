@@ -1,6 +1,8 @@
 .git/
 *.dump
 *.sh
+*.jsonl
+*.log
 
 # Python
 *.pyc
