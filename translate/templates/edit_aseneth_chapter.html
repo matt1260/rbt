@@ -1,0 +1,86 @@
+<!-- edit_aseneth_chapter.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>{{ book }} - Chapter {{ chapter_num }}</h2>
+    
+    {% if cached_hit %}
+        <div class="cache-notice">Loaded from cache</div>
+    {% endif %}
+    
+    {% if error_message %}
+        <div class="error-bar">{{ error_message }}</div>
+    {% endif %}
+    
+    <!-- Chapter Navigation -->
+    <div class="chapter-nav">
+        <h3>Chapters:</h3>
+        {{ chapters|safe }}
+    </div>
+    
+    <!-- Chapter Content -->
+    <div class="chapter-content">
+        {{ html|safe }}
+    </div>
+</div>
+
+<style>
+.verse-container {
+    margin: 20px 0;
+    padding: 15px;
+    border-left: 3px solid #007bff;
+    background-color: #f8f9fa;
+}
+
+.verse_ref {
+    font-weight: bold;
+    color: #007bff;
+    margin-right: 10px;
+}
+
+.verse_ref a {
+    text-decoration: none;
+    color: #007bff;
+}
+
+.verse-content {
+    margin-top: 10px;
+}
+
+.greek-text {
+    font-family: 'Times New Roman', serif;
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.english-text {
+    font-size: 16px;
+    color: #555;
+    font-style: italic;
+}
+
+.chapter-nav {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+}
+
+.chapter-nav a {
+    margin: 0 5px;
+    padding: 5px 10px;
+    text-decoration: none;
+    background-color: white;
+    border-radius: 3px;
+}
+
+.cache-notice {
+    background-color: #fff3cd;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+}
+</style>
+{% endblock %}

@@ -17,13 +17,12 @@ from bs4 import BeautifulSoup, NavigableString
 import os
 import csv
 import json
-import html
-#from openai import OpenAI
 import time
 from google import genai
 #import google.generativeai as genai
 from .db_utils import get_db_connection, execute_query
 import psycopg2
+import requests
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
@@ -161,39 +160,39 @@ def generate_html_table(csv_data):
         else:
             return None
         
-        # Fixed header row
-        headers = ['ID', 'Time', 'Verse ID', 'Old Text', 'New Text', 'Find Text', 'Replace Text']
+        # # Fixed header row
+        # headers = ['ID', 'Time', 'Verse ID', 'Old Text', 'New Text', 'Find Text', 'Replace Text']
         
-        table_html = '<table border="1">'
-        # Add header row
-        table_html += '<tr>'
-        for header in headers:
-            table_html += f'<th>{header}</th>'
-        table_html += '</tr>'
-        # Add data rows
-        for row in csv_data:
-            table_html += '<tr>'
-            for i, cell in enumerate(row):
-                # Highlight find_text in old_text and replace_text in new_text
-                if i in [3, 4, 5, 6]:  # Indices for old_text, new_text, find_text, and replace_text
-                    find_replace = row[5], row[6]  # Extract find_text and replace_text
-                    cell = cell.replace(find_replace[0], f'<span class="highlight">{find_replace[0]}</span>')
-                    cell = cell.replace(find_replace[1], f'<span class="highlight">{find_replace[1]}</span>')
-                if i == 2:
-                    # Fetch book, chapter, and startVerse based on verseID
-                    verse_info = get_verse_info(cell)
-                    if verse_info:
-                        book, chapter, startVerse = verse_info
-                        book = convert_book_name(book)
+        # table_html = '<table border="1">'
+        # # Add header row
+        # table_html += '<tr>'
+        # for header in headers:
+        #     table_html += f'<th>{header}</th>'
+        # table_html += '</tr>'
+        # # Add data rows
+        # for row in csv_data:
+        #     table_html += '<tr>'
+        #     for i, cell in enumerate(row):
+        #         # Highlight find_text in old_text and replace_text in new_text
+        #         if i in [3, 4, 5, 6]:  # Indices for old_text, new_text, find_text, and replace_text
+        #             find_replace = row[5], row[6]  # Extract find_text and replace_text
+        #             cell = cell.replace(find_replace[0], f'<span class="highlight">{find_replace[0]}</span>')
+        #             cell = cell.replace(find_replace[1], f'<span class="highlight">{find_replace[1]}</span>')
+        #         if i == 2:
+        #             # Fetch book, chapter, and startVerse based on verseID
+        #             verse_info = get_verse_info(cell)
+        #             if verse_info:
+        #                 book, chapter, startVerse = verse_info
+        #                 book = convert_book_name(book)
 
-                        link = f'<a href="../edit/?book={book}&chapter={chapter}&verse={startVerse}">{cell}</a>'
-                        cell = link
+        #                 link = f'<a href="../edit/?book={book}&chapter={chapter}&verse={startVerse}">{cell}</a>'
+        #                 cell = link
 
-                table_html += f'<td>{cell}</td>'
+        #         table_html += f'<td>{cell}</td>'
 
-            table_html += '</tr>'
-        table_html += '</table>'
-        return table_html
+        #     table_html += '</tr>'
+        # table_html += '</table>'
+        # return table_html
 
 def gemini_translate(entries):
     """
@@ -232,7 +231,7 @@ def gemini_translate(entries):
         
         # Construct improved prompt
         prompt = f"""
-        You are formatting the sentance from these english words and morphology. Using the provided data, create the English sentence following these rules:
+        You are formatting the sentence from these english words and morphology. Using the provided data, create the English sentence following these rules:
 
         FORMATTING RULES:
         1. Link definite articles to their respective nouns
@@ -241,9 +240,9 @@ def gemini_translate(entries):
         4. Properly place conjunctions such as δὲ "and". If it is the second word, use "And" at the beginning of the sentence.
         5. Add "of" for genitive constructions, or "while/as" if genitive absolute
         6. Choose the most ideal word if multiple English options are given (separated by slashes)
-        7. Use blue color (<span style="color: blue;">) for masculine words, pink color (<span style="color: #ff00aa;">) for feminine words
+        7. Wrap blue color (<span style="color: blue;">) on masculine words, pink color (<span style="color: #ff00aa;">) on feminine words
         8. Include any definite articles in the coloring.
-        9. Always render participles with who/which/that (e.g., "the one who", "those who", "that which") 
+        9. Always render participles with who/which/that (e.g., "the one who", "the ones who", "that which", "he who", "she who") 
         10. Render personal/possessive pronouns with -self or -selves (e.g., "himself", "themselves")
         11. If there are articular infinitives or substantive clause, capitalize and substantivize (e.g., "the Journeying of Himself", "the Fearing of the Water")
         12. Render any intensive pronouns with verbs as "You, yourselves are" or "I, myself am"
@@ -2297,86 +2296,6 @@ def find_and_replace_ot(request):
     return render(request, 'find_replace_ot.html', context)
 
 
-# @login_required
-# def add_ai_commentary(request):
-#     book_abbreviations = {
-#         'Genesis': 'Gen', 'Exodus': 'Exo', 'Leviticus': 'Lev', 'Numbers': 'Num', 'Deuteronomy': 'Deu',
-#         'Joshua': 'Jos', 'Judges': 'Jdg', 'Ruth': 'Rut', '1 Samuel': '1Sa', '2 Samuel': '2Sa',
-#         '1 Kings': '1Ki', '2 Kings': '2Ki', '1 Chronicles': '1Ch', '2 Chronicles': '2Ch',
-#         'Ezra': 'Ezr', 'Nehemiah': 'Neh', 'Esther': 'Est', 'Job': 'Job', 'Psalms': 'Psa',
-#         'Proverbs': 'Pro', 'Ecclesiastes': 'Ecc', 'Song of Solomon': 'Sng', 'Isaiah': 'Isa',
-#         'Jeremiah': 'Jer', 'Lamentations': 'Lam', 'Ezekiel': 'Eze', 'Daniel': 'Dan', 'Hosea': 'Hos',
-#         'Joel': 'Joe', 'Amos': 'Amo', 'Obadiah': 'Oba', 'Jonah': 'Jon', 'Micah': 'Mic',
-#         'Nahum': 'Nah', 'Habakkuk': 'Hab', 'Zephaniah': 'Zep', 'Haggai': 'Hag', 'Zechariah': 'Zec',
-#         'Malachi': 'Mal', 'Matthew': 'Mat', 'Mark': 'Mar', 'Luke': 'Luk', 'John': 'Joh',
-#         'Acts': 'Act', 'Romans': 'Rom', '1 Corinthians': '1Co', '2 Corinthians': '2Co',
-#         'Galatians': 'Gal', 'Ephesians': 'Eph', 'Philippians': 'Php', 'Colossians': 'Col',
-#         '1 Thessalonians': '1Th', '2 Thessalonians': '2Th', '1 Timothy': '1Ti', '2 Timothy': '2Ti',
-#         'Titus': 'Tit', 'Philemon': 'Phm', 'Hebrews': 'Heb', 'James': 'Jam', '1 Peter': '1Pe',
-#         '2 Peter': '2Pe', '1 John': '1Jo', '2 John': '2Jo', '3 John': '3Jo', 'Jude': 'Jud',
-#         'Revelation': 'Rev'
-#     }
-        
-#     # if request.method == "POST":
-#     #     book_abbr = request.POST.get("book", "").strip()
-#     #     chapter = request.POST.get("chapter", "").strip()
-#     #     html_content = request.POST.get("html", "").strip()
-        
-#     #     # Validate input
-#     #     if not all([book_abbr, chapter, html_content]):
-#     #         messages.error(request, "All fields are required.")
-#     #         return redirect("add_ai_commentary")
-            
-#     #     if not chapter.isdigit():
-#     #         messages.error(request, "Chapter must be a number.")
-#     #         return redirect("add_ai_commentary")
-            
-#     #     # Validate book abbreviation
-#     #     if book_abbr not in book_abbreviations.values():
-#     #         messages.error(request, "Invalid book selection.")
-#     #         return redirect("add_ai_commentary")
-
-#     #     try:
-#     #         # Use context manager for database connection
-#     #         with sqlite3.connect("rbt_hebrew.sqlite3") as conn:
-#     #             cursor = conn.cursor()
-#     #             cursor.execute("""
-#     #                 CREATE TABLE IF NOT EXISTS ai_commentary (
-#     #                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-#     #                     book TEXT NOT NULL,
-#     #                     chapter INTEGER NOT NULL,
-#     #                     html TEXT NOT NULL
-#     #                 )
-#     #             """)
-                
-#     #             # Check for existing entry
-#     #             cursor.execute(
-#     #                 "SELECT id FROM ai_commentary WHERE book = ? AND chapter = ?",
-#     #                 (book_abbr, int(chapter))
-#     #             )
-#     #             existing_entry = cursor.fetchone()
-                
-#     #             if existing_entry:
-#     #                 cursor.execute(
-#     #                     "UPDATE ai_commentary SET html = ? WHERE id = ?",
-#     #                     (html_content, existing_entry[0])
-#     #                 )
-#     #             else:
-#     #                 cursor.execute(
-#     #                     "INSERT INTO ai_commentary (book, chapter, html) VALUES (?, ?, ?)",
-#     #                     (book_abbr, int(chapter), html_content)
-#     #                 )
-                
-#     #             conn.commit()
-#     #             messages.success(request, "AI commentary added successfully.")
-                
-#     #     except sqlite3.Error as e:
-#     #         messages.error(request, f"Database error: {e}")
-            
-#     #     return redirect("add_ai_commentary")
-        
-#     return render(request, "add_ai_commentary.html", {"book_abbreviations": book_abbreviations})
-
 @login_required
 def edit_nt_chapter(request):
     """
@@ -2455,3 +2374,342 @@ def edit_nt_chapter(request):
     #         return redirect(f'/edit_nt_chapter/?book={book}&chapter={chapter_num}')
 
     return render(request, 'edit_nt_chapter.html')
+
+@login_required
+def edit_aseneth(request):
+    """
+    Edit view for Joseph and Aseneth translation database.
+    Handles viewing and editing verses from the Joseph_Aseneth schema.
+    """
+    
+    book = "He is Adding and Storehouse"  # Default book name
+    chapter_num = request.GET.get('chapter')
+    verse_num = request.GET.get('verse')
+    
+    # Handle POST requests (editing verses)
+    if request.method == 'POST':
+        edited_greek = request.POST.get('edited_greek')
+        edited_english = request.POST.get('edited_english')
+        record_id = request.POST.get('record_id')
+        chapter_num = request.POST.get('chapter')
+        verse_num = request.POST.get('verse')
+        verse_input = request.POST.get('verse_input')
+        
+        # Handle verse navigation
+        if verse_input:
+            context = get_aseneth_context(chapter_num, verse_input)
+            return render(request, 'edit_aseneth_verse.html', context)
+        
+        # Handle verse update
+        if record_id and (edited_greek or edited_english):
+            try:
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SET search_path TO joseph_aseneth")
+                    
+                    # Determine which field was edited
+                    if edited_greek is not None:
+                        sql_query = "UPDATE aseneth SET greek = %s WHERE id = %s"
+                        cursor.execute(sql_query, (edited_greek.strip(), record_id))
+                        version = 'Aseneth Greek'
+                        update_text = edited_greek
+                    elif edited_english is not None:
+                        sql_query = "UPDATE aseneth SET english = %s WHERE id = %s"
+                        cursor.execute(sql_query, (edited_english.strip(), record_id))
+                        version = 'Aseneth English'
+                        update_text = edited_english
+                    
+                    conn.commit()
+                    
+                    # Log the update
+                    update_text = re.sub(r'<a\s+.*?>(.*?)</a>', r'\1', update_text)
+                    update_version = version
+                    update_date = datetime.now()
+                    update_instance = TranslationUpdates(
+                        date=update_date, 
+                        version=update_version, 
+                        reference=f"{book} {chapter_num}:{verse_num}", 
+                        update_text=update_text
+                    )
+                    update_instance.save()
+                    
+                    # Clear cache
+                    cache_key_base_verse = f'aseneth_{chapter_num}_{verse_num}'
+                    cache_key_base_chapter = f'aseneth_{chapter_num}_None'
+                    cache.delete(cache_key_base_verse)
+                    cache.delete(cache_key_base_chapter)
+                    
+                    cache_string = f"Deleted Cache key: {cache_key_base_verse}, {cache_key_base_chapter}"
+                    
+                    context = get_aseneth_context(chapter_num, verse_num)
+                    context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Updated verse successfully! {cache_string}</p></div>'
+                    
+                    return render(request, 'edit_aseneth_verse.html', context)
+                    
+            except psycopg2.Error as e:
+                context = {
+                    'error_message': f"Database error: {e}",
+                    'chapter': chapter_num,
+                    'verse': verse_num
+                }
+                return render(request, 'edit_aseneth_verse.html', context)
+    
+    # Handle GET requests
+    elif chapter_num and verse_num:
+        # Display single verse for editing
+        context = get_aseneth_context(chapter_num, verse_num)
+        return render(request, 'edit_aseneth_verse.html', context)
+    
+    elif chapter_num:
+        # Display entire chapter
+        context = get_aseneth_chapter(chapter_num)
+        return render(request, 'edit_aseneth_chapter.html', context)
+    
+    else:
+        # Display input form
+        return render(request, 'edit_aseneth_input.html')
+
+def get_word_entries(words, conn):
+    """
+    Given a list of words, return a dict of lemma → {english, morph_desc}.
+    """
+    with conn.cursor() as cur:
+        # Use parameterized IN query
+        sql = """
+        SELECT lemma, english, morph_desc
+        FROM rbt_greek.strongs_greek
+        WHERE lemma = ANY(%s)
+        """
+        cur.execute(sql, (words,))
+        rows = cur.fetchall()
+    return {lemma: {"english": eng, "morph_desc": morph} for lemma, eng, morph in rows}
+
+
+def get_gpt_translation(greek_text, conn):
+
+    words = re.findall(r"[Α-Ωα-ωἀ-῟́ῇῆ]+", greek_text)
+    lemmas = [w.lower() for w in words]
+    lexicon = get_word_entries(lemmas, conn)
+    lexicon_str = "\n".join(
+        f"{lemma}: {entry['english']} ({entry['morph_desc']})"
+        for lemma, entry in lexicon.items()
+    )
+    # print(f"Lexicon entries found: {lexicon}")
+    api_url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": "Bearer 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",
+        "Content-Type": "application/json"
+    }
+    
+    prompt = f"""
+        Use the following lexicon entries as your primary glosses when translating.
+
+        LEXICON:
+        {lexicon_str}
+
+        FORMATTING RULES:
+        1. Link definite articles to their respective nouns
+        2. For imperfect indicative verbs, use "kept" instead of "were" if appropriate for the verb sense
+        3. Capitalize words that have definite articles (but not "the" itself)
+        4. Properly place conjunctions such as δὲ "and". If it is the second word, use "And" at the beginning of the sentence.
+        5. Add "of" for genitive constructions, or "while/as" if genitive absolute
+        6. Wrap blue color (<span style="color: blue;">) on masculine nouns and participles, pink color (<span style="color: #ff00aa;">) on feminine nouns and participles
+        7. Include any definite articles in the coloring.
+        8. Always render participles with who/which/that (e.g., "the one who", "the ones who", "that which", "he who", "she who") 
+        9. Render personal/possessive pronouns with -self or -selves (e.g., "himself", "themselves")
+        10. If there are articular infinitives or a substantive clause, capitalize and substantivize (e.g., "the Journeying of Himself", "the Fearing of the Water")
+        11. Render any intensive pronouns with verbs as "You, yourselves are" or "I, myself am"
+        12. Return ONLY the HTML sentence with proper span tags for colors
+
+        GREEK TEXT: {greek_text}
+
+        Example 1: he asked close beside <span style="color: blue;">himself</span> for epistles into <span style="color: #ff00aa;">Fertile Land</span> 
+        ("<span style="color: #ff00aa;">Damascus</span>") toward <span style="color: #ff00aa;">the Congregations</span> in such a manner that if he found <span style="color: blue;">anyone</span> who are being of <span style="color: #ff00aa;">the Road</span>, both men and women, he might lead those who have been bound into <span style="color: #ff00aa;">Foundation of Peace</span>. 
+        And <span style="color: blue;">a certain man</span>, he who is presently existing as <span style="color: blue;">a limping one</span> from out of <span style="color: #ff00aa;">a belly</span> of <span style="color: #ff00aa;">a mother</span> of <span style="color: blue;">himself</span>, kept being carried, him whom they were placing according to <span style="color: #ff00aa;">a day</span> toward <span style="color: #ff00aa;">the Doorway</span> of the Sacred Place, <span style="color: #ff00aa;">the one who is being called</span> '<span style="color: #ff00aa;">Seasonable</span>,' of the Begging for Mercy close beside the ones who were leading into the Sacred Place. 
+        
+        Example 2: And he is bringing to light, "<span style="color: blue;">Little Horn</span>, <span style="color: #ff00aa;">the Prayer</span> of <span style="color: blue;">yourself</span> has been heard and <span style="color: #ff00aa;">the Charities</span> of <span style="color: blue;">yourself</span> have been remembered in the eye of <span style="color: blue;">the God</span>.
+        Return only the formatted HTML sentence.
+        """
+    
+    payload = {
+        "model": "gpt-4.1",
+        "messages": [
+            {"role": "system", "content": "Translate the following Greek text to English using RBT method."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 512
+    }
+    # response = requests.post(api_url, headers=headers, json=payload)
+    # if response.status_code == 200:
+    #     result = response.json()
+    #     return result['choices'][0]['message']['content'].strip()
+    # else:
+    #     return "Translation error"
+    
+def get_aseneth_context(chapter_num, verse_num):
+    """
+    Get context data for a specific verse in Joseph and Aseneth,
+    with each Greek word linked to its Logeion entry.
+    """
+    def link_greek_words(greek_text):
+        for punct in ['.', ',', ';', ':', '!', '?']:
+            greek_text = greek_text.replace(punct, f' {punct} ')
+
+            # Split by whitespace
+            tokens = greek_text.split()
+            linked_tokens = []
+
+        for tok in tokens:
+            # Check if it's a word (not just punctuation)
+            if tok not in ['.', ',', ';', ':', '!', '?']:
+                linked_tok = f'''
+                <span class="tooltip-container">{tok}
+                    <span class="tooltip-text">
+                        <a href="https://logeion.uchicago.edu/{tok}" target="_blank">Logeion</a> | 
+                        <a href="https://www.perseus.tufts.edu/hopper/morph?l={tok}&la=greek" target="_blank">Perseus</a>
+                    </span>
+                </span>
+                '''
+                linked_tokens.append(linked_tok)
+            else:
+                # Keep punctuation as-is
+                linked_tokens.append(tok)
+
+        # Join back with spaces
+        return " ".join(linked_tokens)
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SET search_path TO joseph_aseneth")
+            
+            # Get the specific verse
+            sql_query = """
+                SELECT id, book, chapter, verse, greek, english
+                FROM aseneth
+                WHERE chapter = %s AND verse = %s
+            """
+            cursor.execute(sql_query, (chapter_num, verse_num))
+            result = cursor.fetchone()
+            
+            if result:
+                greek_text = result[4] or ""
+                # Split Greek text into words, wrap each in a link
+   
+                greek_with_links = link_greek_words(greek_text)
+                gpt_translation = get_gpt_translation(greek_text, conn)
+                
+                verse_data = {
+                    'id': result[0],
+                    'book': result[1],
+                    'chapter': result[2],
+                    'verse': result[3],
+                    'greek_with_links': greek_with_links,
+                    'english': result[5],
+                    'gpt_translation': gpt_translation
+                }
+            else:
+                verse_data = None
+
+            # Chapter list for navigation
+            cursor.execute("SELECT DISTINCT chapter FROM aseneth ORDER BY chapter")
+            chapter_list = [row[0] for row in cursor.fetchall()]
+
+            # Max verse in chapter
+            cursor.execute("SELECT MAX(verse) FROM aseneth WHERE chapter = %s", (chapter_num,))
+            max_verse = cursor.fetchone()[0]
+
+            context = {
+                'verse_data': verse_data,
+                'book': 'He is Adding and Storehouse',
+                'chapter': chapter_num,
+                'verse': verse_num,
+                'chapter_list': chapter_list,
+                'max_verse': max_verse
+            }
+
+            return context
+
+    except psycopg2.Error as e:
+        return {
+            'error_message': f"Database error: {e}",
+            'chapter': chapter_num,
+            'verse': verse_num
+        }
+
+
+def get_aseneth_chapter(chapter_num):
+    """
+    Get all verses for a chapter in Joseph and Aseneth.
+    """
+    # Check cache first
+    cache_key = f'aseneth_{chapter_num}_None'
+    cached_data = cache.get(cache_key)
+    
+    if cached_data:
+        return {
+            **cached_data,
+            'cached_hit': True
+        }
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SET search_path TO joseph_aseneth")
+            
+            # Get all verses in the chapter
+            sql_query = """
+                SELECT id, book, chapter, verse, greek, english
+                FROM aseneth
+                WHERE chapter = %s
+                ORDER BY verse
+            """
+            cursor.execute(sql_query, (chapter_num,))
+            results = cursor.fetchall()
+            
+            # Build HTML for chapter display
+            html = ""
+            for result in results:
+                verse_id, book, chapter, verse, greek, english = result
+                
+                html += f'''
+                <div class="verse-container">
+                    <span class="verse_ref">¶<b><a href="?chapter={chapter}&verse={verse}">{verse}</a></b></span>
+                    <div class="verse-content">
+                        <div class="greek-text">{greek}</div>
+                        <div class="english-text">{english}</div>
+                    </div>
+                </div>
+                '''
+            
+            # Get chapter list for navigation
+            cursor.execute("SELECT DISTINCT chapter FROM aseneth ORDER BY chapter")
+            chapter_list = [row[0] for row in cursor.fetchall()]
+            
+            # Build chapter navigation links
+            chapters = ''
+            for number in chapter_list:
+                chapters += f'<a href="?chapter={number}" style="text-decoration: none;">{number}</a> | '
+            
+            context = {
+                'html': html,
+                'book': 'He is Adding and Storehouse',
+                'chapter_num': chapter_num,
+                'chapters': chapters,
+                'chapter_list': chapter_list,
+                'cached_hit': False
+            }
+            
+            # Cache the result
+            cache.set(cache_key, context, 60 * 60 * 24)  # Cache for 24 hours
+            
+            return context
+            
+    except psycopg2.Error as e:
+        return {
+            'error_message': f"Database error: {e}",
+            'chapter_num': chapter_num,
+            'html': '',
+            'chapters': ''
+        }
+

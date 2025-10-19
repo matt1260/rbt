@@ -198,8 +198,6 @@ Cached: {{ cached_hit }}
         <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
         <input type="hidden" name="verse" id="verse" value="{{ verse_num }}"><br>
         <button type="submit" id="save-button">Save</button>
-        <input type="text" id="imageUrlInput" placeholder="Enter Image URL">
-        <button type="button" id="generate-code-button">Insert Image URL</button>
         <button type="button"
             onclick="applyHayahStyle('hayah'); updateReader(document.getElementById('editor-texto').value)"><i>היה</i></button>
         <button type="button"
@@ -222,6 +220,12 @@ Cached: {{ cached_hit }}
         <button type="button"
             onclick="applySunStyle(); updateReader(document.getElementById('editor-texto').value)">☀️</button>
         <button type="button" id="copy-linear">Copy Eng</button>
+        <br>
+        <input type="text" id="imageUrlInput" placeholder="Enter Image URL">
+        <button type="button" id="generate-code-button">Insert Image URL</button>
+        <input type="text" id="videoUrlInput" placeholder="Enter Video URL">
+        <button type="button" id="generate-video-button">Insert Video URL</button>
+        <br>
         {% if sentence_suggestion %}
             <button type="button" onclick="document.getElementById('editor-texto').value = '{{ sentence_suggestion|escapejs }}'; updateReader('{{ sentence_suggestion|escapejs }}');">
                 Load Gemini Suggestion
@@ -230,6 +234,7 @@ Cached: {{ cached_hit }}
     </form>
 
     <script>
+        // Image insertion
         document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("generate-code-button").addEventListener("click", function () {
                 var imageUrl = document.getElementById("imageUrlInput").value;
@@ -237,6 +242,16 @@ Cached: {{ cached_hit }}
                 document.getElementById("editor-texto").value += generatedCode;
                 document.getElementById("englishReader").innerHTML = document.getElementById("editor-texto").value;
             });
+        });
+
+         // Video insertion
+        document.getElementById("generate-video-button").addEventListener("click", function() {
+            let url = document.getElementById("videoUrlInput").value.trim();
+            if (!url) return;
+            let code = `<div class="tooltip-container"><video autoplay muted loop playsinline style="width:500px;display:block;margin:0 auto;border-radius:8px;"><source src="${url}" type="video/mp4">Your browser does not support the video tag.</video><i class="touch-indicator fas fa-hand-pointer"></i><div class="tooltip"><p>Video description.</p></div></div>`;
+            let textarea = document.getElementById("editor-texto");
+            textarea.value += code;
+            updateReader();
         });
 
         document.getElementById("copy-linear").addEventListener("click", function () {

@@ -193,77 +193,107 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 
 <!-- tooltips CSS -->
 <style>
-    .tooltip-container {
-        position: relative;
-        display: block;
+.tooltip-container {
+    position: relative;
+    display: block;
+}
 
-    }
+/* Tooltip base */
+.tooltip,
+.tooltip2 {
+    display: none;
+    position: absolute;
+    background: #ddd;
+    color: #35271e;
+    padding: 15px;
+    border-radius: 10px;
+    z-index: 999; /* Ensure the tooltip appears on top of everything */
+    width: 400px;
+    text-align: left;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
 
-	.tooltip,
-	.tooltip2 {
-		display: none;
-		position: absolute;
-		background: #ddd;
-		color: #35271e;
-		padding: 15px;
-		border-radius: 10px;
-		z-index: 999; /* Ensure the tooltip appears on top of everything */
-		width: 400px; /* Adjust the width to fit the image */
-		text-align: left;
-		top: 50%; /* Position the tooltip in the middle of the image */
-		left: 50%;
-		transform: translate(-50%, -50%); /* Center the tooltip */
-	}
+/* Hover reveal */
+.tooltip-container:hover .tooltip,
+.tooltip-container:hover .tooltip2 {
+    display: block;
+}
 
+/* --- 🔹 IMAGE + VIDEO MEDIA BLOCKS --- */
+.tooltip-container img,
+.tooltip-container video {
+    width: 100%;
+    max-width: 500px;
+    display: block;
+    margin: 0 auto;
+    border-radius: 8px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
 
-	.tooltip-container:hover .tooltip,
-	.tooltip-container:hover .tooltip2 {
-		display: block;
-	}
+.tooltip-container video {
+    background: #000; /* fallback background for video frames */
+}
 
+.tooltip-container:hover img,
+.tooltip-container:hover video {
+    display: block;
+}
 
-	@media (max-width: 600px) {
+/* --- 🔹 TOUCH INDICATOR (mobile cue) --- */
+@media (max-width: 600px) {
     .touch-indicator {
         position: absolute;
-        /* top: 50%; */
         left: 50%;
-		bottom: 10px; /* Adjust the distance from the bottom */
+        bottom: 10px;
         transform: translate(-50%, -50%);
-        font-size: 24px; /* Adjust the size of the icon */
+        font-size: 24px;
         color: #533e30;
-        z-index: 2; /* Ensure the icon appears above the image */
+        z-index: 2;
+        animation: pulse 1.6s infinite;
     }
 }
 
 @media (min-width: 601px) {
     .touch-indicator {
-        display: none; /* Hide the indicator on larger screens */
+        display: none; /* Hide on desktop */
     }
 }
 
+/* --- 🔹 RESPONSIVE TOOLTIP SIZING --- */
+@media (max-width: 600px) {
+    .tooltip {
+        width: 90%;
+        max-width: 400px;
+        z-index: 999;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+}
 
 @media (max-width: 600px) {
-	.tooltip {
-		width: 90%; /* Adjust the width for better responsiveness on small screens */
-		max-width: 400px; /* Set a maximum width to prevent overly wide tooltips */
-		z-index: 999; /* Ensure the tooltip appears on top of everything */
-		top: 50%; /* Position the tooltip in the middle of the screen */
-		left: 50%;
-		transform: translate(-50%, -50%); /* Center the tooltip */
-	}
+    .tooltip2 {
+        width: 90%;
+        max-width: 400px;
+        z-index: 999;
+        top: 80%;
+        left: 50%;
+        transform: translate(-50%, -50%);
     }
-@media (max-width: 600px) {
-	.tooltip2 {
-		width: 90%; /* Adjust the width for better responsiveness on small screens */
-		max-width: 400px; /* Set a maximum width to prevent overly wide tooltips */
-		z-index: 999; /* Ensure the tooltip appears on top of everything */
-		top: 80%; 
-		left: 50%;
-		transform: translate(-50%, -50%); /* Center the tooltip */
-	}
-    }
+}
 
+/* --- 🔹 PULSE ANIMATION FOR TOUCH ICON --- */
+@keyframes pulse {
+    0% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.25); }
+    100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+}
 </style>
+
+
+
 <style>
     .sun-icon {
         background-image: url('http://www.realbible.tech/sun-icon.png'); /* Replace 'sun-icon.png' with the path to your sun icon image */

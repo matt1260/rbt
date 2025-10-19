@@ -1,0 +1,221 @@
+<!-- edit_aseneth_verse.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+<style>
+    .highlight { background-color: yellow; }
+    .notice-bar { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+    .error-bar { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+    textarea#editor-texto { width: 100%; height: 200px; font-family: monospace; }
+    .chapter-navigation a.active { background-color: #007bff; color: white; }
+</style>
+
+<style>
+.tooltip-container {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
+}
+
+/* Shared image/video styling */
+.tooltip-container img,
+.tooltip-container video {
+    width: 500px;
+    display: block;
+    margin: 0 auto;
+    border-radius: 8px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.tooltip-container video {
+    background: #ffffff; /* Fallback background for videos */
+}
+
+.tooltip-container:hover img,
+.tooltip-container:hover video {
+    display: block;
+}
+
+/* Tooltip bubble */
+.tooltip-container .tooltip-text {
+    visibility: hidden;
+    width: auto;
+    background-color: #f9f9f9;
+    color: #000;
+    text-align: left;
+    border-radius: 4px;
+    padding: 4px 8px;
+    position: absolute;
+    z-index: 100;
+    bottom: 62%; 
+    left: 50%;
+    transform: translateX(-50%);
+    box-shadow: 0px 2px 6px rgba(0,0,0,0.2);
+    white-space: nowrap;
+    font-size: 0.85em;
+    pointer-events: auto;
+}
+
+/* Tooltip visible on hover */
+.tooltip-container:hover .tooltip-text,
+.tooltip-container .tooltip-text:hover {
+    visibility: visible;
+}
+
+/* Touch indicator (for mobile visual cue) */
+.touch-indicator {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 1.3rem;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.7; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.2); }
+    100% { opacity: 0.7; transform: scale(1); }
+}
+</style>
+
+
+<div class="container">
+    <h2>Edit: {{ book }} {{ chapter }}:{{ verse }}</h2>
+
+    {% if edit_result %}
+        {{ edit_result|safe }}
+    {% endif %}
+    
+    {% if error_message %}
+        <div class="error-bar">{{ error_message }}</div>
+    {% endif %}
+
+    {% if verse_data %}
+        <div class="greek">{{ verse_data.greek_with_links|default:"<p>No greek for this verse.</p>"|safe }}</div>
+
+        <strong>RBT Translation:</strong>
+        <div class="single_verse" id="englishReader">{{ verse_data.english|safe }}</div>
+
+        <form method="post">
+            {% csrf_token %}
+            <textarea id="editor-texto" name="edited_english" oninput="updateReader()">{{ verse_data.english|safe }}</textarea>
+            <input type="hidden" name="record_id" value="{{ verse_data.id }}">
+            <input type="hidden" name="chapter" value="{{ chapter }}">
+            <input type="hidden" name="verse" value="{{ verse }}">
+
+            <div class="button-group">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="button" onclick="loadGptTranslation()" class="btn btn-info">Load GPT Translation</button>
+                <button type="button" onclick="applyStyle('hayah')"><i>היה</i></button>
+                <button type="button" onclick="applyStyle('h5')">h5</button>
+                <button type="button" onclick="applyStyle('bold')"><b>B</b></button>
+                <button type="button" onclick="applyStyle('center')"><i class="fas fa-align-center"></i></button>
+                <button type="button" onclick="applyStyle('last_center')"><i class="fas fa-align-center"></i> Last</button>
+                <button type="button" onclick="applyStyle('sun')">☀️</button>
+                <!-- Color Buttons -->
+                <button type="button" style="color:#ff00aa;" onclick="applyStyle('color_ff00aa')">Pink</button>
+                <button type="button" style="color:blue;" onclick="applyStyle('color_blue')">Blue</button>
+                <!-- Image or Video URL -->
+                <input type="text" id="imageUrlInput" placeholder="Enter Image URL">
+                <button type="button" id="generate-code-button">Insert Image URL</button>
+                <input type="text" id="videoUrlInput" placeholder="Enter Video URL">
+                <button type="button" id="generate-video-button">Insert Video URL</button>
+            </div>
+        </form>
+
+        <script>
+        // Store GPT translation
+        const gptTranslation = `{{ verse_data.gpt_translation|safe }}`;
+
+        function loadGptTranslation() {
+            if (gptTranslation && gptTranslation.trim()) {
+                document.getElementById('editor-texto').value = gptTranslation;
+                updateReader();
+            } else {
+                alert('No GPT translation available for this verse.');
+            }
+        }
+
+        function updateReader() {
+            document.getElementById('englishReader').innerHTML = document.getElementById('editor-texto').value;
+        }
+
+        function applyStyle(type) {
+            let textarea = document.getElementById('editor-texto');
+            let start = textarea.selectionStart;
+            let end = textarea.selectionEnd;
+            if(start === end) return;
+
+            let selectedText = textarea.value.substring(start, end);
+            let replacement = selectedText;
+
+            switch(type){
+                case 'hayah': replacement = `<span class="hayah">${selectedText}</span>`; break;
+                case 'h5': replacement = `<h5>${selectedText}</h5>`; break;
+                case 'bold': replacement = `<strong>${selectedText}</strong>`; break;
+                case 'center': replacement = `<span style="display:block;text-align:center;">${selectedText}</span>`; break;
+                case 'last_center': replacement = `<span class="last_center">${selectedText}</span>`; break;
+                case 'sun': replacement = `<div class="sun-icon">${selectedText}</div>`; break;
+                case 'color_ff00aa': replacement = `<span style="color:#ff00aa;">${selectedText}</span>`; break;
+                case 'color_blue': replacement = `<span style="color:blue;">${selectedText}</span>`; break;
+            }
+
+            textarea.setRangeText(replacement, start, end, 'end');
+            updateReader();
+        }
+
+        // Image insertion
+        document.getElementById("generate-code-button").addEventListener("click", function() {
+            let url = document.getElementById("imageUrlInput").value.trim();
+            if(!url) return;
+            let code = `<div class="tooltip-container"><img src="${url}" style="width:500px;display:block;margin:0 auto;"><i class="touch-indicator fas fa-hand-pointer"></i><div class="tooltip">Image description.</div></div>`;
+            let textarea = document.getElementById("editor-texto");
+            textarea.value += code;
+            updateReader();
+        });
+        // Video insertion
+        document.getElementById("generate-video-button").addEventListener("click", function() {
+            let url = document.getElementById("videoUrlInput").value.trim();
+            if (!url) return;
+            let code = `<div class="tooltip-container"><video autoplay muted loop playsinline style="width:500px;display:block;margin:0 auto;border-radius:8px;"><source src="${url}" type="video/mp4">Your browser does not support the video tag.</video><i class="touch-indicator fas fa-hand-pointer"></i><div class="tooltip"><p>Video description.</p></div></div>`;
+            let textarea = document.getElementById("editor-texto");
+            textarea.value += code;
+            updateReader();
+        });
+        </script>
+
+
+        <div class="verse-navigation">
+            <form method="post" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="chapter" value="{{ chapter }}">
+                <label>Go to verse:</label>
+                <input type="number" name="verse_input" min="1" max="{{ max_verse }}" style="width:60px;">
+                <button type="submit">Go</button>
+            </form>
+
+            {% if verse|add:"-1" >= 1 %}
+                <a href="?chapter={{ chapter }}&verse={{ verse|add:'-1' }}" class="btn">← Previous</a>
+            {% endif %}
+            {% if verse|add:"1" <= max_verse %}
+                <a href="?chapter={{ chapter }}&verse={{ verse|add:'1' }}" class="btn">Next →</a>
+            {% endif %}
+            <a href="?chapter={{ chapter }}" class="btn btn-secondary">View Chapter</a>
+        </div>
+
+        <div class="chapter-navigation">
+            <strong>Chapters:</strong><br>
+            {% for ch in chapter_list %}
+                <a href="?chapter={{ ch }}&verse=1" {% if ch == chapter|add:0 %}class="active"{% endif %}>{{ ch }}</a>
+            {% endfor %}
+        </div>
+
+    {% else %}
+        <p>No verse found for {{ book }} {{ chapter }}:{{ verse }}</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -45,6 +45,8 @@ urlpatterns = [
     path('RBT/', include('search.urls')),
     path('', include('search.urls')),
     path('chapter_editor/', views.chapter_editor, name='chapter_editor'),
+    path('edit_aseneth/', views.edit_aseneth, name='edit_aseneth'),
+    path('edit_aseneth/accounts/', include('django.contrib.auth.urls')),
 
 ]
 
