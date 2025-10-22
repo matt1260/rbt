@@ -21,45 +21,129 @@
     <div id="verseRefToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-eye"></i> Show Verse References (V)
     </div>
+    <!-- NEW: Footnotes Toggle Button -->
+    {% if footnotes %}
+    <div id="footnotesToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-book"></i> Show Notes (N)
+    </div>
+    {% endif %}
 </div>
 {% endwith %}
-{% if html %}
 
-<div style="display: flex; justify-content: space-between;">
+<!-- Main Content Container -->
+<div style="display: flex; position: relative;">
     
-    <div style="width: 50%; border-right: 1px solid #000; padding-right: 10px;">
+    <!-- Main Text Area -->
+    <div id="mainTextArea" style="flex: 1; transition: margin-right 0.3s ease;">
+        
+        {% if html %}
+        <div style="display: flex; justify-content: space-between;">
+            
+            <div style="width: 50%; border-right: 1px solid #000; padding-right: 10px;">
+                {% if paraphrase %}
+                    {{ paraphrase|safe }}
+                {% else %}
+                    <p>No results found for chapter {{ chapter_num }}.</p>
+                {% endif %}
+            </div>
 
-        {% if paraphrase %}
-            {{ paraphrase|safe }}
+            <div style="width: 50%; padding-left: 10px;">
+                <h4>RBT Greek Literal</h4>
+                {{ html|safe }}
+            </div>
 
+        </div>
         {% else %}
-            <p>No results found for chapter {{ chapter_num }}.</p>
+            {% if paraphrase %}
+                {{ paraphrase|safe }}
+            {% else %}
+                <p>No results found for chapter {{ chapter_num }}.</p>
+            {% endif %}
         {% endif %}
+
     </div>
 
-    <div style="width: 50%; padding-left: 10px;">
-        <h4>RBT Greek Literal</h4>
-            {{ html|safe }}
+    <!-- NEW: Footnotes Sidebar -->
+    {% if footnotes %}
+        <div id="footnotesSidebar" style="position: fixed; right: -400px; top: 0; width: 350px; height: 100vh; background: #f9f9f9; border-left: 2px solid #ba8666; /* padding: 20px; */ padding: 0 20px; overflow-y: auto; transition: right 0.3s ease; z-index: 1000; box-shadow: -2px 0 10px rgba(0,0,0,0.1);">
+        <div id="resizeHandle" style="
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 10px;
+            height: auto;
+            cursor: ew-resize;
+            background: transparent;
+            z-index: 1001;
+        ">
+            <div style="
+                position: absolute;
+                left: 3px;
+                top: 40%;
+                bottom: 40%;
+                width: 4px;
+                background: #ba8666;
+                border-radius: 2px;
+                opacity: 0.8;
+            "></div>
+        </div>
+
+        <div style="padding: 20px 0;"> <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: sticky; top: 0; background: #f9f9f9; padding-bottom: 10px; border-bottom: 2px solid #ba8666; z-index: 10;">
+                <h3 style="margin: 0; color: #ba8666;">Footnotes</h3>
+                <div id="closeSidebarButton" style="cursor: pointer; font-size: 24px; color: #ba8666;">&times;</div>
+            </div>
+
+            <div id="footnotesContent">
+                </div>
+        </div>
+        
+        <div id="footnotesContent">
+            {% for footnote_id, footnote_data in footnotes.items %}
+            <div id="footnote-{{ footnote_id }}" class="footnote-entry" style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #ddd;">
+                <div style="font-weight: bold; color: #ba8666; margin-bottom: 5px;">
+                    <sup>{{ footnote_id }}</sup> (Verse {{ footnote_data.verse }})
+                </div>
+                <div style="font-size: 14px; line-height: 1.6;">
+                    {{ footnote_data.content|safe }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
-
-</div>
-
-
-{% else %}
-
-    {% if paraphrase %}
-        {{ paraphrase|safe }}
-
-        {% else %}
-        <p>No results found for chapter {{ chapter_num }}.</p>
     {% endif %}
 
-{% endif %}
+</div>
 
 <div style="padding-top: 20px;">
     <strong>Select a Chapter:</strong>
         {{ chapters|safe }}
-    </div>
+</div>
+
+<style>
+    .footnote-link {
+        color: #ba8666;
+        text-decoration: none;
+    }
+    .footnote-link:hover {
+        text-decoration: underline;
+    }
+    .footnote-entry:last-child {
+        border-bottom: none;
+    }
+    
+    /* Disable text selection during resize */
+    body.resizing {
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+    }
+    
+    #resizeHandle:hover > div {
+        opacity: 0.8 !important;
+    }
+</style>
 
 <script>
     document.addEventListener("DOMContentLoaded", function() {
@@ -67,24 +151,91 @@
         const imageToggleButton = document.getElementById("imageToggleButton");
         const h5ToggleButton = document.getElementById("h5ToggleButton");
         const verseRefToggleButton = document.getElementById("verseRefToggleButton");
-        const toggleDivContainer = document.getElementById("toggleDivContainer");
-        const paraphraseContainer = document.getElementById("paraphraseContainer");
-        const container = document.getElementById("container");
+        const footnotesToggleButton = document.getElementById("footnotesToggleButton");
+        const closeSidebarButton = document.getElementById("closeSidebarButton");
+        const footnotesSidebar = document.getElementById("footnotesSidebar");
+        const mainTextArea = document.getElementById("mainTextArea");
+        const resizeHandle = document.getElementById("resizeHandle");
         const verseRefs = document.querySelectorAll(".verse_ref");
+        
         let isLiteralVisible = false;
         let isImageVisible = true;
         let isH5Visible = true;
         let isVerseRefVisible = false;
+        let isFootnotesVisible = false;
+        
+        // Resizing variables
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 380;
+        const minWidth = 250;
+        const maxWidth = 800;
+        
+        
+        // Toggle Footnotes Sidebar
+        function toggleFootnotes() {
+            const sidebarWidth = footnotesSidebar ? footnotesSidebar.offsetWidth : 0;
+            
+                if (isFootnotesVisible) {
+                    footnotesSidebar.style.right = `-${sidebarWidth + 20}px`;
+                    mainTextArea.style.marginRight = "0";
+                    footnotesToggleButton.innerHTML = '<i class="fas fa-book"></i> Show Notes (N)';
+                } else {
+                    footnotesSidebar.style.right = "0";
+                    // Set initial margin to 50px
+                    mainTextArea.style.marginRight = '50px';
+                    footnotesToggleButton.innerHTML = '<i class="fas fa-book-open"></i> Hide Notes (N)';
+                }
+            isFootnotesVisible = !isFootnotesVisible;
+        }
+        
+        // Resize functionality
+        if (resizeHandle) {
+            resizeHandle.addEventListener('mousedown', function(e) {
+                isResizing = true;
+                startX = e.clientX;
+                startWidth = footnotesSidebar.offsetWidth;
+                document.body.classList.add('resizing');
+                footnotesSidebar.style.transition = 'none'; // Disable transition during resize
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isResizing) return;
+                
+                // Calculate new width (drag left increases width, drag right decreases)
+                const deltaX = startX - e.clientX;
+                let newWidth = startWidth + deltaX;
+                
+                // Keep sidebar within min/max bounds
+                newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+                footnotesSidebar.style.width = newWidth + 'px';
+                
+                // Adjust main text margin: use 70px as the minimum (50px + 20px gap)
+                if (isFootnotesVisible) {
+                    const margin = Math.max(70, newWidth - 340);
+                    mainTextArea.style.marginRight = margin + 'px';
+                }
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (isResizing) {
+                    isResizing = false;
+                    document.body.classList.remove('resizing');
+                    footnotesSidebar.style.transition = 'right 0.3s ease'; // Re-enable transition
+                }
+            });
+        }
         
         function toggleVerseRefs() {
             verseRefs.forEach(function(ref) {
                 if (isVerseRefVisible) {
                     ref.style.display = "none";
                 } else {
-                    ref.style.display = "inline"; // Change to "block" if necessary
+                    ref.style.display = "inline";
                 }
             });
-            isVerseRefVisible = !isVerseRefVisible; // Toggle the visibility state
+            isVerseRefVisible = !isVerseRefVisible;
             verseRefToggleButton.innerHTML = isVerseRefVisible ? '<i class="fas fa-eye-slash"></i> Hide Verse References (V)' : '<i class="fas fa-eye"></i> Show Verse References (V)';       
         }
 
@@ -99,7 +250,7 @@
                     h5ToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Headers (H)';
                 }
             });
-            isH5Visible = !isH5Visible; // Toggle the visibility state
+            isH5Visible = !isH5Visible;
         }
 
         function toggleImages() {
@@ -113,7 +264,7 @@
                     imageToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Images (I)';
                 }
             });
-            isImageVisible = !isImageVisible; // Toggle the visibility state
+            isImageVisible = !isImageVisible;
         }
 
         function handleKeyDown(event) {
@@ -123,13 +274,45 @@
                 toggleH5Headers();
             } else if (event.key === "i") { 
                 toggleImages();
+            } else if (event.key === "n") {
+                if (footnotesToggleButton) {
+                    toggleFootnotes();
+                }
             }
         }
 
+        // Event Listeners
         document.addEventListener("keydown", handleKeyDown);
         h5ToggleButton.addEventListener("click", toggleH5Headers);
         imageToggleButton.addEventListener("click", toggleImages);
         verseRefToggleButton.addEventListener("click", toggleVerseRefs);
+        
+        if (footnotesToggleButton) {
+            footnotesToggleButton.addEventListener("click", toggleFootnotes);
+        }
+        if (closeSidebarButton) {
+            closeSidebarButton.addEventListener("click", toggleFootnotes);
+        }
+        
+        // Handle footnote link clicks
+        document.querySelectorAll('.footnote-link').forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (!isFootnotesVisible) {
+                    toggleFootnotes();
+                }
+                const targetId = this.getAttribute('href');
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    targetElement.style.backgroundColor = '#ffe6d5';
+                    setTimeout(() => {
+                        targetElement.style.backgroundColor = '';
+                    }, 2000);
+                }
+            });
+        });
+        
         toggleVerseRefs();
     });
 </script>
@@ -143,4 +326,3 @@
 </script>
 
 {% endblock %}
-

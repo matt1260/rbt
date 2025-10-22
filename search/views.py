@@ -653,9 +653,7 @@ def get_results(book, chapter_num, verse_num=None):
                         footnote_content = get_footnote(footnote_id, book_abbrev, chapter_num, verse_num) # get_footnote function
                         footnote_contents.append(footnote_content)
                     
-            
-
-            
+        
 
             ##### Fetch Smith Literal Translation Verse ##############
             try:
@@ -1356,7 +1354,8 @@ def search(request):
                     commentary = commentary[0]
 
                 if book in new_testament_books:
-                    
+
+                    footnotes_collection = {}
                     def query_footnote(book, sup_text):
                         footnote_id = f"{book}-{sup_text}"
 
@@ -1371,7 +1370,7 @@ def search(request):
 
                         # Query the footnote
                         result = execute_query(
-                            f"SELECT footnote_html FROM {table_name} WHERE footnote_id = %s",
+                            f"SELECT footnote_html FROM new_testament.{table_name} WHERE footnote_id = %s",
                             (footnote_id,),
                             fetch='one'
                         )
@@ -1385,14 +1384,24 @@ def search(request):
 
                             close_text = '' if html_verse.endswith('</span>') else '<br>'
 
-                            # sup_texts = re.findall(r'<sup>(.*?)</sup>', html_verse)
-                            # for sup_text in sup_texts:
-                            #     # Query the database for each book and number
-                            #     data = query_footnote(bk, sup_text)
+                            sup_texts = re.findall(r'<sup>(.*?)</sup>', html_verse)
+                            for sup_text in sup_texts:
+                                # Query the database for each book and number
+                                data = query_footnote(bk, sup_text)
                                 
-                            #     # Replace the reference with a link with hover content
-                            #     html_verse = html_verse.replace(f'<sup>{sup_text}</sup>', f'<div class="footnote_content"><sup>{sup_text}</sup><div class="footnote_hover">{data}</div></div>')
-
+                                # Store footnote in collection
+                                if data:
+                                    footnotes_collection[sup_text] = {
+                                        'verse': vrs,
+                                        'content': data,
+                                        'id': sup_text
+                                    }
+                                
+                                # Replace the reference with a link with hover content
+                                # html_verse = html_verse.replace(
+                                #     f'<sup>{sup_text}</sup>', 
+                                #     f'<div class="footnote_content"><sup><a href="#footnote-{sup_text}" class="footnote-link">{sup_text}</a></sup><div class="footnote_hover">{data}</div></div>'
+                                # )
 
                             if '<h5>' in html_verse:
                                 parts = html_verse.split('</h5>')
@@ -1405,6 +1414,7 @@ def search(request):
                                 html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a></b></span> {html_verse}'
                                 paraphrase += html_verse + close_text
                                 
+                                
 
                     chapters = ''
                     for number in chapter_list:
@@ -1414,7 +1424,16 @@ def search(request):
                     book =  re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
                     book = rbt_books.get(book, book)
                     page_title = f'{book} {chapter_num}'
-                    context = {'cache_hit': cached_hit, 'chapters': chapters, 'html': nt_literal, 'paraphrase': paraphrase, 'book': book, 'chapter_num': chapter_num, 'chapter_list': chapter_list}
+                    context = {
+                        'cache_hit': cached_hit, 
+                        'chapters': chapters, 
+                        'html': nt_literal, 
+                        'paraphrase': paraphrase, 
+                        'book': book, 
+                        'chapter_num': chapter_num, 
+                        'chapter_list': chapter_list,
+                        'footnotes': footnotes_collection
+                    }
                     
                     return render(request, 'nt_chapter.html', {'page_title': page_title, **context})
 
