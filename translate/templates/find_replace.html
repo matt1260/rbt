@@ -1,43 +1,60 @@
 {% extends 'base.html' %}
-
 {% block content %}
-
 <style>
 /* Style for the green notice bar */
 .notice-bar {
-    background-color: #7BD77F;
-    color: white;
-    font-size: 14px;
-    text-align: left;
-    padding: 4px;
-    border-radius: 5px;
-    font-family: sans-serif;
-    float: left;
-    width: 100%;
-
+background-color: #7BD77F;
+color: white;
+font-size: 14px;
+text-align: left;
+padding: 4px;
+border-radius: 5px;
+font-family: sans-serif;
+float: left;
+width: 100%;
 }
-
 /* Style for the checkmark icon */
 .icon {
-    margin-right: 10px;
-    /* Add space between the icon and text */
-    margin-left: 5px;
+margin-right: 10px;
+/* Add space between the icon and text */
+margin-left: 5px;
+}
+/* Style for checkbox container */
+.checkbox-container {
+margin: 10px 0;
+}
+.checkbox-container label {
+display: inline-flex;
+align-items: center;
+cursor: pointer;
+}
+.checkbox-container input[type="checkbox"] {
+margin-right: 8px;
+cursor: pointer;
+width: 16px;
+height: 16px;
 }
 </style>
 <div class="clearfix">
-  {{ edit_result|safe }}
+ {{ edit_result|safe }}
 </div>
-
 <div class="container">
-  <h4>Find and Update NT words:</h4>
-  <form method="POST">
-    {% csrf_token %}
-    <label for="find_text">Word:</label>
-    <input type="text" name="find_text" id="find_text">
-    <br>
-    <label for="replace_text">Replacement:</label>
-    <input type="text" name="replace_text" id="replace_text">
-    <input type="submit" value="Find and Update">
-  </form>
+<h4>Find and Update NT words:</h4>
+<form method="POST">
+ {% csrf_token %}
+<label for="find_text">Word:</label>
+<input type="text" name="find_text" id="find_text">
+<br>
+<label for="replace_text">Replacement:</label>
+<input type="text" name="replace_text" id="replace_text">
+<br>
+<div class="checkbox-container">
+<label>
+<input type="checkbox" name="exact_match" id="exact_match" value="1">
+Search exact matches only
+</label>
+</div>
+<input type="submit" value="Find and Update">
+</form>
 </div>
 {% endblock %}

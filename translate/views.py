@@ -2110,6 +2110,7 @@ def find_and_replace_nt(request):
     if request.method == 'POST':
         find_text = request.POST.get('find_text')
         replace_text = request.POST.get('replace_text')
+        exact_match = request.POST.get('exact_match')  # Get checkbox value
 
         # Handle approved replacements
         if 'approve_replacements' in request.POST:
@@ -2156,14 +2157,26 @@ def find_and_replace_nt(request):
             file_name_pattern = r'\b\w+\.\w+\b'
             replacements = []
 
+            # Create regex pattern based on exact_match checkbox
+            if exact_match:
+                # Use word boundaries for exact matching
+                search_pattern = r'\b' + re.escape(find_text) + r'\b'
+            else:
+                # Use simple text matching (case-sensitive)
+                search_pattern = re.escape(find_text)
+
             for verse_id, book, chapter, startVerse, old_text in rows:
                 if re.search(file_name_pattern, old_text):
                     continue
 
+                # Check if pattern matches in the text
+                if not re.search(search_pattern, old_text):
+                    continue
+
                 book_name = convert_book_name(book)
-                new_text = re.sub(find_text, f'<span class="highlight-find">{find_text}</span>', old_text)
-                updated_text = re.sub(find_text, f'<span class="highlight-replace">{replace_text}</span>', new_text)
-                new_text_raw = re.sub(find_text, replace_text, old_text)
+                new_text = re.sub(search_pattern, f'<span class="highlight-find">{find_text}</span>', old_text)
+                updated_text = re.sub(search_pattern, f'<span class="highlight-replace">{replace_text}</span>', new_text)
+                new_text_raw = re.sub(search_pattern, replace_text, old_text)
                 verse_link = f'../edit/?book={book_name}&chapter={chapter}&verse={startVerse}'
 
                 if new_text != old_text:
