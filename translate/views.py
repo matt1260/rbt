@@ -541,7 +541,8 @@ def edit(request):
                     book = book.lower()
 
                     footnote_id = book_abbrev + '-' + footnote_id
-                    footnote_html = f'<p><span class="footnote_header">{footnote_header}</span></p> <p>{footnote_html}</p>'
+                    # Wrap the footnote content in rbt_footnote span
+                    footnote_html = f'<p><span class="footnote_header">{footnote_header}</span></p> <p class="rbt_footnote">{footnote_html}</p>'
                     sql_query = f"INSERT INTO {book} (footnote_id, footnote_html) VALUES (%s, %s)"
                     cursor.execute(sql_query, (footnote_id, footnote_html))
                     conn.commit()
