@@ -9,7 +9,6 @@
     {{ chapters|safe }}
 </div>
 
-<h1>{{book}} {{ chapter_num }}</h1>
 {% with title_prefix=book|title %}
 <div id="toggleButtonsContainer" style="display: flex; justify-content: flex-end;">
     <div id="h5ToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
@@ -29,7 +28,7 @@
     {% endif %}
 </div>
 {% endwith %}
-
+<h1>{{book}} {{ chapter_num }}</h1>
 <!-- Main Content Container -->
 <div style="display: flex; position: relative;">
     
@@ -195,6 +194,71 @@
         max-width: 100% !important;
     }
     }
+
+    /* Modern toolbar container */
+    #toggleButtonsContainer {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        background: #fafafa;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 8px 12px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        position: sticky;
+        top: 0;
+        z-index: 50;
+    }
+
+    /* Toolbar buttons */
+    #toggleButtonsContainer > div {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        padding: 6px 12px;
+        color: #ba8666;
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        user-select: none;
+    }
+
+    /* Hover and active states */
+    #toggleButtonsContainer > div:hover {
+        background: #f4ebe5;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    #toggleButtonsContainer > div:active {
+        transform: scale(0.97);
+    }
+
+    /* Icon styling */
+    #toggleButtonsContainer i {
+        color: #ba8666;
+        font-size: 14px;
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        #toggleButtonsContainer {
+            justify-content: center;
+            gap: 6px;
+            padding: 10px;
+            position: static;
+        }
+
+        #toggleButtonsContainer > div {
+            font-size: 13px;
+            padding: 5px 10px;
+        }
+    }
+
 
 </style>
 <script>
