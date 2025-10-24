@@ -2174,16 +2174,31 @@ def find_and_replace_nt(request):
                     continue
 
                 book_name = convert_book_name(book)
-                new_text = re.sub(search_pattern, f'<span class="highlight-find">{find_text}</span>', old_text)
-                updated_text = re.sub(search_pattern, f'<span class="highlight-replace">{replace_text}</span>', new_text)
+                
+                # Create the new text without replacement (for database)
                 new_text_raw = re.sub(search_pattern, replace_text, old_text)
+                
+                # Create display version with highlighting
+                # Use a function to highlight all matches properly
+                def highlight_matches(match):
+                    return f'<span class="highlight-find">{match.group(0)}</span>'
+                
+                display_old = re.sub(search_pattern, highlight_matches, old_text)
+                
+                # For the "after" preview, show old text with replace highlighted
+                def highlight_replacement(match):
+                    return f'<span class="highlight-replace">{replace_text}</span>'
+                
+                display_new = re.sub(search_pattern, highlight_replacement, old_text)
+                
                 verse_link = f'../edit/?book={book_name}&chapter={chapter}&verse={startVerse}'
 
-                if new_text != old_text:
+                # This condition should always be true if we found a match above
+                if new_text_raw != old_text:
                     replacements.append({
                         'verse_id': verse_id,
-                        'old_text': new_text,
-                        'new_text': updated_text,
+                        'old_text': display_old,
+                        'new_text': display_new,
                         'new_text_raw': new_text_raw,
                         'verse_link': verse_link
                     })
