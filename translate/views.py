@@ -379,11 +379,20 @@ def edit_footnote(request):
     elif request.method == 'POST':
         footnote_id = request.POST.get('footnote_id')
         footnote_html = request.POST.get('footnote_edit')
-
         book = request.POST.get('book')
         chapter_num = request.POST.get('chapter_num')
         verse_num = request.POST.get('verse_num')
 
+        soup = BeautifulSoup(footnote_html, 'html.parser')
+
+        for p in soup.find_all('p'):
+            existing_classes = p.get('class', [])
+            if 'rbt_footnote' not in existing_classes:
+                existing_classes.append('rbt_footnote')
+            p['class'] = existing_classes
+        
+        footnote_html = str(soup)
+        
         # New testament footnotes
         if footnote_id.count('-') == 1:
             book, ref_num = footnote_id.split('-')
