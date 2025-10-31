@@ -270,8 +270,8 @@
             // Only wrap text nodes, not HTML tags
             function wrapTextNodes(node) {
                 if (node.nodeType === Node.TEXT_NODE) {
-                    // Replace ( ... ) with span
-                    let replaced = node.textContent.replace(/\([^()]*\)/g, function(match) {
+                    // Replace space + ( ... ) with span (include preceding space)
+                    let replaced = node.textContent.replace(/\s\([^()]*\)/g, function(match) {
                         return '<span class="paren-hide">' + match + '</span>';
                     });
                     if (replaced !== node.textContent) {
