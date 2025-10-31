@@ -20,12 +20,15 @@
     <div id="verseRefToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-eye"></i> Show Verse References (V)
     </div>
-    <!-- NEW: Footnotes Toggle Button -->
+    <div id="parenthesesToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-eye"></i> Show Names (P)
+    </div>
     {% if footnotes %}
     <div id="footnotesToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-book"></i> Show Notes (N)
     </div>
     {% endif %}
+
 </div>
 {% endwith %}
 <h1>{{book}} {{ chapter_num }}</h1>
@@ -34,11 +37,10 @@
     
     <!-- Main Text Area -->
     <div id="mainTextArea" style="flex: 1; transition: margin-right 0.3s ease;">
-        
+
         {% if html %}
         <div style="display: flex; justify-content: space-between;">
-            
-            <div style="width: 50%; border-right: 1px solid #000; padding-right: 10px;">
+            <div id="paraphrase-area" style="width: 50%; border-right: 1px solid #000; padding-right: 10px;">
                 {% if paraphrase %}
                     {{ paraphrase|safe }}
                 {% else %}
@@ -46,15 +48,14 @@
                 {% endif %}
             </div>
 
-            <div style="width: 50%; padding-left: 10px;">
+            <div id="literal-area" style="width: 50%; padding-left: 10px;">
                 <h4>RBT Greek Literal</h4>
                 {{ html|safe }}
             </div>
-
         </div>
         {% else %}
             {% if paraphrase %}
-                {{ paraphrase|safe }}
+                <div id="paraphrase-area">{{ paraphrase|safe }}</div>
             {% else %}
                 <p>No results found for chapter {{ chapter_num }}.</p>
             {% endif %}
@@ -263,11 +264,48 @@
 </style>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
+        // Parentheses toggle logic
+        function wrapParenthesesText(element) {
+            if (!element) return;
+            // Only wrap text nodes, not HTML tags
+            function wrapTextNodes(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    // Replace ( ... ) with span
+                    let replaced = node.textContent.replace(/\([^()]*\)/g, function(match) {
+                        return '<span class="paren-hide">' + match + '</span>';
+                    });
+                    if (replaced !== node.textContent) {
+                        const temp = document.createElement('span');
+                        temp.innerHTML = replaced;
+                        while (temp.firstChild) {
+                            node.parentNode.insertBefore(temp.firstChild, node);
+                        }
+                        node.parentNode.removeChild(node);
+                    }
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    Array.from(node.childNodes).forEach(wrapTextNodes);
+                }
+            }
+            wrapTextNodes(element);
+        }
+
+        // Wrap parentheses in both areas on page load
+        wrapParenthesesText(document.getElementById('paraphrase-area'));
+        wrapParenthesesText(document.getElementById('literal-area'));
+        
+        // Hide parentheses by default (including server-side rendered ones)
+        setTimeout(() => {
+            document.querySelectorAll('.paren-hide').forEach(span => {
+                span.style.setProperty('display', 'none', 'important');
+            });
+        }, 0);
+
         const literalToggleButton = document.getElementById("literalToggleButton");
         const imageToggleButton = document.getElementById("imageToggleButton");
         const h5ToggleButton = document.getElementById("h5ToggleButton");
         const verseRefToggleButton = document.getElementById("verseRefToggleButton");
         const footnotesToggleButton = document.getElementById("footnotesToggleButton");
+        const parenthesesToggleButton = document.getElementById("parenthesesToggleButton");
         const closeSidebarButton = document.getElementById("closeSidebarButton");
         const footnotesSidebar = document.getElementById("footnotesSidebar");
         const mainTextArea = document.getElementById("mainTextArea");
@@ -279,6 +317,7 @@
         let isH5Visible = true;
         let isVerseRefVisible = false;
         let isFootnotesVisible = false;
+        let isParenthesesVisible = false;
         
         // Resizing variables
         let isResizing = false;
@@ -491,6 +530,20 @@
                 '<i class="fas fa-eye"></i> Show Images (I)';
         }
 
+        function toggleParentheses() {
+            document.querySelectorAll('.paren-hide').forEach(span => {
+                if (isParenthesesVisible) {
+                    span.style.setProperty('display', 'none', 'important');
+                } else {
+                    span.style.setProperty('display', 'inline', 'important');
+                }
+            });
+            isParenthesesVisible = !isParenthesesVisible;
+            parenthesesToggleButton.innerHTML = isParenthesesVisible ? 
+                '<i class="fas fa-eye-slash"></i> Hide Names (P)' : 
+                '<i class="fas fa-eye"></i> Show Names (P)';
+        }
+
         function handleKeyDown(event) {
             // Don't trigger if user is typing in an input
             if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
@@ -505,6 +558,8 @@
                 toggleImages();
             } else if (event.key === "n" || event.key === "N") {
                 toggleFootnotes();
+            } else if (event.key === "p" || event.key === "P") {
+                toggleParentheses();
             } else if (event.key === "Escape" && isFootnotesVisible && isMobile()) {
                 toggleFootnotes();
             }
@@ -517,6 +572,7 @@
         if (imageToggleButton) imageToggleButton.addEventListener("click", toggleImages);
         if (verseRefToggleButton) verseRefToggleButton.addEventListener("click", toggleVerseRefs);
         if (footnotesToggleButton) footnotesToggleButton.addEventListener("click", toggleFootnotes);
+        if (parenthesesToggleButton) parenthesesToggleButton.addEventListener("click", toggleParentheses);
         if (closeSidebarButton) closeSidebarButton.addEventListener("click", toggleFootnotes);
         
         // Handle footnote link clicks

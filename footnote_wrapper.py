@@ -2,6 +2,7 @@ import psycopg2
 import os
 import re
 from datetime import datetime
+from bs4 import BeautifulSoup
 
 def get_db_connection():
     """Get PostgreSQL database connection"""
@@ -113,36 +114,34 @@ def wrap_paragraph_content(p_tag_content, has_header_class):
 def fix_footnote_html(html):
     """
     Adds <span class="rbt_footnote"> wrapper to paragraph content that lacks it.
-    Preserves footnote_header paragraphs without modification.
-    Also strips data-* attributes from tags.
+    Ensures all <ul> elements have rbt_footnote class.
+    Strips data-* attributes from tags.
     """
     if not html:
         return html, 0
         
-    # Strip data attributes first
     html = strip_data_attributes(html)
     
-    # Track number of paragraphs modified
     paragraphs_wrapped = 0
+    ul_fixed = 0
     
-    # Find all <p> tags with their content
+    # Process <p> tags
     p_pattern = r'<p[^>]*>.*?</p>'
     paragraphs = re.findall(p_pattern, html, re.DOTALL)
-    
     modified_html = html
     
     for p_tag in paragraphs:
-        # Check if this is a header paragraph
         has_header_class = 'class="footnote_header"' in p_tag or '<span class="footnote_header">' in p_tag
-        
-        # Process the paragraph
         new_p_tag = wrap_paragraph_content(p_tag, has_header_class)
         
         if new_p_tag != p_tag:
             paragraphs_wrapped += 1
             modified_html = modified_html.replace(p_tag, new_p_tag, 1)
     
-    return modified_html, paragraphs_wrapped
+    # fix <ul> tags
+    modified_html, ul_fixed = fix_ul_classes(modified_html)
+    
+    return modified_html, paragraphs_wrapped + ul_fixed
 
 def get_all_footnote_tables(cursor, schema):
     """Get list of all footnote tables in the schema"""
@@ -206,7 +205,6 @@ def fix_footnote_wrappers(schema='new_testament', tables=None, dry_run=False):
                 for footnote_id_pk, footnote_id, html in footnotes:
                     logger.stats['total_footnotes_processed'] += 1
                     
-                    needs_wrapper = not has_rbt_footnote_class(html)
                     if has_rbt_footnote_class(html):
                         logger.stats['footnotes_already_wrapped'] += 1
                     
@@ -254,6 +252,28 @@ def fix_footnote_wrappers(schema='new_testament', tables=None, dry_run=False):
         logger.write_summary()
         
         return logger
+
+
+def fix_ul_classes(html):
+    """
+    Ensures all <ul> tags have the 'rbt_footnote' class.
+    Returns the modified HTML and the number of ul tags updated.
+    """
+    if not html:
+        return html, 0
+
+    soup = BeautifulSoup(html, 'html.parser')
+    updated_count = 0
+
+    for ul in soup.find_all('ul'):
+        existing_classes = ul.get('class', [])
+        if 'rbt_footnote' not in existing_classes:
+            existing_classes.append('rbt_footnote')
+            ul['class'] = existing_classes
+            updated_count += 1
+
+    return str(soup), updated_count
+
 
 def show_sample_fixes(schema='new_testament', table_name=None, limit=5):
     """

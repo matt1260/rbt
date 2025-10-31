@@ -385,11 +385,11 @@ def edit_footnote(request):
 
         soup = BeautifulSoup(footnote_html, 'html.parser')
 
-        for p in soup.find_all('p'):
-            existing_classes = p.get('class', [])
+        for tag in soup.find_all(['p', 'ul']):
+            existing_classes = tag.get('class', [])
             if 'rbt_footnote' not in existing_classes:
                 existing_classes.append('rbt_footnote')
-            p['class'] = existing_classes
+            tag['class'] = existing_classes
         
         footnote_html = str(soup)
         
