@@ -55,6 +55,34 @@
   });
 </script>
 
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var toggle = document.getElementById('cardNiqqudSwitch');
+    if (!toggle) {
+      return;
+    }
+
+    function setCardNiqqud(show) {
+      var cardContainers = document.querySelectorAll('.interlinear-card .card-hebrew');
+      cardContainers.forEach(function (card) {
+        var withNiqqud = card.querySelector('.hebrew-with-niqqud');
+        var noNiqqud = card.querySelector('.hebrew-no-niqqud');
+        if (!withNiqqud || !noNiqqud) {
+          return;
+        }
+
+        withNiqqud.style.display = show ? 'block' : 'none';
+        noNiqqud.style.display = show ? 'none' : 'block';
+      });
+    }
+
+    setCardNiqqud(false);
+    toggle.addEventListener('change', function () {
+      setCardNiqqud(this.checked);
+    });
+  });
+</script>
+
 <!-- <script>
   document.addEventListener("DOMContentLoaded", function () {
     // Get all elements with class "morph-cell"
@@ -295,6 +323,84 @@
         font-size: 26px;
     }
 
+  .interlinear-controls {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .interlinear-controls label {
+    font-size: 12px;
+  }
+
+  .hebrew-interlinear-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: flex-end;
+    direction: rtl;
+    margin-top: 16px;
+    margin-bottom: 24px;
+  }
+
+  .interlinear-card {
+    background: #f6f7fa;
+    border: 1px solid #d9dee6;
+    border-radius: 8px;
+    padding: 12px 14px;
+    min-width: 120px;
+    max-width: 220px;
+    text-align: right;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+
+  .interlinear-card .card-hebrew {
+    font-size: 28px;
+    line-height: 1.3;
+  }
+
+  .interlinear-card .card-hebrew > span {
+    display: block;
+  }
+
+  .card-hebrew .hebrew-with-niqqud {
+    display: none;
+  }
+
+  .interlinear-card .card-english {
+    font-size: 14px;
+    color: #2d2d2d;
+    margin-top: 6px;
+    direction: ltr;
+  }
+
+  .interlinear-card .card-strongs {
+    font-size: 12px;
+    color: #4a4a4a;
+    margin-top: 6px;
+    direction: ltr;
+  }
+
+  .interlinear-card .card-morph {
+    font-size: 11px;
+    color: #6d6d6d;
+    margin-top: 6px;
+    direction: ltr;
+  }
+
+  .interlinear-legacy {
+    margin-top: 12px;
+  }
+
+  .interlinear-legacy summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: #3f4b6b;
+    outline: none;
+  }
+
 </style>
 
 <div class="search">
@@ -319,25 +425,37 @@
 
 {% if english_row %}
 
-<!--DISPLAY INTERLINEAR TABLE-->
+
 <div style="text-align: right;">
   {{ hebrew|safe }}
 </div>
 <div style="text-align: left;">
   <strong>Smith Literal:</strong> {{ smith|safe }}
 </div>
-<table class="readerTable">
-  <tbody>
+{% if hebrew_interlinear_cards %}
+<div class="interlinear-controls">
+  <label for="cardNiqqudSwitch">Show Niqqud</label>
+  <input type="checkbox" id="cardNiqqudSwitch">
+</div>
+<div class="hebrew-interlinear-grid">
+  {% for cell in hebrew_interlinear_cards %}
+  <div class="interlinear-card">
+    <div class="card-hebrew">
+      <span class="hebrew-no-niqqud">{{ cell.hebrew|safe }}</span>
+      <span class="hebrew-with-niqqud">{{ cell.hebrew_niqqud|safe }}</span>
+    </div>
+    <div class="card-english">{{ cell.english|safe }}</div>
+    {% if cell.strongs %}
+    <div class="card-strongs">{{ cell.strongs|safe }}</div>
+    {% endif %}
+    {% if cell.morph %}
+    <div class="card-morph">{{ cell.morph|safe }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
-
-
-    {{ hebrew_row|safe }}
-    {{ english_row|safe }}
-    {{ strong_row|safe }}
-
-
-  </tbody>
-</table>
 
 <!-- EDIT TABLE -->
 <div class="table-container">

@@ -1,0 +1,488 @@
+{% extends 'base.html' %}
+{% block title %}Real Bible Translation - {{ page_title }}{% endblock %}
+{% load custom_tags %}
+{% block content %}
+<p><a href="/">Back to Search</a></p>
+
+<div class="chapter-selector">
+    <strong>Select a Chapter:</strong>
+    {% if chapters %}
+        {{ chapters|safe }}
+
+    {% endif %}
+
+</div>
+
+{% with title_prefix=book|title %}
+<div id="toggleButtonsContainer">
+    <div id="h5ToggleButton"><i class="fas fa-eye-slash"></i> Hide Headers (H)</div>
+    <div id="imageToggleButton"><i class="fas fa-eye-slash"></i> Hide Images (I)</div>
+    <div id="verseRefToggleButton"><i class="fas fa-eye"></i> Show Verse References (V)</div>
+    {% if html %}
+    <div id="literalToggleButton"><i class="fas fa-eye"></i> Show Greek (G)</div>
+    {% endif %}
+    <div id="parenthesesToggleButton"><i class="fas fa-eye"></i> Show Names (P)</div>
+    {% if footnotes %}
+    <div id="footnotesToggleButton"><i class="fas fa-book"></i> Show Notes (N)</div>
+    {% endif %}
+</div>
+{% endwith %}
+<em>Joseph and Aseneth</em>
+<h1>{{ book }} {{ chapter_num }}</h1>
+
+<div class="storehouse-container">
+    <div id="mainTextArea">
+        {% if html %}
+        <div class="storehouse-split greek-hidden" data-initial-hidden="true">
+            <div id="paraphrase-area" class="split-column paraphrase">
+                {% if paraphrase %}
+                    {{ paraphrase|safe }}
+                {% else %}
+                    <p>No paraphrase available for chapter {{ chapter_num }}.</p>
+                {% endif %}
+            </div>
+            <div id="literal-area" class="split-column literal">
+                <h4>RBT Greek</h4>
+                {{ html|safe }}
+            </div>
+        </div>
+        {% elif paraphrase %}
+        <div id="paraphrase-area" class="paraphrase-only">{{ paraphrase|safe }}</div>
+        {% elif verses %}
+        <section class="storehouse-body">
+            {% for verse in verses %}
+            <article class="verse-card" id="aseneth-{{ verse.anchor }}">
+                <div class="verse-ref">{{ verse.chapter }}:{{ verse.verse }}</div>
+                <div class="verse-content">{{ verse.content|safe }}</div>
+            </article>
+            {% endfor %}
+        </section>
+        {% else %}
+        <p>No results found for chapter {{ chapter_num }}.</p>
+        {% endif %}
+    </div>
+
+    {% if footnotes %}
+    <aside id="footnotesSidebar" class="footnotes-sidebar">
+        <div id="resizeHandle"><div></div></div>
+        <div class="footnotes-header">
+            <h3>Footnotes</h3>
+            <div id="closeSidebarButton">&times;</div>
+        </div>
+        <div id="footnotesContent">
+            {% for footnote_id, footnote_data in footnotes.items %}
+            <div id="footnote-{{ footnote_id }}" class="footnote-entry">
+                <div class="footnote-label"><sup>{{ footnote_id }}</sup> (Verse {{ footnote_data.verse }})</div>
+                <div class="footnote-body">{{ footnote_data.content|safe }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </aside>
+    {% endif %}
+</div>
+
+<div class="chapter-selector bottom">
+    <strong>Select a Chapter:</strong>
+    {% if chapters %}
+        {{ chapters|safe }}
+    {% else %}
+        <div class="chapter-pill-list">
+            {% for number in chapter_list %}
+                {% if number == chapter_num %}
+                    <span class="chapter-pill current">{{ number }}</span>
+                {% else %}
+                    <a class="chapter-pill" href="{% url 'storehouse' %}?chapter={{ number }}">{{ number }}</a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.chapter-selector { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-bottom: 16px; }
+.chapter-selector.bottom { margin-top: 24px; }
+.chapter-pill-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.chapter-pill { display: inline-flex; align-items: center; justify-content: center; padding: 4px 12px; border-radius: 999px; border: 1px solid #d3c0b2; color: #ba8666; text-decoration: none; font-size: 14px; transition: background 0.2s ease, color 0.2s ease; }
+.chapter-pill:hover { background: #f4ebe5; }
+.chapter-pill.current { background: #ba8666; color: #fff; border-color: #ba8666; cursor: default; }
+.cache-indicator { margin-left: 12px; font-size: 13px; color: #6f9b4b; background: #e7f4dc; padding: 3px 8px; border-radius: 4px; }
+
+#toggleButtonsContainer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; background: #fafafa; border: 1px solid #e0e0e0; border-radius: 10px; padding: 8px 12px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 50; }
+#toggleButtonsContainer > div { display: flex; align-items: center; gap: 6px; font-size: 14px; padding: 6px 12px; color: #ba8666; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; user-select: none; }
+#toggleButtonsContainer > div:hover { background: #f4ebe5; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+#toggleButtonsContainer > div:active { transform: scale(0.97); }
+#toggleButtonsContainer i { color: #ba8666; font-size: 14px; }
+
+.storehouse-container { display: flex; position: relative; }
+#mainTextArea { flex: 1; width: 100%; max-width: 100%; box-sizing: border-box; transition: margin-right 0.3s ease; }
+.storehouse-split { display: flex; gap: 20px; }
+.split-column { width: 50%; box-sizing: border-box; }
+.paraphrase { border-right: 1px solid #d2d2d2; padding-right: 14px; }
+.literal { padding-left: 14px; }
+.paraphrase-only { line-height: 1.6; }
+.storehouse-split.greek-hidden .literal { display: none; }
+.storehouse-split.greek-hidden .paraphrase { width: 100%; border-right: none; padding-right: 0; }
+.storehouse-split.greek-hidden { gap: 0; }
+
+.storehouse-body { display: flex; flex-direction: column; gap: 18px; }
+.verse-card { border: 1px solid #e4d6cc; border-radius: 8px; padding: 16px; background: #fffaf7; box-shadow: 0 2px 4px rgba(186, 134, 102, 0.08); }
+.verse-ref { font-weight: 700; color: #ba8666; margin-bottom: 8px; }
+.verse-content { line-height: 1.6; color: #2f2f2f; }
+
+.footnotes-sidebar { position: fixed; right: -400px; top: 0; width: 350px; height: 100vh; background: #f9f9f9; border-left: 2px solid #ba8666; padding: 0 20px; overflow-y: auto; transition: right 0.3s ease; z-index: 1000; box-shadow: -2px 0 10px rgba(0,0,0,0.1); }
+#resizeHandle { position: absolute; left: 0; top: 0; bottom: 0; width: 10px; cursor: ew-resize; }
+#resizeHandle > div { position: absolute; left: 3px; top: 40%; bottom: 40%; width: 4px; background: #ba8666; border-radius: 2px; opacity: 0.8; }
+.footnotes-header { display: flex; justify-content: space-between; align-items: center; margin: 20px 0; position: sticky; top: 0; background: #f9f9f9; padding-bottom: 10px; border-bottom: 2px solid #ba8666; z-index: 10; }
+.footnotes-header h3 { margin: 0; color: #ba8666; }
+#closeSidebarButton { cursor: pointer; font-size: 24px; color: #ba8666; }
+.footnote-entry { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #ddd; }
+.footnote-entry:last-child { border-bottom: none; }
+.footnote-label { font-weight: bold; color: #ba8666; margin-bottom: 5px; }
+.footnote-body { font-size: 14px; line-height: 1.6; }
+
+@media (max-width: 768px) {
+    #toggleButtonsContainer { justify-content: center; gap: 6px; padding: 10px; position: static; }
+    #toggleButtonsContainer > div { font-size: 13px; padding: 5px 10px; }
+    .storehouse-split { flex-direction: column; }
+    .split-column { width: 100%; padding: 0; border: none; }
+    .paraphrase { border: none; padding-right: 0; }
+    .literal { padding-left: 0; }
+    #mainTextArea { padding-left: 15px; padding-right: 15px; }
+    .footnotes-sidebar { width: 97vw; right: -100vw; }
+    #resizeHandle { display: none; }
+}
+
+img, video, .tooltip-container img, .tooltip-container video { width: 100% !important; height: auto !important; max-width: 500px; display: block; margin: 0 auto; background: #fff; transition: transform 0.3s ease, box-shadow 0.3s ease; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function wrapParenthesesText(element) {
+        if (!element) return;
+        function wrapTextNodes(node) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                const replaced = node.textContent.replace(/\s\([^()]*\)/g, match => '<span class="paren-hide">' + match + '</span>');
+                if (replaced !== node.textContent) {
+                    const temp = document.createElement('span');
+                    temp.innerHTML = replaced;
+                    while (temp.firstChild) {
+                        node.parentNode.insertBefore(temp.firstChild, node);
+                    }
+                    node.parentNode.removeChild(node);
+                }
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                Array.from(node.childNodes).forEach(wrapTextNodes);
+            }
+        }
+        wrapTextNodes(element);
+    }
+
+    wrapParenthesesText(document.getElementById('paraphrase-area'));
+    wrapParenthesesText(document.getElementById('literal-area'));
+
+    setTimeout(() => {
+        document.querySelectorAll('.paren-hide').forEach(span => span.style.setProperty('display', 'none', 'important'));
+    }, 0);
+
+    const h5ToggleButton = document.getElementById('h5ToggleButton');
+    const imageToggleButton = document.getElementById('imageToggleButton');
+    const literalToggleButton = document.getElementById('literalToggleButton');
+    const verseRefToggleButton = document.getElementById('verseRefToggleButton');
+    const footnotesToggleButton = document.getElementById('footnotesToggleButton');
+    const parenthesesToggleButton = document.getElementById('parenthesesToggleButton');
+    const closeSidebarButton = document.getElementById('closeSidebarButton');
+    const footnotesSidebar = document.getElementById('footnotesSidebar');
+    const mainTextArea = document.getElementById('mainTextArea');
+    const resizeHandle = document.getElementById('resizeHandle');
+    const verseRefs = document.querySelectorAll('.verse_ref');
+    const storehouseSplit = document.querySelector('.storehouse-split');
+    const literalArea = document.getElementById('literal-area');
+
+    let isLiteralVisible = false;
+    let isImageVisible = true;
+    let isH5Visible = true;
+    let isVerseRefVisible = false;
+    let isFootnotesVisible = false;
+    let isParenthesesVisible = false;
+
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = 380;
+    const minWidth = 250;
+    const maxWidth = 800;
+
+    function isMobile() {
+        return window.innerWidth <= 768;
+    }
+
+    function initializeSidebar() {
+        if (!footnotesSidebar) return;
+
+        if (isMobile()) {
+            footnotesSidebar.style.width = '97vw';
+            footnotesSidebar.style.right = '-100vw';
+            footnotesSidebar.style.position = 'fixed';
+            footnotesSidebar.style.top = '0';
+            footnotesSidebar.style.height = '100vh';
+            footnotesSidebar.style.zIndex = '1000';
+            footnotesSidebar.style.overflowY = 'auto';
+            footnotesSidebar.style.overflowX = 'hidden';
+            if (mainTextArea) {
+                mainTextArea.style.marginRight = '0';
+                mainTextArea.style.width = '100%';
+                mainTextArea.style.maxWidth = '100%';
+            }
+            if (resizeHandle) {
+                resizeHandle.style.display = 'none';
+            }
+        } else {
+            footnotesSidebar.style.width = '380px';
+            footnotesSidebar.style.position = 'fixed';
+            footnotesSidebar.style.top = '89.6px';
+            footnotesSidebar.style.height = 'calc(100vh - 89.6px)';
+            footnotesSidebar.style.zIndex = '100';
+            footnotesSidebar.style.overflowY = 'auto';
+            footnotesSidebar.style.overflowX = 'hidden';
+            if (!isFootnotesVisible) {
+                footnotesSidebar.style.right = '-400px';
+            }
+            if (resizeHandle) {
+                resizeHandle.style.display = 'block';
+            }
+        }
+    }
+
+    function toggleFootnotes() {
+        if (!footnotesSidebar) return;
+
+        if (isFootnotesVisible) {
+            if (isMobile()) {
+                footnotesSidebar.style.right = '-100vw';
+                const backdrop = document.getElementById('footnotesBackdrop');
+                if (backdrop) {
+                    backdrop.style.opacity = '0';
+                    setTimeout(() => backdrop.remove(), 300);
+                }
+                if (mainTextArea) {
+                    mainTextArea.style.marginRight = '0';
+                }
+            } else {
+                const sidebarWidth = footnotesSidebar.offsetWidth;
+                footnotesSidebar.style.right = `-${sidebarWidth + 20}px`;
+                if (mainTextArea) {
+                    mainTextArea.style.marginRight = '0';
+                }
+            }
+            if (footnotesToggleButton) {
+                footnotesToggleButton.innerHTML = '<i class="fas fa-book"></i> Show Notes (N)';
+            }
+        } else {
+            if (isMobile()) {
+                let backdrop = document.getElementById('footnotesBackdrop');
+                if (!backdrop) {
+                    backdrop = document.createElement('div');
+                    backdrop.id = 'footnotesBackdrop';
+                    backdrop.style.cssText = 'position: fixed;top: 0;left: 0;width: 100vw;height: 100vh;background-color: rgba(0,0,0,0.5);z-index: 999;opacity: 0;transition: opacity 0.3s ease;';
+                    backdrop.addEventListener('click', toggleFootnotes);
+                    document.body.appendChild(backdrop);
+                }
+                setTimeout(() => backdrop.style.opacity = '1', 10);
+                footnotesSidebar.style.right = '0';
+            } else {
+                footnotesSidebar.style.right = '0';
+                const sidebarWidth = footnotesSidebar.offsetWidth;
+                const margin = Math.max(50, sidebarWidth - 330);
+                if (mainTextArea) {
+                    mainTextArea.style.marginRight = margin + 'px';
+                }
+            }
+            if (footnotesToggleButton) {
+                footnotesToggleButton.innerHTML = '<i class="fas fa-book-open"></i> Hide Notes (N)';
+            }
+        }
+
+        isFootnotesVisible = !isFootnotesVisible;
+    }
+
+    if (resizeHandle) {
+        resizeHandle.addEventListener('mousedown', function(e) {
+            if (isMobile()) return;
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = footnotesSidebar.offsetWidth;
+            document.body.classList.add('resizing');
+            footnotesSidebar.style.transition = 'none';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing || isMobile()) return;
+            const deltaX = startX - e.clientX;
+            let newWidth = startWidth + deltaX;
+            newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+            footnotesSidebar.style.width = newWidth + 'px';
+            if (isFootnotesVisible && mainTextArea) {
+                const margin = Math.max(50, newWidth - 330);
+                mainTextArea.style.marginRight = margin + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (!isResizing) return;
+            isResizing = false;
+            document.body.classList.remove('resizing');
+            footnotesSidebar.style.transition = 'right 0.3s ease';
+        });
+    }
+
+    function toggleVerseRefs() {
+        verseRefs.forEach(ref => {
+            ref.style.display = isVerseRefVisible ? 'none' : 'inline';
+        });
+        isVerseRefVisible = !isVerseRefVisible;
+        if (verseRefToggleButton) {
+            verseRefToggleButton.innerHTML = isVerseRefVisible ?
+                '<i class="fas fa-eye-slash"></i> Hide Verse References (V)' :
+                '<i class="fas fa-eye"></i> Show Verse References (V)';
+        }
+    }
+
+    function toggleH5Headers() {
+        const h5Elements = document.querySelectorAll('h5');
+        h5Elements.forEach(element => {
+            element.style.display = isH5Visible ? 'none' : 'block';
+        });
+        isH5Visible = !isH5Visible;
+        if (h5ToggleButton) {
+            h5ToggleButton.innerHTML = isH5Visible ?
+                '<i class="fas fa-eye-slash"></i> Hide Headers (H)' :
+                '<i class="fas fa-eye"></i> Show Headers (H)';
+        }
+    }
+
+    function toggleImages() {
+        const tooltipContainers = document.querySelectorAll('.tooltip-container');
+        tooltipContainers.forEach(container => {
+            container.style.display = isImageVisible ? 'none' : 'block';
+        });
+        isImageVisible = !isImageVisible;
+        if (imageToggleButton) {
+            imageToggleButton.innerHTML = isImageVisible ?
+                '<i class="fas fa-eye-slash"></i> Hide Images (I)' :
+                '<i class="fas fa-eye"></i> Show Images (I)';
+        }
+    }
+
+    function toggleParentheses() {
+        document.querySelectorAll('.paren-hide').forEach(span => {
+            if (isParenthesesVisible) {
+                span.style.setProperty('display', 'none', 'important');
+            } else {
+                span.style.setProperty('display', 'inline', 'important');
+            }
+        });
+        isParenthesesVisible = !isParenthesesVisible;
+        if (parenthesesToggleButton) {
+            parenthesesToggleButton.innerHTML = isParenthesesVisible ?
+                '<i class="fas fa-eye-slash"></i> Hide Names (P)' :
+                '<i class="fas fa-eye"></i> Show Names (P)';
+        }
+    }
+
+    function setLiteralVisibility(visible) {
+        if (!storehouseSplit || !literalArea) return;
+        if (visible) {
+            storehouseSplit.classList.remove('greek-hidden');
+            literalArea.style.display = '';
+            isLiteralVisible = true;
+            if (literalToggleButton) {
+                literalToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Greek (G)';
+            }
+        } else {
+            storehouseSplit.classList.add('greek-hidden');
+            literalArea.style.display = 'none';
+            isLiteralVisible = false;
+            if (literalToggleButton) {
+                literalToggleButton.innerHTML = '<i class="fas fa-eye"></i> Show Greek (G)';
+            }
+        }
+    }
+
+    function toggleLiteral() {
+        setLiteralVisibility(!isLiteralVisible);
+    }
+
+    function handleKeyDown(event) {
+        if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+            return;
+        }
+        const key = event.key;
+        if ((key === 'v' || key === 'V') && verseRefToggleButton) {
+            toggleVerseRefs();
+        } else if ((key === 'h' || key === 'H') && h5ToggleButton) {
+            toggleH5Headers();
+        } else if ((key === 'i' || key === 'I') && imageToggleButton) {
+            toggleImages();
+        } else if ((key === 'g' || key === 'G') && literalToggleButton) {
+            toggleLiteral();
+        } else if ((key === 'n' || key === 'N') && footnotesSidebar) {
+            toggleFootnotes();
+        } else if ((key === 'p' || key === 'P') && parenthesesToggleButton) {
+            toggleParentheses();
+        } else if (key === 'Escape' && isFootnotesVisible && isMobile()) {
+            toggleFootnotes();
+        }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    if (h5ToggleButton) h5ToggleButton.addEventListener('click', toggleH5Headers);
+    if (imageToggleButton) imageToggleButton.addEventListener('click', toggleImages);
+    if (literalToggleButton) literalToggleButton.addEventListener('click', toggleLiteral);
+    if (verseRefToggleButton) verseRefToggleButton.addEventListener('click', toggleVerseRefs);
+    if (footnotesToggleButton) footnotesToggleButton.addEventListener('click', toggleFootnotes);
+    if (parenthesesToggleButton) parenthesesToggleButton.addEventListener('click', toggleParentheses);
+    if (closeSidebarButton) closeSidebarButton.addEventListener('click', toggleFootnotes);
+
+    document.querySelectorAll('.footnote-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (!isFootnotesVisible) {
+                toggleFootnotes();
+            }
+            const targetId = this.getAttribute('href');
+            const targetElement = document.querySelector(targetId);
+            if (targetElement) {
+                setTimeout(() => {
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    targetElement.style.backgroundColor = '#ffe6d5';
+                    setTimeout(() => targetElement.style.backgroundColor = '', 2000);
+                }, 100);
+            }
+        });
+    });
+
+    let resizeTimeout;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+            if (isFootnotesVisible) {
+                toggleFootnotes();
+            }
+            initializeSidebar();
+        }, 250);
+    });
+
+    initializeSidebar();
+    if (storehouseSplit && storehouseSplit.dataset.initialHidden === 'true') {
+        setLiteralVisibility(false);
+    } else if (storehouseSplit) {
+        setLiteralVisibility(true);
+    }
+    if (verseRefs.length) {
+        toggleVerseRefs();
+    }
+});
+</script>
+
+{% endblock %}
+

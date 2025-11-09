@@ -23,6 +23,7 @@ from google import genai
 from .db_utils import get_db_connection, execute_query
 import psycopg2
 import requests
+from urllib.parse import quote, unquote
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
@@ -517,9 +518,10 @@ def edit(request):
         book = request.POST.get('book')
         chapter_num = request.POST.get('chapter')
         verse_num = request.POST.get('verse')
-        verse_input = request.POST.get('verse_input')
         nt_book = request.POST.get('nt_book')
         replacements = request.POST.get('replacements')
+        edited_greek = request.POST.get('edited_greek')
+        verse_input = request.POST.get('verse_input')
 
         if replacements:
             
@@ -680,7 +682,6 @@ def edit(request):
             return render(request, 'edit_nt_verse.html', context)
 
         elif verse_input:
-            
             context = get_context(book, chapter_num, verse_input)
             if book in new_testament_books:
                 return render(request, 'edit_nt_verse.html', context)
@@ -1299,7 +1300,7 @@ def translate(request):
         rows_data = execute_query(
             """
             SELECT id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, Morph, uniq, Strongs, color, html, 
-                heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote
+                heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology
             FROM old_testament.hebrewdata
             WHERE Ref LIKE %s;
             """,
@@ -1355,7 +1356,7 @@ def translate(request):
                 chapter_reader += html_string + close_text
 
         # Build the Hebrew row
-        strong_rows, english_rows, hebrew_rows, morph_rows, hebrew_clean = build_heb_interlinear(rows_data)
+        strong_rows, english_rows, hebrew_rows, morph_rows, hebrew_clean, interlinear_cards = build_heb_interlinear(rows_data)
     
         # Reverse the order 
         strong_rows.reverse()
@@ -1367,12 +1368,29 @@ def translate(request):
         english_row = '<tr class="eng_reader">' + ''.join(english_rows) + '</tr>'
         hebrew_row = '<tr class="hebrew_reader">' + ''.join(hebrew_rows) + '</tr>'
         #morph_row = '<tr class="morph_reader" style="word-wrap: break-word;">' + ''.join(morph_rows) + '</tr>'
-        hebrew_clean = '<font style="font-size: 26px;">' + ''.join(hebrew_clean) + '</font>'
+        hebrew_clean = '<p><font style="font-size: 26px;">' + ' '.join(hebrew_clean) + '</font></p><p>' + ''.join(hebrew_clean) + '</p>'
 
         # strip niqqud from hebrew
         niqqud_pattern = '[\u0591-\u05BD\u05BF\u05C1-\u05C5\u05C7]'
         dash_pattern = '־'
         hebrew_row = re.sub(niqqud_pattern + '|' + dash_pattern, '', hebrew_row)
+
+        raw_cards = interlinear_cards or []
+        hebrew_cards = []
+        for card in raw_cards:
+            hebrew_no_niqqud = re.sub(niqqud_pattern + '|' + dash_pattern, '', card['hebrew']).strip()
+            hebrew_cards.append({
+                'id': card.get('id'),
+                'hebrew': hebrew_no_niqqud,
+                'hebrew_niqqud': card['hebrew'],
+                'english': card['english'],
+                'strongs': card['strongs'],
+                'morph': card['morph'],
+            })
+
+        hebrew_cards.sort(
+            key=lambda c: (c['id'] is None, c['id'] if c['id'] is not None else -1)
+        )
 
         ######### EDIT TABLE / ENGLISH READER
         edit_table_data = []
@@ -1380,7 +1398,7 @@ def translate(request):
         footnote_num = 1
 
         for row_data in rows_data:
-            id, ref, eng, heb1, heb2, heb3, heb4, heb5, heb6, morph, unique, strongs, color, html_list, heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote = row_data
+            id, ref, eng, heb1, heb2, heb3, heb4, heb5, heb6, morph, unique, strongs, color, html_list, heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology = row_data
 
             english_verse.append(eng)
 
@@ -1602,6 +1620,10 @@ def translate(request):
             
             footnote_num += 1
 
+        edit_table_data.sort(
+            key=lambda row: row[0] if row[0] is not None else -1
+        )
+
         english_verse = ' '.join(filter(None, english_verse))
         english_verse = english_verse.replace("אֵת- ", "אֵת-")
 
@@ -1628,7 +1650,8 @@ def translate(request):
                 'chapter_reader': chapter_reader,
                 'invalid_verse': invalid_verse,
                 'hebrew': hebrew_clean,
-                'smith': smith
+                'smith': smith,
+                'hebrew_interlinear_cards': hebrew_cards,
                 }
         
         return render(request, 'hebrew.html', {'page_title': page_title, **context})
@@ -2413,77 +2436,354 @@ def edit_nt_chapter(request):
 
     return render(request, 'edit_nt_chapter.html')
 
+def get_aseneth_story():
+    """Return the entire Joseph and Aseneth story ordered by chapter and verse."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SET search_path TO joseph_aseneth")
+            cursor.execute(
+                """
+                SELECT id, book, chapter, verse, english
+                FROM aseneth
+                ORDER BY chapter, verse
+                """
+            )
+            rows = cursor.fetchall()
+    except psycopg2.Error as exc:
+        raise
+
+    story = []
+    for row in rows:
+        record_id, book, chapter, verse, english = row
+        story.append({
+            'id': record_id,
+            'book': book or 'He Adds and Storehouse',
+            'chapter': chapter,
+            'verse': verse,
+            'english': english or ''
+        })
+    return story
+
+
+def build_exact_match_pattern(term):
+    """Create a regex pattern that matches the exact term as a standalone word/phrase."""
+    if not term:
+        return None
+    escaped = re.escape(term)
+    return re.compile(rf'(?<!\w){escaped}(?!\w)')
+
+
+def highlight_matches(text, pattern, css_class):
+    """Return HTML string with matched segments wrapped in <mark> tags."""
+    if not text:
+        return ''
+    if not pattern:
+        return escape(text)
+
+    parts = []
+    last_index = 0
+    for match in pattern.finditer(text):
+        start, end = match.span()
+        parts.append(escape(text[last_index:start]))
+        parts.append(f'<mark class="{css_class}">{escape(match.group(0))}</mark>')
+        last_index = end
+    parts.append(escape(text[last_index:]))
+    return ''.join(parts)
+
+
 @login_required
 def edit_aseneth(request):
     """
     Edit view for Joseph and Aseneth translation database.
     Handles viewing and editing verses from the Joseph_Aseneth schema.
     """
-    
-    book = "He is Adding and Storehouse"  # Default book name
-    chapter_num = request.GET.get('chapter')
-    verse_num = request.GET.get('verse')
-    
-    # Handle POST requests (editing verses)
+    book_name = "He Adds and Storehouse"
+    chapter_query = request.GET.get('chapter')
+    verse_query = request.GET.get('verse')
+
     if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action in {'preview', 'confirm', 'back'}:
+            find_text = (request.POST.get('find_text') or '').strip()
+            replace_text = (request.POST.get('replace_text') or '').strip()
+
+            if action == 'back':
+                try:
+                    story = get_aseneth_story()
+                except psycopg2.Error as exc:
+                    messages.error(request, f"Unable to load Joseph and Aseneth story: {exc}")
+                    story = []
+
+                context = {
+                    'book': book_name,
+                    'story': story,
+                    'find_text': find_text,
+                    'replace_text': replace_text
+                }
+                return render(request, 'edit_aseneth_input.html', context)
+
+            if action == 'preview':
+                if not find_text or not replace_text:
+                    messages.error(request, "Both find and replace values are required.")
+                    try:
+                        story = get_aseneth_story()
+                    except psycopg2.Error as exc:
+                        messages.error(request, f"Unable to load Joseph and Aseneth story: {exc}")
+                        story = []
+
+                    context = {
+                        'book': book_name,
+                        'story': story,
+                        'find_text': find_text,
+                        'replace_text': replace_text
+                    }
+                    return render(request, 'edit_aseneth_input.html', context)
+
+                try:
+                    story = get_aseneth_story()
+                except psycopg2.Error as exc:
+                    messages.error(request, f"Unable to load Joseph and Aseneth story: {exc}")
+                    story = []
+                    context = {
+                        'book': book_name,
+                        'story': story,
+                        'find_text': find_text,
+                        'replace_text': replace_text
+                    }
+                    return render(request, 'edit_aseneth_input.html', context)
+
+                find_pattern = build_exact_match_pattern(find_text)
+                replacement_pattern = build_exact_match_pattern(replace_text)
+
+                if not find_pattern:
+                    messages.error(request, "Enter a valid term to find.")
+                    context = {
+                        'book': book_name,
+                        'story': story,
+                        'find_text': find_text,
+                        'replace_text': replace_text
+                    }
+                    return render(request, 'edit_aseneth_input.html', context)
+
+                updates = []
+                preview_rows = []
+                total_matches = 0
+
+                for row in story:
+                    english_text = row['english'] or ''
+                    updated_text, replacements = find_pattern.subn(replace_text, english_text)
+                    if replacements:
+                        total_matches += replacements
+                        updates.append({
+                            'id': row['id'],
+                            'chapter': row['chapter'],
+                            'verse': row['verse'],
+                            'old_text': english_text,
+                            'new_text': updated_text,
+                            'count': replacements
+                        })
+
+                        preview_rows.append({
+                            'id': row['id'],
+                            'chapter': row['chapter'],
+                            'verse': row['verse'],
+                            'original_highlight': highlight_matches(english_text, find_pattern, 'highlight-original'),
+                            'updated_highlight': highlight_matches(updated_text, replacement_pattern, 'highlight-updated') if replacement_pattern else escape(updated_text)
+                        })
+
+                if not updates:
+                    messages.info(request, f"No exact matches for '{find_text}' were found in the story.")
+                    context = {
+                        'book': book_name,
+                        'story': story,
+                        'find_text': find_text,
+                        'replace_text': replace_text
+                    }
+                    return render(request, 'edit_aseneth_input.html', context)
+
+                updates_json = json.dumps(updates)
+
+                context = {
+                    'book': book_name,
+                    'find_text': find_text,
+                    'replace_text': replace_text,
+                    'total_matches': total_matches,
+                    'affected_count': len(updates),
+                    'preview_rows': preview_rows,
+                    'updates_json': quote(updates_json)
+                }
+                return render(request, 'edit_aseneth_review.html', context)
+
+            if action == 'confirm':
+                updates_payload = request.POST.get('updates_json', '')
+                if not updates_payload:
+                    messages.error(request, "Missing update payload; please run the find and replace again.")
+                    try:
+                        story = get_aseneth_story()
+                    except psycopg2.Error as exc:
+                        messages.error(request, f"Unable to load Joseph and Aseneth story: {exc}")
+                        story = []
+                    context = {
+                        'book': book_name,
+                        'story': story,
+                        'find_text': find_text,
+                        'replace_text': replace_text
+                    }
+                    return render(request, 'edit_aseneth_input.html', context)
+
+                try:
+                    updates = json.loads(unquote(updates_payload))
+                except json.JSONDecodeError:
+                    messages.error(request, "Could not read replacement preview; please try again.")
+                    try:
+                        story = get_aseneth_story()
+                    except psycopg2.Error as exc:
+                        messages.error(request, f"Unable to load Joseph and Aseneth story: {exc}")
+                        story = []
+                    context = {
+                        'book': book_name,
+                        'story': story,
+                        'find_text': find_text,
+                        'replace_text': replace_text
+                    }
+                    return render(request, 'edit_aseneth_input.html', context)
+
+                if not updates:
+                    messages.info(request, "No replacements to apply.")
+                    try:
+                        story = get_aseneth_story()
+                    except psycopg2.Error as exc:
+                        messages.error(request, f"Unable to load Joseph and Aseneth story: {exc}")
+                        story = []
+                    context = {
+                        'book': book_name,
+                        'story': story,
+                        'find_text': find_text,
+                        'replace_text': replace_text
+                    }
+                    return render(request, 'edit_aseneth_input.html', context)
+
+                try:
+                    with get_db_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SET search_path TO joseph_aseneth")
+                        for item in updates:
+                            cursor.execute(
+                                "UPDATE aseneth SET english = %s WHERE id = %s",
+                                (item['new_text'], item['id'])
+                            )
+                        conn.commit()
+                except psycopg2.Error as exc:
+                    messages.error(request, f"Database error while applying replacements: {exc}")
+                    try:
+                        story = get_aseneth_story()
+                    except psycopg2.Error as story_exc:
+                        messages.error(request, f"Unable to reload Joseph and Aseneth story: {story_exc}")
+                        story = []
+                    context = {
+                        'book': book_name,
+                        'story': story,
+                        'find_text': find_text,
+                        'replace_text': replace_text
+                    }
+                    return render(request, 'edit_aseneth_input.html', context)
+
+                affected_chapters = set()
+                for item in updates:
+                    chapter_value = item.get('chapter')
+                    verse_value = item.get('verse')
+                    if chapter_value is not None and verse_value is not None:
+                        cache.delete(f'aseneth_{chapter_value}_{verse_value}')
+                        affected_chapters.add(chapter_value)
+                for chapter_value in affected_chapters:
+                    cache.delete(f'aseneth_{chapter_value}_None')
+
+                total_matches = sum(item.get('count', 0) for item in updates)
+
+                try:
+                    update_instance = TranslationUpdates(
+                        date=datetime.now(),
+                        version='Aseneth English Bulk',
+                        reference=book_name,
+                        update_text=f"Replaced '{find_text}' with '{replace_text}' in {len(updates)} verses ({total_matches} occurrences)."
+                    )
+                    update_instance.save()
+                except Exception:
+                    pass
+
+                messages.success(
+                    request,
+                    f"Replaced '{find_text}' with '{replace_text}' in {len(updates)} verses ({total_matches} occurrences)."
+                )
+
+                try:
+                    story = get_aseneth_story()
+                except psycopg2.Error as exc:
+                    messages.error(request, f"Unable to reload Joseph and Aseneth story: {exc}")
+                    story = []
+
+                context = {
+                    'book': book_name,
+                    'story': story,
+                    'find_text': '',
+                    'replace_text': ''
+                }
+                return render(request, 'edit_aseneth_input.html', context)
+
         edited_greek = request.POST.get('edited_greek')
         edited_english = request.POST.get('edited_english')
         record_id = request.POST.get('record_id')
-        chapter_num = request.POST.get('chapter')
-        verse_num = request.POST.get('verse')
+        chapter_num = request.POST.get('chapter') or chapter_query
+        verse_num = request.POST.get('verse') or verse_query
         verse_input = request.POST.get('verse_input')
-        
-        # Handle verse navigation
+
         if verse_input:
             context = get_aseneth_context(chapter_num, verse_input)
             return render(request, 'edit_aseneth_verse.html', context)
-        
-        # Handle verse update
+
         if record_id and (edited_greek or edited_english):
             try:
                 with get_db_connection() as conn:
                     cursor = conn.cursor()
                     cursor.execute("SET search_path TO joseph_aseneth")
-                    
-                    # Determine which field was edited
+
                     if edited_greek is not None:
-                        sql_query = "UPDATE aseneth SET greek = %s WHERE id = %s"
-                        cursor.execute(sql_query, (edited_greek.strip(), record_id))
+                        cursor.execute("UPDATE aseneth SET greek = %s WHERE id = %s", (edited_greek.strip(), record_id))
                         version = 'Aseneth Greek'
                         update_text = edited_greek
                     elif edited_english is not None:
-                        sql_query = "UPDATE aseneth SET english = %s WHERE id = %s"
-                        cursor.execute(sql_query, (edited_english.strip(), record_id))
+                        cursor.execute("UPDATE aseneth SET english = %s WHERE id = %s", (edited_english.strip(), record_id))
                         version = 'Aseneth English'
                         update_text = edited_english
-                    
+
                     conn.commit()
-                    
-                    # Log the update
+
                     update_text = re.sub(r'<a\s+.*?>(.*?)</a>', r'\1', update_text)
-                    update_version = version
-                    update_date = datetime.now()
                     update_instance = TranslationUpdates(
-                        date=update_date, 
-                        version=update_version, 
-                        reference=f"{book} {chapter_num}:{verse_num}", 
+                        date=datetime.now(),
+                        version=version,
+                        reference=f"{book_name} {chapter_num}:{verse_num}",
                         update_text=update_text
                     )
                     update_instance.save()
-                    
-                    # Clear cache
+
                     cache_key_base_verse = f'aseneth_{chapter_num}_{verse_num}'
                     cache_key_base_chapter = f'aseneth_{chapter_num}_None'
                     cache.delete(cache_key_base_verse)
                     cache.delete(cache_key_base_chapter)
-                    
+
                     cache_string = f"Deleted Cache key: {cache_key_base_verse}, {cache_key_base_chapter}"
-                    
+
                     context = get_aseneth_context(chapter_num, verse_num)
-                    context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Updated verse successfully! {cache_string}</p></div>'
-                    
+                    context['edit_result'] = (
+                        '<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i>'
+                        '</span>Updated verse successfully! ' + cache_string + '</p></div>'
+                    )
+
                     return render(request, 'edit_aseneth_verse.html', context)
-                    
+
             except psycopg2.Error as e:
                 context = {
                     'error_message': f"Database error: {e}",
@@ -2491,21 +2791,28 @@ def edit_aseneth(request):
                     'verse': verse_num
                 }
                 return render(request, 'edit_aseneth_verse.html', context)
-    
-    # Handle GET requests
-    elif chapter_num and verse_num:
-        # Display single verse for editing
-        context = get_aseneth_context(chapter_num, verse_num)
+
+    if chapter_query and verse_query:
+        context = get_aseneth_context(chapter_query, verse_query)
         return render(request, 'edit_aseneth_verse.html', context)
-    
-    elif chapter_num:
-        # Display entire chapter
-        context = get_aseneth_chapter(chapter_num)
+
+    if chapter_query:
+        context = get_aseneth_chapter(chapter_query)
         return render(request, 'edit_aseneth_chapter.html', context)
-    
-    else:
-        # Display input form
-        return render(request, 'edit_aseneth_input.html')
+
+    try:
+        story = get_aseneth_story()
+    except psycopg2.Error as exc:
+        messages.error(request, f"Unable to load Joseph and Aseneth story: {exc}")
+        story = []
+
+    context = {
+        'book': book_name,
+        'story': story,
+        'find_text': request.GET.get('find_text', ''),
+        'replace_text': request.GET.get('replace_text', '')
+    }
+    return render(request, 'edit_aseneth_input.html', context)
 
 def get_word_entries(words, conn):
     """
@@ -2659,7 +2966,7 @@ def get_aseneth_context(chapter_num, verse_num):
 
             context = {
                 'verse_data': verse_data,
-                'book': 'He is Adding and Storehouse',
+                'book': 'He Adds and Storehouse',
                 'chapter': chapter_num,
                 'verse': verse_num,
                 'chapter_list': chapter_list,
@@ -2731,7 +3038,7 @@ def get_aseneth_chapter(chapter_num):
             
             context = {
                 'html': html,
-                'book': 'He is Adding and Storehouse',
+                'book': 'He Adds and Storehouse',
                 'chapter_num': chapter_num,
                 'chapters': chapters,
                 'chapter_list': chapter_list,

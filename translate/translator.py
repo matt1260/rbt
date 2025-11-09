@@ -377,9 +377,10 @@ def build_heb_interlinear(rows_data):
     morph_rows = []
     strong_rows = []
     hebrew_clean = []
+    interlinear_cards = []
 
     for index, row_data in enumerate(rows_data):
-        id, ref, eng, heb1, heb2, heb3, heb4, heb5, heb6, morph, unique, strong, color, html_list, heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote = row_data
+        id, ref, eng, heb1, heb2, heb3, heb4, heb5, heb6, morph, unique, strong, color, html_list, heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology = row_data
 
         parts = strong.split('/')
 
@@ -412,9 +413,16 @@ def build_heb_interlinear(rows_data):
         strongs_references = ' | '.join(strongs_references)
 
         
-        #combined_hebrew = f"{heb1 or ''} {heb2 or ''} {heb3 or ''} {heb4 or ''} {heb5 or ''} {heb6 or ''}".replace(' ', '')
-        combined_hebrew = f"{heb1 or ''} {heb2 or ''} {heb3 or ''} {heb4 or ''} {heb5 or ''} {heb6 or ''}"
-        combined_hebrew_clean = f"{heb1_n or ''} {heb2_n or ''} {heb3_n or ''} {heb4_n or ''} {heb5_n or ''} {heb6_n or ''}"
+        # Join parts without injecting extra spaces so prefixes stay attached to the word
+        hebrew_parts = [heb1, heb2, heb3, heb4, heb5, heb6]
+        combined_hebrew = ''.join(part or '' for part in hebrew_parts)
+        if not combined_hebrew.strip():
+            combined_hebrew = combined_heb_niqqud or ''
+
+        hebrew_parts_clean = [heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n]
+        combined_hebrew_clean = ''.join(part or '' for part in hebrew_parts_clean)
+        if not combined_hebrew_clean.strip():
+            combined_hebrew_clean = combined_heb or ''
 
         at_list = [
             'אָתֶ', 'אֹתִ', 'אתֹ', 'אֹתֵ', 'אֶתֶּ', 'אֵתֻ', 'אַתֵ', 'אתִ', 'אֵתֵ', 'אָתֻ', 'אֵתֶּ', 'אַתִ', 'אֻתֵ', 'אַתּ',
@@ -434,9 +442,10 @@ def build_heb_interlinear(rows_data):
                 combined_hebrew = combined_hebrew.replace(at, f'<span style="color: #f00;">{at}</span>')
 
         strong_cell = f'<td class="strong-cell">{strongs_references}</td>'
+        display_english = eng
         if hayah == True:
-            eng = f'<span class="hayah">{eng}</span>'
-        english_cell = f'<td>{eng}</td>'
+            display_english = f'<span class="hayah">{eng}</span>'
+        english_cell = f'<td>{display_english}</td>'
         hebrew_cell = f'<td>{combined_hebrew}</td>'
 
         morph_color = ""
@@ -446,6 +455,11 @@ def build_heb_interlinear(rows_data):
             morph_color = 'style="color: #FF1493;"'
         elif 'm' in morph:
             morph_color = 'style="color: blue;"'
+        
+        if 'feminine' in morphology:
+            morphology = f'<font style="color: #FF1493;">{morphology}</font>'
+        elif 'masculine' in morphology:
+            morphology = f'<font style="color: blue;">{morphology}</font>'
 
         morph_cell = f'<td style="font-size: 12px;" class="morph-cell"><input type="hidden" id="code" value="{morph}"/><div {morph_color}>{morph}</div><div class="morph-popup" id="morph"></div></td>'
 
@@ -458,7 +472,15 @@ def build_heb_interlinear(rows_data):
         morph_rows.append(morph_cell)
         hebrew_clean.append(combined_hebrew_clean)
 
-    return strong_rows, english_rows, hebrew_rows, morph_rows, hebrew_clean
+        interlinear_cards.append({
+            'id': id,
+            'hebrew': combined_hebrew,
+            'english': display_english,
+            'strongs': strongs_references,
+            'morph': morphology,
+        })
+
+    return strong_rows, english_rows, hebrew_rows, morph_rows, hebrew_clean, interlinear_cards
 
 
 

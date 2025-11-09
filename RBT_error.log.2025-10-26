@@ -1,0 +1,22 @@
+2025-10-26 09:21:50 [ERROR] django.request: Internal Server Error: /edit_aseneth/
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/django/core/handlers/base.py", line 204, in _get_response
+    self.check_response(response, callback)
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/django/core/handlers/base.py", line 332, in check_response
+    raise ValueError(
+ValueError: The view translate.views.edit_aseneth didn't return an HttpResponse object. It returned None instead.
+2025-10-26 09:21:50 [ERROR] django.server: "POST /edit_aseneth/ HTTP/1.1" 500 67140
+2025-10-26 09:21:55 [ERROR] django.request: Internal Server Error: /edit_aseneth/
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/django/core/handlers/base.py", line 204, in _get_response
+    self.check_response(response, callback)
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/django/core/handlers/base.py", line 332, in check_response
+    raise ValueError(
+ValueError: The view translate.views.edit_aseneth didn't return an HttpResponse object. It returned None instead.
+2025-10-26 09:21:55 [ERROR] django.server: "POST /edit_aseneth/ HTTP/1.1" 500 67140

@@ -7,6 +7,7 @@ urlpatterns = [
     path('search/', views.search, name='search'),
     path('RBT/search/word/', views.word_view, name='word'),
     path('search/word/', views.word_view, name='word'),
+    path('aseneth/', views.storehouse_view, name='storehouse'),
     path('updates/', views.updates, name='updates'),
     path('update_count/', views.update_count, name='update_count_api'),
     path('statistics/', views.update_statistics_view, name='update_statistics'),

@@ -35,6 +35,8 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 from .db_utils import get_db_connection, execute_query
 import os
 
+INTERLINEAR_CACHE_VERSION = 'v2'
+
 def home(request):
     return HttpResponse("You're at the home page.")
 
@@ -282,10 +284,11 @@ def get_results(book, chapter_num, verse_num=None):
     hebrew_clean = None
     commentary = None
     entries = None
+    hebrew_cards = None
 
     # Sets/Retrieves cache only for verse, not whole chapter
     sanitized_book = book.replace(':', '_').replace(' ', '')
-    cache_key_base = f'{sanitized_book}_{chapter_num}_{verse_num}'
+    cache_key_base = f'{sanitized_book}_{chapter_num}_{verse_num}_{INTERLINEAR_CACHE_VERSION}'
     cached_data = cache.get(cache_key_base)
 
     
@@ -399,7 +402,7 @@ def get_results(book, chapter_num, verse_num=None):
                 # Retrieve Hebrewdata rows matching a reference pattern
                 sql_query_hebrew = """
                     SELECT id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, Morph, uniq, Strongs, color, html, 
-                        heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote
+                        heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology
                     FROM old_testament.hebrewdata
                     WHERE ref LIKE %s;
                 """
@@ -418,7 +421,7 @@ def get_results(book, chapter_num, verse_num=None):
                 
                 rbt_heb = row_data[3]
                     
-                strong_row, english_row, hebrew_row, morph_row, hebrew_clean = build_heb_interlinear(rows_data)
+                strong_row, english_row, hebrew_row, morph_row, hebrew_clean, hebrew_cards = build_heb_interlinear(rows_data)
                 
                 # Reverse the order 
                 strong_row.reverse()
@@ -436,6 +439,23 @@ def get_results(book, chapter_num, verse_num=None):
                 niqqud_pattern = '[\u0591-\u05BD\u05BF\u05C1-\u05C5\u05C7]'
                 dash_pattern = '־'
                 hebrew_row = re.sub(niqqud_pattern + '|' + dash_pattern, '', hebrew_row)
+
+                raw_cards = hebrew_cards or []
+                hebrew_cards = []
+                for card in raw_cards:
+                    hebrew_no_niqqud = re.sub(niqqud_pattern + '|' + dash_pattern, '', card['hebrew']).strip()
+                    hebrew_cards.append({
+                        'id': card.get('id'),
+                        'hebrew': hebrew_no_niqqud,
+                        'hebrew_niqqud': card['hebrew'],
+                        'english': card['english'],
+                        'strongs': card['strongs'],
+                        'morph': card['morph'],
+                    })
+
+                hebrew_cards.sort(
+                    key=lambda c: (c['id'] is None, c['id'] if c['id'] is not None else -1)
+                )
 
                 # incomplete. need to finish get_footnote() for rest of OT books
                 footnote_list = re.findall(r'\?footnote=([^&"]+)', rbt_paraphrase)
@@ -710,6 +730,8 @@ def get_results(book, chapter_num, verse_num=None):
                 except json.JSONDecodeError as e:
                     print(f"[ERROR] Failed to load JSON: {e}")
 
+            hebrew_cards = hebrew_cards or []
+
             data = {
                     "chapter_list": chapter_list,
                     "rbt_greek": rbt_greek,
@@ -738,6 +760,7 @@ def get_results(book, chapter_num, verse_num=None):
                     "hebrew_row": hebrew_row,
                     "morph_row": morph_row,
                     "hebrew_clean": hebrew_clean,
+                    "hebrew_interlinear_cards": hebrew_cards,
                 }
 
             cache.set(cache_key_base, data)
@@ -1216,6 +1239,8 @@ def search(request):
             hebrew_row = results['hebrew_row']
             #morph_row = results['morph_row']
             hebrew_clean = results['hebrew_clean']
+            hebrew_cards = results.get('hebrew_interlinear_cards')
+            hebrew_cards = hebrew_cards or []
 
 
             if footnote_contents:
@@ -1249,7 +1274,8 @@ def search(request):
                     'strong_row': strong_row, 
                     'english_row': english_row,
                     'hebrew_row': hebrew_row,
-                    'hebrew_clean': hebrew_clean
+                    'hebrew_clean': hebrew_clean,
+                    'hebrew_interlinear_cards': hebrew_cards
                     }
             page_title = f'{book} {chapter_num}:{verse_num}'
             return render(request, 'verse.html', {'page_title': page_title, **context})
@@ -1629,6 +1655,142 @@ def search(request):
         context = {'error': error }
         return render(request, 'search_input.html', context)
     
+def storehouse_view(request):
+    """Public reader for Joseph and Aseneth."""
+    book_name = "He Adds and Storehouse"
+    chapter_param = request.GET.get('chapter')
+    try:
+        chapter_num = int(chapter_param)
+        if chapter_num < 1:
+            chapter_num = 1
+    except (TypeError, ValueError):
+        chapter_num = 1
+
+    cache_key = f'storehouse_{chapter_num}_{INTERLINEAR_CACHE_VERSION}'
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        context = {**cached_data, 'cache_hit': True}
+        return render(request, 'storehouse.html', context)
+
+    chapter_list = []
+    chapters_markup = ''
+    paraphrase = ''
+    greek_literal = ''
+    footnotes_collection = {}
+    verses = []
+    error_message = None
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SET search_path TO joseph_aseneth")
+                cursor.execute(
+                    """
+                    SELECT DISTINCT chapter
+                    FROM aseneth
+                    ORDER BY chapter
+                    """
+                )
+                chapter_rows = cursor.fetchall()
+
+                raw_chapters = []
+                for (chapter_value,) in chapter_rows:
+                    if chapter_value is None:
+                        continue
+                    try:
+                        raw_chapters.append(int(chapter_value))
+                    except (TypeError, ValueError):
+                        continue
+
+                if not raw_chapters:
+                    raise ValueError("Joseph and Aseneth data is unavailable.")
+
+                chapter_list = sorted(set(raw_chapters))
+
+                if chapter_num not in chapter_list:
+                    chapter_num = chapter_list[0]
+
+                for number in chapter_list:
+                    chapters_markup += (
+                        f'<a href="?chapter={number}" style="text-decoration: none;">{number}</a> |'
+                    )
+
+                cursor.execute(
+                    """
+                    SELECT verse, english, greek
+                    FROM aseneth
+                    WHERE chapter = %s
+                    ORDER BY verse
+                    """,
+                    (chapter_num,)
+                )
+                rows = cursor.fetchall()
+    except Exception as exc:
+        error_message = str(exc)
+        rows = []
+
+    for verse_value, english_text, greek_text in rows:
+        verse_label = '' if verse_value is None else str(verse_value)
+        #verse_link = f'?chapter={chapter_num}&verse={verse_label}' if verse_label else f'?chapter={chapter_num}'
+        verse_ref = (
+            f'<span class="verse_ref" style="display: none;">'
+            f'<b>{verse_label or ""} </b></span>'
+        )
+
+        english_fragment = english_text or ''
+        close_text = '' if english_fragment.endswith('</span>') else '<br>'
+
+        if english_fragment:
+            if '<h5>' in english_fragment:
+                parts = english_fragment.split('</h5>')
+                if len(parts) >= 2:
+                    heading = parts[0] + '</h5>'
+                    paraphrase += f'{heading}{verse_ref}{parts[1]}{close_text}'
+                else:
+                    paraphrase += f'{verse_ref}{english_fragment}{close_text}'
+            else:
+                formatted_paraphrase = f'{verse_ref} {english_fragment}'
+                paraphrase += formatted_paraphrase + close_text
+
+        greek_fragment = greek_text or ''
+        if greek_fragment:
+            if '</p><p>' in greek_fragment:
+                parts = greek_fragment.split('</p><p>')
+                greek_literal += f'{parts[0]}</p><p>{verse_ref}{parts[1]}'
+            elif greek_fragment.startswith('<p>'):
+                greek_literal += f'<p>{verse_ref}{greek_fragment[3:]}'
+            else:
+                greek_literal += f'{verse_ref} {greek_fragment}'
+
+        anchor = re.sub(r'[^0-9a-zA-Z]+', '-', verse_label).strip('-').lower()
+        if not anchor:
+            anchor = f'verse-{len(verses) + 1}'
+        verses.append({
+            'chapter': chapter_num,
+            'verse': verse_label,
+            'anchor': anchor,
+            'content': english_text or ''
+        })
+
+    context = {
+        'book': book_name,
+        'chapter_num': chapter_num,
+        'chapters': chapters_markup,
+        'paraphrase': paraphrase,
+        'html': greek_literal,
+        'footnotes': footnotes_collection,
+        'verses': verses,
+        'error_message': error_message,
+        'cache_hit': False,
+        'page_title': f"{book_name} {chapter_num}" if not error_message else book_name
+    }
+
+    if not error_message:
+        cache.set(cache_key, {**context})
+
+    return render(request, 'storehouse.html', context)
+
+
 def word_view(request):
     rbt_heb_ref = request.GET.get('word')
     use_niqqud = request.GET.get('niqqud')

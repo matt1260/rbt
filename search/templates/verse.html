@@ -83,6 +83,88 @@
         font-size: 20px;
     }
 
+    .hebrew-interlinear-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: flex-end;
+        direction: rtl;
+        margin-top: 16px;
+        margin-bottom: 24px;
+    }
+
+    .interlinear-card {
+        background: #f6f7fa;
+        border: 1px solid #d9dee6;
+        border-radius: 8px;
+        padding: 12px 14px;
+        min-width: 120px;
+        max-width: 220px;
+        text-align: right;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    }
+
+    .interlinear-card .card-hebrew {
+        font-size: 28px;
+        line-height: 1.3;
+    }
+
+    .card-hebrew > span {
+        display: block;
+    }
+
+    .card-hebrew .hebrew-with-niqqud {
+        display: none;
+    }
+
+    .interlinear-card .card-english {
+        font-size: 14px;
+        color: #2d2d2d;
+        margin-top: 6px;
+        direction: ltr;
+    }
+
+    .interlinear-card .card-strongs {
+        font-size: 12px;
+        color: #4a4a4a;
+        margin-top: 6px;
+        direction: ltr;
+    }
+
+    .interlinear-card .card-morph {
+        font-size: 11px;
+        color: #6d6d6d;
+        margin-top: 6px;
+        direction: ltr;
+    }
+
+    .interlinear-legacy {
+        margin-top: 12px;
+    }
+
+    .interlinear-legacy summary {
+        cursor: pointer;
+        font-size: 13px;
+        color: #3f4b6b;
+        outline: none;
+    }
+
+    @media only screen and (max-width: 767px) {
+        .hebrew-interlinear-grid {
+            justify-content: flex-start;
+            gap: 8px;
+        }
+
+        .interlinear-card {
+            min-width: 100px;
+            max-width: 180px;
+        }
+
+        .interlinear-card .card-hebrew {
+            font-size: 24px;
+        }
+    }
+
 </style>
 
 <div class="desktop-view">
@@ -312,17 +394,28 @@
 </div>
 {% endif %}
 
-{% if english_row %}
-<table class="readerTable">
-    <tbody>
-  
-      {{ hebrew_row|safe }}
-      {{ english_row|safe }}
-      {{ strong_row|safe }}
-  
-    </tbody>
-</table>
+{% if hebrew_interlinear_cards %}
+<strong>RBT Hebrew Interlinear:</strong>
+<div class="hebrew-interlinear-grid">
+    {% for cell in hebrew_interlinear_cards %}
+    <div class="interlinear-card">
+        <div class="card-hebrew">
+            <span class="hebrew-no-niqqud">{{ cell.hebrew|safe }}</span>
+            <span class="hebrew-with-niqqud">{{ cell.hebrew_niqqud|safe }}</span>
+        </div>
+        <div class="card-english">{{ cell.english|safe }}</div>
+        {% if cell.strongs %}
+        <div class="card-strongs">{{ cell.strongs|safe }}</div>
+        {% endif %}
+        {% if cell.morph %}
+        <div class="card-morph">{{ cell.morph|safe }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
 {% endif %}
+
+
 
 {% if greek %}
 <div style="font-size: 34px; margin-bottom: 1em;">
@@ -351,19 +444,37 @@
     }
 
     // Function to toggle the niqqud visibility based on the checkbox state
+    function toggleCardNiqqud(showNiqqud) {
+        var cardContainers = document.querySelectorAll('.card-hebrew');
+        cardContainers.forEach(function(card) {
+            var withNiqqud = card.querySelector('.hebrew-with-niqqud');
+            var noNiqqud = card.querySelector('.hebrew-no-niqqud');
+
+            if (!withNiqqud || !noNiqqud) {
+                return;
+            }
+
+            withNiqqud.style.display = showNiqqud ? 'block' : 'none';
+            noNiqqud.style.display = showNiqqud ? 'none' : 'block';
+        });
+    }
+
     function toggleNiqqud() {
         var hebText = document.getElementById("hebText");
         var niqqudSwitch = document.getElementById("niqqudSwitch");
 
         if (niqqudSwitch.checked) {
             hebText.innerHTML = rbt_heb;
+            toggleCardNiqqud(true);
         } else {
             hebText.innerHTML = removeNiqqud(rbt_heb);
+            toggleCardNiqqud(false);
         }
     }
 
     // Initially, set the innerHTML to the original rbt_heb content with niqqud removed
     document.getElementById("hebText").innerHTML = removeNiqqud(rbt_heb);
+    toggleCardNiqqud(false);
 </script>
 
     {% if rbt %}
