@@ -70,6 +70,28 @@ def gpt_translate(hebrew_construct: str | None, morph_data: str | None, english_
         return ''
     return ' '.join(p for p in pieces if p)
 
+
+def _invalidate_reader_cache(book: str | None, chapter: str | int | None, verse: str | int | None = None) -> list[str]:
+    """Remove cached reader entries for the requested location."""
+    deleted_keys: list[str] = []
+    if not book or chapter in (None, ''):
+        return deleted_keys
+
+    sanitized_book = str(book).replace(':', '_').replace(' ', '')
+    chapter_str = str(chapter)
+
+    if verse not in (None, '', 'None'):
+        verse_str = str(verse)
+        verse_key = f'{sanitized_book}_{chapter_str}_{verse_str}_{INTERLINEAR_CACHE_VERSION}'
+        cache.delete(verse_key)
+        deleted_keys.append(verse_key)
+
+    chapter_key = f'{sanitized_book}_{chapter_str}_None_{INTERLINEAR_CACHE_VERSION}'
+    cache.delete(chapter_key)
+    deleted_keys.append(chapter_key)
+
+    return deleted_keys
+
 def get_context(book, chapter_num, verse_num):
 
         try:
@@ -592,13 +614,8 @@ def edit(request):
                     update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num} - {footnote_id}", update_text=update_text)
                     update_instance.save()
                     
-                    cache_key_base_verse = f'{book}_{chapter_num}_{verse_num}'
-
-                    cache_key_base_chapter = f'{book}_{chapter_num}_None'
-                    cache.delete(cache_key_base_verse)
-                    cache.delete(cache_key_base_chapter)
-
-                    cache_string = "Deleted Cache key: " + cache_key_base_verse + ', ' + cache_key_base_chapter
+                    cleared_keys = _invalidate_reader_cache(nt_book, chapter_num, verse_num)
+                    cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
 
                     context = get_context(nt_book, chapter_num, verse_num)
                     context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Added footnote successfully! {cache_string}</p></div>'
@@ -643,12 +660,8 @@ def edit(request):
             update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {record.chapter}:{record.verse}", update_text=update_text)
             update_instance.save()
 
-            cache_key_base_verse = f'{book}_{chapter_num}_{verse_num}'
-            cache_key_base_chapter = f'{book}_{chapter_num}_None'
-            cache.delete(cache_key_base_verse)
-            cache.delete(cache_key_base_chapter)
-
-            cache_string = "Deleted Cache key: " + cache_key_base_verse + ', ' + cache_key_base_chapter
+            cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
+            cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
 
             context = get_context(book, chapter_num, verse_num)
             context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Updated verse successfully! {cache_string}</p></div>'
@@ -669,12 +682,8 @@ def edit(request):
             update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num} - {footnote_id}", update_text=update_text)
             update_instance.save()
 
-            cache_key_base_verse = f'{book}_{chapter_num}_{verse_num}'
-            cache_key_base_chapter = f'{book}_{chapter_num}_None'
-            cache.delete(cache_key_base_verse)
-            cache.delete(cache_key_base_chapter)
-
-            cache_string = "Deleted Cache key: " + cache_key_base_verse + ', ' + cache_key_base_chapter
+            cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
+            cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
             
 
             context = get_context(book, chapter_num, verse_num)
@@ -695,14 +704,8 @@ def edit(request):
             update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num}", update_text=update_text)
             update_instance.save()
 
-            book = book.replace(' ', '')
-            cache_key_base_verse = f'{book}_{chapter_num}_{verse_num}'
-            cache_key_base_chapter = f'{book}_{chapter_num}_None'
-            
-            cache.delete(cache_key_base_verse)
-            cache.delete(cache_key_base_chapter)
-
-            cache_string = "Deleted Cache key: " + cache_key_base_verse + ' ' + cache_key_base_chapter
+            cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
+            cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
 
             context = get_context(book, chapter_num, verse_num)
             context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Updated verse successfully! {cache_string}</p></div>'
@@ -899,11 +902,17 @@ def translate(request):
         execute_query("UPDATE old_testament.hebrewdata SET html = %s WHERE Ref = %s;", (html, verse_id))
         execute_query("UPDATE old_testament.ot SET html = %s WHERE Ref = %s;", (html, verse_ref))
 
-        cache_key_base_chapter, cache_key_base_verse = get_cache_reference(verse_id)
-        cache.delete(cache_key_base_verse)
-        cache.delete(cache_key_base_chapter)
+        parts = verse_ref.split('.')
+        if len(parts) >= 3:
+            book_code, chapter_value, verse_value = parts[0], parts[1], parts[2]
+        else:
+            book_code, chapter_value, verse_value = verse_ref, '1', '1'
+
+        book_name = convert_book_name(book_code) or book_code
+        cleared_keys = _invalidate_reader_cache(book_name, chapter_value, verse_value)
         updates.append(f'Updated HTML Paraphrase: {verse_id} in HTML with "{html}".')
-        updates.append(f"Deleted Cache key: {cache_key_base_verse}, {cache_key_base_chapter}")
+        if cleared_keys:
+            updates.append(f"Deleted Cache key: {', '.join(cleared_keys)}")
 
     def save_footnote_to_database(verse_id, id, key, text):
         execute_query("UPDATE old_testament.hebrewdata SET footnote = %s WHERE id = %s;", (text, id))
@@ -916,15 +925,17 @@ def translate(request):
         update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{verse_id} - {key}", update_text=update_text)
         update_instance.save()
 
-        cache_key_base_chapter, cache_key_base_verse = get_cache_reference(verse_id)
-        cache.delete(cache_key_base_verse)
-        cache.delete(cache_key_base_chapter)
-        #print("Deleted Cache key(s): ", cache_key_base_verse, cache_key_base_chapter)
-        cache_string = "Deleted Cache key: " + cache_key_base_verse + ', ' + cache_key_base_chapter
-        
+        book_parts = verse_id.split('.')
+        if len(book_parts) >= 3:
+            book_code, chapter_value, verse_value = book_parts[0], book_parts[1], book_parts[2]
+        else:
+            book_code, chapter_value, verse_value = verse_id, '1', '1'
+
+        book_name = convert_book_name(book_code) or book_code
+        cleared_keys = _invalidate_reader_cache(book_name, chapter_value, verse_value)
+        cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
 
         update = f'Updated ID: {verse_id} in footnote with "{text}".\n{cache_string}'
-        
         updates.append(update)
 
 
