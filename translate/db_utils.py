@@ -1,8 +1,42 @@
 import os
-import psycopg2
 from contextlib import contextmanager
-from django.conf import settings
+from typing import Any, List, Optional, Sequence, Tuple, Union, Literal, overload, Mapping
+
 import dj_database_url
+import psycopg2
+from django.conf import settings
+
+
+RowType = Tuple[Any, ...]
+FetchMode = Optional[Literal['one', 'all']]
+ParamsType = Optional[Union[Sequence[Any], Mapping[str, Any]]]
+
+
+@overload
+def execute_query(
+    query: str,
+    params: ParamsType = ...,
+    fetch: Literal['one'] = ...,
+) -> Optional[RowType]:
+    ...
+
+
+@overload
+def execute_query(
+    query: str,
+    params: ParamsType = ...,
+    fetch: Literal['all'] = ...,
+) -> List[RowType]:
+    ...
+
+
+@overload
+def execute_query(
+    query: str,
+    params: ParamsType = ...,
+    fetch: None = ...,
+) -> int:
+    ...
 
 def get_db_config():
     """Get database configuration from environment or settings"""
@@ -16,10 +50,10 @@ def get_db_connection():
     """Context manager for database connections"""
     config = get_db_config()
     conn = psycopg2.connect(
-        host=config['HOST'],
-        database=config['NAME'],
-        user=config['USER'],
-        password=config['PASSWORD'],
+        host=config.get('HOST') or config.get('host'),
+        database=config.get('NAME') or config.get('dbname'),
+        user=config.get('USER') or config.get('user'),
+        password=config.get('PASSWORD') or config.get('password'),
         port=config.get('PORT', 5432)
     )
     try:
@@ -30,20 +64,34 @@ def get_db_connection():
     finally:
         conn.close()
 
-def execute_query(query, params=None, fetch=False):
-    """Execute a single query with optional parameters"""
+def execute_query(
+    query: str,
+    params: ParamsType = None,
+    fetch: FetchMode = None,
+) -> Union[int, Optional[RowType], List[RowType]]:
+    """Execute a single query with optional parameters and typed fetch modes."""
+
+    if fetch not in (None, 'one', 'all'):
+        raise ValueError("fetch must be None, 'one', or 'all'")
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute(query, params or ())
-        
-        if fetch:
-            if fetch == 'one':
-                return cursor.fetchone()
-            elif fetch == 'all':
-                return cursor.fetchall()
-        
+        if params is not None:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+
+        if fetch == 'one':
+            result = cursor.fetchone()
+            conn.commit()
+            return result
+        if fetch == 'all':
+            result_list = cursor.fetchall()
+            conn.commit()
+            return result_list
+
         conn.commit()
-        return cursor.rowcount if not fetch else None
+        return cursor.rowcount
 
 def execute_many(query, params_list):
     """Execute query with multiple parameter sets"""

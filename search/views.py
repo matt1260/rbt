@@ -117,10 +117,14 @@ def updates(request):
             ref = result.reference.split('.')
             
             if len(ref) == 3:
-                bookref = ref[0]
-                bookref = convert_book_name(bookref)
-                bookref = bookref.capitalize()
-                bookref = bookref.replace(' ', '_')
+                bookref_raw = ref[0]
+                converted_bookref = convert_book_name(bookref_raw)
+                bookref = converted_bookref if converted_bookref else bookref_raw
+                if bookref:
+                    bookref = bookref.capitalize()
+                    bookref = bookref.replace(' ', '_')
+                else:
+                    return None
 
                 chapter = ref[1]
                 verse = ref[2]
@@ -141,18 +145,30 @@ def updates(request):
 
         return url
     
+    update_entries = []
     for result in results:
         try:
-            result.url = parse_and_construct_url(result)
-        except:
-            result.url = None
-            
-        result.date = result.date.date()
+            url = parse_and_construct_url(result)
+        except Exception:
+            url = None
+
+        raw_date = result.date
+        if isinstance(raw_date, datetime):
+            display_date = raw_date.date()
+        else:
+            display_date = raw_date
+
+        update_entries.append({
+            'date': display_date,
+            'reference': result.reference,
+            'version': result.version,
+            'url': url,
+        })
 
     context = {
         'month': month_param if month_param else date_param if date_param else datetime.now().strftime('%B %Y'),
-        'updates': results,
-        'update_count': results.count(),
+    'updates': update_entries,
+    'update_count': len(update_entries),
         'previous_month': previous_month,
         'current_month': current_month,
         'current_day': current_day,
@@ -286,6 +302,38 @@ def get_results(book, chapter_num, verse_num=None):
     entries = None
     hebrew_cards = None
 
+    def build_empty_result():
+        return {
+            "chapter_list": [],
+            "rbt_greek": None,
+            "interlinear": '',
+            "slt": None,
+            "litv": None,
+            "eng_lxx": None,
+            "rbt_text": None,
+            "rbt": None,
+            "rbt_paraphrase": None,
+            "hebrew": None,
+            "footnote_content": [],
+            "previous_footnote": None,
+            "next_footnote": None,
+            "next_ref": None,
+            "prev_ref": None,
+            "record_id": None,
+            "verse_id": None,
+            "html": None,
+            "linear_english": '',
+            "entries": [],
+            "replacements": [],
+            "cached_hit": cached_hit,
+            "strong_row": None,
+            "english_row": None,
+            "hebrew_row": None,
+            "morph_row": None,
+            "hebrew_clean": None,
+            "hebrew_interlinear_cards": [],
+        }
+
     # Sets/Retrieves cache only for verse, not whole chapter
     sanitized_book = book.replace(':', '_').replace(' ', '')
     cache_key_base = f'{sanitized_book}_{chapter_num}_{verse_num}_{INTERLINEAR_CACHE_VERSION}'
@@ -302,7 +350,16 @@ def get_results(book, chapter_num, verse_num=None):
             }
 
             rbt_table = rbt_book_model_map.get(book)
-            #rbt = rbt_table.objects.filter(chapter=chapter_num)  # run first filter
+            if rbt_table is None:
+                data = {
+                    'rbt': [],
+                    'chapter_list': [],
+                    'cached_hit': cached_hit,
+                    'html': rbt_html
+                }
+                cache.set(cache_key_base, data)
+                return data
+
             rbt = rbt_table.objects.filter(chapter=chapter_num).order_by("verse")
             chapter_list = [str(i) for i in range(1, 51)]
 
@@ -328,10 +385,12 @@ def get_results(book, chapter_num, verse_num=None):
                 'Genesis': Genesis,
                 }
                 rbt_table = rbt_book_model_map.get(book)
+                if rbt_table is None:
+                    return build_empty_result()
                 rbt = rbt_table.objects.filter(chapter=chapter_num)  # filter chapter
                 rbt = rbt.filter(verse=verse_num) # filter verse
                 rbt_text = rbt.values_list('text', flat=True).first()
-                rbt_html = rbt.values_list('html', flat=True).first()
+                rbt_html = rbt.values_list('html', flat=True).first() or ''
                 rbt_paraphrase = rbt.values_list('rbt_reader', flat=True).first()
                 rbt_heb = rbt.values_list('hebrew', flat=True).first()
                 record_id_tuple = rbt.values_list('id').first()
@@ -342,7 +401,7 @@ def get_results(book, chapter_num, verse_num=None):
                 
                 # Generate a list of footnote references found in the verse
                 #footnote_references = re.findall(r'href="\?footnote=(\d+-\d+-\d+)"', rbt_html)
-                footnote_references = re.findall(r'\?footnote=(\d+-\d+-\d+[a-zA-Z]?)', rbt_html)
+                footnote_references = re.findall(r'\?footnote=(\d+-\d+-\d+[a-zA-Z]?)', rbt_html) if rbt_html else []
                 
                 footnote_list = footnote_references
 
@@ -357,38 +416,34 @@ def get_results(book, chapter_num, verse_num=None):
                 # Get the previous and next row verse references
                 current_row_id = rbt.values_list('id', flat=True).first()
 
-                prev_row_id = rbt_table.objects.filter(id__lt=current_row_id).aggregate(max_id=Max('id'))['max_id']
-                prev_ref = rbt_table.objects.filter(id=prev_row_id)
-                prev_chapter = prev_ref.values_list('chapter', flat=True).first()
-                prev_verse = prev_ref.values_list('verse', flat=True).first()
+                prev_ref = f'?book={book}&chapter={chapter_num}&verse={verse_num}'
+                next_ref = prev_ref
 
-                next_row_id = rbt_table.objects.filter(id__gt=current_row_id).aggregate(min_id=Min('id'))['min_id']
-                next_ref = rbt_table.objects.filter(id=next_row_id)
-                next_chapter = next_ref.values_list('chapter', flat=True).first()
-                next_verse = next_ref.values_list('verse', flat=True).first()
-            
-                if prev_chapter is None:
-                    prev_ref = f'?book={book}&chapter={chapter_num}&verse={verse_num}'
-                else:
-                    prev_ref = f'?book={book}&chapter={prev_chapter}&verse={prev_verse}'
-                if next_chapter is None:
-                    next_ref = f'?book={book}&chapter={chapter_num}&verse={verse_num}'
-                else:
-                    next_ref = f'?book={book}&chapter={next_chapter}&verse={next_verse}'
+                if current_row_id is not None:
+                    prev_row_id = rbt_table.objects.filter(id__lt=current_row_id).aggregate(max_id=Max('id'))['max_id']
+                    if prev_row_id is not None:
+                        prev_ref_qs = rbt_table.objects.filter(id=prev_row_id)
+                        prev_chapter = prev_ref_qs.values_list('chapter', flat=True).first()
+                        prev_verse = prev_ref_qs.values_list('verse', flat=True).first()
+                        if prev_chapter is not None and prev_verse is not None:
+                            prev_ref = f'?book={book}&chapter={prev_chapter}&verse={prev_verse}'
+
+                    next_row_id = rbt_table.objects.filter(id__gt=current_row_id).aggregate(min_id=Min('id'))['min_id']
+                    if next_row_id is not None:
+                        next_ref_qs = rbt_table.objects.filter(id=next_row_id)
+                        next_chapter = next_ref_qs.values_list('chapter', flat=True).first()
+                        next_verse = next_ref_qs.values_list('verse', flat=True).first()
+                        if next_chapter is not None and next_verse is not None:
+                            next_ref = f'?book={book}&chapter={next_chapter}&verse={next_verse}'
                 
             # Old Testament books
             elif book in old_testament_books:
         
                 # Convert references to 'Gen.1.1' format
-                if book in book_abbreviations:
-                    book_abbrev = book_abbreviations[book]
-                    rbt_heb_ref = f'{book_abbrev}.{chapter_num}.{verse_num}'
-                    rbt_heb_chapter = f'{book_abbrev}.{chapter_num}.'
-                    rbt_heb_ref2 = f'{book_abbrev}.{chapter_num}.{verse_num}-'
-                else:
-                    rbt_heb_ref = f'{book}.{chapter_num}.{verse_num}'
-                    rbt_heb_chapter = f'{book}.{chapter_num}.'
-                    rbt_heb_ref2 = f'{book_abbrev}.{chapter_num}.{verse_num}-'
+                book_abbrev = book_abbreviations.get(book, book)
+                rbt_heb_ref = f'{book_abbrev}.{chapter_num}.{verse_num}'
+                rbt_heb_chapter = f'{book_abbrev}.{chapter_num}.'
+                rbt_heb_ref2 = f'{book_abbrev}.{chapter_num}.{verse_num}-'
 
                 # Retrieve a single OT row
                 sql_query_ot = """
@@ -398,6 +453,10 @@ def get_results(book, chapter_num, verse_num=None):
                 """
 
                 row_data = execute_query(sql_query_ot, (rbt_heb_ref,), fetch='one')
+                if row_data is None:
+                    data = build_empty_result()
+                    cache.set(cache_key_base, data)
+                    return data
 
                 # Retrieve Hebrewdata rows matching a reference pattern
                 sql_query_hebrew = """
@@ -406,7 +465,7 @@ def get_results(book, chapter_num, verse_num=None):
                     FROM old_testament.hebrewdata
                     WHERE ref LIKE %s;
                 """
-                rows_data = execute_query(sql_query_hebrew, (f'{rbt_heb_ref2}%',), fetch='all')
+                rows_data = execute_query(sql_query_hebrew, (f'{rbt_heb_ref2}%',), fetch='all') or []
   
                 #verse_footnote = row_data[4]
                 ref = row_data[1]
@@ -468,8 +527,7 @@ def get_results(book, chapter_num, verse_num=None):
 
             elif book in new_testament_books:
                 
-                if book in book_abbreviations:
-                    book_abbrev = book_abbreviations[book]
+                book_abbrev = book_abbreviations.get(book, book)
 
                 # Get NT html for the current verse
                 sql_query = """
@@ -547,7 +605,7 @@ def get_results(book, chapter_num, verse_num=None):
                     FROM new_testament.nt
                     WHERE book LIKE %s;
                 """
-                chapters = execute_query(sql_query, (f'{book_abbrev}%',), fetch='all')
+                chapters = execute_query(sql_query, (f'{book_abbrev}%',), fetch='all') or []
 
                 # Extract unique chapters and sort
                 unique_chapters = set(int(row[0]) for row in chapters)
@@ -564,8 +622,9 @@ def get_results(book, chapter_num, verse_num=None):
                     else:
                         abbreviation = abbreviation.capitalize()
                     
-                    if abbreviation in nt_abbrev:
-                        prev_book = convert_book_name(abbreviation)
+                    prev_book = convert_book_name(abbreviation) if abbreviation in nt_abbrev else None
+                    if not prev_book:
+                        prev_book = abbreviation
 
                     prev_ref = f'?book={prev_book}&chapter={prev_record[1]}&verse={prev_record[2]}'
                 
@@ -579,9 +638,9 @@ def get_results(book, chapter_num, verse_num=None):
                     else:
                         abbreviation = abbreviation.capitalize()
                     
-                    if abbreviation in nt_abbrev:
-                        
-                        next_book = convert_book_name(abbreviation)
+                    next_book = convert_book_name(abbreviation) if abbreviation in nt_abbrev else None
+                    if not next_book:
+                        next_book = abbreviation
                     
                     next_ref = f'?book={next_book}&chapter={next_record[1]}&verse={next_record[2]}'
 
@@ -1188,8 +1247,8 @@ def search(request):
 
         # if individual book is searched convert the full to the abbrev
         if book not in ['NT', 'OT', 'all']:
-            book2 = convert_book_name(book)
-            book = book2.lower()  
+            book2 = convert_book_name(book) or book
+            book = book2.lower()
         else:
             book2 = book
         
@@ -1753,15 +1812,9 @@ def storehouse_view(request):
                 paraphrase += formatted_paraphrase + close_text
 
         greek_fragment = greek_text or ''
-        if greek_fragment:
-            if '</p><p>' in greek_fragment:
-                parts = greek_fragment.split('</p><p>')
-                greek_literal += f'{parts[0]}</p><p>{verse_ref}{parts[1]}'
-            elif greek_fragment.startswith('<p>'):
-                greek_literal += f'<p>{verse_ref}{greek_fragment[3:]}'
-            else:
-                greek_literal += f'{verse_ref} {greek_fragment}'
 
+        greek_literal += f'<p>{verse_ref} {greek_fragment}</p>'
+  
         anchor = re.sub(r'[^0-9a-zA-Z]+', '-', verse_label).strip('-').lower()
         if not anchor:
             anchor = f'verse-{len(verses) + 1}'
@@ -1777,7 +1830,7 @@ def storehouse_view(request):
         'chapter_num': chapter_num,
         'chapters': chapters_markup,
         'paraphrase': paraphrase,
-        'html': greek_literal,
+        'greek': greek_literal,
         'footnotes': footnotes_collection,
         'verses': verses,
         'error_message': error_message,
@@ -1832,7 +1885,7 @@ def word_view(request):
         verse = reference.split('.')
         
         bookref = verse[0]
-        bookref = convert_book_name(bookref)
+        bookref = convert_book_name(bookref) or bookref
         bookref = bookref.lower()
         bookref = bookref.replace(' ', '_')
 

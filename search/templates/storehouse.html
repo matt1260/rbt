@@ -18,7 +18,7 @@
     <div id="h5ToggleButton"><i class="fas fa-eye-slash"></i> Hide Headers (H)</div>
     <div id="imageToggleButton"><i class="fas fa-eye-slash"></i> Hide Images (I)</div>
     <div id="verseRefToggleButton"><i class="fas fa-eye"></i> Show Verse References (V)</div>
-    {% if html %}
+    {% if greek %}
     <div id="literalToggleButton"><i class="fas fa-eye"></i> Show Greek (G)</div>
     {% endif %}
     <div id="parenthesesToggleButton"><i class="fas fa-eye"></i> Show Names (P)</div>
@@ -32,7 +32,7 @@
 
 <div class="storehouse-container">
     <div id="mainTextArea">
-        {% if html %}
+        {% if greek %}
         <div class="storehouse-split greek-hidden" data-initial-hidden="true">
             <div id="paraphrase-area" class="split-column paraphrase">
                 {% if paraphrase %}
@@ -42,8 +42,7 @@
                 {% endif %}
             </div>
             <div id="literal-area" class="split-column literal">
-                <h4>RBT Greek</h4>
-                {{ html|safe }}
+                {{ greek|safe }}
             </div>
         </div>
         {% elif paraphrase %}

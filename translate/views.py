@@ -9,7 +9,7 @@ from django.core.cache import cache
 import subprocess
 from django.middleware.csrf import get_token
 import re
-from search.views import get_results
+from search.views import get_results, INTERLINEAR_CACHE_VERSION
 from translate.translator import *
 import pythonbible as bible
 from datetime import datetime
@@ -47,6 +47,28 @@ nt_abbrev = [
     'Tit', 'Phm', 'Heb', 'Jam', '1Pe', '2Pe',
     '1Jo', '2Jo', '3Jo', 'Jud', 'Rev'
 ]
+
+
+def _safe_book_name(name: str | None) -> str:
+    """Convert a book identifier to a display name, falling back gracefully."""
+    if not name:
+        return ''
+    converted = convert_book_name(name)
+    return converted if converted else name
+
+
+def gpt_translate(hebrew_construct: str | None, morph_data: str | None, english_word_update: str | None) -> str:
+    """Fallback translation builder for Hebrew updates when AI service is unavailable."""
+    pieces: list[str] = []
+    if english_word_update:
+        pieces.append(english_word_update.strip())
+    if hebrew_construct:
+        pieces.append(f'({hebrew_construct.strip()})')
+    if morph_data:
+        pieces.append(f'[{morph_data.strip()}]')
+    if not pieces:
+        return ''
+    return ' '.join(p for p in pieces if p)
 
 def get_context(book, chapter_num, verse_num):
 
@@ -96,8 +118,7 @@ def get_context(book, chapter_num, verse_num):
                 chapters += f'<a href="?book={book}&chapter={number}" style="text-decoration: none;">{number}</a> |'
 
         # add space
-        if book in book_abbreviations:
-                book_abbrev = book_abbreviations[book]
+        book_abbrev = book_abbreviations.get(book, book)
         book2 = book
         book =  re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
 
@@ -271,8 +292,12 @@ def gemini_translate(entries):
 
         if not response or not hasattr(response, 'text'):
             return "Error: Invalid response from Gemini API"
-        
-        content = response.text.strip()
+
+        raw_text = response.text
+        if raw_text is None:
+            return "Error: Invalid response from Gemini API"
+
+        content = raw_text.strip()
         
         # Basic validation of returned content
         if not content:
@@ -329,8 +354,8 @@ def edit_footnote(request):
                 verse_greek = ''
                 verse_html = ''
 
-            bookref = convert_book_name(book)
-            bookref = bookref.capitalize()
+            bookref = _safe_book_name(book)
+            bookref = bookref.capitalize() if bookref else ''
 
             context = {
                 'book': bookref, 
@@ -410,8 +435,8 @@ def edit_footnote(request):
                 cursor.execute(sql_query, (footnote_html, footnote_id))
                 conn.commit()
 
-            bookref = convert_book_name(book)
-            bookref = bookref.capitalize()
+            bookref = _safe_book_name(book)
+            bookref = bookref.capitalize() if bookref else ''
             
             update_text = f"Updated footnote for Footnote <b>{book}-{ref_num}</b>:<br> {footnote_html}."
             update_date = datetime.now()
@@ -535,8 +560,11 @@ def edit(request):
 
         # add new footnote for NT
         if nt_book is not None:
-            if nt_book in book_abbreviations:
-                book_abbrev = book_abbreviations[book]
+            book_abbrev = book_abbreviations.get(nt_book)
+            if book_abbrev is None:
+                book_abbrev = nt_book
+            if book_abbrev is None:
+                return HttpResponse("Invalid book selection.", status=400)
 
             try:
                 with get_db_connection() as conn:
@@ -687,6 +715,15 @@ def edit(request):
                 return render(request, 'edit_nt_verse.html', context)
             else:
                 return render(request, 'edit_verse.html', context)
+
+        # Fallback: ensure POST always returns an HttpResponse
+        if book and chapter_num:
+            fallback_context = get_context(book, chapter_num, verse_num or '1')
+            if book in new_testament_books:
+                return render(request, 'edit_nt_verse.html', fallback_context)
+            return render(request, 'edit_verse.html', fallback_context)
+
+        return render(request, 'edit_input.html')
     
     elif query:
 
@@ -804,8 +841,8 @@ def translate(request):
     def lexeme_search(num, lex):
         where_clause = f"{num} = %s"
         query = f"SELECT COUNT(*) FROM old_testament.hebrewdata WHERE {where_clause};"
-        search_count = execute_query(query, (lex,), fetch='one')[0]
-        return search_count
+        count_row = execute_query(query, (lex,), fetch='one')
+        return count_row[0] if count_row else 0
 
     # Functions to save edited content to database
     updates = []
@@ -829,20 +866,27 @@ def translate(request):
             niq = 'with'
             query = f"UPDATE old_testament.hebrewdata SET {column} = %s WHERE combined_heb_niqqud = %s AND uniq = '0';"
             execute_query(query, (data, heb))
-            excluded_rows_count = execute_query(
+            excluded_rows_row = execute_query(
                 "SELECT COUNT(*) FROM old_testament.hebrewdata WHERE uniq = '1' AND combined_heb_niqqud = %s;", (heb,), fetch='one'
-            )[0]
+            )
+            excluded_rows_count = excluded_rows_row[0] if excluded_rows_row else 0
         else:
             niq = 'without'
             query = f"UPDATE old_testament.hebrewdata SET {column} = %s WHERE combined_heb = %s AND uniq = '0';"
             execute_query(query, (data, heb))
-            excluded_rows_count = execute_query(
+            excluded_rows_row = execute_query(
                 "SELECT COUNT(*) FROM old_testament.hebrewdata WHERE uniq = '1' AND combined_heb = %s;", (heb,), fetch='one'
-            )[0]
+            )
+            excluded_rows_count = excluded_rows_row[0] if excluded_rows_row else 0
 
-        update_count = execute_query("SELECT COUNT(*) FROM old_testament.hebrewdata WHERE " +
-                                    ("combined_heb_niqqud" if use_niqqud=='true' else "combined_heb") +
-                                    " = %s AND uniq = '0';", (heb,), fetch='one')[0]
+        update_count_row = execute_query(
+            "SELECT COUNT(*) FROM old_testament.hebrewdata WHERE "
+            + ("combined_heb_niqqud" if use_niqqud == 'true' else "combined_heb")
+            + " = %s AND uniq = '0';",
+            (heb,),
+            fetch='one'
+        )
+        update_count = update_count_row[0] if update_count_row else 0
         updates.append(f'Updated column {column} with "{data}" for {update_count} rows where {heb} {niq} niqqud matches. Excluded {excluded_rows_count} rows.')
 
     def save_english_literal(english_literal, verse_id):
@@ -951,7 +995,7 @@ def translate(request):
                 replace_text = matches[1]
                 updated_count = find_replace(replace_text, find_text)
 
-                if updated_count > 0:
+                if isinstance(updated_count, int) and updated_count > 0:
                     updates.append(f'Undid {updated_count} occurrences of "{replace_text}" with "{find_text}".')
 
         # Remove the last entry from the log file
@@ -1816,13 +1860,13 @@ def update_hebrew_data(request):
                     # conn.commit()
 
                     # Stream the update to the client immediately
-                    yield f"Updated {eng} in {ref} with <b>{translation}</b> from <span style='font-size: larger; color: orange;'>{hebrew_construct}</span> for {strongs_number}.<br>"
+                    yield f"Updated {eng} in {ref} with <b>{translation}</b> from <span style='font-size: larger; color: orange;'>{hebrew_construct}</span> for {strongs_number}.<br>".encode('utf-8')
 
                     #print(f"Updated {eng} in {ref} with {translation} from {hebrew_construct} for {strongs_number}.")
 
 
                 # After all updates are done, yield a completion message
-                yield "<b>Update process completed.</b>"
+                yield "<b>Update process completed.</b>".encode('utf-8')
             
             # Return the streaming response
             return StreamingHttpResponse(stream_updates(), content_type='text/html')
@@ -1987,7 +2031,7 @@ def edit_search(request):
                     query_count += 1
                     verse = row[1]
                     bookref = verse[:3]
-                    bookref = convert_book_name(bookref)
+                    bookref = _safe_book_name(bookref) or bookref
                     bookref = bookref.lower()
                     bookref = bookref.replace(' ', '_')
                     verse1 = verse[:-3]
@@ -2006,7 +2050,7 @@ def edit_search(request):
                     query_count += 1
                     verse = row[1]
                     bookref = verse[:3]
-                    bookref = convert_book_name(bookref)
+                    bookref = _safe_book_name(bookref) or bookref
                     bookref = bookref.lower()
                     bookref = bookref.replace(' ', '_')
                     verse1 = verse[:-3]
@@ -2025,7 +2069,7 @@ def edit_search(request):
                     query_count += 1
                     verse = row[1]
                     bookref = verse[:3]
-                    bookref = convert_book_name(bookref)
+                    bookref = _safe_book_name(bookref) or bookref
                     bookref = bookref.lower()
                     bookref = bookref.replace(' ', '_')
                     verse1 = verse[:-3]
@@ -2040,7 +2084,7 @@ def edit_search(request):
                     query_count += 1
                     verse = row[1]
                     bookref = verse[:3]
-                    bookref = convert_book_name(bookref)
+                    bookref = _safe_book_name(bookref) or bookref
                     bookref = bookref.lower()
                     bookref = bookref.replace(' ', '_')
                     verse1 = verse[:-3]
@@ -2052,8 +2096,8 @@ def edit_search(request):
 
         # if individual book is searched convert the full to the abbrev
         if book not in ['NT', 'OT', 'all']:
-            book2 = convert_book_name(book)
-            book = book2.lower()  
+            book2 = _safe_book_name(book) or book
+            book = book2.lower()
         else:
             book2 = book
 
@@ -2205,7 +2249,7 @@ def find_and_replace_nt(request):
                 if not re.search(search_pattern, old_text):
                     continue
 
-                book_name = convert_book_name(book)
+                book_name = _safe_book_name(book)
                 
                 # Create the new text without replacement (for database)
                 new_text_raw = re.sub(search_pattern, replace_text, old_text)
@@ -2696,9 +2740,13 @@ def edit_aseneth(request):
                     verse_value = item.get('verse')
                     if chapter_value is not None and verse_value is not None:
                         cache.delete(f'aseneth_{chapter_value}_{verse_value}')
+                        # Also invalidate the public storehouse chapter cache so the reader shows updates
+                        cache.delete(f'storehouse_{chapter_value}_{INTERLINEAR_CACHE_VERSION}')
                         affected_chapters.add(chapter_value)
                 for chapter_value in affected_chapters:
                     cache.delete(f'aseneth_{chapter_value}_None')
+                    # Invalidate storehouse chapter cache as well
+                    cache.delete(f'storehouse_{chapter_value}_{INTERLINEAR_CACHE_VERSION}')
 
                 total_matches = sum(item.get('count', 0) for item in updates)
 
@@ -2773,6 +2821,8 @@ def edit_aseneth(request):
                     cache_key_base_chapter = f'aseneth_{chapter_num}_None'
                     cache.delete(cache_key_base_verse)
                     cache.delete(cache_key_base_chapter)
+                    # Also clear the public reader cache for this chapter
+                    cache.delete(f'storehouse_{chapter_num}_{INTERLINEAR_CACHE_VERSION}')
 
                     cache_string = f"Deleted Cache key: {cache_key_base_verse}, {cache_key_base_chapter}"
 
@@ -2962,7 +3012,8 @@ def get_aseneth_context(chapter_num, verse_num):
 
             # Max verse in chapter
             cursor.execute("SELECT MAX(verse) FROM aseneth WHERE chapter = %s", (chapter_num,))
-            max_verse = cursor.fetchone()[0]
+            max_row = cursor.fetchone()
+            max_verse = max_row[0] if max_row else None
 
             context = {
                 'verse_data': verse_data,

@@ -200,6 +200,19 @@
     /* Shift the content 50px to the left */
   }
 
+  /* Add a small header inside Strong's popup content
+     Uses ::before so it appears above popup body. This will
+     show for popup-content elements; if you later wrap Strong's
+     content with a more specific selector, replace the rule. */
+  .popup-content::before {
+    content: "Strong's Exhaustive Concordance";
+    display: block;
+    font-weight: 600;
+    font-size: 12px;
+    margin-bottom: 6px;
+    color: #222;
+  }
+
   /* Style to show the pop-up content on hover */
   .popup-container:hover .popup-content {
     display: block;
