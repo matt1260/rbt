@@ -17,6 +17,10 @@ venv/
 ENV/
 .venv/
 
+searchimage.py
+replace_exact_match.py
+TODO.md
+
 # Django
 *.sqlite3
 /staticfiles/

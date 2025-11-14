@@ -575,7 +575,9 @@
   
   
   <input type="text" id="imageUrlInput" placeholder="Enter Image URL">
-  <button type="button" id="generate-code-button">Insert Image URL</button><br>
+  <button type="button" id="generate-code-button">Insert Image URL</button>
+  <input type="text" id="videoUrlInput" placeholder="Enter Video URL">
+  <button type="button" id="generate-video-button">Insert Video URL</button><br>
 
 
 </div>
@@ -623,6 +625,15 @@
       var imageUrl = document.getElementById("imageUrlInput").value;
       var generatedCode = '<div class="tooltip-container"><img src="' + imageUrl + '" style="width: 500px; display: block; margin: 0 auto;">  <i class="touch-indicator fas fa-hand-pointer"></i><div class="tooltip">Image description.</div></div>';
       document.getElementById("textArea").value += generatedCode;
+    });
+
+    // Video insertion
+    document.getElementById("generate-video-button").addEventListener("click", function() {
+      let url = document.getElementById("videoUrlInput").value.trim();
+      if (!url) return;
+      let code = `<div class="tooltip-container"><video autoplay muted loop playsinline style="width:500px;display:block;margin:0 auto;border-radius:8px;"><source src="${url}" type="video/mp4">Your browser does not support the video tag.</video><i class="touch-indicator fas fa-hand-pointer"></i><div class="tooltip"><p>Video description.</p></div></div>`;
+      let textarea = document.getElementById("textArea");
+      textarea.value += code;
     });
   });
 </script>
