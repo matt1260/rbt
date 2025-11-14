@@ -9,7 +9,7 @@ from django.core.cache import cache
 import subprocess
 from django.middleware.csrf import get_token
 import re
-from search.views import get_results, INTERLINEAR_CACHE_VERSION
+from search.views import get_results, INTERLINEAR_CACHE_VERSION, get_footnote
 from translate.translator import *
 import pythonbible as bible
 from datetime import datetime
@@ -91,6 +91,44 @@ def _invalidate_reader_cache(book: str | None, chapter: str | int | None, verse:
     deleted_keys.append(chapter_key)
 
     return deleted_keys
+
+
+FOOTNOTE_LINK_RE = re.compile(r'\?footnote=([^&"\n]+)')
+
+
+def collect_footnote_rows(
+    html_chunks: list[str] | tuple[str, ...] | None,
+    book: str,
+    chapter_num: str | int | None = None,
+    verse_num: str | int | None = None,
+) -> list[str]:
+    """Extract distinct footnote table rows from blocks of HTML."""
+    if not html_chunks:
+        return []
+
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    for chunk in html_chunks:
+        if not chunk:
+            continue
+
+        matches = FOOTNOTE_LINK_RE.findall(str(chunk))
+        for footnote_id in matches:
+            if footnote_id in seen:
+                continue
+
+            seen.add(footnote_id)
+            try:
+                footnote_html = get_footnote(footnote_id, book, chapter_num, verse_num)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                print(f"[WARN] Unable to load footnote {footnote_id}: {exc}")
+                footnote_html = ''
+
+            if footnote_html:
+                collected.append(footnote_html)
+
+    return collected
 
 def get_context(book, chapter_num, verse_num):
 
@@ -1209,6 +1247,7 @@ def translate(request):
     page_title = f'{book} {chapter_num}:{verse_num}'
     slt_flag = False
     rbt = None
+    footnote_contents: list[str] = []
     if book == "Genesis":
         results = get_results(book, chapter_num, verse_num)
 
@@ -1688,6 +1727,33 @@ def translate(request):
         else:
             english_reader = english_verse
 
+        notes_rows: list[str] = []
+
+        if book == "Genesis" and footnote_contents:
+            notes_rows = footnote_contents
+        else:
+            html_sources: list[str] = []
+            if html:
+                html_sources.append(html)
+
+            html_sources.extend([
+                row[13]
+                for row in rows_data
+                if len(row) > 13 and row[13]
+            ])
+
+            if english_reader:
+                html_sources.append(english_reader)
+
+            book_for_notes = book or 'Genesis'
+            notes_rows = collect_footnote_rows(html_sources, book_for_notes, chapter_num, verse_num)
+
+        notes_html = ''
+        if notes_rows:
+            merged_rows = ''.join(notes_rows)
+            merged_rows = merged_rows.replace('?footnote=', '../edit_footnote/?footnote=')
+            notes_html = f'<table class="notes-table"><tbody>{merged_rows}</tbody></table>'
+
         verse = convert_to_book_chapter_verse(rbt_heb_ref)
         
         context = {'verse': verse, 
@@ -1706,6 +1772,7 @@ def translate(request):
                 'invalid_verse': invalid_verse,
                 'hebrew': hebrew_clean,
                 'smith': smith,
+                'notes_html': notes_html,
                 'hebrew_interlinear_cards': hebrew_cards,
                 }
         

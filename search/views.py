@@ -198,12 +198,20 @@ def get_footnote(footnote_id, book, chapter_num=None, verse_num=None):
         else:
             footnote_html = results[0]['footnote_html']
 
+        note_location = f'<div class="note-location">{book} {chapter}:{verse}</div>'
+
         # Create an HTML table with two columns
-        table_html = f'<tr><td style="border-bottom: 1px solid #d2d2d2;"><a href="?footnote={chapter}-{verse}-{footnote_ref}">{footnote_ref}</a></td><td style="border-bottom: 1px solid #d2d2d2;">{footnote_html}</td></tr>'
+        table_html = (
+            f'<tr>'
+            f'<td style="border-bottom: 1px solid #d2d2d2;">'
+            f'<a href="?footnote={chapter}-{verse}-{footnote_ref}">{footnote_ref}</a>'
+            f'</td>'
+            f'<td style="border-bottom: 1px solid #d2d2d2;">{note_location}{footnote_html}</td>'
+            f'</tr>'
+        )
 
         return table_html
-    
-    
+
     elif book in nt_abbrev:
 
         if book[0].isdigit():
@@ -218,6 +226,14 @@ def get_footnote(footnote_id, book, chapter_num=None, verse_num=None):
 
         footnote_ref = book + '-' + footnote_number
 
+        chapter_part = footnote_parts[0] if footnote_parts else chapter_num
+        verse_part = footnote_parts[1] if len(footnote_parts) > 1 else verse_num
+        note_location = ''
+        if chapter_part and verse_part:
+            note_location = f'<div class="note-location">{book} {chapter_part}:{verse_part}</div>'
+        elif chapter_part:
+            note_location = f'<div class="note-location">{book} {chapter_part}</div>'
+
         # Construct the SQL query to retrieve HTML
         sql_query = f"SELECT footnote_html FROM new_testament.{table} WHERE footnote_id = %s"
         result = execute_query(sql_query, (footnote_ref,), fetch='one')
@@ -230,7 +246,7 @@ def get_footnote(footnote_id, book, chapter_num=None, verse_num=None):
                 f'<td style="border-bottom: 1px solid #d2d2d2;">'
                 f'<a href="?footnote={chapter_num}-{verse_num}-{footnote_number}&book={book}">{footnote_number}</a>'
                 f'</td>'
-                f'<td style="border-bottom: 1px solid #d2d2d2;">{footnote_html}</td>'
+                f'<td style="border-bottom: 1px solid #d2d2d2;">{note_location}{footnote_html}</td>'
                 f'</tr>'
             )
         else:
@@ -258,17 +274,61 @@ def get_footnote(footnote_id, book, chapter_num=None, verse_num=None):
 
         if result:
             footnote_html = result[0]
+            note_location = f'<div class="note-location">{foot_ref}</div>'
             # Create an HTML table with two columns
             table_html = (
                 f'<tr>'
                 f'<td style="border-bottom: 1px solid #d2d2d2;">{foot_ref}</td>'
-                f'<td style="border-bottom: 1px solid #d2d2d2;">{footnote_html}</td>'
+                f'<td style="border-bottom: 1px solid #d2d2d2;">{note_location}{footnote_html}</td>'
                 f'</tr>'
             )
         else:
             table_html = ''
 
         return table_html
+
+
+FOOTNOTE_LINK_PATTERN = re.compile(r'\?footnote=([^&"\s]+)')
+
+
+def collect_chapter_notes(html_chunks, book, chapter_num=None, verse_num=None):
+    """Extract unique footnote rows from provided HTML snippets."""
+    if not html_chunks:
+        return []
+
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    for chunk in html_chunks:
+        if not chunk:
+            continue
+
+        matches = FOOTNOTE_LINK_PATTERN.findall(str(chunk))
+        for footnote_id in matches:
+            if footnote_id in seen:
+                continue
+
+            seen.add(footnote_id)
+            try:
+                footnote_row = get_footnote(footnote_id, book, chapter_num, verse_num)
+            except Exception as exc:
+                print(f"[WARN] Unable to collect footnote {footnote_id}: {exc}")
+                footnote_row = ''
+
+            if footnote_row:
+                collected.append(footnote_row)
+
+    return collected
+
+
+def build_notes_html(html_chunks, book, chapter_num=None, verse_num=None):
+    """Format aggregated chapter notes into a table suitable for rendering."""
+    rows = collect_chapter_notes(html_chunks, book, chapter_num, verse_num)
+    if not rows:
+        return ''
+
+    merged = ''.join(rows)
+    return f'<table class="notes-table"><tbody>{merged}</tbody></table>'
 
 
 # RBT DATABASE (uses django database for Genesis.
@@ -1348,6 +1408,7 @@ def search(request):
         
         try:
 
+            source_book = book
             results = get_results(book, chapter_num)
             
             hebrew_literal = ""
@@ -1360,6 +1421,7 @@ def search(request):
                 rbt = results['rbt']
                 cached_hit = results['cached_hit']
                 chapter_list = results['chapter_list']
+                notes_sources: list[str] = []
 
                 for result in rbt:
 
@@ -1395,6 +1457,11 @@ def search(request):
                     else:
                         paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{result.rbt_reader}{close_text}'
 
+                    if result.html:
+                        notes_sources.append(result.html)
+                    if result.rbt_reader:
+                        notes_sources.append(result.rbt_reader)
+
                 # Fetch commentary for a specific book and chapter
                 # commentary_row = execute_query(
                 #     "SELECT html FROM ai_commentary WHERE book = %s AND chapter = %s;",
@@ -1412,6 +1479,8 @@ def search(request):
                 for number in chapter_list:
                     chapters += f'<a href="?book={book}&chapter={number}" style="text-decoration: none;">{number}</a> |'
 
+                notes_html = build_notes_html(notes_sources, source_book, chapter_num)
+
                 book = rbt_books.get(book, book)
 
                 page_title = f'{book} {chapter_num}'
@@ -1422,7 +1491,8 @@ def search(request):
                         'book': book, 
                         'chapter_num': chapter_num, 
                         'chapter_list': chapter_list,
-                        'cache_hit': cached_hit
+                    'cache_hit': cached_hit,
+                    'notes_html': notes_html,
                         }
                 return render(request, 'chapter.html', {'page_title': page_title, **context})
 
@@ -1573,6 +1643,7 @@ def search(request):
                     book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
                     book = rbt_books.get(book, book)
                     page_title = f'{book} {chapter_num}'
+                    notes_html = build_notes_html([paraphrase, hebrew_literal], source_book, chapter_num)
                     
                     context = {
                         'chapters': chapters, 
@@ -1581,7 +1652,8 @@ def search(request):
                         'commentary': commentary, 
                         'book': book, 
                         'chapter_num': chapter_num, 
-                        'chapter_list': chapter_list
+                        'chapter_list': chapter_list,
+                        'notes_html': notes_html,
                     }
                     
                     return render(request, 'chapter.html', {'page_title': page_title, **context})

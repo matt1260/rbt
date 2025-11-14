@@ -25,6 +25,9 @@
     <div id="verseRefToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-eye-slash"></i> Hide Verse References (V)
     </div>
+    <div id="notesToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-book"></i> Show Notes (N)
+    </div>
 </div>
 
 {% endwith %}
@@ -39,16 +42,33 @@
     </div>
 
     <div id="toggleDivContainer" style="width: 50%; padding-left: 10px; border-left: 1px solid #000;">
-        <h4>RBT Hebrew Literal</h4>
-        {% if html %}
-            {{ html|safe }}
-        {% else %}
-            <p>No results found for chapter {{ chapter_num }}.</p>
-        {% endif %}
+        <div id="literal-pane">
+            <h4>RBT Hebrew Literal</h4>
+            {% if html %}
+                {{ html|safe }}
+            {% else %}
+                <p>No results found for chapter {{ chapter_num }}.</p>
+            {% endif %}
+        </div>
+
+        <div id="notes-pane" style="display: none;">
+            <h4>Notes</h4>
+            {% if notes_html %}
+                {{ notes_html|safe }}
+            {% else %}
+                <p class="notes-empty">No notes collected for this chapter.</p>
+            {% endif %}
+        </div>
     </div>
 </div>
 
 <style>
+    .notes-empty {
+        margin: 0;
+        font-size: 14px;
+        color: #666;
+    }
+
     /* Mobile styles */
     @media (max-width: 768px) {
         #container {
@@ -79,6 +99,36 @@
             padding: 4px 6px !important;
         }
     }
+
+    #notes-pane {
+        font-size: 13px;
+        color: #333;
+        line-height: 1.4;
+    }
+
+    #notes-pane table {
+        font-size: inherit;
+    }
+
+    #notes-pane td,
+    #notes-pane th,
+    #notes-pane p,
+    #notes-pane li {
+        color: inherit;
+    }
+
+    #notes-pane .rbt_footnote {
+        font-size: inherit;
+        color: inherit;
+        line-height: inherit;
+    }
+
+    #notes-pane .note-location {
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: #333;
+    }
 </style>
 
 <script>
@@ -87,10 +137,13 @@
         const imageToggleButton = document.getElementById("imageToggleButton");
         const h5ToggleButton = document.getElementById("h5ToggleButton");
         const verseRefToggleButton = document.getElementById("verseRefToggleButton");
+        const notesToggleButton = document.getElementById("notesToggleButton");
         const toggleDivContainer = document.getElementById("toggleDivContainer");
         const paraphraseContainer = document.getElementById("paraphraseContainer");
         const container = document.getElementById("container");
         const verseRefs = document.querySelectorAll(".verse_ref");
+        const literalPane = document.getElementById("literal-pane");
+        const notesPane = document.getElementById("notes-pane");
         
         // Check if device is mobile
         const isMobile = window.innerWidth <= 768;
@@ -99,13 +152,42 @@
         let isImageVisible = true;
         let isH5Visible = true;
         let isVerseRefVisible = false;
-        
-        // Initialize literal visibility based on device
-        if (isMobile) {
-            toggleDivContainer.style.display = "none";
-            paraphraseContainer.style.width = "100%";
-            literalToggleButton.innerHTML = '<i class="fas fa-eye"></i> Show Literal (L)';
+        let isNotesVisible = false;
+
+        function updateLiteralButtonLabel() {
+            literalToggleButton.innerHTML = isLiteralVisible
+                ? '<i class="fas fa-eye-slash"></i> Hide Literal (L)'
+                : '<i class="fas fa-eye"></i> Show Literal (L)';
         }
+
+        function updateLayout() {
+            const isWideScreen = window.innerWidth > 768;
+
+            if (isNotesVisible) {
+                notesPane.style.display = "block";
+                literalPane.style.display = "none";
+                toggleDivContainer.style.display = "block";
+                paraphraseContainer.style.width = isWideScreen ? "50%" : "100%";
+                notesToggleButton.innerHTML = '<i class="fas fa-book-open"></i> Hide Notes (N)';
+            } else {
+                notesPane.style.display = "none";
+                literalPane.style.display = isLiteralVisible ? "block" : "none";
+
+                if (isLiteralVisible) {
+                    toggleDivContainer.style.display = "block";
+                    paraphraseContainer.style.width = isWideScreen ? "50%" : "100%";
+                } else {
+                    toggleDivContainer.style.display = "none";
+                    paraphraseContainer.style.width = "100%";
+                }
+
+                notesToggleButton.innerHTML = '<i class="fas fa-book"></i> Show Notes (N)';
+            }
+
+            updateLiteralButtonLabel();
+        }
+
+        updateLayout();
         
         function toggleVerseRefs() {
             verseRefs.forEach(function(ref) {
@@ -120,22 +202,14 @@
         }
 
         literalToggleButton.addEventListener("click", function() {
-            if (isLiteralVisible) {
-                toggleDivContainer.style.display = "none";
-                if (window.innerWidth > 768) {
-                    paraphraseContainer.style.width = "100%";
-                }
-                literalToggleButton.innerHTML = '<i class="fas fa-eye"></i> Show Literal (L)';
-                isLiteralVisible = false;
-            } else {
-                toggleDivContainer.style.display = "block";
-                if (window.innerWidth > 768) {
-                    paraphraseContainer.style.width = "50%";
-                }
-                // On mobile, let CSS media query handle the width (100%)
-                literalToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Literal (L)';
-                isLiteralVisible = true;
+            isLiteralVisible = !isLiteralVisible;
+
+            if (isNotesVisible) {
+                updateLiteralButtonLabel();
+                return;
             }
+
+            updateLayout();
         });
 
         h5ToggleButton.addEventListener("click", function() {
@@ -170,6 +244,11 @@
             toggleVerseRefs();
         });
 
+        notesToggleButton.addEventListener("click", function() {
+            isNotesVisible = !isNotesVisible;
+            updateLayout();
+        });
+
         function handleKeyDown(event) {
             if (event.key === "v") {
                 toggleVerseRefs();
@@ -179,6 +258,8 @@
                 imageToggleButton.click();
             } else if (event.key === "l") { 
                 literalToggleButton.click();
+            } else if (event.key === "n") {
+                notesToggleButton.click();
             }
         }
         document.addEventListener("keydown", handleKeyDown);
@@ -193,6 +274,18 @@
 
         // Initialize verse references as hidden
         toggleVerseRefs();
+
+        const paneButtons = document.querySelectorAll('#toggleDivContainer .pane-button');
+        const paneContents = document.querySelectorAll('#toggleDivContainer .pane-content');
+
+        paneButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                const targetId = button.getAttribute('data-target');
+
+                paneButtons.forEach((btn) => btn.classList.toggle('active', btn === button));
+                paneContents.forEach((pane) => pane.classList.toggle('active', pane.id === targetId));
+            });
+        });
     });
 </script>
 
