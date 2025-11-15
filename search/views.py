@@ -457,7 +457,7 @@ def get_results(book, chapter_num, verse_num=None):
                 record_id = record_id_tuple[0] if record_id_tuple else None
 
                 rbt_html = rbt_html.replace('</p><p>', '')
-
+                
                 
                 # Generate a list of footnote references found in the verse
                 #footnote_references = re.findall(r'href="\?footnote=(\d+-\d+-\d+)"', rbt_html)

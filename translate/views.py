@@ -1,3 +1,5 @@
+import logging
+
 from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
@@ -27,6 +29,8 @@ from urllib.parse import quote, unquote
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
+
+logger = logging.getLogger(__name__)
 
 
 old_testament_books = [
@@ -2247,20 +2251,6 @@ def chapter_editor(request):
 def find_and_replace_nt(request):
     context = {}
 
-    def new_replacement_id():
-        csv_file_path = 'word_replacement_log.csv'
-        if not os.path.exists(csv_file_path):
-            return 1
-        with open(csv_file_path, 'r', newline='', encoding='utf-8') as csvfile:
-            csv_reader = csv.reader(csvfile)
-            last_id = 0
-            for row in csv_reader:
-                try:
-                    last_id = int(row[0])
-                except ValueError:
-                    continue
-            return last_id + 1
-
     if request.method == 'POST':
         find_text = request.POST.get('find_text')
         replace_text = request.POST.get('replace_text')
@@ -2269,27 +2259,19 @@ def find_and_replace_nt(request):
         # Handle approved replacements
         if 'approve_replacements' in request.POST:
             approved_replacements = request.POST.getlist('approve_replacements')
-            csv_file_path = 'word_replacement_log.csv'
-            replacement_id = int(request.POST.get('replacement_id'))
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             successful_replacements = 0
 
-            with open(csv_file_path, 'a', newline='', encoding='utf-8') as csvfile:
-                csv_writer = csv.writer(csvfile)
+            for verse_id in approved_replacements:
+                new_text = request.POST.get(f'new_text_{verse_id}')
+                if new_text is None:
+                    continue
 
-                for verse_id in approved_replacements:
-                    old_text = request.POST.get(f'old_text_{verse_id}')
-                    new_text = request.POST.get(f'new_text_{verse_id}')
+                execute_query(
+                    "UPDATE new_testament.nt SET rbt = %s WHERE verseID = %s;",
+                    (new_text, verse_id)
+                )
 
-                    # Update in PostgreSQL
-                    execute_query(
-                        "UPDATE new_testament.nt SET rbt = %s WHERE verseID = %s;",
-                        (new_text, verse_id)
-                    )
-
-                    # Log to CSV
-                    csv_writer.writerow([replacement_id, timestamp, verse_id, old_text, new_text])
-                    successful_replacements += 1
+                successful_replacements += 1
 
             context['edit_result'] = (
                 f'<div class="notice-bar">'
@@ -2309,7 +2291,8 @@ def find_and_replace_nt(request):
             )
 
             file_name_pattern = r'\b\w+\.\w+\b'
-            replacements = []
+            replacements: list[dict[str, str | int]] = []
+            genesis_replacements: list[dict[str, str | int]] = []
 
             # Create regex pattern based on exact_match checkbox
             if exact_match:
@@ -2362,7 +2345,6 @@ def find_and_replace_nt(request):
                 return render(request, 'find_replace.html', context)
 
             context['replacements'] = replacements
-            context['replacement_id'] = new_replacement_id()
             return render(request, 'find_replace_review.html', context)
 
     return render(request, 'find_replace.html', context)
@@ -2370,109 +2352,269 @@ def find_and_replace_nt(request):
 @login_required
 def find_and_replace_ot(request):
     context = {}
-
-    def new_replacement_id():
-        csv_file_path = 'word_replacement_log_ot.csv'
-        if not os.path.exists(csv_file_path):
-            return 1
-        with open(csv_file_path, 'r', newline='', encoding='utf-8') as csvfile:
-            csv_reader = csv.reader(csvfile)
-            last_id = 0
-            for row in csv_reader:
-                try:
-                    last_id = int(row[0])
-                except ValueError:
-                    continue
-            return last_id + 1
     
+    def build_search_pattern(term: str, exact: bool = False):
+        if not term:
+            return None
+        escaped = re.escape(term)
+        if exact:
+            return re.compile(rf'(?<!\w){escaped}(?!\w)')
+        return re.compile(escaped)
+
+    def highlight_html(text: str, pattern: re.Pattern, css_class: str) -> str:
+        if text is None:
+            return ''
+
+        def _replacer(match):
+            return f'<span class="highlight-{css_class}">{match.group(0)}</span>'
+
+        return pattern.sub(_replacer, text)
+
     if request.method == 'POST':
-        find_text = request.POST.get('find_text')
-        replace_text = request.POST.get('replace_text')
+        find_text = (request.POST.get('find_text') or '').strip()
+        replace_text = (request.POST.get('replace_text') or '').strip()
+        exact_match = request.POST.get('exact_match') == 'on'
+        skip_rbt_html = request.POST.get('skip_rbt_html') == 'on'
+
+        context.update({
+            'find_text': find_text,
+            'replace_text': replace_text,
+            'exact_match': exact_match,
+            'skip_rbt_html': skip_rbt_html
+        })
+
+        logger.debug(
+            "OT find/replace submission: find='%s', replace='%s', exact=%s, skip_html=%s",
+            find_text,
+            replace_text,
+            exact_match,
+            skip_rbt_html
+        )
 
         if 'approve_replacements' in request.POST:
             approved_replacements = request.POST.getlist('approve_replacements')
 
-            csv_file_path = 'word_replacement_log_ot.csv'
-            replacement_id = int(request.POST.get('replacement_id'))
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            if not approved_replacements:
+                context['edit_result'] = '<div class="notice-bar"><p>No replacements selected.</p></div>'
+                return render(request, 'find_replace_ot.html', context)
+
             successful_replacements = 0
 
-            with open(csv_file_path, 'a', newline='', encoding='utf-8') as csvfile:
-                csv_writer = csv.writer(csvfile)
+            for record_key in approved_replacements:
+                new_text = request.POST.get(f'new_text_{record_key}')
+                new_paraphrase = request.POST.get(f'new_paraphrase_{record_key}')
 
-                for verse_id in approved_replacements:
-                    old_text = request.POST.get(f'old_text_{verse_id}')
-                    new_text = request.POST.get(f'new_text_{verse_id}')
+                if new_text is None and new_paraphrase is None:
+                    continue
 
-                    # Update the PostgreSQL database
+                source, record_id = record_key.split('-', 1)
+
+                if source == 'genesis':
+                    update_kwargs = {}
+                    if new_text is not None:
+                        update_kwargs['html'] = new_text
+                    if new_paraphrase is not None:
+                        update_kwargs['rbt_reader'] = new_paraphrase
+
+                    if update_kwargs:
+                        Genesis.objects.filter(id=int(record_id)).update(**update_kwargs)
+                        successful_replacements += 1
+                else:
+                    if new_text is None:
+                        continue
                     execute_query("SET search_path TO old_testament;")
                     execute_query(
-                        "UPDATE ot SET html = %s WHERE id = %s;",
-                        (new_text, verse_id)
+                        "UPDATE old_testament.ot SET html = %s WHERE id = %s;",
+                        (new_text, int(record_id))
                     )
-
-                    # Log the replacement
-                    csv_writer.writerow([replacement_id, timestamp, verse_id, old_text, new_text])
                     successful_replacements += 1
 
-                # Display a success message with the number of replacements
-                context['edit_result'] = (
-                    f'<div class="notice-bar">'
-                    f'<p><span class="icon"><i class="fas fa-check-circle"></i></span>'
-                    f'{successful_replacements} replacements successfully applied!</p>'
-                    f'</div>'
-                )
+            context['edit_result'] = (
+                f'<div class="notice-bar">'
+                f'<p><span class="icon"><i class="fas fa-check-circle"></i></span>'
+                f'{successful_replacements} replacements successfully applied!</p>'
+                f'</div>'
+            )
 
-                return render(request, 'find_replace.html', context)
+            return render(request, 'find_replace_ot.html', context)
 
-        # Step 2: Find text and display for approval
         elif find_text and replace_text:
+            search_pattern = build_search_pattern(find_text, exact_match)
+            if not search_pattern:
+                context['edit_result'] = '<div class="notice-bar"><p>Enter a valid word to search.</p></div>'
+                return render(request, 'find_replace_ot.html', context)
 
-            # Ensure we are using the correct schema
+            display_replace_pattern = re.compile(re.escape(replace_text)) if replace_text else None
+
             execute_query("SET search_path TO old_testament;")
-
-            # Search for the find_text in the OT table
             rows = execute_query(
-                "SELECT id, Ref, html, book, chapter, verse FROM ot WHERE html LIKE %s;",
+                "SELECT id, Ref, html, book, chapter, verse FROM old_testament.ot WHERE html LIKE %s;",
                 (f'%{find_text}%',),
                 fetch='all'
             )
 
-            # Regular expression to detect file names (e.g., xxxxxxx.xxx)
+            logger.debug("OT table candidates returned: %d", len(rows))
+
             file_name_pattern = r'\b\w+\.\w+\b'
-
-            # Prepare replacement data for user review
             replacements = []
-            for verse_id, ref, old_text, book, chapter, verse in rows:
+            genesis_replacements = []
 
-                # Skip file names
-                if re.search(file_name_pattern, old_text):
+            for verse_id, ref, ot_html, book, chapter, verse in rows:
+                working_html = ot_html or ''
+                source = 'ot'
+                record_key = f'ot-{verse_id}'
+                try:
+                    chapter_ref = int(chapter) if chapter is not None else None
+                except (TypeError, ValueError):
+                    chapter_ref = None
+                try:
+                    verse_ref = int(verse) if verse is not None else None
+                except (TypeError, ValueError):
+                    verse_ref = None
+                book_display = _safe_book_name(book)
+
+                if book_display == 'Genesis':
+                    logger.debug(
+                        "Skipping OT row id=%s for Genesis, will use ORM data", verse_id
+                    )
                     continue
 
-                new_text = re.sub(find_text, f'<span class="highlight-find">{find_text}</span>', old_text)
-                updated_text = re.sub(find_text, f'<span class="highlight-replace">{replace_text}</span>', new_text)
-                new_text_raw = re.sub(find_text, replace_text, old_text)
-                verse_link = f'../translate/?book={book}&chapter={chapter}&verse={verse}'
+                if re.search(file_name_pattern, working_html):
+                    continue
 
-                if new_text != old_text:
-                    replacements.append({
-                        'verse_id': verse_id,
-                        'reference': ref,
-                        'old_text': re.sub(find_text, f'<span class="highlight-find">{find_text}</span>', old_text),
-                        'new_text': updated_text,
-                        'new_text_raw': new_text_raw,
-                        'verse_link': verse_link
-                    })
+                if not search_pattern.search(working_html):
+                    continue
 
+                highlighted_old = highlight_html(working_html, search_pattern, 'find')
+                new_text_raw, replacements_count = search_pattern.subn(replace_text, working_html)
 
-            # If no replacements were found
+                if replacements_count == 0:
+                    continue
+
+                if display_replace_pattern:
+                    highlighted_new = highlight_html(new_text_raw, display_replace_pattern, 'replace')
+                else:
+                    highlighted_new = new_text_raw
+
+                verse_link = (
+                    f'../edit/?book=Genesis&chapter={chapter_ref}&verse={verse_ref}'
+                    if source == 'genesis'
+                    else f'../translate/?book={book}&chapter={chapter_ref}&verse={verse_ref}'
+                )
+
+                reference_label = ref or f'{book_display} {chapter_ref}:{verse_ref}'
+
+                replacements.append({
+                    'record_key': record_key,
+                    'reference': reference_label,
+                    'old_text_display': highlighted_old,
+                    'new_text_display': highlighted_new,
+                    'old_text_raw': working_html,
+                    'new_text_raw': new_text_raw,
+                    'old_paraphrase_raw': '',
+                    'new_paraphrase_raw': '',
+                    'verse_link': verse_link
+                })
+
+            genesis_rows = list(
+                Genesis.objects.filter(
+                    Q(html__icontains=find_text) | Q(rbt_reader__icontains=find_text)
+                ).values('id', 'chapter', 'verse', 'html', 'rbt_reader')
+            )
+            logger.debug("Genesis candidates returned: %d", len(genesis_rows))
+
+            for row in genesis_rows:
+                html_text = row.get('html') or ''
+                paraphrase_text = row.get('rbt_reader') or ''
+
+                if re.search(file_name_pattern, html_text) and not skip_rbt_html:
+                    logger.debug(
+                        "Skipping Genesis id=%s due to file-like pattern", row.get('id')
+                    )
+                    continue
+
+                html_new = html_text
+                html_count = 0
+                if not skip_rbt_html and html_text:
+                    html_new, html_count = search_pattern.subn(replace_text, html_text)
+
+                paraphrase_new, paraphrase_count = search_pattern.subn(replace_text, paraphrase_text)
+
+                total_matches = html_count + paraphrase_count
+                if total_matches == 0:
+                    logger.debug(
+                        "Genesis id=%s pattern found zero replacements in html/paraphrase",
+                        row.get('id')
+                    )
+                    continue
+
+                highlighted_html_old = ''
+                highlighted_html_new = ''
+                if not skip_rbt_html and html_text:
+                    highlighted_html_old = highlight_html(html_text, search_pattern, 'find')
+                    highlighted_html_new = (
+                        highlight_html(html_new, display_replace_pattern, 'replace')
+                        if display_replace_pattern else escape(html_new)
+                    )
+
+                highlighted_para_old = ''
+                highlighted_para_new = ''
+                if paraphrase_text:
+                    highlighted_para_old = highlight_html(paraphrase_text, search_pattern, 'find')
+                    highlighted_para_new = (
+                        highlight_html(paraphrase_new, display_replace_pattern, 'replace')
+                        if display_replace_pattern else escape(paraphrase_new)
+                    )
+
+                def format_section(label: str, content: str) -> str:
+                    if not content:
+                        return ''
+                    return f'<div class="genesis-field"><strong>{label}:</strong><div>{content}</div></div>'
+
+                combined_old_display = (
+                    format_section('HTML', highlighted_html_old) +
+                    format_section('Paraphrase', highlighted_para_old)
+                ) or '<em>No content</em>'
+
+                combined_new_display = (
+                    format_section('HTML', highlighted_html_new) +
+                    format_section('Paraphrase', highlighted_para_new)
+                ) or '<em>No content</em>'
+
+                chapter_ref = row.get('chapter')
+                verse_ref = row.get('verse')
+
+                verse_link = f"../edit/?book=Genesis&chapter={chapter_ref}&verse={verse_ref}"
+                reference_label = f"Genesis {chapter_ref}:{verse_ref}"
+                record_key = f"genesis-{row['id']}"
+
+                logger.debug(
+                    "Queued Genesis replacement: record_key=%s matches=%d",
+                    record_key,
+                    total_matches
+                )
+
+                genesis_replacements.append({
+                    'record_key': record_key,
+                    'reference': reference_label,
+                    'old_text_display': combined_old_display,
+                    'new_text_display': combined_new_display,
+                    'old_text_raw': html_text,
+                    'new_text_raw': html_new,
+                    'old_paraphrase_raw': paraphrase_text,
+                    'new_paraphrase_raw': paraphrase_new,
+                    'verse_link': verse_link
+                })
+
+            replacements = genesis_replacements + replacements
+
             if not replacements:
                 context['edit_result'] = '<div class="notice-bar"><p>No matches found for the given word.</p></div>'
-                return render(request, 'find_replace.html', context)
+                logger.info("OT find/replace: no matches found for '%s'", find_text)
+                return render(request, 'find_replace_ot.html', context)
 
-            # Store the replacements in the context for the user to review
             context['replacements'] = replacements
-            context['replacement_id'] = new_replacement_id()
+            logger.debug("Prepared %d replacement previews", len(replacements))
 
             return render(request, 'find_replace_review_ot.html', context)
 

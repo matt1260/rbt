@@ -28,10 +28,22 @@
     <form method="POST">
         {% csrf_token %}
         <label for="find_text">Word:</label>
-        <input type="text" name="find_text" id="find_text">
+        <input type="text" name="find_text" id="find_text" value="{{ find_text|default:'' }}" required>
         <br>
         <label for="replace_text">Replacement:</label>
-        <input type="text" name="replace_text" id="replace_text">
+        <input type="text" name="replace_text" id="replace_text" value="{{ replace_text|default:'' }}" required>
+        <div class="form-option">
+            <label for="exact_match">
+                <input type="checkbox" name="exact_match" id="exact_match" {% if exact_match %}checked{% endif %}>
+                Exact match only (whole word)
+            </label>
+        </div>
+        <div class="form-option">
+            <label for="skip_rbt_html">
+                <input type="checkbox" name="skip_rbt_html" id="skip_rbt_html" {% if skip_rbt_html %}checked{% endif %}>
+                Skip Genesis HTML (rbt_html) replacements
+            </label>
+        </div>
         <input type="submit" value="Find and Update">
     </form>
 </div>

@@ -16,7 +16,6 @@
     <h4>Review and Approve Old Testament Replacements</h4>
     <form method="POST">
         {% csrf_token %}
-        <input type="hidden" name="replacement_id" value="{{ replacement_id }}">
         <table class="table">
             <thead>
                 <tr>
@@ -32,13 +31,15 @@
                 {% for replacement in replacements %}
                 <tr>
                     <td>
-                        <input type="checkbox" name="approve_replacements" value="{{ replacement.verse_id }}" class="replacement-checkbox">
+                        <input type="checkbox" name="approve_replacements" value="{{ replacement.record_key }}" class="replacement-checkbox">
                     </td>
                     <td><a href="{{ replacement.verse_link }}" target="_blank">{{ replacement.reference }}</a></td>
-                    <td>{{ replacement.old_text|safe }}</td>
-                    <td>{{ replacement.new_text|safe }}</td>
-                    <input type="hidden" name="old_text_{{ replacement.verse_id }}" value="{{ replacement.old_text }}">
-                    <input type="hidden" name="new_text_{{ replacement.verse_id }}" value="{{ replacement.new_text_raw }}">
+                    <td>{{ replacement.old_text_display|safe }}</td>
+                    <td>{{ replacement.new_text_display|safe }}</td>
+                    <input type="hidden" name="old_text_{{ replacement.record_key }}" value="{{ replacement.old_text_raw|default_if_none:''|escape }}">
+                    <input type="hidden" name="new_text_{{ replacement.record_key }}" value="{{ replacement.new_text_raw|default_if_none:''|escape }}">
+                    <input type="hidden" name="old_paraphrase_{{ replacement.record_key }}" value="{{ replacement.old_paraphrase_raw|default_if_none:''|escape }}">
+                    <input type="hidden" name="new_paraphrase_{{ replacement.record_key }}" value="{{ replacement.new_paraphrase_raw|default_if_none:''|escape }}">
                 </tr>
                 {% endfor %}
             </tbody>
