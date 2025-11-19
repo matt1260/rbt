@@ -55,7 +55,7 @@
         </div>
         {% else %}
             {% if paraphrase %}
-                <div id="paraphrase-area">{{ paraphrase|safe }}</div>
+                <div id="paraphrase-area" style="padding-right: 10px;">{{ paraphrase|safe }}</div>
             {% else %}
                 <p>No results found for chapter {{ chapter_num }}.</p>
             {% endif %}
@@ -311,6 +311,7 @@
         const mainTextArea = document.getElementById("mainTextArea");
         const resizeHandle = document.getElementById("resizeHandle");
         const verseRefs = document.querySelectorAll(".verse_ref");
+        const paraphraseArea = document.getElementById("paraphrase-area");
         
         let isLiteralVisible = false;
         let isImageVisible = true;
@@ -322,7 +323,7 @@
         // Resizing variables
         let isResizing = false;
         let startX = 0;
-        let startWidth = 380;
+        let startWidth = 450;
         const minWidth = 250;
         const maxWidth = 800;
         
@@ -362,7 +363,7 @@
                 }
             } else {
                 // Desktop: Side panel
-                footnotesSidebar.style.width = '380px';
+                footnotesSidebar.style.width = '450px';
                 footnotesSidebar.style.position = 'fixed';
                 footnotesSidebar.style.top = '89.6px';
                 footnotesSidebar.style.height = 'calc(100vh - 89.6px)';
@@ -371,7 +372,7 @@
                 footnotesSidebar.style.overflowX = 'hidden';
                 
                 if (!isFootnotesVisible) {
-                    footnotesSidebar.style.right = '-400px';
+                    footnotesSidebar.style.right = '-470px';
                 }
                 
                 // Reset main text area for desktop
@@ -409,11 +410,17 @@
                         mainTextArea.style.marginRight = '0';
                         mainTextArea.style.width = '100%';
                     }
+                    if (paraphraseArea) {
+                        paraphraseArea.style.paddingRight = '10px';
+                    }
                 } else {
                     const sidebarWidth = footnotesSidebar.offsetWidth;
                     footnotesSidebar.style.right = `-${sidebarWidth + 20}px`;
                     if (mainTextArea) {
                         mainTextArea.style.marginRight = '0';
+                    }
+                    if (paraphraseArea) {
+                        paraphraseArea.style.paddingRight = '10px';
                     }
                 }
                 footnotesToggleButton.innerHTML = '<i class="fas fa-book"></i> Show Notes (N)';
@@ -448,12 +455,16 @@
                         mainTextArea.style.marginRight = '0';
                         mainTextArea.style.width = '100%';
                     }
+
                 } else {
                     footnotesSidebar.style.right = '0';
                     const sidebarWidth = footnotesSidebar.offsetWidth;
                     const margin = Math.max(50, sidebarWidth - 330);
                     if (mainTextArea) {
                         mainTextArea.style.marginRight = margin + 'px';
+                    }
+                    if (paraphraseArea) {
+                        paraphraseArea.style.paddingRight = '20px';
                     }
                 }
                 footnotesToggleButton.innerHTML = '<i class="fas fa-book-open"></i> Hide Notes (N)';
