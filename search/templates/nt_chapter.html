@@ -271,7 +271,8 @@
             function wrapTextNodes(node) {
                 if (node.nodeType === Node.TEXT_NODE) {
                     // Replace space + ( ... ) with span (include preceding space)
-                    let replaced = node.textContent.replace(/\s\([^()]*\)/g, function(match) {
+                    // Only match parentheses that contain double-quoted text, e.g. ("word")
+                    let replaced = node.textContent.replace(/\s\(\s*\"([^\"]+)\"\s*\)/g, function(match) {
                         return '<span class="paren-hide">' + match + '</span>';
                     });
                     if (replaced !== node.textContent) {
@@ -365,8 +366,8 @@
                 // Desktop: Side panel
                 footnotesSidebar.style.width = '450px';
                 footnotesSidebar.style.position = 'fixed';
-                footnotesSidebar.style.top = '89.6px';
-                footnotesSidebar.style.height = 'calc(100vh - 89.6px)';
+                footnotesSidebar.style.top = '0px';
+                footnotesSidebar.style.height = '100vh';
                 footnotesSidebar.style.zIndex = '100';
                 footnotesSidebar.style.overflowY = 'auto';
                 footnotesSidebar.style.overflowX = 'hidden';
