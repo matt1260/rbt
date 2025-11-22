@@ -475,12 +475,20 @@ def edit_footnote(request):
 
         soup = BeautifulSoup(footnote_html, 'html.parser')
 
+        # Remove data-start and data-end attributes from all tags
+        for tag in soup.find_all(True):
+            if 'data-start' in tag.attrs:
+                del tag.attrs['data-start']
+            if 'data-end' in tag.attrs:
+                del tag.attrs['data-end']
+
+        # Add rbt_footnote class to <p> and <ul> tags
         for tag in soup.find_all(['p', 'ul']):
             existing_classes = tag.get('class', [])
             if 'rbt_footnote' not in existing_classes:
                 existing_classes.append('rbt_footnote')
             tag['class'] = existing_classes
-        
+
         footnote_html = str(soup)
         
         # New testament footnotes
