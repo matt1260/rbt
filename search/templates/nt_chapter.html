@@ -178,22 +178,26 @@
         opacity: 0.8 !important;
     }
 
-    /* Ensure all images and videos scale responsively */
+    /* Mobile: Ensure all images and videos scale responsively */
+    @media (max-width: 768px) {
+        img, video, .tooltip-container img, .tooltip-container video {
+            width: 100% !important;
+            height: auto !important;
+            max-width: 100% !important;
+            display: block;
+            margin: 0 auto;
+            background: #fff;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+    }
+
+     /* Ensure all images and videos scale responsively */
     img, video, .tooltip-container img, .tooltip-container video {
-        width: 100% !important;
-        height: auto !important;
         max-width: 500px;
         display: block;
         margin: 0 auto;
         background: #fff;
         transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-
-    /* Mobile fix */
-    @media (max-width: 768px) {
-    img, video {
-        max-width: 100% !important;
-    }
     }
 
     /* Modern toolbar container */
