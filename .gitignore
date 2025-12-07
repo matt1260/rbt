@@ -20,6 +20,8 @@ ENV/
 searchimage.py
 replace_exact_match.py
 TODO.md
+post.html
+interlinear_apply.py
 
 # Django
 *.sqlite3

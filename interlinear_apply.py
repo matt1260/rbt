@@ -4,7 +4,7 @@ import os
 
 # PostgreSQL database URL (set in environment variable)
 # export DATABASE_URL="postgres://matt:Lamentations318@localhost:5432/rbt"
-DATABASE_URL = os.environ.get('DATABASE_URL')  # e.g., "postgres://matt:Lamentations318@localhost:5432/rbt"
+DATABASE_URL = os.environ.get('DATABASE_URL')  
 
 def load_json():
     with open('interlinear_english.json', 'r', encoding='utf-8') as file:
