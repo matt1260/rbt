@@ -770,7 +770,7 @@ def get_results(book, chapter_num, verse_num=None):
                         elif "Masculine" in morph_desc:
                             color = "blue"
                         
-                        interlinear += f'<a href="/greek-parsing/"><span class="morph" title="{morph_desc}" style="color: {color};">{morph}</span></a>\n'
+                        interlinear += f'<a href="https://www.realbible.tech/greek-parsing/"><span class="morph" title="{morph_desc}" style="color: {color};">{morph}</span></a>\n'
                         interlinear += '</td>\n</tr>\n'
                         interlinear += '</tbody>\n</table>\n'
 
