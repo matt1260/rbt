@@ -22,6 +22,8 @@ replace_exact_match.py
 TODO.md
 post.html
 interlinear_apply.py
+gesenius.pdf
+gesenius/
 
 # Django
 *.sqlite3
