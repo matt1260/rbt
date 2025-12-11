@@ -1225,30 +1225,34 @@ def translate(request):
         if undo == 'true':
             undo_replacements()
 
-        # Handle footnotes
-        footnotes_data = {}
-        old_footnotes_data = {}
-        updated_footnotes = {}
+        # Handle footnotes - field names use the actual database row ID (not sequential number)
+        footnotes_data = {}  # {row_id: new_footnote_text}
+        old_footnotes_data = {}  # {row_id: old_footnote_text}
+        updated_footnotes = {}  # {row_id: new_footnote_text} for changed footnotes
+        
         for key, value in request.POST.items():
             if key.startswith('footnote-'):
-                footnote_number = key.split('-')[1]
-                footnotes_data[footnote_number] = value
+                row_id = key.split('-')[1]  # This is the database row ID
+                footnotes_data[row_id] = value
         for key, value in request.POST.items():
             if key.startswith('old_footnote-'):
-                footnote_number = key.split('-')[1]
-                old_footnotes_data[footnote_number] = value
+                row_id = key.split('-')[1]  # This is the database row ID
+                old_footnotes_data[row_id] = value
         
-        for key in old_footnotes_data:
-            # Check if the values don't match between old and new footnotes - only works for empty footnotes
-            if old_footnotes_data[key] != footnotes_data.get(key):
-                updated_footnotes[key] = footnotes_data.get(key)
-
+        # Debug logging
+        logger.debug(f"Footnote POST data - footnotes_data keys: {list(footnotes_data.keys())}")
+        logger.debug(f"Footnote POST data - old_footnotes_data keys: {list(old_footnotes_data.keys())}")
         
-        for key, text in updated_footnotes.items():
-            num = int(key) - 1
-            id = color_id_list[num]
+        for row_id in old_footnotes_data:
+            # Check if the values don't match between old and new footnotes
+            if old_footnotes_data[row_id] != footnotes_data.get(row_id):
+                updated_footnotes[row_id] = footnotes_data.get(row_id)
+                logger.debug(f"Footnote changed for row_id={row_id}")
 
-            save_footnote_to_database(verse_id, id, key, text)
+        for row_id, text in updated_footnotes.items():
+            # row_id is already the database ID - no need to look up in color_id_list
+            logger.debug(f"Saving footnote: row_id={row_id}, text preview={text[:50] if text else 'empty'}...")
+            save_footnote_to_database(verse_id, row_id, row_id, text)
 
     ############### END POST EDIT
 
@@ -1658,11 +1662,13 @@ def translate(request):
                     <input type="hidden" name="color_id" value="{id}"></td>
                     '''
 
-            f = str(footnote_num)
+            # Use the database row ID for footnote field names (not sequential number)
+            # This ensures correct mapping after edit_table_data is sorted
+            row_id_str = str(id)
 
             if footnote:
                 footnote_btn = f'''
-                    <button class="toggleButton" data-target="footnotes-{f}" type="button" style="
+                    <button class="toggleButton" data-target="footnotes-{row_id_str}" type="button" style="
                         background-color: #5C6BC0; 
                         color: white; 
                         border: none; 
@@ -1684,17 +1690,17 @@ def translate(request):
 
                 foot_ref = ref.replace(".", "-")
                 footnote = f'''
-                <td colspan="14" class="footnotes-{f}" style="display: none;">
+                <td colspan="14" class="footnotes-{row_id_str}" style="display: none;">
                     {footnote}<br>
-                    <textarea class="my-tinymce" name="footnote-{f}" id="footnote-{f}" autocomplete="off" style="width: 100%;" rows="6">{footnote}</textarea><br>
-                    <input type="hidden" name="old_footnote-{f}" value="does not work">
+                    <textarea class="my-tinymce" name="footnote-{row_id_str}" id="footnote-{row_id_str}" autocomplete="off" style="width: 100%;" rows="6">{footnote}</textarea><br>
+                    <input type="hidden" name="old_footnote-{row_id_str}" value="does not work">
                     &lt;a class=&quot;sdfootnoteanc&quot; href=&quot;?footnote={foot_ref}&quot;&gt;&lt;sup&gt;num&lt;/sup&gt;&lt;/a&gt;
                 </td>
                 '''
 
             else:
                 footnote_btn = f'''
-                    <button class="toggleButton" data-target="footnotes-{f}" type="button" style="
+                    <button class="toggleButton" data-target="footnotes-{row_id_str}" type="button" style="
                         background-color: #BDBDBD; 
                         color: white; 
                         border: none; 
@@ -1715,16 +1721,16 @@ def translate(request):
 
                 foot_ref = ref.replace(".", "-")
                 footnote = f'''
-                <td colspan="14" class="footnotes-{f}" style="display: none;">
+                <td colspan="14" class="footnotes-{row_id_str}" style="display: none;">
                     No footnote<br>
-                    <textarea class="my-tinymce" name="footnote-{f}" id="footnote-{f}" autocomplete="off" style="width: 100%;" rows="6"></textarea><br>
-                    <input type="hidden" name="old_footnote-{f}" value="">
+                    <textarea class="my-tinymce" name="footnote-{row_id_str}" id="footnote-{row_id_str}" autocomplete="off" style="width: 100%;" rows="6"></textarea><br>
+                    <input type="hidden" name="old_footnote-{row_id_str}" value="">
                 </td>
                 '''
             # Append all data to edit_table_data
             edit_table_data.append((id, ref, eng, unique, combined_hebrew, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote))
             
-            footnote_num += 1
+            footnote_num += 1  # Keep for display purposes if needed elsewhere
 
         edit_table_data.sort(
             key=lambda row: row[0] if row[0] is not None else -1
