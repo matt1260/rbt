@@ -16,6 +16,7 @@ env/
 venv/
 ENV/
 .venv/
+.DS_Store
 
 searchimage.py
 replace_exact_match.py

@@ -1412,7 +1412,8 @@ def translate(request):
             SELECT id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, Morph, uniq, Strongs, color, html, 
                 heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology
             FROM old_testament.hebrewdata
-            WHERE Ref LIKE %s;
+            WHERE Ref LIKE %s
+            ORDER BY Ref ASC;
             """,
             (f'{rbt_heb_ref}%',),
             fetch='all'
@@ -1420,7 +1421,7 @@ def translate(request):
 
         # Fetch html rows
         html_rows = execute_query(
-            "SELECT Ref, html FROM old_testament.hebrewdata WHERE Ref LIKE %s;",
+            "SELECT Ref, html FROM old_testament.hebrewdata WHERE Ref LIKE %s ORDER BY Ref ASC;",
             (f'{rbt_heb_chapter}%',),
             fetch='all'
         )
