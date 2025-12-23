@@ -11,6 +11,8 @@ except Exception:  # pragma: no cover - settings may be unavailable in some scri
 
 from .db_utils import get_db_connection, execute_query
 
+DEFAULT_FUERST_IMAGE_BASE_URL = "http://www.realbible.tech/fuerst_lexicon"
+
 # Small HTML sanitizer: allows a small whitelist of tags and safe <a href="..."> links
 def sanitize_allowed_html(raw_html: str) -> str:
     """Return a sanitized HTML fragment allowing a small set of tags.
@@ -214,13 +216,8 @@ def _resolve_fuerst_base_url() -> str:
     if env_value:
         return env_value.rstrip('/')
 
-    if settings is not None:
-        try:
-            static_url = getattr(settings, 'STATIC_URL', '')
-        except Exception:
-            static_url = ''
-        if static_url:
-            return f"{static_url.rstrip('/')}/fuerst".rstrip('/')
+    if DEFAULT_FUERST_IMAGE_BASE_URL:
+        return DEFAULT_FUERST_IMAGE_BASE_URL.rstrip('/')
 
     return ''
 
