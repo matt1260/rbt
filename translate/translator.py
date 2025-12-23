@@ -1,7 +1,58 @@
 import re
 import json
-from .db_utils import get_db_connection, execute_query
 import os
+import html
+from functools import lru_cache
+
+try:
+    from django.conf import settings
+except Exception:  # pragma: no cover - settings may be unavailable in some scripts
+    settings = None
+
+from .db_utils import get_db_connection, execute_query
+
+# Small HTML sanitizer: allows a small whitelist of tags and safe <a href="..."> links
+def sanitize_allowed_html(raw_html: str) -> str:
+    """Return a sanitized HTML fragment allowing a small set of tags.
+
+    - Escapes everything first, then un-escapes a safe subset of tags: p, br, strong, em, b, i, ul, ol, li, a.
+    - For <a>, only preserves href attributes that start with http(s) or mailto.
+    This is intentionally conservative and avoids adding dependencies like 'bleach'.
+    """
+    if not raw_html:
+        return ''
+
+    # Escape everything first
+    esc = html.escape(raw_html)
+
+    # Simple tags to unescape (no attributes)
+    simple_tags = ['p', 'br', 'strong', 'em', 'b', 'i', 'ul', 'ol', 'li']
+    for tag in simple_tags:
+        esc = esc.replace(f'&lt;{tag}&gt;', f'<{tag}>')
+        esc = esc.replace(f'&lt;/{tag}&gt;', f'</{tag}>')
+        esc = esc.replace(f'&lt;{tag} /&gt;', f'<{tag} />')
+        esc = esc.replace(f'&lt;{tag}/&gt;', f'<{tag}/>' )
+
+    # Handle <br> variants
+    esc = esc.replace('&lt;br&gt;', '<br>').replace('&lt;br /&gt;', '<br />').replace('&lt;br/&gt;', '<br/>')
+
+    # Unescape safe <a href="..."> links, preserving only http(s) and mailto
+    # Find patterns like &lt;a href=&quot;URL&quot;&gt;
+    def _unescape_anchor(match):
+        href = match.group(1)
+        # Decode HTML entities in href
+        href = href.replace('&amp;', '&').replace('&quot;', '"')
+        # Allow only http, https or mailto
+        if re.match(r'^(https?:|mailto:)', href, re.I):
+            return f'<a href="{href}" target="_blank" rel="noopener noreferrer">'
+        # otherwise do not render the href attribute
+        return '<a>'
+
+    esc = re.sub(r'&lt;a\s+href=&quot;([^&]*)&quot;&gt;', _unescape_anchor, esc)
+    esc = esc.replace('&lt;/a&gt;', '</a>')
+
+    return esc
+
 
 book_abbreviations = {
     'Genesis': 'Gen',
@@ -115,6 +166,7 @@ nt_abbrev = [
     '1Jo', '2Jo', '3Jo', 'Jud', 'Rev'
 ]
 
+# For re-casting the titles on the front-end
 rbt_books = {
     'Genesis': 'In the Head',
     'Exodus': 'A Mighty One of Names',
@@ -122,6 +174,7 @@ rbt_books = {
     'Numbers': 'He is Arranging Words',
     'Deuteronomy': 'A Mighty One of Words',
     'Song of Solomon': 'Song of Singers',
+    'Job': 'Adversary',
     'Isaiah': 'He is Liberator',
     'Ezekiel': 'God Holds Strong',
     'John': 'He is Favored',
@@ -144,6 +197,121 @@ rbt_books = {
     '1 Timothy': 'First Honor of God',
     '2 Timothy': 'Second Honor of God'
 }
+
+
+def _resolve_fuerst_base_url() -> str:
+    """Determine the base URL used for Fuerst page image links."""
+    candidate = None
+    if settings is not None:
+        try:
+            candidate = getattr(settings, 'FUERST_IMAGE_BASE_URL', None)
+        except Exception:
+            candidate = None
+    if candidate:
+        return candidate.rstrip('/')
+
+    env_value = os.environ.get('FUERST_IMAGE_BASE_URL', '')
+    if env_value:
+        return env_value.rstrip('/')
+
+    if settings is not None:
+        try:
+            static_url = getattr(settings, 'STATIC_URL', '')
+        except Exception:
+            static_url = ''
+        if static_url:
+            return f"{static_url.rstrip('/')}/fuerst".rstrip('/')
+
+    return ''
+
+
+FUERST_IMAGE_BASE_URL = _resolve_fuerst_base_url()
+
+
+def build_fuerst_page_url(source_page: str) -> str:
+    """Return an absolute URL for the stored page scan, or an empty string if unknown."""
+    if not source_page:
+        return ''
+    if FUERST_IMAGE_BASE_URL:
+        return f"{FUERST_IMAGE_BASE_URL}/{source_page}"
+    return ''
+
+
+def format_fuerst_page_label(source_page: str) -> str:
+    if not source_page:
+        return 'View scan'
+    match = re.search(r'(\d+)', source_page)
+    if match:
+        try:
+            return f"Page {int(match.group(1))}"
+        except ValueError:
+            pass
+    return 'View scan'
+
+
+@lru_cache(maxsize=2048)
+def get_fuerst_entries_for_strong(strong_number: str):
+    """Fetch cached Fuerst lexicon links for a canonical Strong's number (e.g., 'H7225')."""
+    rows = execute_query(
+        """
+        SELECT lf.fuerst_id,
+               lf.confidence,
+               lf.mapping_basis,
+               COALESCE(l.lexeme, l.consonantal) AS lexeme_form,
+               fl.hebrew_word,
+               fl.hebrew_consonantal,
+               fl.definition,
+               fl.part_of_speech,
+               fl.root,
+               fl.source_page,
+               lf.notes
+        FROM old_testament.lexemes l
+        JOIN old_testament.lexeme_fuerst lf ON lf.lexeme_id = l.lexeme_id
+        JOIN old_testament.fuerst_lexicon fl ON fl.id = lf.fuerst_id
+        WHERE l.strongs = %s
+        ORDER BY
+            CASE lf.confidence
+                WHEN 'high' THEN 1
+                WHEN 'medium' THEN 2
+                ELSE 3
+            END,
+            fl.hebrew_word NULLS LAST,
+            fl.id
+        """,
+        (strong_number,),
+        fetch='all'
+    ) or []
+
+    entries = []
+    for row in rows:
+        (
+            fuerst_id,
+            confidence,
+            mapping_basis,
+            lexeme_form,
+            hebrew_word,
+            hebrew_consonantal,
+            definition,
+            part_of_speech,
+            root,
+            source_page,
+            notes
+        ) = row
+        entries.append({
+            'fuerst_id': fuerst_id,
+            'confidence': confidence or '',
+            'mapping_basis': mapping_basis or '',
+            'lexeme_form': lexeme_form or '',
+            'hebrew_word': hebrew_word or '',
+            'hebrew_consonantal': hebrew_consonantal or '',
+            'definition': definition or '',
+            'part_of_speech': part_of_speech or '',
+            'root': root or '',
+            'source_page': source_page or '',
+            'notes': notes or '',
+        })
+
+    return tuple(entries)
 
 def convert_to_book_chapter_verse(input_verse):
             
@@ -327,21 +495,33 @@ def replace_words(strongs, lemma, english):
     return strongs, lemma, english
 
 def strong_data(strong_ref):
+    # Normalize the reference: keep any single trailing letter (e.g., '5869a') for display
+    # but use the numeric portion for lookups
     if len(strong_ref) == 6:
         last_character = strong_ref[-1]
     else:
         last_character = '' 
 
+    # Extract numeric part for canonical lookups
     strong_number = re.sub(r'[^0-9]', '', strong_ref)
     strong_number = int(strong_number)
     strong_number = str(strong_number)
-    strong_ref = strong_number + last_character
-    if strong_ref == '1961':
+    # display ref preserves the trailing letter (if present)
+    display_ref = strong_number + last_character
+
+    # Special handling (historical)
+    if display_ref == '1961':
         hayah = True
-    strong_link = f'<a href="https://biblehub.com/hebrew/{strong_ref}.htm" target="_blank">{strong_ref}</a>'
-    
+
+    # Build a concise link to BibleHub (no icon to save space)
+    strong_link = (
+        f'<a href="https://biblehub.com/hebrew/{display_ref}.htm" target="_blank" '
+        f'rel="noopener noreferrer" class="strong-link">{display_ref}</a>'
+    )
+
+    # Look up the dictionary entry using canonical 'H' prefixed number
     strong_number = 'H' + strong_number
-    # Fetch the Strong's dictionary entry
+
     result = execute_query(
         """
         SELECT lemma, xlit, derivation, strongs_def, description
@@ -353,21 +533,177 @@ def strong_data(strong_ref):
     )
 
     if result is not None:
-        lemma = result[0]
-        xlit = result[1]
-        derivation = result[2]
-        definition = result[3]
-        description = result[4]
+        lemma = result[0] or ''
+        xlit = result[1] or ''
+        derivation = result[2] or ''
+        definition = result[3] or ''
+        description = result[4] or ''
     else:
-        definition = 'Definition not found'
         lemma = ''
-        derivation = ''
         xlit = ''
+        derivation = ''
+        definition = 'Definition not found'
         description = ''
-    
-    single_ref = f'<div class="popup-container">{strong_link}<div class="popup-content"><font size="14">{lemma}</font><br>{xlit}<br><b>Definition: </b>{definition}<br><b>Root: </b>{derivation}<br><b>Exhaustive: </b>{description}</div></div>'
-    
+
+    # Escape text to avoid accidental HTML injection for most fields
+    lemma_esc = html.escape(lemma)
+    xlit_esc = html.escape(xlit)
+    derivation_esc = html.escape(derivation)
+    definition_esc = html.escape(definition)
+    # Description may contain safe HTML (paragraphs, links) — sanitize and allow certain tags
+    description_html = sanitize_allowed_html(description)
+
+    # Use a special citation for the H9000-H9009 range
+    if strong_number in {f'H{n}' for n in range(9000, 9010)}:
+        citation_html = (
+            '<div class="strong-citation"><small>Source: '
+            '<a href="https://www.realbible.tech/%d7%95-%d7%91-%d7%9b-%d7%9c-%d7%9e-the-aonic-nature-of-biblical-hebrew-prepositions/" '
+            'target="_blank" rel="noopener noreferrer">The Aonic Nature of Biblical Hebrew Prepositions</a>'
+            '</small></div>'
+        )
+    else:
+        citation_html = (
+            f'<div class="strong-citation"><small>Source: '
+            f'<a href="https://biblehub.com/hebrew/{display_ref}.htm" target="_blank" rel="noopener noreferrer">'
+            f"Strong&#39;s Exhaustive Concordance — {strong_number}</a></small></div>"
+        )
+
+    single_ref = f"""
+<div class="popup-container strong-popup">
+  {strong_link}
+  <div class="popup-content strong-popup-content" role="tooltip" aria-hidden="true">
+    <div class="strong-header">
+      <div class="strong-lemma">{lemma_esc}</div>
+      <div class="strong-xlit">{xlit_esc}</div>
+    </div>
+    <dl class="strong-details">
+      <dt>Definition</dt><dd>{definition_esc}</dd>
+      <dt>Root</dt><dd>{derivation_esc}</dd>
+      <dt>Exhaustive</dt><dd>{description_html}</dd>
+    </dl>
+    {citation_html}
+  </div>
+</div>
+"""
+
     return single_ref
+
+
+def build_fuerst_popup(strong_ref: str) -> str:
+    """Render a dedicated Fuerst popup trigger next to a Strong's reference."""
+    num = get_strongs_numeric_value(strong_ref)
+    if num is None or num >= 9000:
+        return ''
+
+    strong_number = f'H{num}'
+    fuerst_entries = get_fuerst_entries_for_strong(strong_number)
+    if not fuerst_entries:
+        return ''
+
+    entry_blocks: list[str] = []
+    for entry in fuerst_entries:
+        headword = (
+            entry['hebrew_word']
+            or entry['hebrew_consonantal']
+            or entry['lexeme_form']
+            or strong_ref
+        )
+        headword_html = html.escape(headword)
+        definition_html = html.escape(entry['definition']) if entry['definition'] else ''
+
+        meta_parts = []
+        if entry['part_of_speech']:
+            meta_parts.append(html.escape(entry['part_of_speech']))
+        if entry['root']:
+            meta_parts.append(f"Root {html.escape(entry['root'])}")
+
+        mapping = entry['mapping_basis'].title() if entry['mapping_basis'] else ''
+        confidence = entry['confidence'].title() if entry['confidence'] else ''
+        match_label = ' / '.join(filter(None, [mapping, confidence]))
+        if match_label:
+            meta_parts.append(match_label)
+
+        page_url = build_fuerst_page_url(entry['source_page'])
+        link_label = format_fuerst_page_label(entry['source_page']) if entry['source_page'] else ''
+        link_html = ''
+        if page_url:
+            link_html = (
+                f'<a href="{page_url}" target="_blank" rel="noopener noreferrer" '
+                f'class="fuerst-link">{html.escape(link_label)}</a>'
+            )
+        elif entry['source_page']:
+            link_html = html.escape(entry['source_page'])
+
+        meta_html = ''
+        meta_segments = meta_parts[:]
+        if link_html:
+            meta_segments.append(link_html)
+        if meta_segments:
+            meta_html = '<div class="fuerst-meta">' + ' &bull; '.join(meta_segments) + '</div>'
+
+        note_html = ''
+        if entry['notes']:
+            note_text = html.escape(entry['notes'])
+            note_html = f'<div class="fuerst-note">{note_text}</div>'
+
+        body_parts = [f'<div class="fuerst-headword">{headword_html}</div>']
+        if meta_html:
+            body_parts.append(meta_html)
+        if definition_html:
+            body_parts.append(f'<div class="fuerst-definition">{definition_html}</div>')
+        if note_html:
+            body_parts.append(note_html)
+
+        entry_blocks.append('<div class="fuerst-entry">' + ''.join(body_parts) + '</div>')
+
+    if not entry_blocks:
+        return ''
+
+    popup_html = (
+        '<span class="popup-container fuerst-popup">'
+        '<span class="fuerst-trigger">F&uuml;rst</span>'
+        '<div class="popup-content fuerst-popup-content" role="tooltip" aria-hidden="true">'
+        '<div class="fuerst-title">F&uuml;rst Lexicon</div>'
+        + ''.join(entry_blocks) +
+        '</div>'
+        '</span>'
+    )
+    return popup_html
+
+
+def get_strongs_numeric_value(strongs):
+    digits = re.sub(r"\D", "", strongs)
+    return int(digits) if digits else None
+
+
+def get_lxx_stats_for_strongs(strong_refs):
+    """
+    Fetch LXX translation statistics for a list of Strong's numbers.
+    Returns a dict mapping strongs -> list of (greek_lemma, frequency, proportion_pct)
+
+    This function strips any trailing letters (e.g., '5869a' -> '5869') before
+    constructing the canonical H-number used in `catss.strongs_lxx_profile`.
+    """
+    from .db_utils import execute_query
+    
+    stats = {}
+    for strongs in strong_refs:
+        # Strip any non-digit characters to get the numeric part (handles '5869a', '| 5869a', etc.)
+        num = get_strongs_numeric_value(strongs)
+        if num is None:
+            stats[strongs] = []
+            continue
+        # canonical key in DB is like 'H5869'
+        s = f'H{num}'
+        result = execute_query("""
+            SELECT greek_lemma, frequency, proportion_pct
+            FROM catss.strongs_lxx_profile
+            WHERE strongs = %s AND frequency >= 2
+            ORDER BY frequency DESC
+            LIMIT 10;
+        """, (s,), fetch='all') or []
+        stats[strongs] = result
+    return stats
 
 
 def build_heb_interlinear(rows_data):
@@ -380,7 +716,63 @@ def build_heb_interlinear(rows_data):
     interlinear_cards = []
 
     for index, row_data in enumerate(rows_data):
-        id, ref, eng, heb1, heb2, heb3, heb4, heb5, heb6, morph, unique, strong, color, html_list, heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology = row_data
+        # Handle both old (24 columns) and new (25 columns with lxx) format
+        if len(row_data) >= 25:
+            (
+                id,
+                ref,
+                eng,
+                heb1,
+                heb2,
+                heb3,
+                heb4,
+                heb5,
+                heb6,
+                morph,
+                unique,
+                strong,
+                color,
+                html_list,
+                heb1_n,
+                heb2_n,
+                heb3_n,
+                heb4_n,
+                heb5_n,
+                heb6_n,
+                combined_heb,
+                combined_heb_niqqud,
+                footnote,
+                morphology,
+                legacy_lxx,
+            ) = row_data
+        else:
+            (
+                id,
+                ref,
+                eng,
+                heb1,
+                heb2,
+                heb3,
+                heb4,
+                heb5,
+                heb6,
+                morph,
+                unique,
+                strong,
+                color,
+                html_list,
+                heb1_n,
+                heb2_n,
+                heb3_n,
+                heb4_n,
+                heb5_n,
+                heb6_n,
+                combined_heb,
+                combined_heb_niqqud,
+                footnote,
+                morphology,
+            ) = row_data
+            legacy_lxx = None
 
         parts = strong.split('/')
 
@@ -405,8 +797,15 @@ def build_heb_interlinear(rows_data):
         hayah = False
         
         for strong_ref in strong_refs:
+            # Skip showing links/popups for H9014..H9018 per site policy
+            num = get_strongs_numeric_value(strong_ref)
+            if num is not None and 9014 <= num <= 9018:
+                continue
 
             single_ref = strong_data(strong_ref)
+            fuerst_popup_html = build_fuerst_popup(strong_ref)
+            if fuerst_popup_html:
+                single_ref = f"{single_ref}{fuerst_popup_html}"
 
             strongs_references.insert(0, single_ref)
 
@@ -472,12 +871,45 @@ def build_heb_interlinear(rows_data):
         morph_rows.append(morph_cell)
         hebrew_clean.append(combined_hebrew_clean)
 
+        # Process LXX data and fetch stats for each Strong's number (skip 9000+)
+        lxx_words: list[str] = []
+        lxx_data: list[dict[str, object]] = []
+        strongs_for_lxx = [
+            strong for strong in strong_refs
+            if (num := get_strongs_numeric_value(strong)) is not None and num < 9000
+        ]
+
+        if strongs_for_lxx:
+            lxx_stats = get_lxx_stats_for_strongs(strongs_for_lxx)
+            seen_greek: set[str] = set()
+            for strongs in strongs_for_lxx:
+                stats_list = lxx_stats.get(strongs, [])
+                if stats_list:
+                    for grk, _, _ in stats_list[:5]:
+                        if grk not in seen_greek:
+                            lxx_words.append(grk)
+                            seen_greek.add(grk)
+
+                lxx_data.append({
+                    'strongs': strongs,
+                    'words': lxx_words[:],
+                    'stats': stats_list,
+                })
+
+        if not lxx_words and legacy_lxx:
+            parsed_words = re.split(r'[\s,]+', legacy_lxx.strip())
+            lxx_words = [w.strip() for w in parsed_words if w.strip()]
+
         interlinear_cards.append({
             'id': id,
             'hebrew': combined_hebrew,
             'english': display_english,
             'strongs': strongs_references,
+            'strongs_list': strong_refs,
             'morph': morphology,
+            'lxx': ' '.join(lxx_words) if lxx_words else '',
+            'lxx_words': lxx_words,
+            'lxx_data': lxx_data,
         })
 
     return strong_rows, english_rows, hebrew_rows, morph_rows, hebrew_clean, interlinear_cards

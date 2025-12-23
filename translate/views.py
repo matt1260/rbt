@@ -22,7 +22,7 @@ import json
 import time
 from google import genai
 #import google.generativeai as genai
-from .db_utils import get_db_connection, execute_query
+from .db_utils import get_db_connection, execute_query, table_has_column
 import psycopg2
 import requests
 from urllib.parse import quote, unquote
@@ -1407,10 +1407,16 @@ def translate(request):
 
         ##########################################################
         # Fetch full rows data
+        has_lxx_column = table_has_column('old_testament', 'hebrewdata', 'lxx')
+        base_columns = (
+            "id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, Morph, uniq, Strongs, color, html, "
+            "heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology"
+        )
+        select_columns = base_columns + ", lxx" if has_lxx_column else base_columns
+
         rows_data = execute_query(
-            """
-            SELECT id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, Morph, uniq, Strongs, color, html, 
-                heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology
+            f"""
+            SELECT {select_columns}
             FROM old_testament.hebrewdata
             WHERE Ref LIKE %s
             ORDER BY Ref ASC;
@@ -1496,7 +1502,11 @@ def translate(request):
                 'hebrew_niqqud': card['hebrew'],
                 'english': card['english'],
                 'strongs': card['strongs'],
+                'strongs_list': card.get('strongs_list', []),
                 'morph': card['morph'],
+                'lxx': card.get('lxx', ''),
+                'lxx_words': card.get('lxx_words', []),
+                'lxx_data': card.get('lxx_data', []),
             })
 
         hebrew_cards.sort(
@@ -1509,7 +1519,12 @@ def translate(request):
         footnote_num = 1
 
         for row_data in rows_data:
-            id, ref, eng, heb1, heb2, heb3, heb4, heb5, heb6, morph, unique, strongs, color, html_list, heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology = row_data
+            # Handle both old (24 columns) and new (25 columns with lxx) format
+            if len(row_data) >= 25:
+                id, ref, eng, heb1, heb2, heb3, heb4, heb5, heb6, morph, unique, strongs, color, html_list, heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology, lxx = row_data
+            else:
+                id, ref, eng, heb1, heb2, heb3, heb4, heb5, heb6, morph, unique, strongs, color, html_list, heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology = row_data
+                lxx = None
 
             english_verse.append(eng)
 

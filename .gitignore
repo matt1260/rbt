@@ -17,6 +17,8 @@ venv/
 ENV/
 .venv/
 .DS_Store
+scripts/
+
 
 searchimage.py
 replace_exact_match.py
@@ -25,6 +27,16 @@ post.html
 interlinear_apply.py
 gesenius.pdf
 gesenius/
+fuerst/
+clean_spaces.py
+footnote_wrapper.py
+BDB_extract.py
+BDB_extract_grok.py
+bdb_lexicon.db
+key.json
+bdb_browser.py
+grok.py
+extract_verses.py
 
 # Django
 *.sqlite3

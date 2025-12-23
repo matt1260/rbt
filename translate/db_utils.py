@@ -1,5 +1,6 @@
 import os
 from contextlib import contextmanager
+from functools import lru_cache
 from typing import Any, List, Optional, Sequence, Tuple, Union, Literal, overload, Mapping
 
 import dj_database_url
@@ -100,3 +101,22 @@ def execute_many(query, params_list):
         cursor.executemany(query, params_list)
         conn.commit()
         return cursor.rowcount
+
+
+@lru_cache(maxsize=None)
+def table_has_column(schema: str, table: str, column: str) -> bool:
+    """Return True if the requested table column exists (cached per process)."""
+    result = execute_query(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = %s
+              AND table_name = %s
+              AND column_name = %s
+        );
+        """,
+        (schema, table, column),
+        fetch='one'
+    )
+    return bool(result and result[0])

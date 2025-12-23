@@ -32,7 +32,7 @@ from django.views.decorators.http import require_http_methods
 import traceback
 from django.utils import timezone
 from datetime import datetime, timedelta, timezone as dt_timezone
-from .db_utils import get_db_connection, execute_query
+from .db_utils import get_db_connection, execute_query, table_has_column
 import os
 
 INTERLINEAR_CACHE_VERSION = 'v2'
@@ -471,7 +471,70 @@ def get_results(book, chapter_num, verse_num=None):
                     
                     footnote_content = get_footnote(footnote_id, book) # get_footnote function
                     footnote_contents.append(footnote_content)
-            
+
+                # Fetch Hebrew interlinear data from hebrewdata table
+                book_abbrev = book_abbreviations.get(book, book)
+                rbt_heb_ref2 = f'{book_abbrev}.{chapter_num}.{verse_num}-'
+
+                has_lxx_column = table_has_column('old_testament', 'hebrewdata', 'lxx')
+                base_columns = (
+                    "id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, Morph, uniq, Strongs, color, html, "
+                    "heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology"
+                )
+                select_columns = base_columns + ", lxx" if has_lxx_column else base_columns
+
+                sql_query_hebrew = f"""
+                    SELECT {select_columns}
+                    FROM old_testament.hebrewdata
+                    WHERE ref LIKE %s;
+                """
+                rows_data = execute_query(sql_query_hebrew, (f'{rbt_heb_ref2}%',), fetch='all') or []
+
+                if rows_data:
+                    strong_row, english_row, hebrew_row, morph_row, hebrew_clean, hebrew_cards = build_heb_interlinear(rows_data)
+                    
+                    # Reverse the order for RTL display
+                    strong_row.reverse()
+                    english_row.reverse()
+                    hebrew_row.reverse()
+
+                    strong_row = '<tr class="strongs">' + ''.join(strong_row) + '</tr>'
+                    english_row = '<tr class="eng_reader">' + ''.join(english_row) + '</tr>'
+                    hebrew_row = '<tr class="hebrew_reader">' + ''.join(hebrew_row) + '</tr>'
+                    hebrew_clean = '<font style="font-size: 26px;">' + ''.join(hebrew_clean) + '</font>'
+
+                    # Strip niqqud from hebrew row
+                    niqqud_pattern = '[\u0591-\u05BD\u05BF\u05C1-\u05C5\u05C7]'
+                    dash_pattern = '־'
+                    hebrew_row = re.sub(niqqud_pattern + '|' + dash_pattern, '', hebrew_row)
+
+                    raw_cards = hebrew_cards or []
+                    hebrew_cards = []
+                    for card in raw_cards:
+                        hebrew_no_niqqud = re.sub(niqqud_pattern + '|' + dash_pattern, '', card['hebrew']).strip()
+                        hebrew_cards.append({
+                            'id': card.get('id'),
+                            'hebrew': hebrew_no_niqqud,
+                            'hebrew_niqqud': card['hebrew'],
+                            'english': card['english'],
+                            'strongs': card['strongs'],
+                            'strongs_list': card.get('strongs_list', []),
+                            'morph': card['morph'],
+                            'lxx': card.get('lxx', ''),
+                            'lxx_words': card.get('lxx_words', []),
+                            'lxx_data': card.get('lxx_data', []),
+                        })
+
+                    hebrew_cards.sort(
+                        key=lambda c: (c['id'] is None, c['id'] if c['id'] is not None else -1)
+                    )
+                else:
+                    strong_row = None
+                    english_row = None
+                    hebrew_row = None
+                    morph_row = None
+                    hebrew_clean = None
+                    hebrew_cards = []
             
                 # Get the previous and next row verse references
                 current_row_id = rbt.values_list('id', flat=True).first()
@@ -519,9 +582,15 @@ def get_results(book, chapter_num, verse_num=None):
                     return data
 
                 # Retrieve Hebrewdata rows matching a reference pattern
-                sql_query_hebrew = """
-                    SELECT id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, Morph, uniq, Strongs, color, html, 
-                        heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology
+                has_lxx_column = table_has_column('old_testament', 'hebrewdata', 'lxx')
+                base_columns = (
+                    "id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, Morph, uniq, Strongs, color, html, "
+                    "heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology"
+                )
+                select_columns = base_columns + ", lxx" if has_lxx_column else base_columns
+
+                sql_query_hebrew = f"""
+                    SELECT {select_columns}
                     FROM old_testament.hebrewdata
                     WHERE ref LIKE %s;
                 """
@@ -569,7 +638,11 @@ def get_results(book, chapter_num, verse_num=None):
                         'hebrew_niqqud': card['hebrew'],
                         'english': card['english'],
                         'strongs': card['strongs'],
+                        'strongs_list': card.get('strongs_list', []),
                         'morph': card['morph'],
+                        'lxx': card.get('lxx', ''),
+                        'lxx_words': card.get('lxx_words', []),
+                        'lxx_data': card.get('lxx_data', []),
                     })
 
                 hebrew_cards.sort(

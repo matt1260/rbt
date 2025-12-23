@@ -184,40 +184,208 @@
     /* Position below the container */
     background-color: #fff;
     /* Background color */
-    border: 1px solid #ccc;
+    border: 1px solid #e3e6ea;
     /* Border */
     padding: 10px;
     /* Padding */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    /* Add a shadow */
-    z-index: 1;
+    box-shadow: 0 6px 20px rgba(18, 38, 63, 0.08);
+    /* Softer shadow */
+    z-index: 200;
     /* Ensure it's above other content */
-    width: 400px;
+    width: 320px;
     /* Adjust the width as needed */
-    font-size: 12px;
+    font-size: 13px;
     text-align: left;
     left: -185px;
     /* Shift the content 50px to the left */
+    border-radius: 8px;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
   }
+
+  /* Header label is now part of the content layout */
 
   /* Add a small header inside Strong's popup content
      Uses ::before so it appears above popup body. This will
      show for popup-content elements; if you later wrap Strong's
      content with a more specific selector, replace the rule. */
   .popup-content::before {
-    content: "Strong's Exhaustive Concordance";
-    display: block;
-    font-weight: 600;
-    font-size: 12px;
-    margin-bottom: 6px;
-    color: #222;
+    display: none;
   }
 
   /* Style to show the pop-up content on hover */
   .popup-container:hover .popup-content {
     display: block;
     /* Show the content on hover */
+    opacity: 1;
+    transform: translateY(0);
   }
+
+  /* Strong-specific popup enhancements */
+  .strong-popup {
+    padding: 8px 10px;
+  }
+
+  .strong-popup .strong-header {
+    margin-bottom: 6px;
+    border-bottom: 1px dashed #f1d7c7;
+    padding-bottom: 6px;
+  }
+
+  .strong-popup .strong-lemma {
+    font-size: 22px;
+    font-weight: 700;
+    color: #2a1f18;
+  }
+
+  .strong-popup .strong-xlit {
+    font-size: 12px;
+    color: #7b675a;
+    font-style: italic;
+    margin-top: 2px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .strong-details {
+    margin-top: 8px;
+  }
+
+  .strong-details dt {
+    font-weight: 600;
+    font-size: 11px;
+    color: #6b4b3d;
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .strong-details dd {
+    margin: 2px 0 6px 0;
+    font-size: 13px;
+    color: #2f2f2f;
+    line-height: 1.35;
+  }
+
+  .strong-citation {
+    margin-top: 10px;
+    border-top: 1px dashed #f1d7c7;
+    padding-top: 6px;
+    font-size: 11px;
+    color: #7b675a;
+  }
+
+  .strong-citation a {
+    color: #a4491d;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .strong-citation a:hover {
+    text-decoration: underline;
+  }
+
+  .strong-link {
+    text-decoration: none;
+    color: #a4491d;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+
+  .fuerst-popup {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 6px;
+  }
+
+  .fuerst-trigger {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: #7a2f11;
+    background: linear-gradient(120deg, #fff7f2, #ffe9df);
+    border: 1px solid #f1c7b2;
+    border-radius: 999px;
+    padding: 2px 7px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .fuerst-trigger:hover,
+  .fuerst-trigger:focus {
+    background: linear-gradient(120deg, #ffe1d0, #ffd2bb);
+    color: #5c210c;
+    border-color: #e4a583;
+  }
+
+  .fuerst-popup-content {
+    width: 360px;
+    border-color: #f2d7c8;
+  }
+
+  .fuerst-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #9a4a26;
+    margin-bottom: 8px;
+  }
+
+  .fuerst-entry {
+    padding: 8px 0;
+    border-top: 1px dashed #f1d7c7;
+  }
+
+  .fuerst-entry:first-of-type {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .fuerst-headword {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1f2d3d;
+  }
+
+  .fuerst-meta {
+    font-size: 11px;
+    color: #6b4b3d;
+    margin-top: 4px;
+  }
+
+  .fuerst-definition {
+    font-size: 13px;
+    color: #2f3a44;
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+
+  .fuerst-note {
+    font-size: 12px;
+    color: #4b2b1f;
+    background: #fff5ee;
+    border-left: 3px solid #f3c2a7;
+    padding: 4px 6px;
+    margin-top: 6px;
+  }
+
+  .fuerst-link {
+    color: #a4491d;
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .fuerst-link:hover {
+    text-decoration: underline;
+  }
+
+
 
   .table-container {
     overflow: visible;
@@ -403,6 +571,137 @@
     direction: ltr;
   }
 
+  /* LXX (Septuagint) styles */
+  .interlinear-card .card-lxx {
+    font-size: 13px;
+    color: #2e5984;
+    margin-top: 6px;
+    direction: ltr;
+  }
+
+  .interlinear-card .card-lxx a {
+    color: #2e5984;
+    text-decoration: none;
+  }
+
+  .interlinear-card .card-lxx a:hover {
+    text-decoration: underline;
+  }
+
+  /* LXX popup tooltip container */
+  .lxx-popup-container {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+  }
+
+  /* LXX popup content */
+  .lxx-popup-content {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #fff;
+    border: 1px solid #ccc;
+    padding: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+    width: 250px;
+    font-size: 12px;
+    text-align: left;
+    border-radius: 4px;
+    margin-bottom: 5px;
+  }
+
+  .lxx-popup-content .lxx-popup-header {
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 2px;
+    color: #333;
+  }
+
+  .lxx-popup-content .lxx-popup-header a {
+    color: #2e5984;
+    text-decoration: none;
+    margin-left: 4px;
+  }
+
+  .lxx-popup-content .lxx-popup-header a:hover {
+    text-decoration: underline;
+  }
+
+  .lxx-popup-content::after {
+    content: "Greek translations of this Hebrew word in the Septuagint. This helps understand how ancient translators rendered the term c. 250 BCE.";
+    display: block;
+    font-size: 10px;
+    color: #888;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #eee;
+  }
+
+  .lxx-popup-container:hover .lxx-popup-content {
+    display: block;
+  }
+
+  .lxx-stats-section {
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px dotted #ddd;
+  }
+
+  .lxx-stats-section .strongs-label {
+    font-weight: 600;
+    color: #555;
+    font-size: 11px;
+  }
+
+  .lxx-stats-row {
+    font-size: 11px;
+    color: #444;
+    line-height: 1.6;
+    margin-bottom: 4px;
+  }
+
+  .lxx-stats-row .stat-label {
+    display: inline-block;
+    min-width: 80px;
+    direction: ltr;
+  }
+
+  .lxx-stats-row .stat-label a {
+    color: #2e5984;
+    text-decoration: none;
+  }
+
+  .lxx-stats-row .stat-label a:hover {
+    text-decoration: underline;
+  }
+
+  .lxx-stats-row .stat-bar-container {
+    display: inline-block;
+    width: 80px;
+    height: 10px;
+    background: #e9ecef;
+    border-radius: 3px;
+    margin: 0 6px;
+    vertical-align: middle;
+  }
+
+  .lxx-stats-row .stat-bar {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #4a90a4, #2e5984);
+    border-radius: 3px;
+    min-width: 2px;
+  }
+
+  .lxx-stats-row .stat-info {
+    font-size: 10px;
+    color: #666;
+  }
+
   .interlinear-legacy {
     margin-top: 12px;
   }
@@ -463,6 +762,41 @@
     {% endif %}
     {% if cell.morph %}
     <div class="card-morph">{{ cell.morph|safe }}</div>
+    {% endif %}
+    {% if cell.lxx_words or cell.lxx or cell.lxx_data %}
+    <div class="card-lxx">
+      <span class="lxx-popup-container">
+        <span style="color: #666; font-size: 11px;">LXX:</span>
+        {% if cell.lxx_words %}
+          {% for word in cell.lxx_words %}
+            <a href="https://logeion.uchicago.edu/{{ word }}" target="_blank">{{ word }}</a>{% if not forloop.last %} {% endif %}
+          {% endfor %}
+        {% elif cell.lxx %}
+          {% for word in cell.lxx.split %}
+            <a href="https://logeion.uchicago.edu/{{ word }}" target="_blank">{{ word }}</a>{% if not forloop.last %} {% endif %}
+          {% endfor %}
+        {% endif %}
+        {% if cell.lxx_data %}
+        <div class="lxx-popup-content">
+          <div class="lxx-popup-header">LXX Usage Statistics <a href="https://en.wikipedia.org/wiki/Septuagint" target="_blank" title="Learn about the Septuagint">↗</a></div>
+          {% for lxx_item in cell.lxx_data %}
+          <div class="lxx-stats-section">
+            <div class="strongs-label">{{ lxx_item.strongs }}:</div>
+            {% for stat in lxx_item.stats %}
+            <div class="lxx-stats-row">
+              <span class="stat-label"><a href="https://www.perseus.tufts.edu/hopper/morph?l={{ stat.0 }}" target="_blank">{{ stat.0 }}</a></span>
+              <span class="stat-bar-container"><span class="stat-bar" style="width: {{ stat.2 }}%;"></span></span>
+              <span class="stat-info">{{ stat.1 }}× ({{ stat.2 }}%)</span>
+            </div>
+            {% empty %}
+            <div class="lxx-stats-row">No stats available</div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </span>
+    </div>
     {% endif %}
   </div>
   {% endfor %}
