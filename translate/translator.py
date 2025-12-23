@@ -774,18 +774,22 @@ def build_heb_interlinear(rows_data):
             ) = row_data
             legacy_lxx = None
 
-        parts = strong.split('/')
+        parts = re.split(r'[\/|]', strong)
 
         strong_refs = []
         for part in parts:
-            subparts = re.split(r'[=«]', part)
+            part = part.strip()
+            if not part:
+                continue
+
+            subparts = [segment.strip() for segment in re.split(r'[=«]', part) if segment.strip()]
 
             for subpart in subparts:
                 if subpart.startswith('H'):
                     strong_refs.append(subpart)
 
             # special numbers for particles
-            if subparts[0] == 'H9005' or subparts[0] == 'H9001' or subparts[0] == 'H9002' or subparts[0] == 'H9003' or subparts[0] == 'H9004' or subparts[0] == 'H9006':
+            if subparts and (subparts[0] == 'H9005' or subparts[0] == 'H9001' or subparts[0] == 'H9002' or subparts[0] == 'H9003' or subparts[0] == 'H9004' or subparts[0] == 'H9006'):
                     heb1 = f'<span style="color: blue;">{heb1}</span>'
                     
         # Get the definitions for each Strong's reference
