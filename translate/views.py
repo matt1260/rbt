@@ -26,9 +26,13 @@ from .db_utils import get_db_connection, execute_query, table_has_column
 import psycopg2
 import requests
 from urllib.parse import quote, unquote
+from django.views.decorators.http import require_POST
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
+
+DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash-preview')
+MODEL_NAME_PATTERN = re.compile(r'^[\w\-.:+]+$')
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +55,40 @@ nt_abbrev = [
     'Tit', 'Phm', 'Heb', 'Jam', '1Pe', '2Pe',
     '1Jo', '2Jo', '3Jo', 'Jud', 'Rev'
 ]
+
+DEFAULT_GREEK_GEMINI_PROMPT = """
+You are formatting the sentence from these english words and morphology. Using the provided data, create the English sentence following these rules:
+
+1. Link definite articles to their respective nouns
+2. For imperfect indicative verbs, use "kept" instead of "were" if appropriate for the verb sense
+3. Capitalize words that have definite articles (but not "the" itself)
+4. Properly place conjunctions such as δὲ "and". If it is the second word, use "And" at the beginning of the sentence.
+5. Add "of" for genitive constructions, or "while/as" if genitive absolute
+6. Choose the most ideal word if multiple English options are given (separated by slashes)
+7. Wrap blue color (<span style="color: blue;">) on masculine words, pink color (<span style="color: #ff00aa;">) on feminine words
+8. Include any definite articles in the coloring
+9. Always render participles with who/which/that (e.g., "the one who", "the ones who", "that which", "he who", "she who")
+10. Render personal/possessive pronouns with -self or -selves (e.g., "himself", "themselves")
+11. If there are articular infinitives or substantive clauses, capitalize and substantivize (e.g., "the Journeying of Himself", "the Fearing of the Water")
+12. Render any intensive pronouns with verbs as "You, yourselves are" or "I, myself am"
+13. Return ONLY the HTML sentence with proper span tags for colors
+
+Example 1: he asked close beside <span style="color: blue;">himself</span> for epistles into <span style="color: #ff00aa;">Fertile Land</span> ("<span style="color: #ff00aa;">Damascus</span>") toward <span style="color: #ff00aa;">the Congregations</span> in such a manner that if he found <span style="color: blue;">anyone</span> who are being of <span style="color: #ff00aa;">the Road</span>, both men and women, he might lead those who have been bound into <span style="color: #ff00aa;">Foundation of Peace</span>. And <span style="color: blue;">a certain man</span>, he who is presently existing as <span style="color: blue;">a limping one</span> from out of <span style="color: #ff00aa;">a belly</span> of <span style="color: #ff00aa;">a mother</span> of <span style="color: blue;">himself</span>, kept being carried, him whom they were placing according to <span style="color: #ff00aa;">a day</span> toward <span style="color: #ff00aa;">the Doorway</span> of the Sacred Place, <span style="color: #ff00aa;">the one who is being called</span> '<span style="color: #ff00aa;">Seasonable</span>,' of the Begging for Mercy close beside the ones who were leading into the Sacred Place.
+
+Example 2: And he is bringing to light, "<span style="color: blue;">Little Horn</span>, <span style="color: #ff00aa;">the Prayer</span> of <span style="color: blue;">yourself</span> has been heard and <span style="color: #ff00aa;">the Charities</span> of <span style="color: blue;">yourself</span> have been remembered in the eye of <span style="color: blue;">the God</span>. Return only the formatted HTML sentence.
+""".strip()
+
+DEFAULT_HEBREW_GEMINI_PROMPT = """
+You are creating a polished but faithful English rendering of a Biblical Hebrew verse. Combine the supplied Hebrew text and the linear English gloss to craft one English sentence that preserves Hebrew emphasis while reading naturally.
+
+Guidelines:
+1. Maintain Hebrew word order where it clarifies emphasis, but smooth awkward phrasing.
+2. Preserve divine names and key transliterations; do not replace them with generic titles.
+3. When linear English shows multiple options (slashes), pick the best fit for the context and avoid repeating synonyms.
+4. Keep embedded HTML (bold, spans, etc.) intact if present in the suggestion.
+5. Sum up clauses with clear punctuation; avoid fragments.
+6. Return only the HTML sentence (no explanations, no markdown fences).
+""".strip()
 
 
 def _safe_book_name(name: str | None) -> str:
@@ -224,10 +262,39 @@ def get_context(book, chapter_num, verse_num):
             'litv': litv,
             'hebrew': hebrew,
             'rbt_greek': rbt_greek,
-            'cached_hit': cached_hit
+            'cached_hit': cached_hit,
         }
 
         return context
+
+
+def _apply_gemini_preferences(request, context):
+    if context is None:
+        return context
+
+    session = getattr(request, 'session', None)
+    user = getattr(request, 'user', None)
+    is_nt_view = None
+    if context.get('book2') or context.get('book'):
+        book_key = context.get('book2') or context.get('book')
+        is_nt_view = book_key in new_testament_books
+
+    def _pref(key, default):
+        if session is None:
+            return default
+        return session.get(key, default)
+
+    context['default_greek_prompt'] = _pref('gemini_prompt_greek', DEFAULT_GREEK_GEMINI_PROMPT)
+    context['default_hebrew_prompt'] = _pref('gemini_prompt_hebrew', DEFAULT_HEBREW_GEMINI_PROMPT)
+    context['default_gemini_model'] = _pref('gemini_model', DEFAULT_GEMINI_MODEL)
+    context['gemini_prompt_is_default'] = {
+        'greek': context['default_greek_prompt'] == DEFAULT_GREEK_GEMINI_PROMPT,
+        'hebrew': context['default_hebrew_prompt'] == DEFAULT_HEBREW_GEMINI_PROMPT,
+    }
+    context['gemini_user'] = user.username if user and user.is_authenticated else ''
+    if is_nt_view is not None:
+        context['gemini_view_translation_type'] = 'greek' if is_nt_view else 'hebrew'
+    return context
 
 def generate_html_table(csv_data):
     if not csv_data:
@@ -280,102 +347,291 @@ def generate_html_table(csv_data):
         # table_html += '</table>'
         # return table_html
 
-def gemini_translate(entries):
-    """
-    Translate Greek entries into a properly formatted English sentence using Gemini API.
-    
-    Args:
-        entries (list): List of dictionaries containing Greek word data
-        
-    Returns:
-        str: HTML formatted sentence or error message
-    """
+def _resolve_prompt_text(custom_text: str | None, default_text: str) -> str:
+    if custom_text:
+        stripped = custom_text.strip()
+        if stripped:
+            return stripped
+    return default_text
+
+
+def _resolve_model_name(model_name: str | None) -> str:
+    candidate = (model_name or '').strip()
+    if not candidate:
+        return DEFAULT_GEMINI_MODEL
+    if not MODEL_NAME_PATTERN.match(candidate):
+        raise ValueError('Model name may only include letters, numbers, dashes, periods, plus, and underscores.')
+    return candidate
+
+
+def _strip_html_text(value: str | None) -> str:
+    if not value:
+        return ''
     try:
-        # Validate input
-        if not isinstance(entries, list) or not entries:
-            return "Error: Invalid entries data"
-        
-        # Extract data from entries
-        greek_words = []
-        english_words = []
-        morphology_data = []
-        
-        for entry in entries:
-            # Validate each entry has required fields
-            required_fields = ['lemma', 'english', 'morph_description']
-            if not all(field in entry for field in required_fields):
-                return f"Error: Missing required fields in entry: {entry}"
-            
-            greek_words.append(entry['lemma'])
-            english_words.append(entry['english'])
-            morphology_data.append(f"{entry['morph_description']} ({entry.get('morph', 'Unknown')})")
-        
-        # Create structured data strings
-        greek_text = ' '.join(greek_words)
-        interlinear_english = ' '.join(english_words)
-        morphology_info = ' | '.join(morphology_data)
-        
-        # Construct improved prompt
-        prompt = f"""
-        You are formatting the sentence from these english words and morphology. Using the provided data, create the English sentence following these rules:
-
-        FORMATTING RULES:
-        1. Link definite articles to their respective nouns
-        2. For imperfect indicative verbs, use "kept" instead of "were" if appropriate for the verb sense
-        3. Capitalize words that have definite articles (but not "the" itself)
-        4. Properly place conjunctions such as δὲ "and". If it is the second word, use "And" at the beginning of the sentence.
-        5. Add "of" for genitive constructions, or "while/as" if genitive absolute
-        6. Choose the most ideal word if multiple English options are given (separated by slashes)
-        7. Wrap blue color (<span style="color: blue;">) on masculine words, pink color (<span style="color: #ff00aa;">) on feminine words
-        8. Include any definite articles in the coloring.
-        9. Always render participles with who/which/that (e.g., "the one who", "the ones who", "that which", "he who", "she who") 
-        10. Render personal/possessive pronouns with -self or -selves (e.g., "himself", "themselves")
-        11. If there are articular infinitives or substantive clause, capitalize and substantivize (e.g., "the Journeying of Himself", "the Fearing of the Water")
-        12. Render any intensive pronouns with verbs as "You, yourselves are" or "I, myself am"
-        13. Return ONLY the HTML sentence with proper span tags for colors
+        return BeautifulSoup(value, 'html.parser').get_text(' ', strip=True)
+    except Exception:
+        return value
 
 
-        GREEK TEXT: {greek_text}
-        ENGLISH WORDS: {interlinear_english}
-        MORPHOLOGY: {morphology_info}
+def _request_gemini_response(prompt: str, model_name: str | None = None) -> str:
+    try:
+        model_to_use = _resolve_model_name(model_name)
+    except ValueError as exc:
+        return f"Error: {exc}"
 
-        Example 1: he asked close beside <span style="color: blue;">himself</span> for epistles into <span style="color: #ff00aa;">Fertile Land</span> 
-        ("<span style="color: #ff00aa;">Damascus</span>") toward <span style="color: #ff00aa;">the Congregations</span> in such a manner that if he found <span style="color: blue;">anyone</span> who are being of <span style="color: #ff00aa;">the Road</span>, both men and women, he might lead those who have been bound into <span style="color: #ff00aa;">Foundation of Peace</span>. 
-        And <span style="color: blue;">a certain man</span>, he who is presently existing as <span style="color: blue;">a limping one</span> from out of <span style="color: #ff00aa;">a belly</span> of <span style="color: #ff00aa;">a mother</span> of <span style="color: blue;">himself</span>, kept being carried, him whom they were placing according to <span style="color: #ff00aa;">a day</span> toward <span style="color: #ff00aa;">the Doorway</span> of the Sacred Place, <span style="color: #ff00aa;">the one who is being called</span> '<span style="color: #ff00aa;">Seasonable</span>,' of the Begging for Mercy close beside the ones who were leading into the Sacred Place. 
-        
-        Example 2: And he is bringing to light, "<span style="color: blue;">Little Horn</span>, <span style="color: #ff00aa;">the Prayer</span> of <span style="color: blue;">yourself</span> has been heard and <span style="color: #ff00aa;">the Charities</span> of <span style="color: blue;">yourself</span> have been remembered in the eye of <span style="color: blue;">the God</span>.
-        Return only the formatted HTML sentence.
-        """
-        
-        # Make API call (assuming client is globally available)
-        print("Requesting Gemini API...")  # Debugging line
+    try:
+        print("Requesting Gemini API...")
         response = client.models.generate_content(
-            model='gemini-2.5-flash', contents=prompt
+            model=model_to_use,
+            contents=prompt
         )
-        print("Received response from Gemini API.")  # Debugging line
+        print("Received response from Gemini API.")
 
-        if not response or not hasattr(response, 'text'):
-            return "Error: Invalid response from Gemini API"
+        # Extract text portions robustly: response.text preferred, then candidates.content.parts
+        def _extract_text(resp):
+            # 1) direct .text attribute
+            text_val = None
+            if hasattr(resp, 'text') and resp.text:
+                text_val = resp.text
+            # 2) try dict-like access
+            if not text_val and isinstance(resp, dict):
+                text_val = resp.get('text')
 
-        raw_text = response.text
-        if raw_text is None:
-            return "Error: Invalid response from Gemini API"
+            if text_val:
+                return str(text_val).strip()
 
-        content = raw_text.strip()
-        
-        # Basic validation of returned content
+            # 3) candidates -> content -> parts
+            parts_texts = []
+            non_text_types = set()
+
+            candidates = None
+            # object-style
+            if hasattr(resp, 'candidates'):
+                candidates = getattr(resp, 'candidates')
+            # dict-style fallback
+            if not candidates and isinstance(resp, dict):
+                candidates = resp.get('candidates')
+
+            if candidates:
+                for cand in candidates:
+                    content = None
+                    if hasattr(cand, 'content'):
+                        content = getattr(cand, 'content')
+                    elif isinstance(cand, dict):
+                        content = cand.get('content')
+
+                    parts = None
+                    if content is not None:
+                        if hasattr(content, 'parts'):
+                            parts = getattr(content, 'parts')
+                        elif isinstance(content, dict):
+                            parts = content.get('parts')
+
+                    if parts:
+                        for part in parts:
+                            # part may be object or dict
+                            p_type = None
+                            p_text = None
+                            if isinstance(part, dict):
+                                p_type = part.get('type')
+                                p_text = part.get('text') or part.get('content')
+                            else:
+                                p_type = getattr(part, 'type', None)
+                                p_text = getattr(part, 'text', None) or getattr(part, 'content', None)
+
+                            if p_text:
+                                parts_texts.append(str(p_text))
+                            else:
+                                if p_type:
+                                    non_text_types.add(p_type)
+                                else:
+                                    # unknown non-text part
+                                    non_text_types.add('unknown')
+
+                    # fallback to candidate.text
+                    if not parts and hasattr(cand, 'text') and getattr(cand, 'text'):
+                        parts_texts.append(str(getattr(cand, 'text')))
+                    elif not parts and isinstance(cand, dict) and cand.get('text'):
+                        parts_texts.append(str(cand.get('text')))
+
+            # If we have non-text parts and also some text parts, warn
+            if non_text_types and parts_texts:
+                logger.warning(f"there are non-text parts in the response: %s, returning concatenated text result from text parts. Check the full candidates.content.parts accessor to get the full model response.", list(non_text_types))
+
+            if parts_texts:
+                return '\n'.join(parts_texts).strip()
+
+            # last resort: string representation
+            try:
+                return str(resp).strip()
+            except Exception:
+                return ''
+
+        content = _extract_text(response)
+
         if not content:
             return "Error: Empty response from Gemini API"
-        
-        # Clean up common formatting issues
-        content = content.replace('```html', '').replace('```', '').strip()
-        
-        return content
 
-    except AttributeError as e:
-        return f"Error: API client not properly configured: {e}"
-    except Exception as e:
-        return f"Error: Gemini API failed: {e}"
+        return content.replace('```html', '').replace('```', '').strip()
+
+    except AttributeError as exc:
+        return f"Error: API client not properly configured: {exc}"
+    except Exception as exc:  # pragma: no cover - relies on external API
+        message = str(exc)
+        if 'not found' in message.lower() or '404' in message:
+            return f"Error: Model '{model_to_use}' is unavailable."
+        return f"Error: Gemini API failed: {exc}"
+
+
+def gemini_translate(entries, prompt_instructions: str | None = None, model_name: str | None = None):
+    """Translate Greek entries into a formatted English sentence via Gemini."""
+    if not isinstance(entries, list) or not entries:
+        return "Error: Invalid entries data"
+
+    greek_words: list[str] = []
+    english_words: list[str] = []
+    morphology_data: list[str] = []
+
+    for entry in entries:
+        required_fields = ['lemma', 'english', 'morph_description']
+        if not all(field in entry for field in required_fields):
+            return f"Error: Missing required fields in entry: {entry}"
+
+        greek_words.append(entry['lemma'])
+        english_words.append(entry['english'])
+        morphology_data.append(f"{entry['morph_description']} ({entry.get('morph', 'Unknown')})")
+
+    greek_text = ' '.join(greek_words)
+    interlinear_english = ' '.join(english_words)
+    morphology_info = ' | '.join(morphology_data)
+
+    instructions = _resolve_prompt_text(prompt_instructions, DEFAULT_GREEK_GEMINI_PROMPT)
+    prompt = (
+        f"{instructions}\n\n"
+        f"GREEK TEXT: {greek_text}\n"
+        f"ENGLISH WORDS: {interlinear_english}\n"
+        f"MORPHOLOGY: {morphology_info}\n"
+    )
+
+    return _request_gemini_response(prompt, model_name)
+
+
+def gemini_translate_hebrew(
+    hebrew_text: str | None,
+    linear_english: str | None,
+    prompt_instructions: str | None = None,
+    model_name: str | None = None,
+) -> str:
+    """Translate Hebrew content using Gemini with editable prompt instructions."""
+    if not hebrew_text and not linear_english:
+        return "Error: Missing Hebrew data for this verse"
+
+    instructions = _resolve_prompt_text(prompt_instructions, DEFAULT_HEBREW_GEMINI_PROMPT)
+    hebrew_plain = _strip_html_text(hebrew_text)
+    english_plain = (linear_english or '').strip() or 'Not provided'
+
+    prompt = (
+        f"{instructions}\n\n"
+        f"HEBREW TEXT: {hebrew_plain}\n"
+        f"LINEAR ENGLISH: {english_plain}\n"
+    )
+
+    return _request_gemini_response(prompt, model_name)
+
+
+@login_required
+@require_POST
+def request_gemini_translation(request):
+    """Serve Gemini suggestions on-demand for both Greek and Hebrew verses."""
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid JSON payload.'}, status=400)
+
+    translation_type = payload.get('translation_type')
+    book = payload.get('book')
+    chapter = payload.get('chapter')
+    verse = payload.get('verse')
+    prompt_override = payload.get('prompt')
+    model_override = payload.get('model')
+
+    try:
+        resolved_model = _resolve_model_name(model_override)
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+
+    if not all([translation_type, book, chapter, verse]):
+        return JsonResponse({'error': 'Missing required parameters.'}, status=400)
+
+    try:
+        context = _apply_gemini_preferences(request, get_context(book, chapter, verse))
+    except Exception as exc:  # pragma: no cover - safety net for DB errors
+        return JsonResponse({'error': f'Unable to load verse context: {exc}'}, status=500)
+
+    if translation_type == 'greek':
+        entries = context.get('entries') or []
+        if not entries:
+            return JsonResponse({'error': 'Interlinear entries unavailable for this verse.'}, status=404)
+        suggestion = gemini_translate(entries, prompt_override, resolved_model)
+    elif translation_type == 'hebrew':
+        hebrew_text = context.get('hebrew')
+        linear_english = context.get('linear_english')
+        suggestion = gemini_translate_hebrew(hebrew_text, linear_english, prompt_override, resolved_model)
+    else:
+        return JsonResponse({'error': 'Invalid translation type.'}, status=400)
+
+    if isinstance(suggestion, str) and suggestion.startswith('Error:'):
+        return JsonResponse({'error': suggestion}, status=502)
+
+    session = getattr(request, 'session', None)
+    if session is not None:
+        if prompt_override:
+            pref_key = f'gemini_prompt_{translation_type}'
+            session[pref_key] = prompt_override
+        session['gemini_model'] = resolved_model
+        session.modified = True
+
+    return JsonResponse({'suggestion': suggestion})
+
+
+@login_required
+@require_POST
+def save_gemini_preferences(request):
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid JSON payload.'}, status=400)
+
+    translation_type = payload.get('translation_type')
+    if translation_type not in ('greek', 'hebrew'):
+        return JsonResponse({'error': 'Invalid translation type.'}, status=400)
+
+    prompt_text = payload.get('prompt')
+    model_name = payload.get('model')
+
+    try:
+        resolved_model = _resolve_model_name(model_name)
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+
+    session = getattr(request, 'session', None)
+    if session is None:
+        return JsonResponse({'error': 'Session storage is unavailable.'}, status=500)
+
+    pref_key = f'gemini_prompt_{translation_type}'
+    if prompt_text:
+        session[pref_key] = prompt_text
+    else:
+        session.pop(pref_key, None)
+
+    session['gemini_model'] = resolved_model
+    session.modified = True
+
+    return JsonResponse({
+        'status': 'saved',
+        'model': resolved_model,
+        'prompt_key': pref_key,
+    })
 
 # /edit_footnote/
 @login_required
@@ -625,7 +881,7 @@ def edit(request):
             with open('interlinear_english.json', 'w', encoding='utf-8') as file:
                 json.dump(replacements, file, indent=4, ensure_ascii=False)
             
-            context = get_context(book, chapter_num, verse_num)
+            context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
             context['edit_result'] = '<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Updated replacements successfully!</p></div>'
 
             return render(request, 'edit_nt_verse.html', context)
@@ -667,7 +923,7 @@ def edit(request):
                     cleared_keys = _invalidate_reader_cache(nt_book, chapter_num, verse_num)
                     cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
 
-                    context = get_context(nt_book, chapter_num, verse_num)
+                    context = _apply_gemini_preferences(request, get_context(nt_book, chapter_num, verse_num))
                     context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Added footnote successfully! {cache_string}</p></div>'
 
                     return render(request, 'edit_nt_verse.html', context)
@@ -713,7 +969,7 @@ def edit(request):
             cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
             cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
 
-            context = get_context(book, chapter_num, verse_num)
+            context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
             context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Updated verse successfully! {cache_string}</p></div>'
 
             return render(request, 'edit_verse.html', context)
@@ -736,7 +992,7 @@ def edit(request):
             cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
             
 
-            context = get_context(book, chapter_num, verse_num)
+            context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
             context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Added new footnote successfully! {cache_string}</p></div>'
             return render(request, 'edit_verse.html', context)
         
@@ -757,13 +1013,13 @@ def edit(request):
             cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
             cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
 
-            context = get_context(book, chapter_num, verse_num)
+            context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
             context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Updated verse successfully! {cache_string}</p></div>'
 
             return render(request, 'edit_nt_verse.html', context)
 
         elif verse_input:
-            context = get_context(book, chapter_num, verse_input)
+            context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_input))
             if book in new_testament_books:
                 return render(request, 'edit_nt_verse.html', context)
             else:
@@ -771,7 +1027,7 @@ def edit(request):
 
         # Fallback: ensure POST always returns an HttpResponse
         if book and chapter_num:
-            fallback_context = get_context(book, chapter_num, verse_num or '1')
+            fallback_context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num or '1'))
             if book in new_testament_books:
                 return render(request, 'edit_nt_verse.html', fallback_context)
             return render(request, 'edit_verse.html', fallback_context)
@@ -803,12 +1059,9 @@ def edit(request):
     
     elif book and chapter_num and verse_num:
         
-        context = get_context(book, chapter_num, verse_num)
+        context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
 
         if book in new_testament_books:
-            entries = context["entries"]
-            sentence_suggestion = gemini_translate(entries)
-            context["sentence_suggestion"] = sentence_suggestion
             return render(request, 'edit_nt_verse.html', context)
         else:
             return render(request, 'edit_verse.html', context)

@@ -84,6 +84,105 @@
     }
 </style>
 
+<style>
+    .gemini-trigger {
+        margin-top: 8px;
+        background: #17324f;
+        color: #fff;
+        border: none;
+        padding: 8px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+
+    .gemini-trigger:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .gemini-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(9, 18, 36, 0.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .gemini-modal.is-visible {
+        display: flex;
+    }
+
+    .gemini-modal__content {
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        width: min(600px, 90%);
+        box-shadow: 0 20px 45px rgba(10, 26, 56, 0.25);
+    }
+
+    .gemini-modal__content textarea {
+        width: 100%;
+        min-height: 200px;
+        border: 1px solid #d5dbe4;
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 14px;
+        font-family: 'Courier New', Courier, monospace;
+    }
+
+    .gemini-modal__actions {
+        margin-top: 16px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .gemini-modal__actions button {
+        border: none;
+        border-radius: 6px;
+        padding: 6px 12px;
+        cursor: pointer;
+    }
+
+    .gemini-modal__actions .primary {
+        background: #0c63ff;
+        color: #fff;
+    }
+
+    .gemini-modal__actions .secondary {
+        background: #e2e8f0;
+        color: #1f2933;
+    }
+
+    .gemini-modal__status {
+        margin-top: 8px;
+        font-size: 13px;
+        color: #a32a1a;
+    }
+
+    .gemini-modal__field {
+        margin-bottom: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .gemini-modal__field label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #12223b;
+    }
+
+    .gemini-modal__field input {
+        border: 1px solid #d5dbe4;
+        border-radius: 6px;
+        padding: 6px 8px;
+        font-size: 14px;
+    }
+</style>
+
 
 
 <div style="padding-bottom: 20px;">
@@ -159,6 +258,37 @@ Cached: {{ cached_hit }}
     <button type="submit" id="save-button">Save</button>
 </form>
 
+<div id="hebrew-gemini-config"
+    data-book="{{ book2|default:book }}"
+    data-chapter="{{ chapter_num }}"
+    data-verse="{{ verse_num }}"
+    data-endpoint="{% url 'gemini_translate_api' %}"
+    data-translation-type="hebrew"
+    data-default-model="{{ default_gemini_model }}"
+    data-save-endpoint="{% url 'gemini_save_preferences' %}"
+    hidden></div>
+
+<div class="gemini-modal" id="hebrewGeminiModal" aria-hidden="true">
+    <div class="gemini-modal__content">
+        <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px;">
+            <h3 style="margin:0;">Gemini Prompt</h3>
+            <button type="button" class="secondary" data-action="close">&times;</button>
+        </div>
+        <div class="gemini-modal__field">
+            <label for="hebrewGeminiModel">Model</label>
+            <input type="text" id="hebrewGeminiModel" autocomplete="off">
+        </div>
+        <textarea id="hebrewGeminiPrompt" spellcheck="false"></textarea>
+        <div class="gemini-modal__actions">
+            <button type="button" class="secondary" id="hebrewGeminiReset">Reset</button>
+            <button type="button" class="secondary" id="hebrewGeminiSave">Save Prompt</button>
+            <button type="button" class="secondary" data-action="close">Cancel</button>
+            <button type="button" class="primary" id="hebrewGeminiRun">Run &amp; Load</button>
+        </div>
+        <div class="gemini-modal__status" id="hebrewGeminiStatus"></div>
+    </div>
+</div>
+
 <strong>RBT Paraphrase:</strong><br>
  <div class="single_verse">{{ rbt_paraphrase|safe }}</div>   
 <form method="post" action="./" id="edit-form">            
@@ -189,6 +319,7 @@ Cached: {{ cached_hit }}
 <button type="button" style="background-color: blue;"
     onclick="applyFontColor('blue'); updateReader(document.getElementById('edited_paraphrase').value)"><i
         class="fas fa-circle" style="font-size: 18px; color: rgb(58, 147, 198);"></i></button>
+    <button type="button" class="gemini-trigger" id="hebrewGeminiOpen">Gemini Suggestion</button>
 </form>
 
 
@@ -311,6 +442,144 @@ Cached: {{ cached_hit }}
         // Submit the form via the 'edit' view
         document.getElementById('edit-form').submit();
 });
-</script>
+    </script>
+
+    {{ default_hebrew_prompt|json_script:"defaultHebrewGeminiPrompt" }}
+
+    <script>
+        (function () {
+            const config = document.getElementById('hebrew-gemini-config');
+            const openButton = document.getElementById('hebrewGeminiOpen');
+            const modal = document.getElementById('hebrewGeminiModal');
+            const promptInput = document.getElementById('hebrewGeminiPrompt');
+            const statusEl = document.getElementById('hebrewGeminiStatus');
+            const runButton = document.getElementById('hebrewGeminiRun');
+            const resetButton = document.getElementById('hebrewGeminiReset');
+            const saveButton = document.getElementById('hebrewGeminiSave');
+            const modelInput = document.getElementById('hebrewGeminiModel');
+            const defaultPromptScript = document.getElementById('defaultHebrewGeminiPrompt');
+            const defaultPrompt = defaultPromptScript ? JSON.parse(defaultPromptScript.textContent) : '';
+            const defaultModel = config ? (config.dataset.defaultModel || '') : '';
+            let currentPrompt = defaultPrompt;
+            let currentModel = defaultModel;
+            const saveEndpoint = config ? config.dataset.saveEndpoint : '';
+            const targetTextarea = document.getElementById('edited_paraphrase');
+
+            if (!config || !openButton || !modal || !promptInput) {
+                return;
+            }
+
+            const endpoint = config.dataset.endpoint;
+
+            function getCsrfToken() {
+                const name = 'csrftoken=';
+                const cookies = document.cookie ? document.cookie.split(';') : [];
+                for (let cookie of cookies) {
+                    cookie = cookie.trim();
+                    if (cookie.startsWith(name)) {
+                        return decodeURIComponent(cookie.substring(name.length));
+                    }
+                }
+                return '';
+            }
+
+            function toggleModal(show) {
+                modal.classList.toggle('is-visible', !!show);
+                modal.setAttribute('aria-hidden', String(!show));
+            }
+
+            function resetPrompt() {
+                promptInput.value = currentPrompt;
+                if (modelInput) {
+                    modelInput.value = currentModel;
+                }
+                statusEl.textContent = '';
+            }
+
+            openButton.addEventListener('click', () => {
+                resetPrompt();
+                toggleModal(true);
+            });
+
+            modal.querySelectorAll('[data-action="close"]').forEach((btn) => {
+                btn.addEventListener('click', () => toggleModal(false));
+            });
+
+            resetButton.addEventListener('click', resetPrompt);
+
+            if (saveButton && saveEndpoint) {
+                saveButton.addEventListener('click', async () => {
+                    statusEl.textContent = 'Saving prompt…';
+                    saveButton.disabled = true;
+                    try {
+                        const response = await fetch(saveEndpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': getCsrfToken(),
+                            },
+                            body: JSON.stringify({
+                                translation_type: config.dataset.translationType,
+                                prompt: promptInput.value,
+                                model: modelInput ? modelInput.value : undefined,
+                            }),
+                        });
+                        const data = await response.json();
+                        if (!response.ok || data.error) {
+                            throw new Error(data.error || 'Unable to save prompt.');
+                        }
+                        currentPrompt = promptInput.value;
+                        currentModel = modelInput ? modelInput.value : currentModel;
+                        statusEl.textContent = 'Prompt saved.';
+                    } catch (error) {
+                        statusEl.textContent = error.message;
+                    } finally {
+                        saveButton.disabled = false;
+                    }
+                });
+            }
+
+            runButton.addEventListener('click', async () => {
+                statusEl.textContent = 'Requesting suggestion…';
+                runButton.disabled = true;
+                openButton.disabled = true;
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken(),
+                        },
+                        body: JSON.stringify({
+                            translation_type: config.dataset.translationType,
+                            book: config.dataset.book,
+                            chapter: config.dataset.chapter,
+                            verse: config.dataset.verse,
+                            prompt: promptInput.value,
+                            model: modelInput ? modelInput.value : undefined,
+                        }),
+                    });
+
+                    const data = await response.json();
+                    if (!response.ok || data.error) {
+                        throw new Error(data.error || 'Unable to fetch Gemini suggestion.');
+                    }
+
+                    if (targetTextarea) {
+                        targetTextarea.value = data.suggestion || '';
+                    }
+
+                    statusEl.textContent = 'Suggestion loaded into editor.';
+                    toggleModal(false);
+                } catch (error) {
+                    statusEl.textContent = error.message;
+                } finally {
+                    runButton.disabled = false;
+                    openButton.disabled = false;
+                }
+            });
+        })();
+    </script>
 
 {% endblock %}
