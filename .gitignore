@@ -19,7 +19,6 @@ ENV/
 .DS_Store
 scripts/
 
-
 searchimage.py
 replace_exact_match.py
 TODO.md
@@ -37,6 +36,8 @@ key.json
 bdb_browser.py
 grok.py
 extract_verses.py
+run-batch-job.js
+resequence_new.py
 
 # Django
 *.sqlite3
