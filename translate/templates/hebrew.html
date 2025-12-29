@@ -4,11 +4,423 @@
 {% block content %}
 
 <style>
+/* Override base.html container constraints for full width */
+.nv-content-wrap {
+    max-width: 100% !important;
+    padding: 0 !important;
+}
+
+.container {
+    max-width: 100% !important;
+    padding: 0 20px !important;
+}
+
+/* Page Layout */
+.page-wrapper {
+    max-width: 1800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Hebrew Interlinear Grid - Full Width */
+.hebrew-interlinear-section {
+    width: 100%;
+    max-width: 100%;
+    margin: 20px 0;
+    padding: 20px;
+    background: #fafafa;
+    border-radius: 8px;
+}
+
+.hebrew-interlinear-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: flex-start;
+    direction: rtl;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* Editor Layout - Two Column */
+.editor-layout {
+    display: grid;
+    grid-template-columns: 1fr 500px;
+    gap: 30px;
+    margin: 30px 0;
+    overflow: visible;
+}
+
+.edit-table-container {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    overflow: visible;
+    position: relative;
+}
+
+.table-scroll-wrapper {
+    overflow-x: auto;
+    overflow-y: visible;
+    margin: 0 -20px;
+    padding: 0 20px;
+    position: relative;
+}
+
+/* Prevent scroll-locking when hovering popups */
+.table-scroll-wrapper:has(.popup-container:hover) {
+    overflow: visible;
+}
+
+/* Ensure popups can escape containers */
+.popup-container {
+    position: static;
+    display: inline-block;
+}
+
+.popup-content {
+    position: fixed;
+    z-index: 9999;
+    transform: translateY(0) !important;
+}
+
+.paraphrase-editor-container {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    position: sticky;
+    top: 20px;
+    height: fit-content;
+    overflow: visible;
+}
+
+/* Edit Table Styling */
+.hebrewTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    position: relative;
+    z-index: 1;
+}
+
+.hebrewTable td {
+    padding: 10px 8px;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+    position: relative;
+    overflow: visible;
+}
+
+.hebrewTable input[type="text"] {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.hebrewTable input[type="text"]:focus {
+    outline: none;
+    border-color: #b78550;
+    box-shadow: 0 0 0 2px rgba(183, 133, 80, 0.1);
+}
+
+/* Paraphrase Editor */
+.paraphrase-editor-container h4 {
+    margin: 0 0 15px 0;
+    font-size: 18px;
+    color: #333;
+    border-bottom: 2px solid #b78550;
+    padding-bottom: 10px;
+}
+
+#englishReader {
+    display: block;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    min-height: 100px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+#textArea {
+    width: 100%;
+    min-height: 200px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: vertical;
+}
+
+#textArea:focus {
+    outline: none;
+    border-color: #b78550;
+    box-shadow: 0 0 0 3px rgba(183, 133, 80, 0.1);
+}
+
+/* Editor Toolbar */
+.editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 15px 0;
+    padding: 12px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
+
+.editor-toolbar button {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: #b78550;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    font-size: 14px;
+}
+
+.editor-toolbar button:hover {
+    background: #965f35;
+    transform: translateY(-1px);
+}
+
+.editor-toolbar button:active {
+    transform: translateY(0);
+}
+
+.editor-toolbar button.wide {
+    width: auto;
+    padding: 0 12px;
+}
+
+.editor-toolbar button.reset {
+    background: #000;
+}
+
+.editor-toolbar button.reset:hover {
+    background: #333;
+}
+
+.editor-toolbar input[type="text"] {
+    flex: 1;
+    min-width: 150px;
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin: 20px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.form-actions button[type="submit"] {
+    padding: 10px 24px;
+    background: #28a745;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.form-actions button[type="submit"]:hover {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.form-actions label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+/* Interlinear Controls */
+.interlinear-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+.interlinear-controls label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+/* Search Box */
+.search {
+    margin-bottom: 20px;
+}
+
+.search form {
+    display: flex;
+    gap: 10px;
+}
+
+.search input[type="text"] {
+    flex: 1;
+    max-width: 400px;
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.search button {
+    padding: 10px 24px;
+    background: #b78550;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.search button:hover {
+    background: #965f35;
+}
+
+/* Arrow Navigation */
+.arrow-links {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.arrow-links h3 {
+    font-size: 24px;
+    color: #333;
+}
+
+.arrow-links a {
+    color: #b78550;
+    text-decoration: none;
+    margin: 0 10px;
+    transition: all 0.2s;
+}
+
+.arrow-links a:hover {
+    color: #965f35;
+    transform: scale(1.1);
+}
+
+/* Chapter Reader */
+.chapter-reader-section {
+    margin: 30px 0;
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+
+.chapter-reader-section h4 {
+    margin: 0 0 15px 0;
+    font-size: 18px;
+    color: #333;
+    border-bottom: 2px solid #b78550;
+    padding-bottom: 10px;
+}
+
+/* Popup */
+.popup {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    max-width: 400px;
+    padding: 20px;
+    background: #fff;
+    border: 2px solid #28a745;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+}
+
+.popup .close {
+    margin-top: 15px;
+    padding: 8px 16px;
+    background: #6c757d;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.popup .close:hover {
+    background: #5a6268;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .editor-layout {
+        grid-template-columns: 1fr;
+    }
+    
+    .paraphrase-editor-container {
+        position: static;
+    }
+}
+
+@media (max-width: 768px) {
+    .page-wrapper {
+        padding: 10px;
+    }
+    
+    .hebrew-interlinear-section {
+        padding: 15px 10px;
+    }
+    
+    .hebrew-interlinear-grid {
+        gap: 8px;
+    }
+    
+    .editor-toolbar {
+        gap: 4px;
+    }
+    
+    .editor-toolbar button {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+}
+
 .tablefloat td {
-  max-width: 200px; /* Adjust based on your content */
-  overflow: hidden; /* Hides overflow content */
-  text-overflow: ellipsis; /* Adds "..." for overflow text */
-  white-space: nowrap; /* Prevents text from wrapping */
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
 
@@ -107,613 +519,575 @@
 
 
 <style>
-  /* Style for the slider (the visual part of the toggle) */
-  .slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    -webkit-transition: .4s;
-    transition: .4s;
-  }
 
-  /* Style for the slider when the checkbox is checked */
-  .slider:before {
-    position: absolute;
-    content: "";
-    height: 16px;
-    width: 16px;
-    left: 2px;
-    bottom: 2px;
-    background-color: white;
-    -webkit-transition: .4s;
-    transition: .4s;
-  }
+    /* Style for the STRONGS pop-up container */
+    .popup-container {
+        position: relative; /* Create a positioning context */
+        display: inline-block; /* Display the container inline */
+    }
+    /* Style for the pop-up content */
+    .popup-content {
+        display: none; /* Initially hide the content */
+        position: absolute; /* Position it absolutely within the container */
+        top: 100%; /* Position below the container */
+        left: 0;
+        background-color: #fff; /* Background color */
+        border: 1px solid #e3e6ea; /* Border */
+        padding: 10px; /* Padding */
+        box-shadow: 0 6px 20px rgba(18, 38, 63, 0.08); /* Softer shadow */
+        z-index: 200; /* Ensure it's above other content */
+        width: 320px; /* Adjust the width as needed */
+        font-size: 13px;
+        text-align: left;
+        border-radius: 8px;
+        opacity: 0;
+        transform: translateY(-6px);
+        transition: opacity 0.12s ease, transform 0.12s ease;
+    }
 
-  /* Style for the checkbox when it's checked */
-  input:checked+.slider {
-    background-color: #2196F3;
-  }
+    /* Header label is now part of the content layout */
 
-  /* Style for the slider when it's checked */
-  input:checked+.slider:before {
-    -webkit-transform: translateX(20px);
-    -ms-transform: translateX(20px);
-    transform: translateX(20px);
-  }
+    /* Style to show the pop-up content on hover (fade/slide) */
+    .popup-container:hover .popup-content {
+        display: block; /* Show the content on hover */
+        opacity: 1;
+        transform: translateY(0);
+    }
 
-  .container.single-page-container {
-    margin-left: auto;
-    margin-right: auto;
-    max-width: 80%
-  }
+    /* Strong-specific popup enhancements */
+    .strong-popup {
+        padding: 8px 10px;
+    }
 
-  .morph-popup {
-    display: block;
-    position: relative;
-    /* background-color: #f9f9f9; */
-    /* border: 1px solid #ccc; */
-    /* padding: 5px; */
-    /* z-index: 1; */
-  }
+    .strong-xlit {
+        font-size: 13px;
+        color: #7b675a;
+        font-style: italic;
+        margin-top: 2px;
+        letter-spacing: 0.04em;
+        text-transform: none;
+    }
 
-  /* .morph-cell:hover .morph-popup {
-    display: relative;
-    font-size: 12px;
-    text-align: left;
-  } */
+    .strong-details {
+        margin-top: 8px;
+    }
 
-  /* Style for the STRONGS pop-up container */
-  .popup-container {
-    position: relative;
-    /* Create a positioning context */
-    display: inline-block;
-    /* Display the container inline */
-  }
+    .strong-details dt {
+        font-weight: 600;
+        font-size: 11px;
+        color: #6b4b3d;
+        margin-top: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
 
-  /* Style for the pop-up content */
-  .popup-content {
-    display: none;
-    /* Initially hide the content */
-    position: absolute;
-    /* Position it absolutely within the container */
-    top: 100%;
-    /* Position below the container */
-    background-color: #fff;
-    /* Background color */
-    border: 1px solid #e3e6ea;
-    /* Border */
-    padding: 10px;
-    /* Padding */
-    box-shadow: 0 6px 20px rgba(18, 38, 63, 0.08);
-    /* Softer shadow */
-    z-index: 200;
-    /* Ensure it's above other content */
-    width: 320px;
-    /* Adjust the width as needed */
-    font-size: 13px;
-    text-align: left;
-    left: -185px;
-    /* Shift the content 50px to the left */
-    border-radius: 8px;
-    opacity: 0;
-    transform: translateY(-6px);
-    transition: opacity 0.12s ease, transform 0.12s ease;
-  }
+    .strong-details dd {
+        margin: 2px 0 6px 0;
+        font-size: 13px;
+        color: #2f2f2f;
+        line-height: 1.35;
+    }
 
-  /* Header label is now part of the content layout */
+    .strong-popup .strong-fine-print {
+        font-size: 11px;
+        color: #6b4b3d;
+        margin-top: 8px;
+    }
 
-  /* Add a small header inside Strong's popup content
-     Uses ::before so it appears above popup body. This will
-     show for popup-content elements; if you later wrap Strong's
-     content with a more specific selector, replace the rule. */
-  .popup-content::before {
-    display: none;
-  }
+    .strong-citation {
+        margin-top: 10px;
+        border-top: 1px dashed #f1d7c7;
+        padding-top: 6px;
+        font-size: 11px;
+        color: #7b675a;
+    }
 
-  /* Style to show the pop-up content on hover */
-  .popup-container:hover .popup-content {
-    display: block;
-    /* Show the content on hover */
-    opacity: 1;
-    transform: translateY(0);
-  }
+    .strong-citation a {
+        color: #a4491d;
+        text-decoration: none;
+        font-weight: 600;
+    }
 
-  /* Strong-specific popup enhancements */
-  .strong-popup {
-    padding: 8px 10px;
-  }
+    .strong-citation a:hover {
+        text-decoration: underline;
+    }
 
-  .strong-popup .strong-header {
-    margin-bottom: 6px;
-    border-bottom: 1px dashed #f1d7c7;
-    padding-bottom: 6px;
-  }
-
-  .strong-popup .strong-lemma {
-    font-size: 22px;
-    font-weight: 700;
-    color: #2a1f18;
-  }
-
-  .strong-popup .strong-xlit {
-    font-size: 12px;
-    color: #7b675a;
-    font-style: italic;
-    margin-top: 2px;
-    letter-spacing: 0.04em;
-    text-transform: none;
-  }
-
-  .strong-details {
-    margin-top: 8px;
-  }
-
-  .strong-details dt {
-    font-weight: 600;
-    font-size: 11px;
-    color: #6b4b3d;
-    margin-top: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .strong-details dd {
-    margin: 2px 0 6px 0;
-    font-size: 13px;
-    color: #2f2f2f;
-    line-height: 1.35;
-  }
-
-  .strong-citation {
-    margin-top: 10px;
-    border-top: 1px dashed #f1d7c7;
-    padding-top: 6px;
-    font-size: 11px;
-    color: #7b675a;
-  }
-
-  .strong-citation a {
-    color: #a4491d;
-    text-decoration: none;
-    font-weight: 600;
-  }
-
-  .strong-citation a:hover {
-    text-decoration: underline;
-  }
-
-  .strong-link {
-    text-decoration: none;
-    color: #a4491d;
-    font-weight: 700;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
+    .strong-link {
+        text-decoration: none;
+        color: #a4491d;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
 
 
-  .fuerst-popup {
-    display: inline-flex;
-    align-items: center;
-    margin-left: 6px;
-  }
+    .fuerst-popup {
+        display: inline-flex;
+        align-items: center;
+        margin-left: 6px;
+    }
 
-  .fuerst-trigger {
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-weight: 600;
-    color: #7a2f11;
-    background: linear-gradient(120deg, #fff7f2, #ffe9df);
-    border: 1px solid #f1c7b2;
-    border-radius: 999px;
-    padding: 2px 7px;
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  }
+    .strongs-trigger,
+    .fuerst-trigger {
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 600;
+        color: #7a2f11;
+        background: linear-gradient(120deg, #fff7f2, #ffe9df);
+        border: 1px solid #f1c7b2;
+        border-radius: 999px;
+        padding: 2px 7px;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
 
-  .fuerst-trigger:hover,
-  .fuerst-trigger:focus {
-    background: linear-gradient(120deg, #ffe1d0, #ffd2bb);
-    color: #5c210c;
-    border-color: #e4a583;
-  }
+    .strongs-trigger:hover,
+    .strongs-trigger:focus,
+    .fuerst-trigger:hover,
+    .fuerst-trigger:focus {
+        background: linear-gradient(120deg, #ffe1d0, #ffd2bb);
+        color: #5c210c;
+        border-color: #e4a583;
+    }
 
-  .fuerst-popup-content {
-    width: 360px;
-    border-color: #f2d7c8;
-  }
+    .strongs-popup {
+        display: inline-flex;
+        align-items: center;
+        margin-right: 6px;
+    }
 
-  .fuerst-title {
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #9a4a26;
-    margin-bottom: 8px;
-  }
-
-  .fuerst-entry {
-    padding: 8px 0;
-    border-top: 1px dashed #f1d7c7;
-  }
-
-  .fuerst-entry:first-of-type {
-    border-top: none;
-    padding-top: 0;
-  }
-
-  .fuerst-headword {
-    font-size: 20px;
-    font-weight: 600;
-    color: #1f2d3d;
-  }
-
-  .fuerst-meta {
-    font-size: 11px;
-    color: #6b4b3d;
-    margin-top: 4px;
-  }
-
-  .fuerst-definition {
-    font-size: 13px;
-    color: #2f3a44;
-    margin-top: 6px;
-    line-height: 1.4;
-  }
-
-  .fuerst-note {
-    font-size: 12px;
-    color: #4b2b1f;
-    background: #fff5ee;
-    border-left: 3px solid #f3c2a7;
-    padding: 4px 6px;
-    margin-top: 6px;
-  }
-
-  .fuerst-link {
-    color: #a4491d;
-    text-decoration: none;
-    font-weight: 600;
-  }
-
-  .fuerst-link:hover {
-    text-decoration: underline;
-  }
+    .strongs-popup-content {
+        width: 360px;
+        border-color: #f2d7c8;
+    }
 
 
 
-  .table-container {
-    overflow: visible;
-  }
+    .strongs-entry {
+        padding: 8px 0;
+        border-top: 1px dashed #f1d7c7;
+    }
 
-  .popup {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: white;
-    border: 1px solid black;
-    padding: 20px;
-    z-index: 9999;
-  }
+    .strongs-entry:first-of-type {
+        border-top: none;
+        padding-top: 0;
+    }
 
-  .close {
-    display: block;
-    margin: 0 auto;
-    /* Center the button horizontally */
-    background-color: #808080;
-    padding: 3px;
-    height: 28px;
-    width: 60px;
-    /* Adjust width as needed */
-    text-align: center;
-    /* Center the text inside the button */
-    line-height: 22px;
-    /* Center vertically */
-    cursor: pointer;
-  }
+    .strongs-headword {
+        font-size: 28px;
+        font-weight: 700;
+        color: #2a1f18;
+    }
 
-  td.checkbox-cell {
-    text-align: center;
-    /* Center horizontally */
-    vertical-align: middle;
-    /* Center vertically */
-  }
+    .strongs-meta {
+        font-size: 13px;
+        color: #7b675a;
+        font-style: italic;
+        margin-top: 2px;
+        letter-spacing: 0.04em;
+    }
 
-  #englishReader {
-    margin-bottom: 10px;
-    /* Adjust the bottom margin as needed */
-    display: block;
-  }
+    .strongs-definition,
+    .strongs-derivation,
+    .strongs-exhaustive {
+        font-size: 13px;
+        color: #2f2f2f;
+        line-height: 1.35;
+        margin-top: 6px;
+    }
 
-  #textArea {
-    margin-top: 10px;
-    width: 100%;
-    font-family: 'Times New Roman', Times, serif;
-  }
+    .strongs-definition strong,
+    .strongs-derivation strong,
+    .strongs-exhaustive strong {
+        font-weight: 600;
+        font-size: 11px;
+        color: #6b4b3d;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        display: block;
+        margin-bottom: 2px;
+    }
 
-  .right-panel button {
-    margin-top: 2px;
-  }
+    .strongs-link {
+        color: #a4491d;
+        text-decoration: none;
+        font-weight: 600;
+    }
 
-  .heb {
-    font-size: 20px;
-  }
+    .strongs-link:hover {
+        text-decoration: underline;
+    }
 
-  .arrow-links {
-    text-align: center;
-    padding: 10px;
-    /* Adjust the padding as needed */
-  }
+    .fuerst-popup-content {
+        width: 360px;
+        border-color: #f2d7c8;
+    }
 
-  .arrow-links h3 {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
+    .strongs-title,
+    .gesenius-title,
+    .fuerst-title {
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #9a4a26;
+        margin-bottom: 8px;
+    }
+    .gesenius-entry,
+    .strong-entry,
+    .fuerst-entry {
+        padding: 8px 0;
+        border-top: 1px dashed #f1d7c7;
+    }
 
-  .arrow-links a {
-    text-decoration: none;
-    color: #007bff;
-    /* Change the color to your preferred link color */
-    margin: 0 10px;
-    /* Add space between the text and arrows */
-  }
+    .fuerst-entry:first-of-type {
+        border-top: none;
+        padding-top: 0;
+    }
 
-  .fas.fa-chevron-circle-left::before,
-  .fas.fa-chevron-circle-right::before {
-    font-size: 24px;
-    /* Adjust the font size as needed */
-    margin: 0 5px;
-    /* Add space between the icon and text */
-  }
+    .strongs-headword,
+    .fuerst-headword {
+        font-size: 20px;
+        font-weight: 600;
+        color: #1f2d3d;
+    }
 
-  button,
-  input,
-  select,
-  textarea {
-    line-height: 1.4;
-  }
+    .fuerst-meta {
+        font-size: 11px;
+        color: #6b4b3d;
+        margin-top: 4px;
+    }
 
-  .replace_input {
-    padding: 0px !important;
-    padding-left: 4px !important;
-  }
+    .fuerst-definition {
+        font-size: 13px;
+        color: #2f3a44;
+        margin-top: 6px;
+        line-height: 1.4;
+    }
 
-  .find_replace {
-    background-color: gray;
-    padding: 8px;
-    border-radius: 10px;
-    margin-top: 6px;
-  }
+    .fuerst-note {
+        font-size: 12px;
+        color: #4b2b1f;
+        background: #fff5ee;
+        border-left: 3px solid #f3c2a7;
+        padding: 4px 6px;
+        margin-top: 6px;
+    }
 
-  .strongs {
+    .fuerst-link {
+        color: #a4491d;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .fuerst-link:hover {
+        text-decoration: underline;
+    }
+
+
+
+
+     /* Default styles for the desktop view */
+     .desktop-view {
+        display: block;
+    }
+
+    .mobile-view {
+        display: none;
+    }
+
+    .front_search {
+        border: none;
+        display: table;
+    }
+
+    .front_search form {
+        text-align: left;
+        margin-bottom: 10px;
+    }
+
+    /* Styles for the mobile view */
+    @media only screen and (max-width: 767px) {
+        .desktop-view {
+            display: none;
+        }
+
+        .mobile-view {
+            display: block;
+            margin-bottom: 10px;
+        }
+    }
+
+    .verse-view {
+        margin-top: 1px;
+    }
+
+    .strongs {
         font-size: 10px;
     }
 
-  .eng_reader{
-        font-size: 16px;
+    .eng_reader{
+        font-size: 12px;
     }
 
-  .hebrew_reader{
-        font-size: 26px;
+    .hebrew_reader{
+        font-size: 20px;
     }
 
-  .interlinear-controls {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 8px;
-    margin-top: 12px;
-  }
+    .hebrew-interlinear-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: flex-start;
+        direction: rtl;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
 
-  .interlinear-controls label {
-    font-size: 12px;
-  }
+    .interlinear-card {
+        background: #f6f7fa;
+        border: 1px solid #d9dee6;
+        border-radius: 8px;
+        padding: 12px 14px;
+        min-width: 120px;
+        max-width: 220px;
+        text-align: right;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    }
 
-  .hebrew-interlinear-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    justify-content: flex-start;
-    direction: rtl;
-    margin-top: 16px;
-    margin-bottom: 24px;
-  }
+    .interlinear-card .card-hebrew {
+        font-size: 28px;
+        line-height: 1.3;
+    }
 
-  .interlinear-card {
-    background: #f6f7fa;
-    border: 1px solid #d9dee6;
-    border-radius: 8px;
-    padding: 12px 14px;
-    min-width: 120px;
-    max-width: 220px;
-    text-align: right;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  }
+    .card-hebrew > span {
+        display: block;
+    }
 
-  .interlinear-card .card-hebrew {
-    font-size: 28px;
-    line-height: 1.3;
-  }
+    .card-hebrew .hebrew-with-niqqud {
+        display: none;
+    }
 
-  .interlinear-card .card-hebrew > span {
-    display: block;
-  }
+    .interlinear-card .card-english {
+        font-size: 14px;
+        color: #2d2d2d;
+        margin-top: 6px;
+        direction: ltr;
+    }
 
-  .card-hebrew .hebrew-with-niqqud {
-    display: none;
-  }
+    .interlinear-card .card-strongs {
+        font-size: 12px;
+        color: #4a4a4a;
+        margin-top: 6px;
+        direction: ltr;
+    }
 
-  .interlinear-card .card-english {
-    font-size: 14px;
-    color: #2d2d2d;
-    margin-top: 6px;
-    direction: ltr;
-  }
+    .interlinear-card .card-morph {
+        font-size: 11px;
+        color: #6d6d6d;
+        margin-top: 6px;
+        direction: ltr;
+    }
 
-  .interlinear-card .card-strongs {
-    font-size: 12px;
-    color: #4a4a4a;
-    margin-top: 6px;
-    direction: ltr;
-  }
+    /* LXX (Septuagint) styles */
+    .interlinear-card .card-lxx {
+        font-size: 13px;
+        color: #2e5984;
+        margin-top: 6px;
+        direction: ltr;
+    }
 
-  .interlinear-card .card-morph {
-    font-size: 11px;
-    color: #6d6d6d;
-    margin-top: 6px;
-    direction: ltr;
-  }
+    .interlinear-card .card-lxx a {
+        color: #2e5984;
+        text-decoration: none;
+    }
 
-  /* LXX (Septuagint) styles */
-  .interlinear-card .card-lxx {
-    font-size: 13px;
-    color: #2e5984;
-    margin-top: 6px;
-    direction: ltr;
-  }
+    .interlinear-card .card-lxx a:hover {
+        text-decoration: underline;
+    }
 
-  .interlinear-card .card-lxx a {
-    color: #2e5984;
-    text-decoration: none;
-  }
+    /* LXX popup tooltip container */
+    .lxx-popup-container {
+        position: relative;
+        display: inline-block;
+        cursor: help;
+    }
 
-  .interlinear-card .card-lxx a:hover {
-    text-decoration: underline;
-  }
+    /* LXX popup content */
+    .lxx-popup-content {
+        display: none;
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #fff;
+        border: 1px solid #ccc;
+        padding: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        z-index: 100;
+        width: 250px;
+        font-size: 12px;
+        text-align: left;
+        border-radius: 4px;
+        margin-bottom: 5px;
+    }
 
-  /* LXX popup tooltip container */
-  .lxx-popup-container {
-    position: relative;
-    display: inline-block;
-    cursor: help;
-  }
+    .lxx-popup-content .lxx-popup-header {
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 2px;
+        color: #333;
+    }
 
-  /* LXX popup content */
-  .lxx-popup-content {
-    display: none;
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: #fff;
-    border: 1px solid #ccc;
-    padding: 10px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    z-index: 100;
-    width: 250px;
-    font-size: 12px;
-    text-align: left;
-    border-radius: 4px;
-    margin-bottom: 5px;
-  }
+    .lxx-popup-content .lxx-popup-header a {
+        color: #2e5984;
+        text-decoration: none;
+        margin-left: 4px;
+    }
 
-  .lxx-popup-content .lxx-popup-header {
-    font-size: 12px;
-    font-weight: 600;
-    margin-bottom: 2px;
-    color: #333;
-  }
+    .lxx-popup-content .lxx-popup-header a:hover {
+        text-decoration: underline;
+    }
 
-  .lxx-popup-content .lxx-popup-header a {
-    color: #2e5984;
-    text-decoration: none;
-    margin-left: 4px;
-  }
+    .lxx-popup-content::after {
+        content: "Greek translations of this Hebrew word in the Septuagint. This helps us understand how ancient translators interpreted the Hebrew text c. 250 BCE.";
+        display: block;
+        font-size: 10px;
+        color: #888;
+        margin-bottom: 6px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid #eee;
+    }
 
-  .lxx-popup-content .lxx-popup-header a:hover {
-    text-decoration: underline;
-  }
+    .lxx-popup-container:hover .lxx-popup-content {
+        display: block;
+    }
 
-  .lxx-popup-content::after {
-    content: "Greek translations of this Hebrew word in the Septuagint. This helps understand how ancient translators rendered the term c. 250 BCE.";
-    display: block;
-    font-size: 10px;
-    color: #888;
-    margin-bottom: 6px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #eee;
-  }
+    /* Gesenius trigger styling */
+    .gesenius-trigger {
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 600;
+        color: #7a2f11;
+        background: linear-gradient(120deg, #fff7f2, #ffe9df);
+        border: 1px solid #f1c7b2;
+        border-radius: 999px;
+        padding: 2px 7px;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
 
-  .lxx-popup-container:hover .lxx-popup-content {
-    display: block;
-  }
+    .gesenius-trigger:hover,
+    .gesenius-trigger:focus {
+        background: linear-gradient(120deg, #ffe1d0, #ffd2bb);
+        color: #5c210c;
+        border-color: #e4a583;
+    }
 
-  .lxx-stats-section {
-    margin-top: 6px;
-    padding-top: 4px;
-    border-top: 1px dotted #ddd;
-  }
+    .gesenius-popup-content {
+        width: 300px;
+        left: -150px;
+    }
 
-  .lxx-stats-section .strongs-label {
-    font-weight: 600;
-    color: #555;
-    font-size: 11px;
-  }
+    /* Gesenius detailed styling (match Fuerst) */
+    .gesenius-popup { display:inline-flex; align-items:center; margin-left:6px; }
+    .gesenius-headword { font-size:20px; font-weight:600; color:#1f2d3d; }
+    .gesenius-meta { font-size:11px; color:#6b4b3d; margin-top:4px; }
+    .gesenius-definition { font-size:13px; color:#2f3a44; margin-top:6px; line-height:1.4; }
+    .gesenius-note { font-size:12px; color:#4b2b1f; background:#fff5ee; border-left:3px solid #f3c2a7; padding:4px 6px; margin-top:6px; }
+    .gesenius-link { color:#a4491d; text-decoration:none; font-weight:600; }
+    .gesenius-link:hover { text-decoration:underline; }
 
-  .lxx-stats-row {
-    font-size: 11px;
-    color: #444;
-    line-height: 1.6;
-    margin-bottom: 4px;
-  }
+    .lxx-stats-section {
+        margin-top: 6px;
+        padding-top: 4px;
+        border-top: 1px dotted #ddd;
+    }
 
-  .lxx-stats-row .stat-label {
-    display: inline-block;
-    min-width: 80px;
-    direction: ltr;
-  }
+    .lxx-stats-section .strongs-label {
+        font-weight: 600;
+        color: #555;
+        font-size: 11px;
+    }
 
-  .lxx-stats-row .stat-label a {
-    color: #2e5984;
-    text-decoration: none;
-  }
+    .lxx-stats-row {
+        font-size: 11px;
+        color: #444;
+        line-height: 1.6;
+        margin-bottom: 4px;
+    }
 
-  .lxx-stats-row .stat-label a:hover {
-    text-decoration: underline;
-  }
+    .lxx-stats-row .stat-label {
+        display: inline-block;
+        min-width: 80px;
+        direction: ltr;
+    }
 
-  .lxx-stats-row .stat-bar-container {
-    display: inline-block;
-    width: 80px;
-    height: 10px;
-    background: #e9ecef;
-    border-radius: 3px;
-    margin: 0 6px;
-    vertical-align: middle;
-  }
+    .lxx-stats-row .stat-label a {
+        color: #2e5984;
+        text-decoration: none;
+    }
 
-  .lxx-stats-row .stat-bar {
-    display: block;
-    height: 100%;
-    background: linear-gradient(90deg, #4a90a4, #2e5984);
-    border-radius: 3px;
-    min-width: 2px;
-  }
+    .lxx-stats-row .stat-label a:hover {
+        text-decoration: underline;
+    }
 
-  .lxx-stats-row .stat-info {
-    font-size: 10px;
-    color: #666;
-  }
+    .lxx-stats-row .stat-bar-container {
+        display: inline-block;
+        width: 80px;
+        height: 10px;
+        background: #e9ecef;
+        border-radius: 3px;
+        margin: 0 6px;
+        vertical-align: middle;
+    }
 
-  .interlinear-legacy {
-    margin-top: 12px;
-  }
+    .lxx-stats-row .stat-bar {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #4a90a4, #2e5984);
+        border-radius: 3px;
+        min-width: 2px;
+    }
 
-  .interlinear-legacy summary {
-    cursor: pointer;
-    font-size: 13px;
-    color: #3f4b6b;
-    outline: none;
-  }
+    .lxx-stats-row .stat-info {
+        font-size: 10px;
+        color: #666;
+    }
+
+    .interlinear-legacy {
+        margin-top: 12px;
+    }
+
+    .interlinear-legacy summary {
+        cursor: pointer;
+        font-size: 13px;
+        color: #3f4b6b;
+        outline: none;
+    }
+
+    @media only screen and (max-width: 1467px) {
+        .hebrew-interlinear-grid {
+            justify-content: flex-start;
+            gap: 8px;
+        }
+
+        .interlinear-card {
+            min-width: 100px;
+            max-width: 180px;
+        }
+
+        .interlinear-card .card-hebrew {
+            font-size: 24px;
+        }
+    }
 
 </style>
+
+<div class="page-wrapper">
 
 <div class="search">
   <form method="get" action="./" style="text-align: left;">
@@ -724,233 +1098,223 @@
 </div>
 
 <div class="arrow-links">
-
   <h3>
     <a href="{{ prev_ref }}"><i class="fas fa-chevron-circle-left"></i></a>
     {{ verse }}<a href="{{ next_ref }}"><i class="fas fa-chevron-circle-right"></i></a>
   </h3>
-
 </div>
+
 {% if rbt %}
-<b>Hebrew RBT Translation:</b> {{ rbt|safe }}
+<div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+  <strong>Hebrew RBT Translation:</strong> {{ rbt|safe }}
+</div>
 {% endif %}
 
 {% if english_row %}
 
-
-<div style="text-align: right;">
+<div style="text-align: right; font-size: 34px; margin: 20px 0; padding: 15px; background: #fff; border-radius: 6px;">
   {{ hebrew|safe }}
 </div>
-<div style="text-align: left;">
+
+<div style="text-align: left; margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 6px;">
   <strong>Smith Literal:</strong> {{ smith|safe }}
 </div>
+
 {% if hebrew_interlinear_cards %}
-<div class="interlinear-controls">
-  <label for="cardNiqqudSwitch">Show Niqqud</label>
-  <input type="checkbox" id="cardNiqqudSwitch">
-</div>
-<div class="hebrew-interlinear-grid">
-  {% for cell in hebrew_interlinear_cards %}
-  <div class="interlinear-card">
-    <div class="card-hebrew">
-      <span class="hebrew-no-niqqud">{{ cell.hebrew|safe }}</span>
-      <span class="hebrew-with-niqqud">{{ cell.hebrew_niqqud|safe }}</span>
-    </div>
-    <div class="card-english">{{ cell.english|safe }}</div>
-    {% if cell.strongs %}
-    <div class="card-strongs">{{ cell.strongs|safe }}</div>
-    {% endif %}
-    {% if cell.morph %}
-    <div class="card-morph">{{ cell.morph|safe }}</div>
-    {% endif %}
-    {% if cell.lxx_words or cell.lxx or cell.lxx_data %}
-    <div class="card-lxx">
-      <span class="lxx-popup-container">
-        <span style="color: #666; font-size: 11px;">LXX:</span>
-        {% if cell.lxx_words %}
-          {% for word in cell.lxx_words %}
-            <a href="https://logeion.uchicago.edu/{{ word }}" target="_blank">{{ word }}</a>{% if not forloop.last %} {% endif %}
-          {% endfor %}
-        {% elif cell.lxx %}
-          {% for word in cell.lxx.split %}
-            <a href="https://logeion.uchicago.edu/{{ word }}" target="_blank">{{ word }}</a>{% if not forloop.last %} {% endif %}
-          {% endfor %}
-        {% endif %}
-        {% if cell.lxx_data %}
-        <div class="lxx-popup-content">
-          <div class="lxx-popup-header">LXX Usage Statistics <a href="https://en.wikipedia.org/wiki/Septuagint" target="_blank" title="Learn about the Septuagint">↗</a></div>
-          {% for lxx_item in cell.lxx_data %}
-          <div class="lxx-stats-section">
-            <div class="strongs-label">{{ lxx_item.strongs }}:</div>
-            {% for stat in lxx_item.stats %}
-            <div class="lxx-stats-row">
-              <span class="stat-label"><a href="https://www.perseus.tufts.edu/hopper/morph?l={{ stat.0 }}" target="_blank">{{ stat.0 }}</a></span>
-              <span class="stat-bar-container"><span class="stat-bar" style="width: {{ stat.2 }}%;"></span></span>
-              <span class="stat-info">{{ stat.1 }}× ({{ stat.2 }}%)</span>
+<div class="hebrew-interlinear-section">
+  <div class="interlinear-controls">
+    <label for="cardNiqqudSwitch">
+      <input type="checkbox" id="cardNiqqudSwitch">
+      Show Niqqud
+    </label>
+  </div>
+  <div class="hebrew-interlinear-grid">
+    {% for cell in hebrew_interlinear_cards %}
+    <div class="interlinear-card">
+      <div class="card-hebrew">
+        <span class="hebrew-no-niqqud">{{ cell.hebrew|safe }}</span>
+        <span class="hebrew-with-niqqud">{{ cell.hebrew_niqqud|safe }}</span>
+      </div>
+      <div class="card-english">{{ cell.english|safe }}</div>
+      {% if cell.strongs %}
+      <div class="card-strongs">{{ cell.strongs|safe }}</div>
+      {% endif %}
+      {% if cell.morph %}
+      <div class="card-morph">{{ cell.morph|safe }}</div>
+      {% endif %}
+      {% if cell.lxx_words or cell.lxx or cell.lxx_data %}
+      <div class="card-lxx">
+        <span class="lxx-popup-container">
+          <span style="color: #666; font-size: 11px;">LXX:</span>
+          {% if cell.lxx_words %}
+            {% for word in cell.lxx_words %}
+              <a href="https://logeion.uchicago.edu/{{ word }}" target="_blank">{{ word }}</a>{% if not forloop.last %} {% endif %}
+            {% endfor %}
+          {% elif cell.lxx %}
+            {% for word in cell.lxx.split %}
+              <a href="https://logeion.uchicago.edu/{{ word }}" target="_blank">{{ word }}</a>{% if not forloop.last %} {% endif %}
+            {% endfor %}
+          {% endif %}
+          {% if cell.lxx_data %}
+          <div class="lxx-popup-content">
+            <div class="lxx-popup-header">LXX Usage Statistics <a href="https://en.wikipedia.org/wiki/Septuagint" target="_blank" title="Learn about the Septuagint">↗</a></div>
+            {% for lxx_item in cell.lxx_data %}
+            <div class="lxx-stats-section">
+              <div class="strongs-label">{{ lxx_item.strongs }}:</div>
+              {% for stat in lxx_item.stats %}
+              <div class="lxx-stats-row">
+                <span class="stat-label"><a href="https://www.perseus.tufts.edu/hopper/morph?l={{ stat.0 }}" target="_blank">{{ stat.0 }}</a></span>
+                <span class="stat-bar-container"><span class="stat-bar" style="width: {{ stat.2 }}%;"></span></span>
+                <span class="stat-info">{{ stat.1 }}× ({{ stat.2 }}%)</span>
+              </div>
+              {% empty %}
+              <div class="lxx-stats-row">No stats available</div>
+              {% endfor %}
             </div>
-            {% empty %}
-            <div class="lxx-stats-row">No stats available</div>
             {% endfor %}
           </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </span>
+          {% endif %}
+        </span>
+      </div>
+      {% endif %}
     </div>
-    {% endif %}
+    {% endfor %}
   </div>
-  {% endfor %}
 </div>
 {% endif %}
 
+<!-- EDITOR LAYOUT -->
+<form method="post">
+{% csrf_token %}
 
-<!-- EDIT TABLE -->
-<div class="table-container">
-  <form method="post">
-  {% csrf_token %}
+<div class="editor-layout">
+  <div class="edit-table-container">
+    <h4 style="margin: 0 0 15px 0; font-size: 18px; color: #333; border-bottom: 2px solid #b78550; padding-bottom: 10px;">
+      Verse Editor
+    </h4>
+    <div class="table-scroll-wrapper">
+      <table class="hebrewTable">
+        <tbody>
+          {% for id, ref_data, eng_data, unique, heb_data, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote in edit_table_data %}
+          <tr>
+            <td style="white-space: nowrap;">{{ ref_data }}</td>
+            <td>
+              <input type="text" name="eng_data" autocomplete="off" value="{{ eng_data }}" class="edit-input">
+              <input type="hidden" name="eng_id" value="{{ id }}">
+              <input type="hidden" name="original_eng" value="{{ eng_data }}">
+              <input type="hidden" name="combined_heb" value="{{ combined_heb }}">
+              <input type="hidden" name="combined_heb_niqqud" value="{{ combined_heb_niqqud }}">
+            </td>
+            <td style="font-size: 20px; text-align: right;">
+              <span class="heb">{{ combined_heb }}</span>
+              {{ search_count2|safe }}
+            </td>
+            <td class="morph-cell">
+              {{ morph|safe }}
+            </td>
+            <td style="font-size: 12px;">
+              {{ formatted_strongs_list|safe }}
+            </td>
+            <td>
+              {{ footnote_btn|safe }}
+            </td>
+            <td>{{ color|safe }}{{ unique|safe }}</td>
+            <td>
+              <span class="heb">{{ combined_heb_niqqud }}</span>
+              {{ search_count|safe }}
+            </td>
+          </tr>
+          <tr>
+            {{ footnote|safe }}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 
-  <table class="hebrewTable" style="float: left;">
-
-    <tbody>
-      {% for id, ref_data, eng_data, unique, heb_data, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote in edit_table_data %}
-      <tr>
-        <td>{{ ref_data }}</td>
-        <td>
-          <input type="text" name="eng_data" autocomplete="off" value="{{ eng_data }}" size="14" class="edit-input">
-          <input type="hidden" name="eng_id" value="{{ id }}">
-          <input type="hidden" name="original_eng" value="{{ eng_data }}">
-          <input type="hidden" name="combined_heb" value="{{ combined_heb }}">
-          <input type="hidden" name="combined_heb_niqqud" value="{{ combined_heb_niqqud }}">
-        </td>
-        <td style="font-size: 20px; text-align: right;">
-          <span class="heb">{{ combined_heb }}</span>
-          {{ search_count2|safe }}
-        </td>
-        <td class="morph-cell">
-          {{ morph|safe }}
-        </td>
-        <td>
-          {{ formatted_strongs_list|safe }}
-        </td>
-
-        <td>
-          {{ footnote_btn|safe }}
-        </td>
-        <td>{{ color|safe }}{{ unique|safe }}</td>
-
-        <td>
-          <span class="heb">{{ combined_heb_niqqud }}</span>
-          {{ search_count|safe }}
-          
-        </td>
-
-
-        
-      </tr>
-      <tr>
-        {{ footnote|safe }}
-      </tr>
-
-      {% endfor %}
-      
-    </tbody>
-  </table>
-
-</div>
-
-<div class="right-panel">
-  <h4>Paraphrase Editor</h4>
-
-  <span id="englishReader">{{ english_reader|safe }}</span>
-
-  <textarea name="html" id="textArea" autocomplete="off" rows="6"
-    oninput="updateEnglishReader(this.value)">{{ english_reader }}</textarea>
-  <input type="hidden" name="verse_id" value="{{ verse_id }}">
-  <input type="hidden" name="original_english_reader" value="{{ english_reader }}">
-  <br>
-  <button type="button"
-    style="background-color: #b78550; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
-    onclick="applyFontStyle('italic'); updateEnglishReader(document.getElementById('textArea').value)"><i>I</i></button>
-  <button type="button"
-    style="background-color: #b78550; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
-    onclick="applyFontStyle('bold'); updateEnglishReader(document.getElementById('textArea').value)"><b>B</b></button>
-  <button type="button"
-    style="background-color: #b78550; padding: 5px; width: 28px; height: 28px; vertical-align: middle;"
-    onclick="applyCenterStyle(); updateEnglishReader(document.getElementById('textArea').value)">
-    <i class="fas fa-align-center" style="font-size: 18px;"></i>
-  </button>
-  <button type="button"
-    style="background-color: #b78550; padding: 5px; height: 28px; vertical-align: middle;"
-    onclick="applyLastCenterStyle(); updateEnglishReader(document.getElementById('textArea').value)">
-    <i class="fas fa-align-center" style="font-size: 18px;"></i> Last
-  </button>
-  <button type="button"
-    style="background-color: #b78550; padding: 5px; width: 28px; height: 28px; vertical-align: middle;"
-    onclick="applyIndent(); updateEnglishReader(document.getElementById('textArea').value)">
-    <i class="fas fa-indent" style="font-size: 18px;"></i>
-  </button>
-  <button type="button"
-    style="background-color: #b78550; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
-    onclick="applyHayahStyle(); updateEnglishReader(document.getElementById('textArea').value)"><i>היה</i></button>
-  
-    <button type="button" style="background-color: red; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
-    onclick="applyFontColor('red'); updateEnglishReader(document.getElementById('textArea').value)"></button>
-  <button type="button"
-    style="background-color: #ff00aa; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
-    onclick="applyFontColor('#ff00aa'); updateEnglishReader(document.getElementById('textArea').value)"></button>
-  <button type="button" style="background-color: blue; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
-    onclick="applyFontColor('blue'); updateEnglishReader(document.getElementById('textArea').value)"></button>
-  <button type="button" style="background-color: #b78550; padding: 3px; width: 28px; height: 28px; vertical-align: middle;"
-            onclick="applySunStyle(); updateReader(document.getElementById('editor-texto').value)">☀️</button>
+  <div class="paraphrase-editor-container">
+    <h4>Paraphrase Editor</h4>
     
-  <button type="button"
-    style="background-color: black; padding: 3px; width: 28px; height: 28px; vertical-align: middle; line-height: 0px;"
-    onclick="resetText(); updateEnglishReader(document.getElementById('textArea').value)"><b>&#8630;</b></button>
-  
-  
-  <input type="text" id="imageUrlInput" placeholder="Enter Image URL">
-  <button type="button" id="generate-code-button">Insert Image URL</button>
-  <input type="text" id="videoUrlInput" placeholder="Enter Video URL">
-  <button type="button" id="generate-video-button">Insert Video URL</button><br>
+    <div id="englishReader">{{ english_reader|safe }}</div>
+    
+    <textarea name="html" id="textArea" autocomplete="off" oninput="updateEnglishReader(this.value)">{{ english_reader }}</textarea>
+    
+    <input type="hidden" name="verse_id" value="{{ verse_id }}">
+    <input type="hidden" name="original_english_reader" value="{{ english_reader }}">
+    
+    <div class="editor-toolbar">
+      <button type="button" onclick="applyFontStyle('italic'); updateEnglishReader(document.getElementById('textArea').value)" title="Italic">
+        <i>I</i>
+      </button>
+      <button type="button" onclick="applyFontStyle('bold'); updateEnglishReader(document.getElementById('textArea').value)" title="Bold">
+        <b>B</b>
+      </button>
+      <button type="button" onclick="applyCenterStyle(); updateEnglishReader(document.getElementById('textArea').value)" title="Center">
+        <i class="fas fa-align-center"></i>
+      </button>
+      <button type="button" class="wide" onclick="applyLastCenterStyle(); updateEnglishReader(document.getElementById('textArea').value)" title="Center Last">
+        <i class="fas fa-align-center"></i> Last
+      </button>
+      <button type="button" onclick="applyIndent(); updateEnglishReader(document.getElementById('textArea').value)" title="Indent">
+        <i class="fas fa-indent"></i>
+      </button>
+      <button type="button" onclick="applyHayahStyle(); updateEnglishReader(document.getElementById('textArea').value)" title="Hayah Style">
+        <i>היה</i>
+      </button>
+      <button type="button" style="background-color: red;" onclick="applyFontColor('red'); updateEnglishReader(document.getElementById('textArea').value)" title="Red"></button>
+      <button type="button" style="background-color: #ff00aa;" onclick="applyFontColor('#ff00aa'); updateEnglishReader(document.getElementById('textArea').value)" title="Pink"></button>
+      <button type="button" style="background-color: blue;" onclick="applyFontColor('blue'); updateEnglishReader(document.getElementById('textArea').value)" title="Blue"></button>
+      <button type="button" onclick="applySunStyle(); updateReader(document.getElementById('editor-texto').value)" title="Sun Style">☀️</button>
+      <button type="button" class="reset" onclick="resetText(); updateEnglishReader(document.getElementById('textArea').value)" title="Reset">
+        <b>&#8630;</b>
+      </button>
+    </div>
+    
+    <div style="margin-top: 15px;">
+      <input type="text" id="imageUrlInput" placeholder="Image URL" style="width: 100%; margin-bottom: 8px;">
+      <button type="button" id="generate-code-button" style="width: 100%; padding: 8px; background: #b78550; color: #fff; border: none; border-radius: 4px; cursor: pointer; margin-bottom: 8px;">Insert Image</button>
+      
+      <input type="text" id="videoUrlInput" placeholder="Video URL" style="width: 100%; margin-bottom: 8px;">
+      <button type="button" id="generate-video-button" style="width: 100%; padding: 8px; background: #b78550; color: #fff; border: none; border-radius: 4px; cursor: pointer;">Insert Video</button>
+    </div>
 
-
+    <div class="form-actions">
+      <button type="submit">Save Changes</button>
+      <label for="use_niqqud">
+        <input type="checkbox" id="use_niqqud" name="use_niqqud" value="true">
+        Use Niqqud
+      </label>
+    </div>
+  </div>
 </div>
-
-<div style="clear: both; margin-bottom: 10px;"></div>
-<button type="submit">Save Changes</button>
-<label for="use_niqqud">Use Niqqud</label>
-<input type="checkbox" id="use_niqqud" name="use_niqqud" value="true"> <!--sends 'true' if checked -->
 
 </form>
 
-
-
-
-
-<p>
-<h4>Chapter Reader</h4>
-{{ chapter_reader|safe }}
-</p>
+<div class="chapter-reader-section">
+  <h4>Chapter Reader</h4>
+  {{ chapter_reader|safe }}
+</div>
 
 {% if updates %}
 <div class="popup" id="popupDiv">
-
-  <ul style="margin-bottom: 0px; margin-top: 0px; font-size: 14px; color: green;">
+  <ul style="margin: 0; font-size: 14px; color: green;">
     {% for update in updates %}
     <li>{{ update }}</li>
     {% endfor %}
   </ul>
-
-  <button class="close" type="button" onclick="closePopup()"><i>Close</i></button>
+  <button class="close" type="button" onclick="closePopup()">Close</button>
 </div>
 {% endif %}
 
-
-
 {% else %}
-<h1>No Rows Found</h1>
-<p>No rows matching the reference '{{ rbt_heb_ref }}' with a wildcard '*' at the end.</p>
+<div style="text-align: center; padding: 40px; background: #fff; border-radius: 8px; margin: 20px 0;">
+  <h1 style="color: #dc3545;">No Rows Found</h1>
+  <p>No rows matching the reference '{{ rbt_heb_ref }}' with a wildcard '*' at the end.</p>
+</div>
 {% endif %}
+
+</div><!-- End page-wrapper -->
 
 
 <script>

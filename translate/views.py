@@ -1678,9 +1678,15 @@ def translate(request):
             fetch='all'
         )
 
-        # Fetch html rows
+        # Fetch html rows - sort by verse number numerically
         html_rows = execute_query(
-            "SELECT Ref, html FROM old_testament.hebrewdata WHERE Ref LIKE %s ORDER BY Ref ASC;",
+            """
+            SELECT Ref, html 
+            FROM old_testament.hebrewdata 
+            WHERE Ref LIKE %s 
+            ORDER BY 
+                CAST(SPLIT_PART(SPLIT_PART(Ref, '.', 3), '-', 1) AS INTEGER) ASC
+            """,
             (f'{rbt_heb_chapter}%',),
             fetch='all'
         )
@@ -1773,10 +1779,61 @@ def translate(request):
 
         for row_data in rows_data:
             # Handle both old (24 columns) and new (25 columns with lxx) format
-            if len(row_data) >= 25:
-                id, ref, eng, heb1, heb2, heb3, heb4, heb5, heb6, morph, unique, strongs, color, html_list, heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology, lxx = row_data
+            # Convert RowType to a concrete tuple to avoid structural unpacking errors
+            row = tuple(row_data)
+            if len(row) >= 25:
+                id = row[0]
+                ref = row[1]
+                eng = row[2]
+                heb1 = row[3]
+                heb2 = row[4]
+                heb3 = row[5]
+                heb4 = row[6]
+                heb5 = row[7]
+                heb6 = row[8]
+                morph = row[9]
+                unique = row[10]
+                strongs = row[11]
+                color = row[12]
+                html_list = row[13]
+                heb1_n = row[14]
+                heb2_n = row[15]
+                heb3_n = row[16]
+                heb4_n = row[17]
+                heb5_n = row[18]
+                heb6_n = row[19]
+                combined_heb = row[20]
+                combined_heb_niqqud = row[21]
+                footnote = row[22]
+                morphology = row[23]
+                lxx = row[24]
             else:
-                id, ref, eng, heb1, heb2, heb3, heb4, heb5, heb6, morph, unique, strongs, color, html_list, heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology = row_data
+                # Pad to expected size to safely index missing fields
+                padded = list(row) + [None] * (24 - len(row))
+                id = padded[0]
+                ref = padded[1]
+                eng = padded[2]
+                heb1 = padded[3]
+                heb2 = padded[4]
+                heb3 = padded[5]
+                heb4 = padded[6]
+                heb5 = padded[7]
+                heb6 = padded[8]
+                morph = padded[9]
+                unique = padded[10]
+                strongs = padded[11]
+                color = padded[12]
+                html_list = padded[13]
+                heb1_n = padded[14]
+                heb2_n = padded[15]
+                heb3_n = padded[16]
+                heb4_n = padded[17]
+                heb5_n = padded[18]
+                heb6_n = padded[19]
+                combined_heb = padded[20]
+                combined_heb_niqqud = padded[21]
+                footnote = padded[22]
+                morphology = padded[23]
                 lxx = None
 
             english_verse.append(eng)
@@ -1856,18 +1913,20 @@ def translate(request):
             # morph = cursor.fetchone()[0]
     
 
-            parts = strongs.split('/')
             strong_refs = []
             strongs_exhaustive_list = []
 
-            for part in parts:
-                subparts = re.split(r'[=«]', part)
-                for subpart in subparts:
-                    if subpart.startswith('H'):
-                        strong_ref = subpart
-                        strong_refs.append(strong_ref)
-                        strongs_exhaustive = strong_data(strong_ref)
-                        strongs_exhaustive_list.append(strongs_exhaustive)
+            # Ensure 'strongs' is a usable string before splitting to avoid AttributeError when it's None.
+            if strongs:
+                parts = strongs.split('/')
+                for part in parts:
+                    subparts = re.split(r'[=«]', part)
+                    for subpart in subparts:
+                        if subpart and subpart.startswith('H'):
+                            strong_ref = subpart
+                            strong_refs.append(strong_ref)
+                            strongs_exhaustive = strong_data(strong_ref)
+                            strongs_exhaustive_list.append(strongs_exhaustive)
 
             # Format nicely for template
             if strong_refs:
@@ -1880,12 +1939,15 @@ def translate(request):
                 
                 # Option C: Clean format
                 formatted_strongs_list = f"{strongs} → [{', '.join(strongs_exhaustive_list)}]"
+            else:
+                # Ensure variable is defined for templates even when there are no Strongs
+                formatted_strongs_list = ''
 
             morph_color = ""
             # Determine the color based on the presence of 'f' or 'm'
-            if 'f' in morph:
+            if isinstance(morph, str) and 'f' in morph:
                 morph_color = 'style="color: #FF1493;"'
-            elif 'm' in morph:
+            elif isinstance(morph, str) and 'm' in morph:
                 morph_color = 'style="color: blue;"'
 
             morph = f'<input type="hidden" id="code" value="{morph}"/><div {morph_color}>{morph}</div><div class="morph-popup" id="morph"></div>'
@@ -1957,7 +2019,7 @@ def translate(request):
                 '''
 
 
-                foot_ref = ref.replace(".", "-")
+                foot_ref = ref.replace(".", "-") # type: ignore
                 footnote = f'''
                 <td colspan="14" class="footnotes-{row_id_str}" style="display: none;">
                     {footnote}<br>
@@ -1988,7 +2050,7 @@ def translate(request):
                     </button>
                 '''
 
-                foot_ref = ref.replace(".", "-")
+                foot_ref = ref.replace(".", "-") # type: ignore
                 footnote = f'''
                 <td colspan="14" class="footnotes-{row_id_str}" style="display: none;">
                     No footnote<br>
@@ -2101,20 +2163,16 @@ def search_footnotes(request):
             footnote_id_parts = footnote_id.split('-')
             book = footnote_id_parts[0]
             ref_num = footnote_id_parts[1]
-            
+
             # Parse the HTML content and highlight the matching search term
             soup = BeautifulSoup(footnote_html, 'html.parser')
-            
+
             # Function to replace text between tags
             def replace_text_between_tags(tag):
                 for content in tag.contents:
                     if isinstance(content, NavigableString):
-                        # Replace text only if we are between tags
-
                         modified_content = re.sub(re.escape(query), f'<span class="highlighted-search-term">{escape(query)}</span>', str(content), flags=re.IGNORECASE)
                         content.replace_with(BeautifulSoup(modified_content, 'html.parser'))
-
-
 
             # Iterate over all tags and perform the replacement
             for tag in soup.find_all():
@@ -2129,54 +2187,8 @@ def search_footnotes(request):
             # Append the table row to the list
             table_rows.append(table_row)
 
-        # Iterate through footnotes
-        for footnote in footnotes_genesis:
-            # Increment the result count for each footnote
-            result_count += 1
-
-            # Split the footnote_id by dashes and get the last slice as the anchor text
-            footnote_id_parts = footnote.footnote_id.split('-')
-            chapter = footnote_id_parts[0]
-            verse = footnote_id_parts[1]
-            ref_num = footnote_id_parts[-1]
-            
-            # Parse the HTML content and highlight the matching search term
-            soup = BeautifulSoup(footnote.footnote_html, 'html.parser')
-            
-            # Function to replace text between tags
-            def replace_text_between_tags(tag):
-                for content in tag.contents:
-                    if isinstance(content, NavigableString):
-                        # Replace text only if we are between tags
-
-                        modified_content = re.sub(re.escape(query), f'<span class="highlighted-search-term">{escape(query)}</span>', str(content), flags=re.IGNORECASE)
-                        content.replace_with(BeautifulSoup(modified_content, 'html.parser'))
 
 
-
-            # Iterate over all tags and perform the replacement
-            for tag in soup.find_all():
-                replace_text_between_tags(tag)
-
-            # Get the modified HTML content
-            highlighted_footnote = str(soup)
-
-            # Create a table row for the current result
-            table_row = f'<tr><td style="vertical-align: top;"><span class="result_verse_header"><a href="../edit/?book=Genesis&chapter={chapter}&verse={verse}">Gen {chapter}:{verse}</a></span><p><a href="../edit_footnote/?footnote={chapter}-{verse}-{ref_num}">#{ref_num}</a></p></td><td>{highlighted_footnote}</td></tr>'
-
-            # Append the table row to the list
-            table_rows.append(table_row)
-
-        # Add the result count at the top
-        results.append(f"Total results: {result_count}")
-
-        # Create the HTML table
-        result_table = f'<table>{"".join(table_rows)}</table>'
-
-        # Add the table to the results
-        results.append(result_table)
-
-        return JsonResponse({"results": results})
 
     return JsonResponse({}, status=400)
 

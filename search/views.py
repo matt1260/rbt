@@ -1378,13 +1378,22 @@ def search(request):
 
         query_count = 0
 
+        # Ensure a missing book param defaults to searching all books
+        if not book:
+            book = 'all'
+
         # if individual book is searched convert the full to the abbrev
         if book not in ['NT', 'OT', 'all']:
             book2 = convert_book_name(book) or book
-            book = book2.lower()
+            # If conversion fails, fall back to 'all'
+            if book2:
+                book = book2.lower()
+            else:
+                book = 'all'
+                book2 = 'All Books'
         else:
             book2 = book
-        
+
         if book2 == 'all':
             book2 = 'All Books'
 

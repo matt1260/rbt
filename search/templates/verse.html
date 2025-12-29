@@ -48,19 +48,7 @@
         padding: 8px 10px;
     }
 
-    .strong-popup .strong-header {
-        margin-bottom: 6px;
-        border-bottom: 1px dashed #f1d7c7;
-        padding-bottom: 6px;
-    }
-
-    .strong-popup .strong-lemma {
-        font-size: 28px;
-        font-weight: 700;
-        color: #2a1f18;
-    }
-
-    .strong-popup .strong-xlit {
+    .strong-xlit {
         font-size: 13px;
         color: #7b675a;
         font-style: italic;
@@ -129,6 +117,7 @@
         margin-left: 6px;
     }
 
+    .strongs-trigger,
     .fuerst-trigger {
         font-size: 10px;
         letter-spacing: 0.08em;
@@ -143,6 +132,8 @@
         transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
 
+    .strongs-trigger:hover,
+    .strongs-trigger:focus,
     .fuerst-trigger:hover,
     .fuerst-trigger:focus {
         background: linear-gradient(120deg, #ffe1d0, #ffd2bb);
@@ -150,11 +141,81 @@
         border-color: #e4a583;
     }
 
+    .strongs-popup {
+        display: inline-flex;
+        align-items: center;
+        margin-right: 6px;
+    }
+
+    .strongs-popup-content {
+        width: 360px;
+        border-color: #f2d7c8;
+    }
+
+
+
+    .strongs-entry {
+        padding: 8px 0;
+        border-top: 1px dashed #f1d7c7;
+    }
+
+    .strongs-entry:first-of-type {
+        border-top: none;
+        padding-top: 0;
+    }
+
+    .strongs-headword {
+        font-size: 28px;
+        font-weight: 700;
+        color: #2a1f18;
+    }
+
+    .strongs-meta {
+        font-size: 13px;
+        color: #7b675a;
+        font-style: italic;
+        margin-top: 2px;
+        letter-spacing: 0.04em;
+    }
+
+    .strongs-definition,
+    .strongs-derivation,
+    .strongs-exhaustive {
+        font-size: 13px;
+        color: #2f2f2f;
+        line-height: 1.35;
+        margin-top: 6px;
+    }
+
+    .strongs-definition strong,
+    .strongs-derivation strong,
+    .strongs-exhaustive strong {
+        font-weight: 600;
+        font-size: 11px;
+        color: #6b4b3d;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        display: block;
+        margin-bottom: 2px;
+    }
+
+    .strongs-link {
+        color: #a4491d;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .strongs-link:hover {
+        text-decoration: underline;
+    }
+
     .fuerst-popup-content {
         width: 360px;
         border-color: #f2d7c8;
     }
 
+    .strongs-title,
+    .gesenius-title,
     .fuerst-title {
         font-size: 12px;
         font-weight: 700;
@@ -163,7 +224,8 @@
         color: #9a4a26;
         margin-bottom: 8px;
     }
-
+    .gesenius-entry,
+    .strong-entry,
     .fuerst-entry {
         padding: 8px 0;
         border-top: 1px dashed #f1d7c7;
@@ -174,6 +236,7 @@
         padding-top: 0;
     }
 
+    .strongs-headword,
     .fuerst-headword {
         font-size: 20px;
         font-weight: 600;
@@ -390,6 +453,42 @@
     .lxx-popup-container:hover .lxx-popup-content {
         display: block;
     }
+
+    /* Gesenius trigger styling */
+    .gesenius-trigger {
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 600;
+        color: #7a2f11;
+        background: linear-gradient(120deg, #fff7f2, #ffe9df);
+        border: 1px solid #f1c7b2;
+        border-radius: 999px;
+        padding: 2px 7px;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .gesenius-trigger:hover,
+    .gesenius-trigger:focus {
+        background: linear-gradient(120deg, #ffe1d0, #ffd2bb);
+        color: #5c210c;
+        border-color: #e4a583;
+    }
+
+    .gesenius-popup-content {
+        width: 300px;
+        left: -150px;
+    }
+
+    /* Gesenius detailed styling (match Fuerst) */
+    .gesenius-popup { display:inline-flex; align-items:center; margin-left:6px; }
+    .gesenius-headword { font-size:20px; font-weight:600; color:#1f2d3d; }
+    .gesenius-meta { font-size:11px; color:#6b4b3d; margin-top:4px; }
+    .gesenius-definition { font-size:13px; color:#2f3a44; margin-top:6px; line-height:1.4; }
+    .gesenius-note { font-size:12px; color:#4b2b1f; background:#fff5ee; border-left:3px solid #f3c2a7; padding:4px 6px; margin-top:6px; }
+    .gesenius-link { color:#a4491d; text-decoration:none; font-weight:600; }
+    .gesenius-link:hover { text-decoration:underline; }
 
     .lxx-stats-section {
         margin-top: 6px;
@@ -742,7 +841,7 @@
                         {% for stat in lxx_item.stats %}
                         <div class="lxx-stats-row">
                             <span class="stat-label"><a href="https://logeion.uchicago.edu/{{ stat.0 }}" target="_blank">{{ stat.0 }}</a></span>
-                            <span class="stat-bar-container"><span class="stat-bar" style="width: {{ stat.2 }}%;"></span></span>
+                            <span class="stat-bar-container"><span class="stat-bar" data-width="{{ stat.2 }}"></span></span> 
                             <span class="stat-info">{{ stat.1 }}× ({{ stat.2 }}%)</span>
                         </div>
                         {% empty %}
@@ -860,6 +959,15 @@
         englishReader.innerHTML = text;
     }
 
+    // Apply stat-bar widths from data-width attributes to avoid raw '%' in the template source
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.stat-bar').forEach(function (el) {
+            var w = el.getAttribute('data-width');
+            if (w !== null && w !== '') {
+                el.style.width = w + '%';
+            }
+        });
+    });
 </script>
 
 <!-- <script>

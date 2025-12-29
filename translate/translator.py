@@ -9,9 +9,10 @@ try:
 except Exception:  # pragma: no cover - settings may be unavailable in some scripts
     settings = None
 
-from .db_utils import get_db_connection, execute_query
+from .db_utils import get_db_connection, execute_query, table_has_column
 
 DEFAULT_FUERST_IMAGE_BASE_URL = "http://www.realbible.tech/fuerst_lexicon"
+DEFAULT_GESENIUS_IMAGE_BASE_URL = "http://www.realbible.tech/gesenius_lexicon"
 
 # Small HTML sanitizer: allows a small whitelist of tags and safe <a href="..."> links
 def sanitize_allowed_html(raw_html: str) -> str:
@@ -221,8 +222,51 @@ def _resolve_fuerst_base_url() -> str:
 
     return ''
 
+def _resolve_gesenius_base_url() -> str:
+    """Determine the base URL used for Gesenius page image links."""
+    candidate = None
+    if settings is not None:
+        try:
+            candidate = getattr(settings, 'GESENIUS_IMAGE_BASE_URL', None)
+        except Exception:
+            candidate = None
+    if candidate:
+        return candidate.rstrip('/')
+
+    env_value = os.environ.get('GESENIUS_IMAGE_BASE_URL', '')
+    if env_value:
+        return env_value.rstrip('/')
+
+    if DEFAULT_GESENIUS_IMAGE_BASE_URL:
+        return DEFAULT_GESENIUS_IMAGE_BASE_URL.rstrip('/')
+
+    return ''
+
 
 FUERST_IMAGE_BASE_URL = _resolve_fuerst_base_url()
+
+GESENIUS_IMAGE_BASE_URL = _resolve_gesenius_base_url()
+
+
+def build_gesenius_page_url(source_page: str) -> str:
+    """Return an absolute URL for a Gesenius page scan or empty string if unknown."""
+    if not source_page:
+        return ''
+    if GESENIUS_IMAGE_BASE_URL:
+        return f"{GESENIUS_IMAGE_BASE_URL}/{source_page}"
+    return ''
+
+
+def format_gesenius_page_label(source_page: str) -> str:
+    if not source_page:
+        return 'View scan'
+    match = re.search(r'(\d+)', source_page)
+    if match:
+        try:
+            return f"Page {int(match.group(1))}"
+        except ValueError:
+            pass
+    return 'View scan'
 
 
 def build_fuerst_page_url(source_page: str) -> str:
@@ -249,6 +293,12 @@ def format_fuerst_page_label(source_page: str) -> str:
 @lru_cache(maxsize=2048)
 def get_fuerst_entries_for_strong(strong_number: str):
     """Fetch cached Fuerst lexicon links for a canonical Strong's number (e.g., 'H7225')."""
+    # Strip suffix (a-z letters) from Strong's number for lexeme lookup
+    # hebrewdata stores H5921a, but lexemes table stores H5921
+    import re
+    base_strong = re.sub(r'[a-z]+$', '', strong_number, flags=re.IGNORECASE)
+    
+    # Primary lookup: lexemes mapped to Fuerst entries
     rows = execute_query(
         """
         SELECT lf.fuerst_id,
@@ -275,7 +325,7 @@ def get_fuerst_entries_for_strong(strong_number: str):
             fl.hebrew_word NULLS LAST,
             fl.id
         """,
-        (strong_number,),
+        (base_strong,),
         fetch='all'
     ) or []
 
@@ -308,7 +358,205 @@ def get_fuerst_entries_for_strong(strong_number: str):
             'notes': notes or '',
         })
 
-    return tuple(entries)
+    if entries:
+        # If the Strong's lemma is a very short form (1-2 chars) prefer exact matches only
+        lemma_row = execute_query(
+            "SELECT lemma FROM old_testament.strongs_hebrew_dictionary WHERE strong_number = %s",
+            (strong_number,),
+            fetch='one'
+        )
+        short_lemma = False
+        if lemma_row and lemma_row[0]:
+            lemma_val = lemma_row[0]
+            lemma_clean = re.sub(r'[\u0591-\u05C7\s]', '', lemma_val or '')
+            if len(lemma_clean) <= 2:
+                short_lemma = True
+                filtered = []
+                for e in entries:
+                    hw = re.sub(r'[\u0591-\u05C7\s]', '', (e.get('hebrew_consonantal') or ''))
+                    hww = re.sub(r'[\u0591-\u05C7\s]', '', (e.get('hebrew_word') or ''))
+                    lexf = re.sub(r'[\u0591-\u05C7\s]', '', (e.get('lexeme_form') or ''))
+                    if hw == lemma_clean or hww == lemma_clean or lexf == lemma_clean:
+                        filtered.append(e)
+                if filtered:
+                    return tuple(filtered)
+                # No exact-match entries found for a short lemma — do NOT return broad lexeme mappings; fall through to other fallbacks
+        # For non-short lemmas (or missing lemma), return the lexeme-derived entries
+        if not short_lemma:
+            return tuple(entries)
+
+    # Fallback 1: look up Fuerst entries via the automated mapping table (fuerst_strongs_map)
+    fb_rows = execute_query(
+        """
+        SELECT m.fuerst_id,
+               m.method AS confidence,
+               'fuerst_strongs_map' AS mapping_basis,
+               '' AS lexeme_form,
+               fl.hebrew_word,
+               fl.hebrew_consonantal,
+               fl.definition,
+               fl.part_of_speech,
+               fl.root,
+               fl.source_page,
+               NULL AS notes
+        FROM old_testament.fuerst_strongs_map m
+        JOIN old_testament.fuerst_lexicon fl ON fl.id = m.fuerst_id
+        WHERE m.strongs_id ILIKE %s OR m.strongs_id ILIKE %s
+        ORDER BY m.score DESC NULLS LAST, fl.hebrew_word NULLS LAST, fl.id
+        """,
+        (f"%{strong_number}%", f"%{strong_number[1:] if strong_number.upper().startswith('H') else strong_number}%"),
+        fetch='all'
+    ) or []
+
+    if fb_rows:
+        fb_entries = []
+        for row in fb_rows:
+            (fuerst_id, confidence, mapping_basis, lexeme_form, hebrew_word, hebrew_consonantal, definition, part_of_speech, root, source_page, notes) = row
+            fb_entries.append({
+                'fuerst_id': fuerst_id,
+                'confidence': confidence or '',
+                'mapping_basis': mapping_basis or '',
+                'lexeme_form': lexeme_form or '',
+                'hebrew_word': hebrew_word or '',
+                'hebrew_consonantal': hebrew_consonantal or '',
+                'definition': definition or '',
+                'part_of_speech': part_of_speech or '',
+                'root': root or '',
+                'source_page': source_page or '',
+                'notes': notes or '',
+            })
+        return tuple(fb_entries)
+
+    # Fallback 2: look up Fuerst entries directly by their strongs_numbers field
+    # Some Fuerst entries aren't mapped via lexemes; include both H-prefixed and bare forms
+    fallback_strong = strong_number
+    bare_strong = strong_number[1:] if strong_number.upper().startswith('H') else ('H'+strong_number)
+
+    fb_rows = execute_query(
+        """
+        SELECT fl.id AS fuerst_id,
+               NULL AS confidence,
+               'strongs_numbers' AS mapping_basis,
+               '' AS lexeme_form,
+               fl.hebrew_word,
+               fl.hebrew_consonantal,
+               fl.definition,
+               fl.part_of_speech,
+               fl.root,
+               fl.source_page,
+               NULL AS notes
+        FROM old_testament.fuerst_lexicon fl
+        WHERE %s = ANY (string_to_array(COALESCE(fl.strongs_numbers, ''), '/'))
+        ORDER BY fl.hebrew_word NULLS LAST, fl.id
+        """,
+        (fallback_strong,),
+        fetch='all'
+    ) or []
+
+    fb_entries = []
+    for row in fb_rows:
+        (fuerst_id, confidence, mapping_basis, lexeme_form, hebrew_word, hebrew_consonantal, definition, part_of_speech, root, source_page, notes) = row
+        fb_entries.append({
+            'fuerst_id': fuerst_id,
+            'confidence': confidence or '',
+            'mapping_basis': mapping_basis or '',
+            'lexeme_form': lexeme_form or '',
+            'hebrew_word': hebrew_word or '',
+            'hebrew_consonantal': hebrew_consonantal or '',
+            'definition': definition or '',
+            'part_of_speech': part_of_speech or '',
+            'root': root or '',
+            'source_page': source_page or '',
+            'notes': notes or '',
+        })
+
+    if fb_entries:
+        return tuple(fb_entries)
+
+    # Final fallback: try matching by Strong's lemma in the Strongs Hebrew dictionary
+    lemma_row = execute_query(
+        "SELECT lemma FROM old_testament.strongs_hebrew_dictionary WHERE strong_number = %s",
+        (strong_number,),
+        fetch='one'
+    )
+    if lemma_row and lemma_row[0]:
+        lemma = lemma_row[0]
+        # Normalize lemma by stripping niqqud and whitespace to avoid accidental substring matches
+        def _strip_niqqud(s: str) -> str:
+            return re.sub(r'[\u0591-\u05C7\s]', '', s or '')
+
+        lemma_clean = _strip_niqqud(lemma)
+
+        # If lemma is very short (1-2 chars) prefer exact equality on hebrew_consonantal/hebrew_word
+        if len(lemma_clean) <= 2:
+            fb_rows = execute_query(
+                """
+                SELECT fl.id AS fuerst_id,
+                       NULL AS confidence,
+                       'lemma_lookup' AS mapping_basis,
+                       '' AS lexeme_form,
+                       fl.hebrew_word,
+                       fl.hebrew_consonantal,
+                       fl.definition,
+                       fl.part_of_speech,
+                       fl.root,
+                       fl.source_page,
+                       NULL AS notes
+                FROM old_testament.fuerst_lexicon fl
+                WHERE COALESCE(fl.hebrew_consonantal, '') = %s OR COALESCE(fl.hebrew_word, '') = %s
+                ORDER BY fl.hebrew_word NULLS LAST, fl.id
+                """,
+                (lemma_clean, lemma_clean),
+                fetch='all'
+            ) or []
+        else:
+            fb_rows = execute_query(
+                """
+                SELECT fl.id AS fuerst_id,
+                       NULL AS confidence,
+                       'lemma_lookup' AS mapping_basis,
+                       '' AS lexeme_form,
+                       fl.hebrew_word,
+                       fl.hebrew_consonantal,
+                       fl.definition,
+                       fl.part_of_speech,
+                       fl.root,
+                       fl.source_page,
+                       NULL AS notes
+                FROM old_testament.fuerst_lexicon fl
+                WHERE fl.hebrew_consonantal ILIKE %s OR fl.hebrew_word ILIKE %s
+                ORDER BY fl.hebrew_word NULLS LAST, fl.id
+                """,
+                (f"%{lemma_clean}%", f"%{lemma_clean}%"),
+                fetch='all'
+            ) or []
+
+        if fb_rows:
+            fb_entries = []
+            for row in fb_rows:
+                (fuerst_id, confidence, mapping_basis, lexeme_form, hebrew_word, hebrew_consonantal, definition, part_of_speech, root, source_page, notes) = row
+                fb_entries.append({
+                    'fuerst_id': fuerst_id,
+                    'confidence': confidence or '',
+                    'mapping_basis': mapping_basis or '',
+                    'lexeme_form': lexeme_form or '',
+                    'hebrew_word': hebrew_word or '',
+                    'hebrew_consonantal': hebrew_consonantal or '',
+                    'definition': definition or '',
+                    'part_of_speech': part_of_speech or '',
+                    'root': root or '',
+                    'source_page': source_page or '',
+                    'notes': notes or '',
+                })
+            return tuple(fb_entries)
+
+    return tuple(fb_entries)
+
+
+def clear_fuerst_cache() -> None:
+    """Clear the Fuerst entries cache (useful after updating mapping tables)."""
+    get_fuerst_entries_for_strong.cache_clear()
+
 
 def convert_to_book_chapter_verse(input_verse):
             
@@ -336,7 +584,7 @@ def get_cache_reference(verse_id):
     book = convert_book_name(book)
 
     #print(book)
-    sanitized_book = book.replace(' ', '_')
+    sanitized_book = book.replace(' ', '_') if book else '' 
 
     cache_key_base_verse = f'{sanitized_book}_{chapter_num}_{verse_num}'
     cache_key_base_chapter = f'{sanitized_book}_{chapter_num}_None'
@@ -451,7 +699,8 @@ def extract_footnote_references(verses):
 
 # For loading interlinear replacement json
 def load_json(filename):
-    replacements = []
+    # Return a mapping (dict) of replacements; the consumer expects a dict-like object
+    replacements = {}
 
     if not os.path.exists(filename):
         print(f"[DEBUG] JSON file not found: {filename}")
@@ -467,11 +716,27 @@ def load_json(filename):
 
         # Normalize quotes and remove escape characters
         json_string = json_string.replace("'", '"')
-        if json_string[0] == '"' and json_string[-1] == '"':
+        if json_string and json_string[0] == '"' and json_string[-1] == '"':
             json_string = json_string[1:-1]
         json_string = json_string.replace("\\", "")
 
-        replacements = json.loads(json_string)
+        parsed = json.loads(json_string)
+
+        # Ensure we return a dict; if the file contains a list, try to convert it
+        if isinstance(parsed, dict):
+            replacements = parsed
+        elif isinstance(parsed, list):
+            # If a list of two-element lists or pairs, convert to dict
+            try:
+                replacements = dict(parsed)
+            except Exception:
+                # Fallback: leave replacements empty and log a debug message
+                print(f"[DEBUG] JSON parsed to list but could not convert to dict: {filename}")
+                replacements = {}
+        else:
+            # Unexpected JSON type; keep empty mapping
+            print(f"[DEBUG] JSON parsed to unsupported type ({type(parsed).__name__}): {filename}")
+            replacements = {}
 
     except json.JSONDecodeError as e:
         print(f"[ERROR] Failed to parse JSON file {filename}: {e}")
@@ -570,7 +835,7 @@ def strong_data(strong_ref):
   {strong_link}
   <div class="popup-content strong-popup-content" role="tooltip" aria-hidden="true">
     <div class="strong-header">
-      <div class="strong-lemma">{lemma_esc}</div>
+      <div class="strongs-headword">{lemma_esc}</div>
       <div class="strong-xlit">{xlit_esc}</div>
     </div>
     <dl class="strong-details">
@@ -586,8 +851,116 @@ def strong_data(strong_ref):
     return single_ref
 
 
+def build_strongs_popup(strong_refs: list[str]) -> str:
+    """Render a dedicated Strong's popup trigger that combines multiple Strong's numbers."""
+    if not strong_refs:
+        return ''
+    
+    # Filter out H9014-H9018 range
+    filtered_refs = []
+    for ref in strong_refs:
+        num = get_strongs_numeric_value(ref)
+        if num is not None and 9014 <= num <= 9018:
+            continue
+        filtered_refs.append(ref)
+    
+    if not filtered_refs:
+        return ''
+    
+    entry_blocks: list[str] = []
+    entry_blocks.append("<div class='strongs-title'>Strong's Lexicon</div>")
+    for strong_ref in filtered_refs:
+        # Normalize the reference
+        if len(strong_ref) == 6:
+            last_character = strong_ref[-1]
+        else:
+            last_character = ''
+        
+        strong_number = re.sub(r'[^0-9]', '', strong_ref)
+        strong_number = int(strong_number)
+        strong_number = str(strong_number)
+        display_ref = strong_number + last_character
+        
+        # Look up the dictionary entry
+        strong_number_h = 'H' + strong_number
+        result = execute_query(
+            """
+            SELECT lemma, xlit, derivation, strongs_def, description
+            FROM old_testament.strongs_hebrew_dictionary
+            WHERE strong_number = %s;
+            """,
+            (strong_number_h,),
+            fetch='one'
+        )
+        
+        if result is not None:
+            lemma = result[0] or ''
+            xlit = result[1] or ''
+            derivation = result[2] or ''
+            definition = result[3] or ''
+            description = result[4] or ''
+        else:
+            lemma = ''
+            xlit = ''
+            derivation = ''
+            definition = 'Definition not found'
+            description = ''
+        
+        lemma_html = html.escape(lemma)
+        xlit_html = html.escape(xlit)
+        derivation_html = html.escape(derivation)
+        definition_html = html.escape(definition)
+        description_html = sanitize_allowed_html(description)
+        
+        # Build citation
+        if strong_number_h in {f'H{n}' for n in range(9000, 9010)}:
+            citation_html = (
+                '<div class="strong-citation"><small>Source: '
+                '<a href="https://www.realbible.tech/%d7%95-%d7%91-%d7%9b-%d7%9c-%d7%9e-the-aonic-nature-of-biblical-hebrew-prepositions/" '
+                'target="_blank" rel="noopener noreferrer">The Aonic Nature of Biblical Hebrew Prepositions</a>'
+                '</small></div>'
+            )
+        else:
+            citation_html = (
+                f'<div class="strong-citation"><small>Source: '
+                f'<a href="https://biblehub.com/hebrew/{display_ref}.htm" target="_blank" rel="noopener noreferrer">'
+                f"Strong&#39;s Exhaustive Concordance &mdash; {strong_number_h}</a></small></div>"
+            )
+        
+        # Build entry using exact same structure as old strong-popup
+        entry_html = f'''
+            <div class="strongs-entry">
+            <div class="strong-header">
+                <div class="strongs-headword">{lemma_html}</div>
+                <div class="strong-xlit">{xlit_html}</div>
+            </div>
+            <dl class="strong-details">
+                <dt>Definition</dt><dd>{definition_html}</dd>
+                <dt>Root</dt><dd>{derivation_html}</dd>
+                <dt>Exhaustive</dt><dd>{description_html}</dd>
+            </dl>
+            {citation_html}
+            </div>
+            '''
+        entry_blocks.append(entry_html)
+    
+    if not entry_blocks:
+        return ''
+    
+    popup_html = (
+        '<span class="popup-container strongs-popup">'
+        '<span class="strongs-trigger">STRONGS</span>'
+        '<div class="popup-content strongs-popup-content" role="tooltip" aria-hidden="true">'
+        + ''.join(entry_blocks) +
+        '</div>'
+        '</span>'
+    )
+    return popup_html
+
+
 def build_fuerst_popup(strong_ref: str) -> str:
     """Render a dedicated Fuerst popup trigger next to a Strong's reference."""
+    
     num = get_strongs_numeric_value(strong_ref)
     if num is None or num >= 9000:
         return ''
@@ -629,7 +1002,8 @@ def build_fuerst_popup(strong_ref: str) -> str:
                 f'class="fuerst-link">{html.escape(link_label)}</a>'
             )
         elif entry['source_page']:
-            link_html = html.escape(entry['source_page'])
+            # Ensure we pass a str to html.escape to avoid type-checker errors when entry['source_page'] is None/unknown
+            link_html = html.escape(str(entry['source_page'] or ''))
 
         meta_html = ''
         meta_segments = meta_parts[:]
@@ -661,6 +1035,145 @@ def build_fuerst_popup(strong_ref: str) -> str:
         '<span class="fuerst-trigger">F&uuml;rst</span>'
         '<div class="popup-content fuerst-popup-content" role="tooltip" aria-hidden="true">'
         '<div class="fuerst-title">F&uuml;rst Lexicon</div>'
+        + ''.join(entry_blocks) +
+        '</div>'
+        '</span>'
+    )
+    return popup_html
+
+
+def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None = None):
+    """Return cached Gesenius lexicon matches for a token id.
+
+    Strategy:
+    - Search gesenius_lexicon.strongsNumbers field directly (only 56.5% coverage but accurate)
+    
+    Note: The lexeme_gesenius mapping table has 86.4% error rate and is not used.
+    To enable Gesenius triggers for more words, the gesenius_lexicon.strongsNumbers 
+    field needs to be populated for the missing 43.5% of entries.
+    """
+    rows = []
+    seen_gesenius_ids = set()
+    
+    # Search gesenius_lexicon.strongsNumbers field directly
+    if strongs_list:
+        like_clauses = []
+        params = []
+        import re
+        for s in strongs_list:
+            # Strip suffix (a-z letters)
+            base_strong = re.sub(r'[a-z]+$', '', s, flags=re.IGNORECASE)
+            # Extract numeric value
+            num = get_strongs_numeric_value(base_strong)
+            if num is not None:
+                # Match with word boundaries, handling both with/without leading zeros
+                # Gesenius may have H834 or H0834, so we try both
+                like_clauses.append(f'("strongsNumbers" ~ %s OR "strongsNumbers" ~ %s)')
+                # Pattern without leading zeros
+                params.append(f'(^|[^0-9])H{num}([^0-9]|$)')
+                # Pattern with leading zeros (pad to 4 digits)
+                params.append(f'(^|[^0-9])H{num:04d}([^0-9]|$)')
+        
+        if like_clauses:
+            where_clause = ' OR '.join(like_clauses)
+            sql = f"SELECT \"id\", \"hebrewWord\", \"hebrewConsonantal\", \"transliteration\", \"partOfSpeech\", \"definition\", \"root\", \"sourcePage\", \"sourceUrl\", NULL AS confidence, NULL AS mapping_basis, NULL AS notes FROM old_testament.gesenius_lexicon WHERE {where_clause} ORDER BY \"strongsNumbers\" NULLS LAST, \"hebrewWord\" NULLS LAST;"
+            rows = execute_query(sql, tuple(params), fetch='all') or []
+
+    entries = []
+    for row in rows:
+        (
+            gid,
+            hebrewWord,
+            hebrewConsonantal,
+            transliteration,
+            partOfSpeech,
+            definition,
+            root,
+            sourcePage,
+            sourceUrl,
+            confidence,
+            mapping_basis,
+            notes,
+        ) = row
+        entries.append({
+            'id': gid,
+            'hebrew_word': hebrewWord or '',
+            'hebrew_consonantal': hebrewConsonantal or '',
+            'transliteration': transliteration or '',
+            'part_of_speech': partOfSpeech or '',
+            'definition': definition or '',
+            'root': root or '',
+            'source_page': sourcePage or '',
+            'source_url': sourceUrl or '',
+            'confidence': confidence or '',
+            'mapping_basis': mapping_basis or '',
+            'notes': notes or '',
+        })
+
+    return tuple(entries)
+
+
+def build_gesenius_popup(entries: list[dict] | tuple[dict, ...]) -> str:
+    """Render a Gesenius popup that mirrors Fürst styling and includes page image links."""
+    if not entries:
+        return ''
+
+    entry_blocks: list[str] = []
+    for entry in entries[:6]:  # limit popup to top 6 matches to avoid overly long popups
+        headword = entry['hebrew_word'] or entry['hebrew_consonantal'] or entry['transliteration'] or ''
+        headword_html = html.escape(headword)
+        definition_html = html.escape(entry['definition']) if entry['definition'] else ''
+
+        meta_parts = []
+        if entry.get('part_of_speech'):
+            meta_parts.append(html.escape(entry['part_of_speech']))
+        if entry.get('root'):
+            meta_parts.append(f"Root {html.escape(entry['root'])}")
+
+        mapping = entry.get('mapping_basis') or ''
+        confidence = entry.get('confidence') or ''
+        match_label = ' / '.join(filter(None, [mapping.title() if mapping else '', confidence.title() if confidence else '']))
+        if match_label:
+            meta_parts.append(match_label)
+
+        page_url = build_gesenius_page_url(entry.get('source_page', ''))
+        link_label = format_gesenius_page_label(entry.get('source_page', '')) if entry.get('source_page') else ''
+        link_html = ''
+        if page_url:
+            link_html = (
+                f'<a href="{page_url}" target="_blank" rel="noopener noreferrer" class="gesenius-link">{html.escape(link_label)}</a>'
+            )
+        elif entry.get('source_page'):
+            # Ensure we pass a str to html.escape to avoid type-checker errors when entry.get('source_page') is None/unknown
+            link_html = html.escape(str(entry.get('source_page') or ''))
+
+        meta_html = ''
+        meta_segments = meta_parts[:]
+        if link_html:
+            meta_segments.append(link_html)
+        if meta_segments:
+            meta_html = '<div class="gesenius-meta">' + ' &bull; '.join(meta_segments) + '</div>'
+
+        note_html = ''
+        if entry.get('notes'):
+            note_text = html.escape(entry['notes'])
+            note_html = f'<div class="gesenius-note">{note_text}</div>'
+
+        body_parts = [f'<div class="gesenius-headword">{headword_html}</div>']
+        if meta_html:
+            body_parts.append(meta_html)
+        if definition_html:
+            body_parts.append(f'<div class="gesenius-definition">{definition_html}</div>')
+        if note_html:
+            body_parts.append(note_html)
+
+        entry_blocks.append('<div class="gesenius-entry">' + ''.join(body_parts) + '</div>')
+
+    popup_html = (
+        '<span class="popup-container gesenius-popup">'
+        '<span class="gesenius-trigger">Gesenius</span>'
+        '<div class="popup-content gesenius-popup-content" role="tooltip" aria-hidden="true">'
+        '<div class="gesenius-title">Gesenius Lexicon</div>'
         + ''.join(entry_blocks) +
         '</div>'
         '</span>'
@@ -789,30 +1302,57 @@ def build_heb_interlinear(rows_data):
             if subparts and (subparts[0] == 'H9005' or subparts[0] == 'H9001' or subparts[0] == 'H9002' or subparts[0] == 'H9003' or subparts[0] == 'H9004' or subparts[0] == 'H9006'):
                     heb1 = f'<span style="color: blue;">{heb1}</span>'
                     
-        # Get the definitions for each Strong's reference
-        definitions = []
-        lemmas = []
-        derivations = []
-        strong_links = []
-        strongs_references = []
-        hayah = False
+        # Build Strong's popup trigger
+        strongs_popup = build_strongs_popup(strong_refs)
         
+        # Track Fuerst IDs we've already shown for this token to avoid duplicate Fuerst popups
+        seen_fuerst_ids: set = set()
+        fuerst_popups = []
         for strong_ref in strong_refs:
-            # Skip showing links/popups for H9014..H9018 per site policy
+            # Skip H9014..H9018 per site policy
             num = get_strongs_numeric_value(strong_ref)
             if num is not None and 9014 <= num <= 9018:
                 continue
 
-            single_ref = strong_data(strong_ref)
-            fuerst_popup_html = build_fuerst_popup(strong_ref)
-            if fuerst_popup_html:
-                single_ref = f"{single_ref}{fuerst_popup_html}"
+            # Only add a Fuerst popup if it introduces at least one new Fuerst entry
+            try:
+                fuerst_entries = get_fuerst_entries_for_strong(strong_ref) or ()
+            except Exception:
+                fuerst_entries = ()
 
-            strongs_references.insert(0, single_ref)
+            # Collect IDs and see if any are new
+            fuerst_ids_this_ref = set()
+            add_fuerst = False
+            for e in fuerst_entries:
+                fid = e.get('fuerst_id') if isinstance(e, dict) else None
+                if fid is not None:
+                    fuerst_ids_this_ref.add(fid)
+                    if fid not in seen_fuerst_ids:
+                        add_fuerst = True
 
-        strongs_references = ' | '.join(strongs_references)
+            if add_fuerst:
+                fuerst_popup_html = build_fuerst_popup(strong_ref)
+                if fuerst_popup_html:
+                    fuerst_popups.append(fuerst_popup_html)
+                    seen_fuerst_ids.update(fuerst_ids_this_ref)
 
+        # Add Gesenius popup for the token
+        try:
+            ges_entries = get_gesenius_entries_for_token(id, strongs_list=strong_refs)
+        except Exception:
+            ges_entries = ()
+
+        ges_popup = ''
+        if ges_entries:
+            ges_popup = build_gesenius_popup(ges_entries)
         
+        # Combine all popups with consistent spacing
+        strongs_references = strongs_popup
+        if fuerst_popups:
+            strongs_references = f"{strongs_references} {''.join(fuerst_popups)}"
+        if ges_popup:
+            strongs_references = f"{strongs_references} {ges_popup}"
+
         # Join parts without injecting extra spaces so prefixes stay attached to the word
         hebrew_parts = [heb1, heb2, heb3, heb4, heb5, heb6]
         combined_hebrew = ''.join(part or '' for part in hebrew_parts)
@@ -843,7 +1383,8 @@ def build_heb_interlinear(rows_data):
 
         strong_cell = f'<td class="strong-cell">{strongs_references}</td>'
         display_english = eng
-        if hayah == True:
+        # Check if H1961 is in strong_refs for hayah highlighting
+        if 'H1961' in strong_refs:
             display_english = f'<span class="hayah">{eng}</span>'
         english_cell = f'<td>{display_english}</td>'
         hebrew_cell = f'<td>{combined_hebrew}</td>'
