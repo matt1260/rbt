@@ -1688,8 +1688,9 @@ def translate(request):
         ##########################################################
         # Fetch full rows data
         has_lxx_column = table_has_column('old_testament', 'hebrewdata', 'lxx')
+        # Select 'Morph' (the short code) into index 9, and keep 'morphology' (human description) at the end
         base_columns = (
-            "id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, morphology, uniq, Strongs, color, html, "
+            "id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, Morph, uniq, Strongs, color, html, "
             "heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology"
         )
         select_columns = base_columns + ", lxx" if has_lxx_column else base_columns
@@ -1975,8 +1976,8 @@ def translate(request):
                 morph_color = 'style="color: #FF1493;"'
             elif isinstance(morph, str) and 'm' in morph:
                 morph_color = 'style="color: blue;"'
+            morph_display = f'<input type="hidden" id="code" value="{morph or ""}"/><div {morph_color}>{morphology or ""}</div>'
 
-            morph_display = f'<input type="hidden" id="code" value="{morph}"/><div {morph_color}>{morphology}</div>'
             morphology_raw = morphology or ''
                 
             combined_hebrew = f"{heb1 or ''} {heb2 or ''} {heb3 or ''} {heb4 or ''} {heb5 or ''} {heb6 or ''}"
@@ -3797,42 +3798,86 @@ def add_manual_lexicon_mapping(request):
 def get_lexicon_search_results(request):
     """
     Search Fürst and Gesenius lexicons to find entries for manual mapping.
-    Returns possible matches based on Hebrew word or Strong's number.
+    Supports flexible search modes: exact, contains (partial), root, id, strong, and definition.
     """
     hebrew_word = request.GET.get('hebrew', '').strip()
     strong_number = request.GET.get('strong', '').strip()
     lexicon_type = request.GET.get('lexicon', 'both')  # 'fuerst', 'gesenius', or 'both'
-    
-    if not hebrew_word and not strong_number:
-        return JsonResponse({'error': 'Hebrew word or Strong number required'}, status=400)
-    
+    match = request.GET.get('match', 'exact')  # 'exact', 'contains', 'root', 'id', 'strong', 'definition'
+    search_term = request.GET.get('search', '').strip()
+
+    if not any([hebrew_word, strong_number, search_term]):
+        return JsonResponse({'error': 'Hebrew word, Strong number, or search term required'}, status=400)
+
     results = {'fuerst': [], 'gesenius': []}
-    
+
     import re
     vowel_pattern = r'[\u0591-\u05AF\u05B0-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]'
     hebrew_consonantal = re.sub(vowel_pattern, '', hebrew_word) if hebrew_word else ''
-    
+
+    def _like_pattern(val):
+        return f"%{val}%"
+
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            
-            # Search Fürst
+
+            # Build Fürst query
             if lexicon_type in ['fuerst', 'both']:
-                cursor.execute("""
-                    SELECT id, hebrew_word, hebrew_consonantal, definition, 
-                           part_of_speech, root, source_page
-                    FROM old_testament.fuerst_lexicon
-                    WHERE hebrew_consonantal = %s
-                       OR (%s IS NOT NULL AND id IN (
-                           SELECT fuerst_id FROM old_testament.lexeme_fuerst
-                           WHERE lexeme_id IN (
-                               SELECT lexeme_id FROM old_testament.lexemes
-                               WHERE strongs = %s
-                           )
-                       ))
-                    LIMIT 20
-                """, (hebrew_consonantal, strong_number, strong_number))
-                
+                params = []
+                where_clauses = []
+
+                if match == 'exact':
+                    if hebrew_consonantal:
+                        where_clauses.append('hebrew_consonantal = %s')
+                        params.append(hebrew_consonantal)
+                    elif search_term:
+                        # try exact match on consonantal or full field
+                        st_cons = re.sub(vowel_pattern, '', search_term)
+                        where_clauses.append('(hebrew_consonantal = %s OR hebrew_word = %s)')
+                        params.extend([st_cons, search_term])
+
+                elif match == 'contains':
+                    term = search_term or hebrew_consonantal
+                    if term:
+                        where_clauses.append('(hebrew_word ILIKE %s OR hebrew_consonantal ILIKE %s)')
+                        p = _like_pattern(term)
+                        params.extend([p, p])
+
+                elif match == 'root':
+                    if search_term:
+                        where_clauses.append('root ILIKE %s')
+                        params.append(_like_pattern(search_term))
+
+                elif match == 'id':
+                    try:
+                        numeric_id = int(search_term)
+                        where_clauses.append('id = %s')
+                        params.append(numeric_id)
+                    except Exception:
+                        # invalid id, no results
+                        where_clauses.append('false')
+
+                elif match == 'definition':
+                    if search_term:
+                        where_clauses.append('definition ILIKE %s')
+                        params.append(_like_pattern(search_term))
+
+                # strong lookup
+                if match == 'strong' or (strong_number and match == 'exact'):
+                    if strong_number:
+                        where_clauses.append('id IN (SELECT fuerst_id FROM old_testament.lexeme_fuerst WHERE lexeme_id IN (SELECT lexeme_id FROM old_testament.lexemes WHERE strongs = %s))')
+                        params.append(strong_number)
+
+                if not where_clauses:
+                    # fallback to searching consonantal equality if we have it
+                    if hebrew_consonantal:
+                        where_clauses.append('hebrew_consonantal = %s')
+                        params.append(hebrew_consonantal)
+
+                query = f"SELECT id, hebrew_word, hebrew_consonantal, definition, part_of_speech, root, source_page FROM old_testament.fuerst_lexicon WHERE {' OR '.join(where_clauses)} LIMIT 100"
+                cursor.execute(query, tuple(params))
+
                 for row in cursor.fetchall():
                     results['fuerst'].append({
                         'id': row[0],
@@ -3843,18 +3888,59 @@ def get_lexicon_search_results(request):
                         'root': row[5],
                         'source_page': row[6]
                     })
-            
-            # Search Gesenius
+
+            # Build Gesenius query
             if lexicon_type in ['gesenius', 'both']:
-                cursor.execute("""
-                    SELECT id, "hebrewWord", "hebrewConsonantal", definition,
-                           "partOfSpeech", root, "sourcePage"
-                    FROM old_testament.gesenius_lexicon
-                    WHERE "hebrewConsonantal" = %s
-                       OR (%s IS NOT NULL AND %s = ANY(string_to_array("strongsNumbers", ',')))
-                    LIMIT 20
-                """, (hebrew_consonantal, strong_number, strong_number))
-                
+                params = []
+                where_clauses = []
+
+                if match == 'exact':
+                    if hebrew_consonantal:
+                        where_clauses.append('"hebrewConsonantal" = %s')
+                        params.append(hebrew_consonantal)
+                    elif search_term:
+                        st_cons = re.sub(vowel_pattern, '', search_term)
+                        where_clauses.append('("hebrewConsonantal" = %s OR "hebrewWord" = %s)')
+                        params.extend([st_cons, search_term])
+
+                elif match == 'contains':
+                    term = search_term or hebrew_consonantal
+                    if term:
+                        where_clauses.append('("hebrewWord" ILIKE %s OR "hebrewConsonantal" ILIKE %s)')
+                        p = _like_pattern(term)
+                        params.extend([p, p])
+
+                elif match == 'root':
+                    if search_term:
+                        where_clauses.append('root ILIKE %s')
+                        params.append(_like_pattern(search_term))
+
+                elif match == 'id':
+                    try:
+                        numeric_id = int(search_term)
+                        where_clauses.append('id = %s')
+                        params.append(numeric_id)
+                    except Exception:
+                        where_clauses.append('false')
+
+                elif match == 'definition':
+                    if search_term:
+                        where_clauses.append('definition ILIKE %s')
+                        params.append(_like_pattern(search_term))
+
+                if match == 'strong' or (strong_number and match == 'exact'):
+                    if strong_number:
+                        where_clauses.append('%s = ANY(string_to_array("strongsNumbers", ","))')
+                        params.append(strong_number)
+
+                if not where_clauses:
+                    if hebrew_consonantal:
+                        where_clauses.append('"hebrewConsonantal" = %s')
+                        params.append(hebrew_consonantal)
+
+                query = f"SELECT id, \"hebrewWord\", \"hebrewConsonantal\", definition, \"partOfSpeech\", root, \"sourcePage\" FROM old_testament.gesenius_lexicon WHERE {' OR '.join(where_clauses)} LIMIT 100"
+                cursor.execute(query, tuple(params))
+
                 for row in cursor.fetchall():
                     results['gesenius'].append({
                         'id': row[0],
@@ -3865,9 +3951,9 @@ def get_lexicon_search_results(request):
                         'root': row[5],
                         'source_page': row[6]
                     })
-        
+
         return JsonResponse(results)
-        
+
     except Exception as e:
         logger.error(f"Error searching lexicons: {e}")
         return JsonResponse({'error': str(e)}, status=500)

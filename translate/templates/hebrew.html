@@ -1933,12 +1933,24 @@
 
       <div class="mapping-search">
         <h4>Search Lexicon Entries</h4>
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
           <select id="lexiconTypeSelect" class="mapping-input">
             <option value="both">Both Lexicons</option>
             <option value="fuerst">Fürst Only</option>
             <option value="gesenius">Gesenius Only</option>
           </select>
+
+          <select id="matchTypeSelect" class="mapping-input" title="Choose search mode">
+            <option value="exact">Exact Match (Hebrew)</option>
+            <option value="contains">Contains (partial)</option>
+            <option value="root">Root</option>
+            <option value="id">ID</option>
+            <option value="strong">Strong's</option>
+            <option value="definition">Definition</option>
+          </select>
+
+          <input id="searchTermInput" type="text" class="mapping-input" placeholder="Extra term: root / substring / id" />
+
           <button type="button" onclick="searchLexiconEntries()" class="mapping-btn mapping-btn-search">
             <i class="fas fa-search"></i> Search
           </button>
@@ -2182,6 +2194,13 @@
 <script>
 let currentMappingData = {};
 
+// Helper: strip Hebrew niqqud / vowels from a string
+function stripHebrewVowels(s) {
+  if (!s) return '';
+  // Unicode ranges used for Hebrew diacritics and cantillation
+  return s.replace(/[\u0591-\u05AF\u05B0-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]/g, '');
+}
+
 function openMappingModal(buttonElement) {
   // Read data from button's data attributes
   const hebrewNiqqud = buttonElement.getAttribute('data-hebrew-niqqud') || '';
@@ -2201,6 +2220,19 @@ function openMappingModal(buttonElement) {
   document.getElementById('modalHebrewNiqqud').textContent = hebrewNiqqud;
   document.getElementById('modalHebrewConsonantal').textContent = hebrewConsonantal;
   document.getElementById('modalStrongsInput').value = firstStrongs || '';
+
+  // Prefill search term with consonantal root (strip vowels) and auto-select Root mode when it looks like Hebrew
+  const prefill = stripHebrewVowels(hebrewNiqqud) || hebrewConsonantal || '';
+  const searchInput = document.getElementById('searchTermInput');
+  if (searchInput) {
+    searchInput.value = prefill;
+    // If the prefill contains Hebrew letters, pick the 'root' match mode as a convenience
+    if (/[\u0590-\u05FF]/.test(prefill)) {
+      const matchSelect = document.getElementById('matchTypeSelect');
+      if (matchSelect) matchSelect.value = 'root';
+    }
+  }
+
   document.getElementById('mappingModal').style.display = 'flex';
   document.getElementById('searchResults').innerHTML = '';
 }
@@ -2210,32 +2242,64 @@ function closeMappingModal() {
   currentMappingData = {};
 }
 
+// Auto-detect Hebrew input in the search box and switch to Root mode
+(function () {
+  const searchInput = document.getElementById('searchTermInput');
+  const matchSelect = document.getElementById('matchTypeSelect');
+  if (!searchInput || !matchSelect) return;
+
+  let debounce;
+  searchInput.addEventListener('input', function () {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      const val = searchInput.value.trim();
+      if (!val) return;
+      // If the user typed Hebrew letters (likely a root), auto-switch to root mode
+      if (/^[\u0590-\u05FF\s]+$/.test(val)) {
+        matchSelect.value = 'root';
+        // normalize by stripping niqqud for convenience
+        const stripped = stripHebrewVowels(val);
+        if (stripped !== val) searchInput.value = stripped;
+      }
+    }, 150);
+  });
+})();
+
 async function searchLexiconEntries() {
   const lexiconType = document.getElementById('lexiconTypeSelect').value;
-  const resultsDiv = document.getElementById('searchResults');
-  
+  const matchType = document.getElementById('matchTypeSelect').value;
+let searchTerm = document.getElementById('searchTermInput').value.trim();
+    const resultsDiv = document.getElementById('searchResults');
+
+    // If user entered Hebrew in the search field and the match mode is root or auto-detected, strip niqqud client-side
+    if (searchTerm && /[\u0590-\u05FF]/.test(searchTerm)) {
+      searchTerm = stripHebrewVowels(searchTerm);
+    }
+
   resultsDiv.innerHTML = '<div class="no-results"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
-  
+
   try {
     // Get Strong's number from editable input
     const strongsNumber = document.getElementById('modalStrongsInput').value.trim();
-    
+
     const params = new URLSearchParams({
-      hebrew: currentMappingData.hebrew_niqqud,
+      hebrew: currentMappingData.hebrew_niqqud || currentMappingData.hebrew_consonantal || '',
       strong: strongsNumber,
-      lexicon: lexiconType
+      lexicon: lexiconType,
+      match: matchType,
+      search: searchTerm
     });
-    
+
     const response = await fetch(`/translate/api/search-lexicon/?${params}`);
     const data = await response.json();
-    
+
     if (data.error) {
       resultsDiv.innerHTML = `<div class="no-results" style="color: #dc3545;">${data.error}</div>`;
       return;
     }
-    
+
     let html = '';
-    
+
     // Display Fürst results
     if (data.fuerst && data.fuerst.length > 0) {
       html += '<div class="lexicon-result-section">';
@@ -2245,7 +2309,7 @@ async function searchLexiconEntries() {
       });
       html += '</div>';
     }
-    
+
     // Display Gesenius results
     if (data.gesenius && data.gesenius.length > 0) {
       html += '<div class="lexicon-result-section">';
@@ -2255,13 +2319,13 @@ async function searchLexiconEntries() {
       });
       html += '</div>';
     }
-    
+
     if (!html) {
-      html = '<div class="no-results">No matching entries found. Try adjusting your search.</div>';
+      html = '<div class="no-results">No matching entries found. Try adjusting your search or try a different match mode.</div>';
     }
-    
+
     resultsDiv.innerHTML = html;
-    
+
   } catch (error) {
     console.error('Search error:', error);
     resultsDiv.innerHTML = '<div class="no-results" style="color: #dc3545;">Search failed. Please try again.</div>';
