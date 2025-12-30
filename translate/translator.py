@@ -1170,7 +1170,7 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
                         cursor.execute(
                             f"""
                             SELECT "id", "hebrewWord", "hebrewConsonantal", "transliteration", 
-                                   "partOfSpeech", "definition", "root", "sourcePage", "sourceUrl",
+                                   "partOfSpeech", "definition", "root", "sourcePage", "sourceUrl", "strongsNumbers",
                                    NULL AS confidence, NULL AS mapping_basis, NULL AS notes
                             FROM gesenius_lexicon 
                             WHERE "id" IN ({placeholders})
@@ -1205,7 +1205,7 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
         
         if like_clauses:
             where_clause = ' OR '.join(like_clauses)
-            sql = f"SELECT \"id\", \"hebrewWord\", \"hebrewConsonantal\", \"transliteration\", \"partOfSpeech\", \"definition\", \"root\", \"sourcePage\", \"sourceUrl\", NULL AS confidence, NULL AS mapping_basis, NULL AS notes FROM old_testament.gesenius_lexicon WHERE {where_clause} ORDER BY \"strongsNumbers\" NULLS LAST, \"hebrewWord\" NULLS LAST;"
+            sql = f"SELECT \"id\", \"hebrewWord\", \"hebrewConsonantal\", \"transliteration\", \"partOfSpeech\", \"definition\", \"root\", \"sourcePage\", \"sourceUrl\", \"strongsNumbers\", NULL AS confidence, NULL AS mapping_basis, NULL AS notes FROM old_testament.gesenius_lexicon WHERE {where_clause} ORDER BY \"strongsNumbers\" NULLS LAST, \"hebrewWord\" NULLS LAST;"
             automatic_rows = execute_query(sql, tuple(params), fetch='all') or []
             # Merge automatic rows with manual rows, avoiding duplicates
             for auto_row in automatic_rows:
@@ -1220,6 +1220,48 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
                     rows.append(auto_row)
                     seen_gesenius_ids.add(auto_row[0])
 
+    # If token strongs were provided, prefer rows that match a non-prefix (root) strongs number
+    try:
+        if strongs_list:
+            import re
+            def extract_nums_from_strongs_field(s: str) -> set:
+                if not s:
+                    return set()
+                return set(int(n) for n in re.findall(r'H(\d{1,4})', s))
+
+            token_nums = set()
+            for s in strongs_list:
+                num = get_strongs_numeric_value(s)
+                if num is not None:
+                    token_nums.add(num)
+
+            # Consider root strongs as those < 9000 (function words are in the 9000s)
+            token_root_nums = {n for n in token_nums if n < 9000}
+            if token_root_nums:
+                preferred_rows = [r for r in rows if extract_nums_from_strongs_field(r[9]) & token_root_nums]
+                if preferred_rows:
+                    rows = preferred_rows
+    except Exception:
+        pass
+
+    # Filter out short single-letter matches when there are longer matches available
+    try:
+        import re
+        niqqud_pattern = r'[\u0591-\u05BD\u05BF\u05C1-\u05C5\u05C7]'
+        def visible_len(s: str) -> int:
+            if not s:
+                return 0
+            t = re.sub(niqqud_pattern, '', s)
+            t = re.sub(r'[^\u05D0-\u05EA]', '', t)  # keep only Hebrew letters
+            return len(t)
+
+        # If any row has a visible length >= 2, drop rows where both hebrewWord and hebrewConsonantal are < 2
+        if any((visible_len(r[1]) >= 2 or visible_len(r[2]) >= 2) for r in rows):
+            rows = [r for r in rows if (visible_len(r[1]) >= 2 or visible_len(r[2]) >= 2)]
+    except Exception:
+        # Be conservative if anything goes wrong - don't filter
+        pass
+
     entries = []
     for row in rows:
         (
@@ -1232,6 +1274,7 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
             root,
             sourcePage,
             sourceUrl,
+            strongsNumbers,
             confidence,
             mapping_basis,
             notes,
