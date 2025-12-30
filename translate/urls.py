@@ -24,6 +24,8 @@ urlpatterns = [
     path('edit_nt_chapter/', views.edit_nt_chapter, name='edit_nt_chapter'),
     path('accounts/', include('django.contrib.auth.urls')),
     path('chapter_editor/', views.chapter_editor, name='chapter_editor'),
+    path('api/add-manual-lexicon-mapping/', views.add_manual_lexicon_mapping, name='add_manual_lexicon_mapping'),
+    path('api/search-lexicon/', views.get_lexicon_search_results, name='search_lexicon'),
     path('', views.translate, name='translate'),
 
 ]

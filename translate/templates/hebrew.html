@@ -558,9 +558,6 @@
     }
 
     /* Strong-specific popup enhancements */
-    .strong-popup {
-        padding: 8px 10px;
-    }
 
     .strong-xlit {
         font-size: 13px;
@@ -1204,7 +1201,7 @@
     <div class="table-scroll-wrapper">
       <table class="hebrewTable">
         <tbody>
-          {% for id, ref_data, eng_data, unique, heb_data, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote in edit_table_data %}
+          {% for id, ref_data, eng_data, unique, heb_data, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote, morphology_raw, morph_display in edit_table_data %}
           <tr>
             <td style="white-space: nowrap;">{{ ref_data }}</td>
             <td>
@@ -1218,8 +1215,11 @@
               <span class="heb">{{ combined_heb }}</span>
               {{ search_count2|safe }}
             </td>
-            <td class="morph-cell">
-              {{ morph|safe }}
+            <td class="morph-cell" style="font-size: 12px; width: 185px;">
+              <input type="text" name="morphology" autocomplete="off" value="{{ morphology_raw }}" class="edit-input" style="width: 180px;">
+              <input type="hidden" name="morph_id" value="{{ id }}">
+              <input type="hidden" name="original_morphology" value="{{ morphology_raw }}">
+              <div style="margin-top: 4px;">{{ morph_display|safe }}</div>
             </td>
             <td style="font-size: 12px;">
               {{ formatted_strongs_list|safe }}
@@ -1231,6 +1231,15 @@
             <td>
               <span class="heb">{{ combined_heb_niqqud }}</span>
               {{ search_count|safe }}
+            </td>
+            <td>
+              <button type="button" class="map-lexicon-btn" 
+                      data-hebrew-niqqud="{{ combined_heb_niqqud }}" 
+                      data-hebrew-consonantal="{{ combined_heb }}" 
+                      data-strongs="{{ strongs }}"
+                      onclick="openMappingModal(this)">
+                MAP LEXICON
+              </button>
             </td>
           </tr>
           <tr>
@@ -1897,6 +1906,482 @@
 
   // Initialize the mp object
   mp.init();
+</script>
+
+<!-- Manual Lexicon Mapping Modal -->
+<div id="mappingModal" class="mapping-modal" style="display: none;">
+  <div class="mapping-modal-content">
+    <div class="mapping-modal-header">
+      <h3>Manual Lexicon Mapping</h3>
+      <button type="button" class="close-modal-btn" onclick="closeMappingModal()">×</button>
+    </div>
+    <div class="mapping-modal-body">
+      <div class="mapping-info">
+        <div class="mapping-info-row">
+          <strong>Hebrew (with niqqud):</strong>
+          <span id="modalHebrewNiqqud" style="font-size: 20px;"></span>
+        </div>
+        <div class="mapping-info-row">
+          <strong>Hebrew (consonantal):</strong>
+          <span id="modalHebrewConsonantal" style="font-size: 20px;"></span>
+        </div>
+        <div class="mapping-info-row">
+          <strong>Strong's Number:</strong>
+          <input type="text" id="modalStrongsInput" style="font-size: 1em; padding: 3px 8px; border: 1px solid #ccc; border-radius: 4px; width: 120px;" placeholder="e.g., H8176">
+        </div>
+      </div>
+
+      <div class="mapping-search">
+        <h4>Search Lexicon Entries</h4>
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+          <select id="lexiconTypeSelect" class="mapping-input">
+            <option value="both">Both Lexicons</option>
+            <option value="fuerst">Fürst Only</option>
+            <option value="gesenius">Gesenius Only</option>
+          </select>
+          <button type="button" onclick="searchLexiconEntries()" class="mapping-btn mapping-btn-search">
+            <i class="fas fa-search"></i> Search
+          </button>
+        </div>
+
+        <div id="searchResults" class="search-results"></div>
+      </div>
+
+      <div class="mapping-actions">
+        <button type="button" onclick="closeMappingModal()" class="mapping-btn mapping-btn-cancel">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.card-map-button {
+  margin-top: 8px;
+}
+
+.map-lexicon-btn {
+  font-size: 10px;
+  padding: 3px 8px;
+  background: #6c757d;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.map-lexicon-btn:hover {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
+.map-lexicon-btn i {
+  font-size: 9px;
+  margin-right: 3px;
+}
+
+.mapping-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mapping-modal-content {
+  background: #fff;
+  border-radius: 8px;
+  max-width: 800px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.mapping-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 2px solid #b78550;
+}
+
+.mapping-modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #333;
+}
+
+.close-modal-btn {
+  font-size: 32px;
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+}
+
+.close-modal-btn:hover {
+  color: #000;
+}
+
+.mapping-modal-body {
+  padding: 20px;
+}
+
+.mapping-info {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.mapping-info-row {
+  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mapping-info-row strong {
+  min-width: 180px;
+  color: #666;
+  font-size: 13px;
+}
+
+.mapping-search h4 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.mapping-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.mapping-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mapping-btn-search {
+  background: #b78550;
+  color: #fff;
+}
+
+.mapping-btn-search:hover {
+  background: #965f35;
+}
+
+.mapping-btn-cancel {
+  background: #6c757d;
+  color: #fff;
+}
+
+.mapping-btn-cancel:hover {
+  background: #5a6268;
+}
+
+.mapping-btn-add {
+  background: #28a745;
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.mapping-btn-add:hover {
+  background: #218838;
+}
+
+.mapping-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #ddd;
+}
+
+.search-results {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.lexicon-result-section {
+  margin-bottom: 20px;
+}
+
+.lexicon-result-section h5 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #b78550;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lexicon-entry-card {
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.lexicon-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.lexicon-entry-hebrew {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.lexicon-entry-meta {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.lexicon-entry-definition {
+  font-size: 13px;
+  color: #444;
+  line-height: 1.4;
+}
+
+.no-results {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-style: italic;
+}
+</style>
+
+<script>
+let currentMappingData = {};
+
+function openMappingModal(buttonElement) {
+  // Read data from button's data attributes
+  const hebrewNiqqud = buttonElement.getAttribute('data-hebrew-niqqud') || '';
+  const hebrewConsonantal = buttonElement.getAttribute('data-hebrew-consonantal') || '';
+  const strongsRaw = buttonElement.getAttribute('data-strongs') || '';
+  
+  // Extract first Strong's number from potentially concatenated string
+  // Match pattern: H followed by digits (e.g., H8179)
+  const strongsMatch = strongsRaw.match(/H\d+/);
+  const firstStrongs = strongsMatch ? strongsMatch[0] : '';
+  
+  currentMappingData = {
+    hebrew_niqqud: hebrewNiqqud,
+    hebrew_consonantal: hebrewConsonantal
+  };
+
+  document.getElementById('modalHebrewNiqqud').textContent = hebrewNiqqud;
+  document.getElementById('modalHebrewConsonantal').textContent = hebrewConsonantal;
+  document.getElementById('modalStrongsInput').value = firstStrongs || '';
+  document.getElementById('mappingModal').style.display = 'flex';
+  document.getElementById('searchResults').innerHTML = '';
+}
+
+function closeMappingModal() {
+  document.getElementById('mappingModal').style.display = 'none';
+  currentMappingData = {};
+}
+
+async function searchLexiconEntries() {
+  const lexiconType = document.getElementById('lexiconTypeSelect').value;
+  const resultsDiv = document.getElementById('searchResults');
+  
+  resultsDiv.innerHTML = '<div class="no-results"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
+  
+  try {
+    // Get Strong's number from editable input
+    const strongsNumber = document.getElementById('modalStrongsInput').value.trim();
+    
+    const params = new URLSearchParams({
+      hebrew: currentMappingData.hebrew_niqqud,
+      strong: strongsNumber,
+      lexicon: lexiconType
+    });
+    
+    const response = await fetch(`/translate/api/search-lexicon/?${params}`);
+    const data = await response.json();
+    
+    if (data.error) {
+      resultsDiv.innerHTML = `<div class="no-results" style="color: #dc3545;">${data.error}</div>`;
+      return;
+    }
+    
+    let html = '';
+    
+    // Display Fürst results
+    if (data.fuerst && data.fuerst.length > 0) {
+      html += '<div class="lexicon-result-section">';
+      html += '<h5>Fürst Lexicon</h5>';
+      data.fuerst.forEach(entry => {
+        html += renderLexiconEntry(entry, 'fuerst');
+      });
+      html += '</div>';
+    }
+    
+    // Display Gesenius results
+    if (data.gesenius && data.gesenius.length > 0) {
+      html += '<div class="lexicon-result-section">';
+      html += '<h5>Gesenius Lexicon</h5>';
+      data.gesenius.forEach(entry => {
+        html += renderLexiconEntry(entry, 'gesenius');
+      });
+      html += '</div>';
+    }
+    
+    if (!html) {
+      html = '<div class="no-results">No matching entries found. Try adjusting your search.</div>';
+    }
+    
+    resultsDiv.innerHTML = html;
+    
+  } catch (error) {
+    console.error('Search error:', error);
+    resultsDiv.innerHTML = '<div class="no-results" style="color: #dc3545;">Search failed. Please try again.</div>';
+  }
+}
+
+function renderLexiconEntry(entry, lexiconType) {
+  const idField = lexiconType === 'fuerst' ? 'id' : 'id';
+  const entryId = entry[idField];
+  
+  // Escape HTML to prevent XSS and template string issues
+  const escapeHtml = (text) => {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+  
+  const hebrewText = escapeHtml(entry.hebrew_word || entry.hebrew_consonantal);
+  const partOfSpeech = entry.part_of_speech ? escapeHtml(entry.part_of_speech) + ' • ' : '';
+  const root = entry.root ? 'Root: ' + escapeHtml(entry.root) + ' • ' : '';
+  const sourcePage = entry.source_page ? 'Page: ' + escapeHtml(entry.source_page) : '';
+  const definition = escapeHtml(entry.definition || 'No definition available');
+  
+  // Create the card element
+  const cardHtml = `
+    <div class="lexicon-entry-card">
+      <div class="lexicon-entry-header">
+        <div class="lexicon-entry-hebrew">${hebrewText}</div>
+        <button type="button" class="mapping-btn mapping-btn-add" 
+                data-lexicon-id="${escapeHtml(String(entryId))}" 
+                data-lexicon-type="${escapeHtml(lexiconType)}">
+          <i class="fas fa-plus"></i> Add Mapping
+        </button>
+      </div>
+      <div class="lexicon-entry-meta">
+        ${partOfSpeech}${root}${sourcePage}
+      </div>
+      <div class="lexicon-entry-definition">${definition}</div>
+    </div>
+  `;
+  
+  return cardHtml;
+}
+
+// Delegate click events for dynamically created buttons
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.mapping-btn-add')) {
+    const btn = e.target.closest('.mapping-btn-add');
+    const lexiconId = btn.getAttribute('data-lexicon-id');
+    const lexiconType = btn.getAttribute('data-lexicon-type');
+    addMapping(lexiconId, lexiconType);
+  }
+});
+
+async function addMapping(lexiconId, lexiconType) {
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  
+  // Parse lexiconId as integer, removing any non-numeric prefix
+  const numericId = parseInt(String(lexiconId).replace(/\D/g, ''), 10);
+  
+  if (isNaN(numericId)) {
+    alert('Invalid lexicon ID: ' + lexiconId);
+    return;
+  }
+  
+  // Get Strong's number from editable input
+  const strongsNumber = document.getElementById('modalStrongsInput').value.trim();
+  
+  if (!strongsNumber) {
+    alert('Please enter a Strong\'s number');
+    return;
+  }
+  
+  // Global mappings only - no book/chapter/verse specificity
+  const payload = {
+    hebrew_word: currentMappingData.hebrew_niqqud,
+    strong_number: strongsNumber,
+    lexicon_type: lexiconType,
+    book: null,
+    chapter: null,
+    verse: null,
+    notes: 'Global manual mapping for shin/sin distinction'
+  };
+  
+  if (lexiconType === 'fuerst') {
+    payload.fuerst_id = numericId;
+  } else {
+    payload.gesenius_id = numericId;
+  }
+  
+  try {
+    const response = await fetch('/translate/api/add-manual-lexicon-mapping/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('✓ Mapping added successfully! You can add more mappings or close the modal.');
+    } else {
+      alert('Error: ' + (data.error || 'Failed to add mapping'));
+    }
+  } catch (error) {
+    console.error('Add mapping error:', error);
+    alert('Failed to add mapping. Please try again.');
+  }
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('mappingModal').style.display === 'flex') {
+    closeMappingModal();
+  }
+});
 </script>
 
 {% endblock %}

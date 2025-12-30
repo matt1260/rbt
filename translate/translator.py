@@ -2,7 +2,9 @@ import re
 import json
 import os
 import html
+import unicodedata
 from functools import lru_cache
+from typing import Optional
 
 try:
     from django.conf import settings
@@ -13,6 +15,53 @@ from .db_utils import get_db_connection, execute_query, table_has_column
 
 DEFAULT_FUERST_IMAGE_BASE_URL = "http://www.realbible.tech/fuerst_lexicon"
 DEFAULT_GESENIUS_IMAGE_BASE_URL = "http://www.realbible.tech/gesenius_lexicon"
+
+
+def get_manual_lexicon_mappings(hebrew_word: str, strong_number: Optional[str] = None,
+                                   book: Optional[str] = None, chapter: Optional[int] = None, verse: Optional[int] = None):
+    """
+    Retrieve manual lexicon mappings for a Hebrew word.
+    Checks most specific to least specific (verse-level → chapter-level → book-level → global).
+    Returns dict with 'fuerst_ids' and 'gesenius_ids' lists.
+    """
+    if not hebrew_word:
+        return {'fuerst_ids': [], 'gesenius_ids': []}
+    
+    # Normalize Hebrew text to NFD form (decomposed) for consistent comparison
+    # This ensures diacritical marks are in consistent order
+    hebrew_word_normalized = unicodedata.normalize('NFD', hebrew_word)
+    
+    # For global-only mappings, simplify the query
+    results = execute_query("""
+        SELECT lexicon_type, fuerst_id, gesenius_id
+        FROM old_testament.manual_lexicon_mappings
+        WHERE NORMALIZE(hebrew_word, NFD) = %s
+          AND (strong_number = %s OR strong_number IS NULL)
+          AND book IS NULL
+          AND chapter IS NULL
+          AND verse IS NULL
+        ORDER BY mapping_id
+    """, (hebrew_word_normalized, strong_number), fetch='all')
+    
+    fuerst_ids = []
+    gesenius_ids = []
+    
+    if results:
+        # Collect all matching entries (may have separate fuerst and gesenius rows)
+        for result in results:
+            lexicon_type, fuerst_id, gesenius_id = result
+            if fuerst_id and lexicon_type in ('fuerst', 'both'):
+                fuerst_ids.append(fuerst_id)
+            if gesenius_id and lexicon_type in ('gesenius', 'both'):
+                gesenius_ids.append(gesenius_id)
+        
+        return {
+            'fuerst_ids': fuerst_ids,
+            'gesenius_ids': gesenius_ids
+        }
+    
+    return {'fuerst_ids': [], 'gesenius_ids': []}
+
 
 # Small HTML sanitizer: allows a small whitelist of tags and safe <a href="..."> links
 def sanitize_allowed_html(raw_html: str) -> str:
@@ -957,7 +1006,7 @@ def build_strongs_popup(strong_refs: list[str]) -> str:
     return popup_html
 
 
-def build_fuerst_popup(strong_ref: str) -> str:
+def build_fuerst_popup(strong_ref: str, hebrew_word: str = '', book: Optional[str] = None, chapter: Optional[int] = None, verse: Optional[int] = None) -> str:
     """Render a dedicated Fuerst popup trigger next to a Strong's reference."""
     
     num = get_strongs_numeric_value(strong_ref)
@@ -965,7 +1014,57 @@ def build_fuerst_popup(strong_ref: str) -> str:
         return ''
 
     strong_number = f'H{num}'
-    fuerst_entries = get_fuerst_entries_for_strong(strong_number)
+    
+    # First check for manual mappings
+    manual_mappings = get_manual_lexicon_mappings(hebrew_word, strong_number, book, chapter, verse)
+    fuerst_entries = []
+    
+    # Get manual entries if they exist
+    if manual_mappings.get('fuerst_ids'):
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SET search_path TO old_testament")
+                # Fürst IDs in database have "F" prefix (e.g., "F14745")
+                # but manual_lexicon_mappings stores integers (e.g., 14745)
+                fuerst_id_strings = [f'F{id}' for id in manual_mappings['fuerst_ids']]
+                placeholders = ','.join(['%s'] * len(fuerst_id_strings))
+                cursor.execute(
+                    f"""
+                    SELECT id, hebrew_word, hebrew_consonantal, part_of_speech, 
+                           definition, source_page, root
+                    FROM fuerst_lexicon 
+                    WHERE id IN ({placeholders})
+                    """,
+                    fuerst_id_strings
+                )
+                manual_rows = cursor.fetchall()
+                for row in manual_rows:
+                    fuerst_entries.append({
+                        'fuerst_id': row[0],
+                        'hebrew_word': row[1],
+                        'hebrew_consonantal': row[2],
+                        'part_of_speech': row[3],
+                        'definition': row[4],
+                        'notes': None,
+                        'source_page': row[5],
+                        'root': row[6],
+                        'lexeme_form': None,
+                        'mapping_basis': None,
+                        'confidence': None
+                    })
+        except Exception as e:
+            print(f"Error fetching manual Fuerst entries: {e}")
+    
+    # Also get automatic Strong's-based lookup and merge
+    auto_entries = get_fuerst_entries_for_strong(strong_number)
+    if auto_entries:
+        # Add automatic entries, avoiding duplicates
+        seen_ids = {e.get('fuerst_id') for e in fuerst_entries}
+        for entry in auto_entries:
+            if entry.get('fuerst_id') not in seen_ids:
+                fuerst_entries.append(entry)
+    
     if not fuerst_entries:
         return ''
 
@@ -1041,10 +1140,11 @@ def build_fuerst_popup(strong_ref: str) -> str:
     return popup_html
 
 
-def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None = None):
+def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None = None, hebrew_word: str = '', book: Optional[str] = None, chapter: Optional[int] = None, verse: Optional[int] = None):
     """Return cached Gesenius lexicon matches for a token id.
 
     Strategy:
+    - First check for manual mappings if hebrew_word is provided
     - Search gesenius_lexicon.strongsNumbers field directly (only 56.5% coverage but accurate)
     
     Note: The lexeme_gesenius mapping table has 86.4% error rate and is not used.
@@ -1054,7 +1154,37 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
     rows = []
     seen_gesenius_ids = set()
     
-    # Search gesenius_lexicon.strongsNumbers field directly
+    # First check for manual mappings
+    if hebrew_word and strongs_list:
+        for strong in strongs_list:
+            manual_mappings = get_manual_lexicon_mappings(hebrew_word, strong, book, chapter, verse)
+            if manual_mappings.get('gesenius_ids'):
+                try:
+                    with get_db_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SET search_path TO old_testament")
+                        # Gesenius IDs in database have "G" prefix (e.g., "G7059")
+                        # but manual_lexicon_mappings stores integers (e.g., 7059)
+                        gesenius_id_strings = [f'G{id}' for id in manual_mappings['gesenius_ids']]
+                        placeholders = ','.join(['%s'] * len(gesenius_id_strings))
+                        cursor.execute(
+                            f"""
+                            SELECT "id", "hebrewWord", "hebrewConsonantal", "transliteration", 
+                                   "partOfSpeech", "definition", "root", "sourcePage", "sourceUrl",
+                                   NULL AS confidence, NULL AS mapping_basis, NULL AS notes
+                            FROM gesenius_lexicon 
+                            WHERE "id" IN ({placeholders})
+                            """,
+                            gesenius_id_strings
+                        )
+                        manual_rows = cursor.fetchall()
+                        if manual_rows:
+                            rows.extend(manual_rows)
+                            seen_gesenius_ids.update(manual_mappings['gesenius_ids'])
+                except Exception as e:
+                    print(f"Error fetching manual Gesenius entries: {e}")
+    
+    # Also search gesenius_lexicon.strongsNumbers field directly (merge with manual)
     if strongs_list:
         like_clauses = []
         params = []
@@ -1076,7 +1206,19 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
         if like_clauses:
             where_clause = ' OR '.join(like_clauses)
             sql = f"SELECT \"id\", \"hebrewWord\", \"hebrewConsonantal\", \"transliteration\", \"partOfSpeech\", \"definition\", \"root\", \"sourcePage\", \"sourceUrl\", NULL AS confidence, NULL AS mapping_basis, NULL AS notes FROM old_testament.gesenius_lexicon WHERE {where_clause} ORDER BY \"strongsNumbers\" NULLS LAST, \"hebrewWord\" NULLS LAST;"
-            rows = execute_query(sql, tuple(params), fetch='all') or []
+            automatic_rows = execute_query(sql, tuple(params), fetch='all') or []
+            # Merge automatic rows with manual rows, avoiding duplicates
+            for auto_row in automatic_rows:
+                # Extract numeric ID from "G7059" format
+                gid_str = str(auto_row[0])
+                if gid_str.startswith('G'):
+                    gid_num = int(gid_str[1:])
+                    if gid_num not in seen_gesenius_ids:
+                        rows.append(auto_row)
+                        seen_gesenius_ids.add(gid_num)
+                elif auto_row[0] not in seen_gesenius_ids:
+                    rows.append(auto_row)
+                    seen_gesenius_ids.add(auto_row[0])
 
     entries = []
     for row in rows:
@@ -1330,14 +1472,64 @@ def build_heb_interlinear(rows_data):
                         add_fuerst = True
 
             if add_fuerst:
-                fuerst_popup_html = build_fuerst_popup(strong_ref)
+                # Parse ref to extract book, chapter, verse for manual mapping lookup
+                book_name = None
+                chapter_num = None
+                verse_num = None
+                if ref:
+                    ref_parts = ref.split(':')
+                    if len(ref_parts) >= 2:
+                        book_name = ref_parts[0].strip()
+                        try:
+                            chapter_num = int(ref_parts[1])
+                        except (ValueError, IndexError):
+                            pass
+                        if len(ref_parts) >= 3:
+                            try:
+                                verse_num = int(ref_parts[2])
+                            except (ValueError, IndexError):
+                                pass
+                
+                fuerst_popup_html = build_fuerst_popup(
+                    strong_ref, 
+                    hebrew_word=combined_heb_niqqud, 
+                    book=book_name, 
+                    chapter=chapter_num, 
+                    verse=verse_num
+                )
                 if fuerst_popup_html:
                     fuerst_popups.append(fuerst_popup_html)
                     seen_fuerst_ids.update(fuerst_ids_this_ref)
 
         # Add Gesenius popup for the token
+        # Parse ref for manual mapping lookup if not already parsed
+        if ref and ('book_name' not in locals() or book_name is None):
+            ref_parts = ref.split(':')
+            if len(ref_parts) >= 2:
+                book_name = ref_parts[0].strip()
+                try:
+                    chapter_num = int(ref_parts[1])
+                except (ValueError, IndexError):
+                    chapter_num = None
+                if len(ref_parts) >= 3:
+                    try:
+                        verse_num = int(ref_parts[2])
+                    except (ValueError, IndexError):
+                        verse_num = None
+            else:
+                book_name = None
+                chapter_num = None
+                verse_num = None
+        
         try:
-            ges_entries = get_gesenius_entries_for_token(id, strongs_list=strong_refs)
+            ges_entries = get_gesenius_entries_for_token(
+                id, 
+                strongs_list=strong_refs,
+                hebrew_word=combined_heb_niqqud,
+                book=book_name if 'book_name' in locals() else None,
+                chapter=chapter_num if 'chapter_num' in locals() else None,
+                verse=verse_num if 'verse_num' in locals() else None
+            )
         except Exception:
             ges_entries = ()
 

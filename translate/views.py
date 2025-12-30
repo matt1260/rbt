@@ -1367,6 +1367,33 @@ def translate(request):
                 if color_data in color_change:
                     save_color_to_database(id, color_data)
 
+        # Handle morphology updates
+        morphology_data_list = request.POST.getlist('morphology')
+        original_morphology_list = request.POST.getlist('original_morphology')
+        morph_id_list = request.POST.getlist('morph_id')
+        
+        combined_morphology_pairs = zip(original_morphology_list, morphology_data_list)
+        morph_id_morphology_pairs = zip(morph_id_list, morphology_data_list)
+        
+        morphology_change = []
+        for old_morph, new_morph in combined_morphology_pairs:
+            if old_morph != new_morph:
+                morphology_change.append(new_morph)
+        
+        if morphology_change:
+            for id, morph_data in morph_id_morphology_pairs:
+                if morph_data in morphology_change:
+                    # Update the 'morphology' column for this row only
+                    execute_query(
+                        """
+                        UPDATE old_testament.hebrewdata 
+                        SET morphology = %s
+                        WHERE id = %s
+                        """,
+                        (morph_data, id),
+                        fetch=None
+                    )
+
         eng_change = []
         for old, new in combined_eng_pairs:
 
@@ -1662,7 +1689,7 @@ def translate(request):
         # Fetch full rows data
         has_lxx_column = table_has_column('old_testament', 'hebrewdata', 'lxx')
         base_columns = (
-            "id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, Morph, uniq, Strongs, color, html, "
+            "id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, morphology, uniq, Strongs, color, html, "
             "heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology"
         )
         select_columns = base_columns + ", lxx" if has_lxx_column else base_columns
@@ -1806,7 +1833,7 @@ def translate(request):
                 combined_heb_niqqud = row[21]
                 footnote = row[22]
                 morphology = row[23]
-                lxx = row[24]
+
             else:
                 # Pad to expected size to safely index missing fields
                 padded = list(row) + [None] * (24 - len(row))
@@ -1834,7 +1861,6 @@ def translate(request):
                 combined_heb_niqqud = padded[21]
                 footnote = padded[22]
                 morphology = padded[23]
-                lxx = None
 
             english_verse.append(eng)
 
@@ -1950,7 +1976,8 @@ def translate(request):
             elif isinstance(morph, str) and 'm' in morph:
                 morph_color = 'style="color: blue;"'
 
-            morph = f'<input type="hidden" id="code" value="{morph}"/><div {morph_color}>{morph}</div><div class="morph-popup" id="morph"></div>'
+            morph_display = f'<input type="hidden" id="code" value="{morph}"/><div {morph_color}>{morphology}</div>'
+            morphology_raw = morphology or ''
                 
             combined_hebrew = f"{heb1 or ''} {heb2 or ''} {heb3 or ''} {heb4 or ''} {heb5 or ''} {heb6 or ''}"
 
@@ -1964,34 +1991,13 @@ def translate(request):
             # Set word color
             if color == 'm':
                 color_old = 'm'
-                color = f'''<td style="background-color: blue;"><select name="color" autocomplete="off">
-                    <option name="color" value="m" selected>masc</option>
-                    <option name="color" value="f">fem</option>
-                    <option name="color" value="0">none</option>
-                    </select>
-                    <input type="hidden" name="color_old" value="{color_old}">
-                    <input type="hidden" name="color_id" value="{id}"></td>
-                '''
+                color = f"<select name=\"color\" autocomplete=\"off\">\n                    <option name=\"color\" value=\"m\" selected>masc</option>\n                    <option name=\"color\" value=\"f\">fem</option>\n                    <option name=\"color\" value=\"0\">none</option>\n                    </select>\n                    <input type=\"hidden\" name=\"color_old\" value=\"{color_old}\">\n                    <input type=\"hidden\" name=\"color_id\" value=\"{id}\">"
             elif color =='f':
                 color_old = 'f'
-                color = f'''<td style="background-color: #FF1493;"><select name="color" autocomplete="off">
-                    <option name="color" value="m">masc</option>
-                    <option name="color" value="f" selected>fem</option>
-                    <option name="color" value="0">none</option>
-                    </select>
-                    <input type="hidden" name="color_old" value="{color_old}">
-                    <input type="hidden" name="color_id" value="{id}"></td>
-                    '''
+                color = f"<select name=\"color\" autocomplete=\"off\">\n                    <option name=\"color\" value=\"m\">masc</option>\n                    <option name=\"color\" value=\"f\" selected>fem</option>\n                    <option name=\"color\" value=\"0\">none</option>\n                    </select>\n                    <input type=\"hidden\" name=\"color_old\" value=\"{color_old}\">\n                    <input type=\"hidden\" name=\"color_id\" value=\"{id}\">"
             else:
                 color_old = '0'
-                color = f'''<td><select name="color" autocomplete="off">
-                    <option name="color" value="m">masc</option>
-                    <option name="color" value="f">fem</option>
-                    <option name="color" value="0" selected>none</option>
-                    </select>
-                    <input type="hidden" name="color_old" value="{color_old}">
-                    <input type="hidden" name="color_id" value="{id}"></td>
-                    '''
+                color = f"<select name=\"color\" autocomplete=\"off\">\n                    <option name=\"color\" value=\"m\">masc</option>\n                    <option name=\"color\" value=\"f\">fem</option>\n                    <option name=\"color\" value=\"0\" selected>none</option>\n                    </select>\n                    <input type=\"hidden\" name=\"color_old\" value=\"{color_old}\">\n                    <input type=\"hidden\" name=\"color_id\" value=\"{id}\">"
 
             # Use the database row ID for footnote field names (not sequential number)
             # This ensures correct mapping after edit_table_data is sorted
@@ -2059,7 +2065,7 @@ def translate(request):
                 </td>
                 '''
             # Append all data to edit_table_data
-            edit_table_data.append((id, ref, eng, unique, combined_hebrew, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote))
+            edit_table_data.append((id, ref, eng, unique, combined_hebrew, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote, morphology_raw, morph_display))
             
             footnote_num += 1  # Keep for display purposes if needed elsewhere
 
@@ -2210,7 +2216,7 @@ def update_hebrew_data(request):
                 # Query to find matching entries where Strongs contains the substring
                 rows = execute_query(
                     """
-                    SELECT id, Ref, Eng, heb6_n, heb5_n, heb4_n, heb3_n, heb2_n, heb1_n, Morph
+                    SELECT id, Ref, Eng, heb6_n, heb5_n, heb4_n, heb3_n, heb2_n, heb1_n, morphology
                     FROM old_testament.hebrewdata
                     WHERE Strongs LIKE %s;
                     """,
@@ -3717,4 +3723,153 @@ def lexicon_viewer(request, lexicon_type, page):
     }
     
     return render(request, 'lexicon_viewer.html', context)
+
+
+@login_required
+@require_POST
+def add_manual_lexicon_mapping(request):
+    """
+    Add a manual mapping from a Hebrew word to Fürst/Gesenius lexicon entries.
+    Useful for shin/sin distinctions and other cases where Strong's is insufficient.
+    """
+    import json
+    import re
+    
+    try:
+        data = json.loads(request.body)
+        
+        hebrew_word = data.get('hebrew_word', '').strip()
+        strong_number = data.get('strong_number', '').strip()
+        lexicon_type = data.get('lexicon_type', 'both')  # 'fuerst', 'gesenius', or 'both'
+        fuerst_id = data.get('fuerst_id')
+        gesenius_id = data.get('gesenius_id')
+        book = data.get('book')
+        chapter = data.get('chapter')
+        verse = data.get('verse')
+        notes = data.get('notes', '').strip()
+        
+        if not hebrew_word:
+            return JsonResponse({'success': False, 'error': 'Hebrew word is required'}, status=400)
+        
+        if lexicon_type not in ['fuerst', 'gesenius', 'both']:
+            return JsonResponse({'success': False, 'error': 'Invalid lexicon type'}, status=400)
+        
+        # Strip vowel points to get consonantal form
+        vowel_pattern = r'[\u0591-\u05AF\u05B0-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]'
+        hebrew_consonantal = re.sub(vowel_pattern, '', hebrew_word)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Insert or update the mapping
+            cursor.execute("""
+                INSERT INTO old_testament.manual_lexicon_mappings 
+                (hebrew_word, hebrew_consonantal, strong_number, lexicon_type, 
+                 fuerst_id, gesenius_id, book, chapter, verse, notes, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (hebrew_word, strong_number, lexicon_type, book, chapter, verse)
+                DO UPDATE SET
+                    fuerst_id = EXCLUDED.fuerst_id,
+                    gesenius_id = EXCLUDED.gesenius_id,
+                    notes = EXCLUDED.notes,
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING mapping_id
+            """, (hebrew_word, hebrew_consonantal, strong_number or None, lexicon_type,
+                  fuerst_id, gesenius_id, book, chapter, verse, notes))
+            
+            mapping_id = cursor.fetchone()[0]
+            conn.commit()
+        
+        return JsonResponse({
+            'success': True,
+            'mapping_id': mapping_id,
+            'message': f'Manual mapping added for {hebrew_word}'
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error adding manual lexicon mapping: {e}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def get_lexicon_search_results(request):
+    """
+    Search Fürst and Gesenius lexicons to find entries for manual mapping.
+    Returns possible matches based on Hebrew word or Strong's number.
+    """
+    hebrew_word = request.GET.get('hebrew', '').strip()
+    strong_number = request.GET.get('strong', '').strip()
+    lexicon_type = request.GET.get('lexicon', 'both')  # 'fuerst', 'gesenius', or 'both'
+    
+    if not hebrew_word and not strong_number:
+        return JsonResponse({'error': 'Hebrew word or Strong number required'}, status=400)
+    
+    results = {'fuerst': [], 'gesenius': []}
+    
+    import re
+    vowel_pattern = r'[\u0591-\u05AF\u05B0-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]'
+    hebrew_consonantal = re.sub(vowel_pattern, '', hebrew_word) if hebrew_word else ''
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Search Fürst
+            if lexicon_type in ['fuerst', 'both']:
+                cursor.execute("""
+                    SELECT id, hebrew_word, hebrew_consonantal, definition, 
+                           part_of_speech, root, source_page
+                    FROM old_testament.fuerst_lexicon
+                    WHERE hebrew_consonantal = %s
+                       OR (%s IS NOT NULL AND id IN (
+                           SELECT fuerst_id FROM old_testament.lexeme_fuerst
+                           WHERE lexeme_id IN (
+                               SELECT lexeme_id FROM old_testament.lexemes
+                               WHERE strongs = %s
+                           )
+                       ))
+                    LIMIT 20
+                """, (hebrew_consonantal, strong_number, strong_number))
+                
+                for row in cursor.fetchall():
+                    results['fuerst'].append({
+                        'id': row[0],
+                        'hebrew_word': row[1],
+                        'hebrew_consonantal': row[2],
+                        'definition': row[3][:200] if row[3] else '',
+                        'part_of_speech': row[4],
+                        'root': row[5],
+                        'source_page': row[6]
+                    })
+            
+            # Search Gesenius
+            if lexicon_type in ['gesenius', 'both']:
+                cursor.execute("""
+                    SELECT id, "hebrewWord", "hebrewConsonantal", definition,
+                           "partOfSpeech", root, "sourcePage"
+                    FROM old_testament.gesenius_lexicon
+                    WHERE "hebrewConsonantal" = %s
+                       OR (%s IS NOT NULL AND %s = ANY(string_to_array("strongsNumbers", ',')))
+                    LIMIT 20
+                """, (hebrew_consonantal, strong_number, strong_number))
+                
+                for row in cursor.fetchall():
+                    results['gesenius'].append({
+                        'id': row[0],
+                        'hebrew_word': row[1],
+                        'hebrew_consonantal': row[2],
+                        'definition': row[3][:200] if row[3] else '',
+                        'part_of_speech': row[4],
+                        'root': row[5],
+                        'source_page': row[6]
+                    })
+        
+        return JsonResponse(results)
+        
+    except Exception as e:
+        logger.error(f"Error searching lexicons: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
 
