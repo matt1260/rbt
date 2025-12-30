@@ -34,6 +34,7 @@ urlpatterns = [
     path('find_and_replace_nt/accounts/', include('django.contrib.auth.urls')),
     path('find_and_replace_ot', views.find_and_replace_ot, name='find_and_replace_ot'),
     path('find_and_replace_ot/accounts/', include('django.contrib.auth.urls')),
+    path('lexicon/<str:lexicon_type>/<str:page>', views.lexicon_viewer, name='lexicon_viewer'),
     path('translate/', include('translate.urls')),
     path('search_footnotes/', views.search_footnotes, name='search_footnotes'),
     path('edit_footnote/', views.edit_footnote, name='edit_footnote'),

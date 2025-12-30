@@ -3624,3 +3624,97 @@ def get_aseneth_chapter(chapter_num):
             'chapters': ''
         }
 
+
+def lexicon_viewer(request, lexicon_type, page):
+    """
+    Enhanced viewer for Fürst and Gesenius lexicon page images.
+    Provides zoom, navigation, and keyboard shortcuts.
+    """
+    from translate.translator import (
+        FUERST_IMAGE_BASE_URL, 
+        GESENIUS_IMAGE_BASE_URL,
+        format_fuerst_page_label,
+        format_gesenius_page_label
+    )
+    
+    # Validate lexicon type
+    if lexicon_type not in ['fuerst', 'gesenius']:
+        return render(request, 'lexicon_viewer.html', {
+            'error_message': 'Invalid lexicon type. Must be "fuerst" or "gesenius".',
+            'lexicon_name': lexicon_type.title(),
+            'page_number': page,
+            'image_url': None,
+            'has_prev': False,
+            'has_next': False,
+            'prev_url': '#',
+            'next_url': '#',
+        })
+    
+    # Determine base URL and lexicon name
+    if lexicon_type == 'fuerst':
+        base_url = FUERST_IMAGE_BASE_URL
+        lexicon_name = 'Fürst'
+    else:
+        base_url = GESENIUS_IMAGE_BASE_URL
+        lexicon_name = 'Gesenius'
+    
+    # Construct image URL
+    image_url = f"{base_url}/{page}" if base_url else None
+    
+    # Extract page number from filename (e.g., "fuerst_lex_0717.jpg" -> 717)
+    # Handle different formats: "0123.png", "fuerst_lex_0717.jpg", "gesenius_lexicon_0507.jpg"
+    import re
+    page_match = re.search(r'(\d+)', page)
+    if not page_match:
+        return render(request, 'lexicon_viewer.html', {
+            'error_message': f'Invalid page format: {page}',
+            'lexicon_name': lexicon_name,
+            'page_number': page,
+            'image_url': None,
+            'has_prev': False,
+            'has_next': False,
+            'prev_url': '#',
+            'next_url': '#',
+        })
+    
+    current_page_num = int(page_match.group(1))
+    
+    # Determine the filename pattern based on the input
+    if page.startswith('fuerst_lex_'):
+        # Fürst format: fuerst_lex_0717.jpg
+        prev_page = f"fuerst_lex_{current_page_num - 1:04d}.jpg"
+        next_page = f"fuerst_lex_{current_page_num + 1:04d}.jpg"
+    elif page.startswith('gesenius_lexicon_'):
+        # Gesenius format: gesenius_lexicon_0507.jpg
+        prev_page = f"gesenius_lexicon_{current_page_num - 1:04d}.jpg"
+        next_page = f"gesenius_lexicon_{current_page_num + 1:04d}.jpg"
+    else:
+        # Simple format: 0123.png
+        file_ext = page.split('.')[-1] if '.' in page else 'png'
+        prev_page = f"{current_page_num - 1:04d}.{file_ext}"
+        next_page = f"{current_page_num + 1:04d}.{file_ext}"
+    
+    prev_url = f"/lexicon/{lexicon_type}/{prev_page}" if current_page_num > 1 else "#"
+    next_url = f"/lexicon/{lexicon_type}/{next_page}"
+    
+    # Format page label for display
+    if lexicon_type == 'fuerst':
+        page_label = format_fuerst_page_label(page)
+    else:
+        page_label = format_gesenius_page_label(page)
+    
+    context = {
+        'lexicon_name': lexicon_name,
+        'lexicon_type': lexicon_type,
+        'page_number': page_label,
+        'page_number_numeric': current_page_num,  # For the input field
+        'page_raw': page,
+        'image_url': image_url,
+        'has_prev': current_page_num > 1,
+        'has_next': True,  # Always allow next (let browser handle 404 if doesn't exist)
+        'prev_url': prev_url,
+        'next_url': next_url,
+    }
+    
+    return render(request, 'lexicon_viewer.html', context)
+

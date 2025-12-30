@@ -176,6 +176,7 @@ rbt_books = {
     'Leviticus': 'He is Reading',
     'Numbers': 'He is Arranging Words',
     'Deuteronomy': 'A Mighty One of Words',
+    'Esther': 'Star',
     'Song of Solomon': 'Song of Singers',
     'Job': 'Adversary',
     'Isaiah': 'He is Liberator',
@@ -249,12 +250,11 @@ GESENIUS_IMAGE_BASE_URL = _resolve_gesenius_base_url()
 
 
 def build_gesenius_page_url(source_page: str) -> str:
-    """Return an absolute URL for a Gesenius page scan or empty string if unknown."""
+    """Return a URL to the enhanced lexicon viewer for a Gesenius page."""
     if not source_page:
         return ''
-    if GESENIUS_IMAGE_BASE_URL:
-        return f"{GESENIUS_IMAGE_BASE_URL}/{source_page}"
-    return ''
+    # Link to the viewer instead of raw image
+    return f"/lexicon/gesenius/{source_page}"
 
 
 def format_gesenius_page_label(source_page: str) -> str:
@@ -270,12 +270,11 @@ def format_gesenius_page_label(source_page: str) -> str:
 
 
 def build_fuerst_page_url(source_page: str) -> str:
-    """Return an absolute URL for the stored page scan, or an empty string if unknown."""
+    """Return a URL to the enhanced lexicon viewer for a Fürst page."""
     if not source_page:
         return ''
-    if FUERST_IMAGE_BASE_URL:
-        return f"{FUERST_IMAGE_BASE_URL}/{source_page}"
-    return ''
+    # Link to the viewer instead of raw image
+    return f"/lexicon/fuerst/{source_page}"
 
 
 def format_fuerst_page_label(source_page: str) -> str:
