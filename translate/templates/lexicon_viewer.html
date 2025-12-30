@@ -386,21 +386,24 @@ let startX, startY, scrollLeft, scrollTop;
 
 const container = document.getElementById('imageContainer');
 container.addEventListener('mousedown', (e) => {
-    if (currentZoom > 1.0) {
-        isDragging = true;
-        startX = e.pageX - container.offsetLeft;
-        startY = e.pageY - container.offsetTop;
-        scrollLeft = container.scrollLeft;
-        scrollTop = container.scrollTop;
-    }
+    // Enable dragging at any zoom level
+    isDragging = true;
+    container.style.cursor = 'grabbing';
+    startX = e.pageX - container.offsetLeft;
+    startY = e.pageY - container.offsetTop;
+    scrollLeft = container.scrollLeft;
+    scrollTop = container.scrollTop;
+    e.preventDefault(); // Prevent text selection while dragging
 });
 
 container.addEventListener('mouseleave', () => {
     isDragging = false;
+    container.style.cursor = 'grab';
 });
 
 container.addEventListener('mouseup', () => {
     isDragging = false;
+    container.style.cursor = 'grab';
 });
 
 container.addEventListener('mousemove', (e) => {
@@ -408,8 +411,8 @@ container.addEventListener('mousemove', (e) => {
     e.preventDefault();
     const x = e.pageX - container.offsetLeft;
     const y = e.pageY - container.offsetTop;
-    const walkX = (x - startX) * 2;
-    const walkY = (y - startY) * 2;
+    const walkX = (x - startX) * 1.5;
+    const walkY = (y - startY) * 1.5;
     container.scrollLeft = scrollLeft - walkX;
     container.scrollTop = scrollTop - walkY;
 });
