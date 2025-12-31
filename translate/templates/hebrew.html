@@ -1108,6 +1108,9 @@
     <a href="{{ prev_ref }}"><i class="fas fa-chevron-circle-left"></i></a>
     {{ verse }}<a href="{{ next_ref }}"><i class="fas fa-chevron-circle-right"></i></a>
   </h3>
+  <label style="margin-left:12px; font-size:13px; display:inline-block; vertical-align: middle;">
+    <input id="toggleHebrewFont" type="checkbox"> Use custom Hebrew font
+  </label>
 </div>
 
 {% if rbt %}
@@ -1872,18 +1875,35 @@
   }</script>
 
 <script>
-  // Function to be executed when the window is loaded
-  window.onload = function () {
+  // Initialize morph parsing after DOM is ready and handle missing elements safely
+  document.addEventListener('DOMContentLoaded', function () {
+    // If there is a popupDiv (updates list), ensure it's visible
+    var popupDiv = document.getElementById('popupDiv');
+    if (popupDiv) {
+      popupDiv.style.display = 'block';
+    }
+
     // Call the parseClick() function for each element with class "morph-cell"
     var morphCells = document.querySelectorAll('.morph-cell');
     morphCells.forEach(function (cell) {
       var codeInput = cell.querySelector('input[type="hidden"]'); // Find the hidden input element
       var morphDiv = cell.querySelector('.morph-popup'); // Find the div for displaying parsed morph
 
-      // Call the parseClick() function for this cell
-      mp.parseClick(codeInput, morphDiv);
+      // Defensive checks: skip if required nodes or API are missing
+      if (!codeInput || !morphDiv) {
+        return;
+      }
+      if (!mp || typeof mp.parseClick !== 'function') {
+        return;
+      }
+
+      try {
+        mp.parseClick(codeInput, morphDiv);
+      } catch (err) {
+        console.error('Morph parse error for cell:', cell, err);
+      }
     });
-  };
+  });
 
   var mp = {
     parser: null, // Define parser here
@@ -1893,14 +1913,31 @@
     },
 
     parseClick: function (codeInput, morphDiv) {
+      // Defensive: ensure inputs exist
+      if (!codeInput || !morphDiv) {
+        return;
+      }
+
+      // Ensure parser is initialized
+      if (!this.parser || typeof this.parser.Parse !== 'function') {
+        try {
+          this.init();
+        } catch (e) {
+          console.error('Failed to initialize morph parser:', e);
+          return;
+        }
+      }
+
       // Get the morph code value from the hidden input
-      var morphCode = codeInput.value.trim();
-
-      // Parse the morph code using the parser defined within the object
-      var parsedMorph = this.parser.Parse(morphCode);
-
-      // Set the parsed value to the morph div
-      morphDiv.innerText = parsedMorph;
+      var morphCode = (codeInput.value || '').trim();
+      try {
+        // Parse the morph code using the parser defined within the object
+        var parsedMorph = this.parser.Parse(morphCode);
+        // Set the parsed value to the morph div (textContent for safety)
+        morphDiv.textContent = parsedMorph;
+      } catch (err) {
+        console.error('Error parsing morph code:', morphCode, err);
+      }
     }
   };
 

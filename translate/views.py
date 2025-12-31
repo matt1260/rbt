@@ -1688,9 +1688,8 @@ def translate(request):
         ##########################################################
         # Fetch full rows data
         has_lxx_column = table_has_column('old_testament', 'hebrewdata', 'lxx')
-        # Select 'Morph' (the short code) into index 9, and keep 'morphology' (human description) at the end
         base_columns = (
-            "id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, Morph, uniq, Strongs, color, html, "
+            "id, Ref, Eng, Heb1, Heb2, Heb3, Heb4, Heb5, Heb6, morph, uniq, Strongs, color, html, "
             "heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology"
         )
         select_columns = base_columns + ", lxx" if has_lxx_column else base_columns
@@ -1976,8 +1975,10 @@ def translate(request):
                 morph_color = 'style="color: #FF1493;"'
             elif isinstance(morph, str) and 'm' in morph:
                 morph_color = 'style="color: blue;"'
-            morph_display = f'<input type="hidden" id="code" value="{morph or ""}"/><div {morph_color}>{morphology or ""}</div>'
+            
+            morph_display = f'<input type="hidden" id="code" value="{morph}"/><div {morph_color}>{morphology}</div>'
 
+            
             morphology_raw = morphology or ''
                 
             combined_hebrew = f"{heb1 or ''} {heb2 or ''} {heb3 or ''} {heb4 or ''} {heb5 or ''} {heb6 or ''}"
@@ -3778,7 +3779,7 @@ def add_manual_lexicon_mapping(request):
             """, (hebrew_word, hebrew_consonantal, strong_number or None, lexicon_type,
                   fuerst_id, gesenius_id, book, chapter, verse, notes))
             
-            mapping_id = cursor.fetchone()[0]
+            mapping_id = cursor.fetchone()[0] # type: ignore
             conn.commit()
         
         return JsonResponse({

@@ -315,6 +315,67 @@
         margin-top: 1px;
     }
 
+    /* Toggle switches UI */
+    .toggles-container {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: flex-end;
+        margin-bottom: 8px;
+    }
+
+    .toggle-switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .toggle-switch input[type="checkbox"] {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+        pointer-events: none;
+    }
+
+    .toggle-switch .slider {
+        width: 36px;
+        height: 14px;
+        background: #d3d3d3;
+        border-radius: 999px;
+        position: relative;
+        transition: background 0.18s ease;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);
+        }
+
+    .toggle-switch .slider::after {
+        content: "";
+        position: absolute;
+        left: 2px;
+        top: 1px;
+        width: 12px;
+        height: 12px;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+        transition: transform 0.18s ease;
+        }
+
+    .toggle-switch input:checked + .slider {
+        background: linear-gradient(90deg, #c29466, #b0703f);
+    }
+
+    .toggle-switch input:checked + .slider::after {
+        transform: translateX(20px);
+    }
+
+    .toggle-switch .label-text {
+        font-size: 13px;
+        color: #222;
+    }
+
     .strongs {
         font-size: 10px;
     }
@@ -790,13 +851,21 @@
         {{ book }} {{ chapter_num }}:{{ verse_num }}
         {% if next_verse %}<a href="{{ next_verse }}">{% endif %} <img src="http://www.realbible.tech/wp-content/uploads/2023/12/right_arrow-1-e1702991328715.png" style="height: 30px; vertical-align: middle;"></a>
     </h3>
-    
 </div>
 
 {% if hebrew %}
-<div style="display: flex; justify-content: flex-end;">
-    <label for="niqqudSwitch" style="font-size: 12px;">Show Niqqud &nbsp</label>
-    <input type="checkbox" id="niqqudSwitch" onclick="toggleNiqqud()">
+<div class="toggles-container" aria-hidden="false">
+    <label class="toggle-switch" title="Toggle custom Paleo Hebrew font">
+        <input id="toggleHebrewFont" type="checkbox" aria-checked="false" />
+        <span class="slider" role="switch" aria-labelledby="toggleHebrewLabel"></span>
+        <span class="label-text" id="toggleHebrewLabel">Paleo Hebrew</span>
+    </label>
+
+    <label class="toggle-switch" title="Show or hide niqqud (vowel marks)">
+        <input id="niqqudSwitch" type="checkbox" aria-checked="false" />
+        <span class="slider" role="switch" aria-labelledby="toggleNiqqudLabel"></span>
+        <span class="label-text" id="toggleNiqqudLabel">Niqqud</span>
+    </label>
 </div>
 <div>
     <div style="display: flex; justify-content: flex-end;">
@@ -918,9 +987,35 @@
         }
     }
 
-    // Initially, set the innerHTML to the original rbt_heb content with niqqud removed
-    document.getElementById("hebText").innerHTML = removeNiqqud(rbt_heb);
-    toggleCardNiqqud(false);
+    // Initialize niqqud state (persisted in localStorage under 'showNiqqud')
+    (function () {
+        var key = 'showNiqqud';
+        var saved = localStorage.getItem(key);
+        var niqqudDefault = saved === '1' || saved === 'true';
+        var niqSwitch = document.getElementById('niqqudSwitch');
+
+        if (niqSwitch) {
+            niqSwitch.checked = niqqudDefault;
+            // Ensure the display matches the stored preference
+            if (niqSwitch.checked) {
+                document.getElementById('hebText').innerHTML = rbt_heb;
+                toggleCardNiqqud(true);
+            } else {
+                document.getElementById('hebText').innerHTML = removeNiqqud(rbt_heb);
+                toggleCardNiqqud(false);
+            }
+
+            niqSwitch.addEventListener('change', function () {
+                var v = this.checked ? '1' : '0';
+                localStorage.setItem(key, v);
+                toggleNiqqud();
+            });
+        } else {
+            // fallback behavior
+            document.getElementById('hebText').innerHTML = removeNiqqud(rbt_heb);
+            toggleCardNiqqud(false);
+        }
+    })();
 </script>
 
     {% if rbt %}

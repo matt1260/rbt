@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en-US" class=" no-applicationcache geolocation history postmessage svg websockets localstorage sessionstorage no-websqldatabase svgfilters webworkers hashchange audio canvas canvastext video webgl cssgradients multiplebgs opacity rgba inlinesvg hsla supports svgclippaths smil no-touchevents fontface generatedcontent textshadow cssanimations backgroundsize bgsizecover borderimage borderradius boxshadow csscolumns csscolumns-width csscolumns-span csscolumns-fill csscolumns-gap csscolumns-rule csscolumns-rulecolor csscolumns-rulestyle csscolumns-rulewidth no-csscolumns-breakbefore no-csscolumns-breakafter no-csscolumns-breakinside flexbox no-cssreflections csstransforms csstransforms3d preserve3d csstransitions indexeddb indexeddb-deletedatabase requestanimationframe raf js_active  vc_desktop  vc_transform  vc_transform  vc_transform  rhkmnktbp idc0_349">
 <head>
+{% load static %}
 	
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
@@ -499,7 +500,7 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 <link rel="stylesheet" id="recent-posts-widget-with-thumbnails-public-style-css" href="https://www.realbible.tech/wp-content/plugins/recent-posts-widget-with-thumbnails/public.css?ver=7.1.1" type="text/css" media="all">
 <link rel="stylesheet" id="neve-google-font-poppins-css" href="//fonts.googleapis.com/css?family=Poppins%3A400%2C800%2C900%2C600&amp;display=swap&amp;ver=3.7.2" type="text/css" media="all">
 <script type="text/javascript" src="https://www.realbible.tech/wp-includes/js/jquery/jquery.min.js?ver=3.7.0" id="jquery-core-js"></script>
-<script type="text/javascript" src="https://www.realbible.tech/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1" id="jquery-migrate-js"></script>
+<!-- <script type="text/javascript" src="https://www.realbible.tech/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1" id="jquery-migrate-js"></script> -->
 <script type="text/javascript" src="https://www.realbible.tech/wp-content/plugins/ut-shortcodes/js/plugins/modernizr/modernizr.min.js?ver=2.6.2" id="modernizr-js"></script>
 <script type="text/javascript" src="https://www.realbible.tech/wp-content/plugins/ut-shortcodes/js/plugins/elastislider/jquery.elastislide.min.js?ver=6.3.1" id="ut-elastislider-js-js"></script>
 <link rel="https://api.w.org/" href="https://www.realbible.tech/wp-json/"><link rel="alternate" type="application/json" href="https://www.realbible.tech/wp-json/wp/v2/pages/9943"><link rel="EditURI" type="application/rsd+xml" title="RSD" href="https://www.realbible.tech/xmlrpc.php?rsd">
@@ -589,6 +590,28 @@ blockquote {
     font-weight: bold;
     color: #222;
 }
+
+/* Custom Hebrew font fallback and toggle */
+@font-face {
+    font-family: 'siloam_hebrew';
+    src: url("{% static 'siloam_hebrew.woff2' %}") format('woff2'),
+         url("{% static 'siloam_hebrew.woff' %}") format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+.use-hebrew-font .heb,
+.use-hebrew-font .card-hebrew,
+.use-hebrew-font .hebrew-with-niqqud,
+.use-hebrew-font .hebrew-no-niqqud,
+.use-hebrew-font .hebrew_reader,
+.use-hebrew-font .hebrew-header,
+.use-hebrew-font .hebrewTable,
+.use-hebrew-font #hebText,
+.use-hebrew-font #hebText * {
+    font-family: 'siloam_hebrew', "SBL Hebrew", "David", serif !important;
+} 
 
 blockquote::before {
   content: "\201C"; /* Unicode for left double quotation mark (open quote) */
@@ -922,5 +945,38 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>
 
+<script>
+// Robust toggle handler for custom Hebrew font preference
+(function () {
+  const KEY = 'useHebrewFont';
+  const root = document.documentElement;
+  function apply(checked) {
+    root.classList.toggle('use-hebrew-font', !!checked);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    let stored = localStorage.getItem(KEY);
+    // Default to ON when the user has not yet chosen a preference
+    if (stored === null) {
+      stored = '1';
+      try { localStorage.setItem(KEY, stored); } catch (e) { /* ignore */ }
+    }
+    const checked = stored === '1' || stored === 'true';
+    apply(checked);
+    const checkboxes = Array.from(document.querySelectorAll('#toggleHebrewFont'));
+    if (!checkboxes.length) return;
+    checkboxes.forEach(cb => {
+      try { cb.checked = checked; } catch (e) {}
+      cb.addEventListener('change', function () {
+        const val = this.checked ? '1' : '0';
+        localStorage.setItem(KEY, val);
+        apply(this.checked);
+        // sync all checkboxes on page
+        checkboxes.forEach(other => { if (other !== this) other.checked = this.checked; });
+      });
+    });
+  });
+})();
+</script>
 
 </body></html>

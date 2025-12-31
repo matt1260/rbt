@@ -32,21 +32,16 @@ def get_manual_lexicon_mappings(hebrew_word: str, strong_number: Optional[str] =
     hebrew_word_normalized = unicodedata.normalize('NFD', hebrew_word)
     
     # For global-only mappings, simplify the query
-    # Normalize strong-number comparison by stripping non-digits so that variants like 'H8138a' match 'H8138' or '8138'.
     results = execute_query("""
         SELECT lexicon_type, fuerst_id, gesenius_id
         FROM old_testament.manual_lexicon_mappings
         WHERE NORMALIZE(hebrew_word, NFD) = %s
-          AND (
-              strong_number = %s
-              OR regexp_replace(COALESCE(strong_number, ''), '\\D', '', 'g') = regexp_replace(COALESCE(%s, ''), '\\D', '', 'g')
-              OR strong_number IS NULL
-          )
+          AND (strong_number = %s OR strong_number IS NULL)
           AND book IS NULL
           AND chapter IS NULL
           AND verse IS NULL
         ORDER BY mapping_id
-    """, (hebrew_word_normalized, strong_number, strong_number), fetch='all')
+    """, (hebrew_word_normalized, strong_number), fetch='all')
     
     fuerst_ids = []
     gesenius_ids = []
@@ -1156,24 +1151,18 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
     To enable Gesenius triggers for more words, the gesenius_lexicon.strongsNumbers 
     field needs to be populated for the missing 43.5% of entries.
     """
+    import re
     rows = []
     seen_gesenius_ids = set()
+    # Strip suffix letters from strongs_list (be defensive if None or contains non-strings)
+    strongs_list = [re.sub(r'[A-Za-z]$', '', str(s)) for s in (strongs_list or []) if s is not None]  
+    #print(f"Getting Gesenius entries for token {token_id} with strongs_list={strongs_list} and hebrew_word='{hebrew_word}'")
+
     
     # First check for manual mappings
     if hebrew_word and strongs_list:
         for strong in strongs_list:
-            # Try the exact strong form first, then fallback to numeric-normalized variants
             manual_mappings = get_manual_lexicon_mappings(hebrew_word, strong, book, chapter, verse)
-            if not manual_mappings.get('gesenius_ids'):
-                # Normalize: strip non-digits and try 'H{n}' and just '{n}'
-                digits = re.sub(r"\D", "", strong)
-                if digits:
-                    for variant in (f'H{digits}', digits):
-                        mm = get_manual_lexicon_mappings(hebrew_word, variant, book, chapter, verse)
-                        if mm.get('gesenius_ids'):
-                            manual_mappings = mm
-                            break
-
             if manual_mappings.get('gesenius_ids'):
                 try:
                     with get_db_connection() as conn:
@@ -1198,7 +1187,8 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
                             rows.extend(manual_rows)
                             seen_gesenius_ids.update(manual_mappings['gesenius_ids'])
                 except Exception as e:
-                    print(f"Error fetching manual Gesenius entries: {e}")    
+                    print(f"Error fetching manual Gesenius entries: {e}")
+    
     # Also search gesenius_lexicon.strongsNumbers field directly (merge with manual)
     if strongs_list:
         like_clauses = []
@@ -1234,41 +1224,6 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
                 elif auto_row[0] not in seen_gesenius_ids:
                     rows.append(auto_row)
                     seen_gesenius_ids.add(auto_row[0])
-
-        # If we didn't find any rows using Strong's, try a fallback lookup by the Hebrew word/root
-        if not rows and hebrew_word:
-            try:
-                import re
-                vowel_pattern = r'[\u0591-\u05AF\u05B0-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]'
-                hebrew_consonantal = re.sub(vowel_pattern, '', hebrew_word)
-                like_term = f"%{hebrew_consonantal}%"
-
-                # Search for exact consonantal match, or root/word contains
-                fallback_sql = (
-                    'SELECT "id", "hebrewWord", "hebrewConsonantal", "transliteration", "partOfSpeech", '
-                    '"definition", "root", "sourcePage", "sourceUrl", "strongsNumbers", NULL AS confidence, '
-                    'NULL AS mapping_basis, NULL AS notes '
-                    'FROM old_testament.gesenius_lexicon '
-                    'WHERE "hebrewConsonantal" = %s OR "hebrewConsonantal" ILIKE %s OR "root" ILIKE %s OR "hebrewWord" ILIKE %s '
-                    'ORDER BY "hebrewConsonantal" NULLS LAST, "root" NULLS LAST '
-                    'LIMIT 50'
-                )
-                fallback_rows = execute_query(fallback_sql, (hebrew_consonantal, like_term, like_term, like_term), fetch='all') or []
-
-                for row in fallback_rows:
-                    # Extract numeric ID from 'G7059' format and avoid duplicates
-                    gid_str = str(row[0])
-                    if gid_str.startswith('G'):
-                        gid_num = int(gid_str[1:])
-                        if gid_num not in seen_gesenius_ids:
-                            rows.append(row)
-                            seen_gesenius_ids.add(gid_num)
-                    elif row[0] not in seen_gesenius_ids:
-                        rows.append(row)
-                        seen_gesenius_ids.add(row[0])
-            except Exception:
-                # Be permissive: if fallback fails, continue without raising
-                pass
 
     # If token strongs were provided, prefer rows that match a non-prefix (root) strongs number
     try:
@@ -1623,7 +1578,10 @@ def build_heb_interlinear(rows_data):
                 chapter=chapter_num if 'chapter_num' in locals() else None,
                 verse=verse_num if 'verse_num' in locals() else None
             )
-        except Exception:
+        except Exception as e:
+            import traceback
+            print(f"Error fetching Gesenius entries: {e}")
+            traceback.print_exc()
             ges_entries = ()
 
         ges_popup = ''
