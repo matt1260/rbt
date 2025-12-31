@@ -18,5 +18,5 @@ dj-database-url
 psycopg2-binary
 python-dotenv
 attrs==23.2.0
-gunicorn==23.0.0
-whitenoise==6.11.0
+gunicorn
+whitenoise
