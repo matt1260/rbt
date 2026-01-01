@@ -1108,9 +1108,7 @@
     <a href="{{ prev_ref }}"><i class="fas fa-chevron-circle-left"></i></a>
     {{ verse }}<a href="{{ next_ref }}"><i class="fas fa-chevron-circle-right"></i></a>
   </h3>
-  <label style="margin-left:12px; font-size:13px; display:inline-block; vertical-align: middle;">
-    <input id="toggleHebrewFont" type="checkbox"> Use custom Hebrew font
-  </label>
+
 </div>
 
 {% if rbt %}
@@ -1136,6 +1134,9 @@
       <input type="checkbox" id="cardNiqqudSwitch">
       Show Niqqud
     </label>
+    <label style="margin-left:12px; font-size:13px; display:inline-block; vertical-align: middle;">
+    <input id="toggleHebrewFont" type="checkbox"> Use Paleo Hebrew Font
+  </label>
   </div>
   <div class="hebrew-interlinear-grid">
     {% for cell in hebrew_interlinear_cards %}

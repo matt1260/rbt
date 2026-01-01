@@ -1698,8 +1698,6 @@ def build_heb_interlinear(rows_data):
 
     return strong_rows, english_rows, hebrew_rows, morph_rows, hebrew_clean, interlinear_cards
 
-
-
 def find_verb_morph(input_verb):
     """
     Find and print all individual Hebrew form matches for the input_verb in table_data.
