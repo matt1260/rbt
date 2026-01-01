@@ -2593,7 +2593,6 @@ def find_and_replace_nt(request):
                 fetch='all'
             )
 
-            file_name_pattern = r'\b\w+\.\w+\b'
             replacements: list[dict[str, str | int]] = []
             genesis_replacements: list[dict[str, str | int]] = []
 
@@ -2606,9 +2605,6 @@ def find_and_replace_nt(request):
                 search_pattern = re.escape(find_text)
 
             for verse_id, book, chapter, startVerse, old_text in rows:
-                if re.search(file_name_pattern, old_text):
-                    continue
-
                 # Check if pattern matches in the text
                 if not re.search(search_pattern, old_text):
                     continue
