@@ -3758,6 +3758,13 @@ def add_manual_lexicon_mapping(request):
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
+
+            # Ensure the unique index exists so ON CONFLICT works across environments
+            cursor.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS manual_lexicon_mappings_conflict_idx
+                ON old_testament.manual_lexicon_mappings
+                (hebrew_word, strong_number, lexicon_type, book, chapter, verse);
+            """)
             
             # Insert or update the mapping
             cursor.execute("""

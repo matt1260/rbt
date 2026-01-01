@@ -1,10 +1,11 @@
-import re
-import json
 import os
 import html
-import unicodedata
+import json
+import re
+import logging
 from functools import lru_cache
 from typing import Optional
+import unicodedata
 
 try:
     from django.conf import settings
@@ -15,6 +16,25 @@ from .db_utils import get_db_connection, execute_query, table_has_column
 
 DEFAULT_FUERST_IMAGE_BASE_URL = "http://www.realbible.tech/fuerst_lexicon"
 DEFAULT_GESENIUS_IMAGE_BASE_URL = "http://www.realbible.tech/gesenius_lexicon"
+
+logger = logging.getLogger(__name__)
+
+def _debug_filtered_rows(label: str, before_rows: list[tuple], after_rows: list[tuple]) -> None:
+    if not settings or not getattr(settings, 'DEBUG', False):
+        return
+    before_len = len(before_rows)
+    after_len = len(after_rows)
+    removed = [row for row in before_rows if row not in after_rows]
+    info = f"{label} filter before={before_len} after={after_len}"
+    def summarize(row: tuple) -> str:
+        return f"id={row[0]} strongs={row[9]} word={row[1]} consonantal={row[2]}"
+    if removed:
+        snippet = [summarize(row) for row in removed]
+        logger.debug("%s filter removed %d rows: %s", label, len(removed), snippet)
+        print(f"{label} removed rows: {snippet}")
+    logger.debug(info)
+    if settings.DEBUG:
+        print(info)
 
 
 def get_manual_lexicon_mappings(hebrew_word: str, strong_number: Optional[str] = None,
@@ -1147,18 +1167,15 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
     - First check for manual mappings if hebrew_word is provided
     - Search gesenius_lexicon.strongsNumbers field directly (only 56.5% coverage but accurate)
     
-    Note: The lexeme_gesenius mapping table has 86.4% error rate and is not used.
-    To enable Gesenius triggers for more words, the gesenius_lexicon.strongsNumbers 
-    field needs to be populated for the missing 43.5% of entries.
     """
     import re
     rows = []
     seen_gesenius_ids = set()
+    manual_row_ids = set()
     # Strip suffix letters from strongs_list (be defensive if None or contains non-strings)
     strongs_list = [re.sub(r'[A-Za-z]$', '', str(s)) for s in (strongs_list or []) if s is not None]  
     #print(f"Getting Gesenius entries for token {token_id} with strongs_list={strongs_list} and hebrew_word='{hebrew_word}'")
 
-    
     # First check for manual mappings
     if hebrew_word and strongs_list:
         for strong in strongs_list:
@@ -1186,6 +1203,8 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
                         if manual_rows:
                             rows.extend(manual_rows)
                             seen_gesenius_ids.update(manual_mappings['gesenius_ids'])
+                            manual_row_ids.update(manual_rows and [row[0] for row in manual_rows])
+                            #print(f"Fetched {len(manual_rows)} manual Gesenius entries for hebrew_word='{hebrew_word}', strong='{strong}'")
                 except Exception as e:
                     print(f"Error fetching manual Gesenius entries: {e}")
     
@@ -1228,6 +1247,7 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
     # If token strongs were provided, prefer rows that match a non-prefix (root) strongs number
     try:
         if strongs_list:
+            before_root_filter = rows[:]
             import re
             def extract_nums_from_strongs_field(s: str) -> set:
                 if not s:
@@ -1243,9 +1263,12 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
             # Consider root strongs as those < 9000 (function words are in the 9000s)
             token_root_nums = {n for n in token_nums if n < 9000}
             if token_root_nums:
-                preferred_rows = [r for r in rows if extract_nums_from_strongs_field(r[9]) & token_root_nums]
+                print(f"root strongs filter tokens={sorted(token_root_nums)}")
+                preferred_rows = [r for r in rows if r[0] in manual_row_ids or extract_nums_from_strongs_field(r[9]) & token_root_nums]
                 if preferred_rows:
+                    print("root strongs matched rows:", [f"id={row[0]} strongs={row[9]}" for row in preferred_rows])
                     rows = preferred_rows
+            _debug_filtered_rows('root strongs', before_root_filter, rows)
     except Exception:
         pass
 
@@ -1260,9 +1283,15 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
             t = re.sub(r'[^\u05D0-\u05EA]', '', t)  # keep only Hebrew letters
             return len(t)
 
+        before_visible_filter = rows[:]
         # If any row has a visible length >= 2, drop rows where both hebrewWord and hebrewConsonantal are < 2
         if any((visible_len(r[1]) >= 2 or visible_len(r[2]) >= 2) for r in rows):
-            rows = [r for r in rows if (visible_len(r[1]) >= 2 or visible_len(r[2]) >= 2)]
+            before_visible = rows[:]
+            rows = [r for r in rows if r[0] in manual_row_ids or (visible_len(r[1]) >= 2 or visible_len(r[2]) >= 2)]
+            filtered_out = [r for r in before_visible if r not in rows]
+            if filtered_out:
+                print("visible length filtered rows:", [f"id={r[0]} len_word={visible_len(r[1])} len_consonantal={visible_len(r[2])} strongs={r[9]}" for r in filtered_out])
+        _debug_filtered_rows('visible length', before_visible_filter, rows)
     except Exception:
         # Be conservative if anything goes wrong - don't filter
         pass
