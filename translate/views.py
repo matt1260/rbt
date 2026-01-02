@@ -1335,6 +1335,8 @@ def translate(request):
         use_niqqud = request.POST.get('use_niqqud')
         html = request.POST.get('html')
         verse_id = request.POST.get('verse_id')
+        verse_id_full = verse_id  # Preserve the exact row ref for paraphrase updates
+        verse_ref = verse_id.split('-')[0] if verse_id else None
         undo = request.POST.get('undo')
         find_text = request.POST.get('find_text')
         replace_text = request.POST.get('replace_text')
@@ -1412,9 +1414,7 @@ def translate(request):
                     if uniq == "1":
                         
                         save_unique_edit_to_database(use_niqqud, heb, 'Eng', eng_data, uniq_id)
-                        verse_id = verse_id.split('-')
-                        verse_id = verse_id[0]
-                        reference = bible.get_references(verse_id)
+                        reference = bible.get_references(verse_ref) if verse_ref else None
                         if reference:
                             ref = reference[0]
                             book = ref.book.name
@@ -1430,9 +1430,7 @@ def translate(request):
 
                     elif eng_data in eng_change:
                         save_edit_to_database(use_niqqud, heb, 'Eng', eng_data)
-                        verse_id = verse_id.split('-')
-                        verse_id = verse_id[0]
-                        reference = bible.get_references(verse_id)
+                        reference = bible.get_references(verse_ref) if verse_ref else None
                         if reference:
                             ref = reference[0]
                             book = ref.book.name
@@ -1461,9 +1459,7 @@ def translate(request):
 
                     if eng_data in eng_change:
                         save_edit_to_database(use_niqqud, heb, 'Eng', eng_data)
-                        verse_id = verse_id.split('-')
-                        verse_id = verse_id[0]
-                        reference = bible.get_references(verse_id)
+                        reference = bible.get_references(verse_ref) if verse_ref else None
                         if reference:
                             ref = reference[0]
                             book = ref.book.name
@@ -1481,10 +1477,8 @@ def translate(request):
        
         if html is not None and html != original_english_reader:
 
-            save_html_to_database(verse_id, html)
-            verse_id = verse_id.split('-')
-            verse_id = verse_id[0]
-            reference = bible.get_references(verse_id)
+            save_html_to_database(verse_id_full, html)
+            reference = bible.get_references(verse_ref) if verse_ref else None
             if reference:
                 ref = reference[0]
                 book = ref.book.name
@@ -1532,7 +1526,7 @@ def translate(request):
         for row_id, text in updated_footnotes.items():
             # row_id is already the database ID - no need to look up in color_id_list
             logger.debug(f"Saving footnote: row_id={row_id}, text preview={text[:50] if text else 'empty'}...")
-            save_footnote_to_database(verse_id, row_id, row_id, text)
+            save_footnote_to_database(verse_ref or verse_id_full, row_id, row_id, text)
 
     ############### END POST EDIT
 
