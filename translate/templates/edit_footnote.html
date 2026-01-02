@@ -3,7 +3,8 @@
 {% block content %}
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.tiny.cloud/1/z2v6hmacz3k9f8fruornolneh77m6jm8ybydwx3v3zwsfi55/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+{% load static %}
+<script src="{% static 'tinymce/tinymce.min.js' %}"></script>
 
 <!-- search script -->
 <script>
@@ -56,6 +57,7 @@
       $("#search-button").click(performSearch);
 
       tinymce.init({
+        license_key: 'gpl',
         selector: 'textarea',
         plugins: 'anchor autolink charmap codesample code emoticons image link lists media searchreplace table visualblocks wordcount',
         toolbar: 'undo redo  | blocks fontfamily fontsize | code bold italic underline | link image media table mergetags | align lineheight | tinycomments | checklist numlist bullist indent outdent | charmap | removeformat',
