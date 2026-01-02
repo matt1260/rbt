@@ -1,4 +1,5 @@
 import logging
+import uuid
 
 from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render, redirect
@@ -2669,14 +2670,22 @@ def find_and_replace_ot(request):
         exact_match = request.POST.get('exact_match') == 'on'
         skip_rbt_html = request.POST.get('skip_rbt_html') == 'on'
         target_footnotes = request.POST.get('target_footnotes') == 'on'
+        genesis_find_text = (request.POST.get('genesis_find_text') or '').strip()
+        genesis_replace_text = (request.POST.get('genesis_replace_text') or '').strip()
+        genesis_exact_match = request.POST.get('genesis_exact_match') == 'on'
 
         context.update({
             'find_text': find_text,
             'replace_text': replace_text,
             'exact_match': exact_match,
             'skip_rbt_html': skip_rbt_html,
-            'target_footnotes': target_footnotes
+            'target_footnotes': target_footnotes,
+            'genesis_find_text': genesis_find_text,
+            'genesis_replace_text': genesis_replace_text,
+            'genesis_exact_match': genesis_exact_match
         })
+
+        form_type = request.POST.get('form_type', 'ot')
 
         logger.debug(
             "OT find/replace submission: find='%s', replace='%s', exact=%s, skip_html=%s, target_footnotes=%s",
@@ -2694,12 +2703,29 @@ def find_and_replace_ot(request):
                 context['edit_result'] = '<div class="notice-bar"><p>No replacements selected.</p></div>'
                 return render(request, 'find_replace_ot.html', context)
 
+            replacements_key = request.POST.get('replacements_key')
+            payload = cache.get(replacements_key) if replacements_key else None
+
+            if not payload:
+                context['edit_result'] = '<div class="notice-bar"><p>Review has expired. Please re-run the search.</p></div>'
+                return render(request, 'find_replace_ot.html', context)
+
+            replacements_data = {
+                item['record_key']: item
+                for item in payload.get('replacements', [])
+            }
+
             successful_replacements = 0
 
             for record_key in approved_replacements:
-                new_text = request.POST.get(f'new_text_{record_key}')
-                new_paraphrase = request.POST.get(f'new_paraphrase_{record_key}')
-                new_footnote = request.POST.get(f'new_footnote_{record_key}')
+                record_data = replacements_data.get(record_key)
+
+                if not record_data:
+                    continue
+
+                new_text = record_data.get('new_text_raw')
+                new_paraphrase = record_data.get('new_paraphrase_raw')
+                new_footnote = record_data.get('new_footnote_raw')
 
                 if new_text is None and new_paraphrase is None and new_footnote is None:
                     continue
@@ -2747,6 +2773,22 @@ def find_and_replace_ot(request):
                                 _invalidate_reader_cache(book_name, chapter_value, verse_value)
                     
                     successful_replacements += 1
+                elif source == 'genesisfootnote':
+                    if new_footnote is None:
+                        continue
+
+                    footnote_info = GenesisFootnotes.objects.filter(id=int(record_id)).values('footnote_id').first()
+                    GenesisFootnotes.objects.filter(id=int(record_id)).update(footnote_html=new_footnote)
+
+                    if footnote_info:
+                        footnote_id_value = footnote_info.get('footnote_id') or ''
+                        parts = footnote_id_value.split('-')
+                        if len(parts) >= 2:
+                            chapter_value = parts[0]
+                            verse_value = parts[1]
+                            _invalidate_reader_cache('Genesis', chapter_value, verse_value)
+
+                    successful_replacements += 1
                 else:
                     if new_text is None:
                         continue
@@ -2757,6 +2799,9 @@ def find_and_replace_ot(request):
                     )
                     successful_replacements += 1
 
+            if replacements_key:
+                cache.delete(replacements_key)
+
             context['edit_result'] = (
                 f'<div class="notice-bar">'
                 f'<p><span class="icon"><i class="fas fa-check-circle"></i></span>'
@@ -2765,6 +2810,77 @@ def find_and_replace_ot(request):
             )
 
             return render(request, 'find_replace_ot.html', context)
+
+        elif form_type == 'genesis_footnotes':
+            if not genesis_find_text or not genesis_replace_text:
+                context['edit_result'] = '<div class="notice-bar"><p>Please provide both the word and the replacement.</p></div>'
+                return render(request, 'find_replace_ot.html', context)
+
+            search_pattern = build_search_pattern(genesis_find_text, genesis_exact_match)
+            if not search_pattern:
+                context['edit_result'] = '<div class="notice-bar"><p>Enter a valid word to search.</p></div>'
+                return render(request, 'find_replace_ot.html', context)
+
+            display_replace_pattern = re.compile(re.escape(genesis_replace_text)) if genesis_replace_text else None
+
+            replacements = []
+            footnote_rows = list(
+                GenesisFootnotes.objects.filter(footnote_html__icontains=genesis_find_text)
+                .values('id', 'footnote_id', 'footnote_html')
+            )
+            logger.debug("Genesis footnote candidates returned: %d", len(footnote_rows))
+
+            for row in footnote_rows:
+                footnote_text = row.get('footnote_html') or ''
+                new_footnote_raw, replacements_count = search_pattern.subn(genesis_replace_text, footnote_text)
+
+                if replacements_count == 0:
+                    continue
+
+                highlighted_old = highlight_html(footnote_text, search_pattern, 'find')
+                if display_replace_pattern:
+                    highlighted_new = highlight_html(new_footnote_raw, display_replace_pattern, 'replace')
+                else:
+                    highlighted_new = new_footnote_raw
+
+                footnote_id = row.get('footnote_id') or ''
+                parts = footnote_id.split('-') if footnote_id else []
+                chapter_ref = parts[0] if len(parts) >= 1 and parts[0] else None
+                verse_ref = parts[1] if len(parts) >= 2 and parts[1] else None
+                verse_link = '../edit/?book=Genesis'
+                if chapter_ref and verse_ref:
+                    verse_link = f'../edit/?book=Genesis&chapter={chapter_ref}&verse={verse_ref}'
+
+                reference_label = footnote_id or f'Genesis footnote #{row["id"]}'
+                if chapter_ref and verse_ref:
+                    reference_label = f'Genesis {chapter_ref}:{verse_ref} (footnote {footnote_id})'
+
+                replacements.append({
+                    'record_key': f'genesisfootnote-{row["id"]}',
+                    'reference': reference_label,
+                    'old_text_display': highlighted_old,
+                    'new_text_display': highlighted_new,
+                    'old_text_raw': '',
+                    'new_text_raw': '',
+                    'old_paraphrase_raw': '',
+                    'new_paraphrase_raw': '',
+                    'old_footnote_raw': footnote_text,
+                    'new_footnote_raw': new_footnote_raw,
+                    'verse_link': verse_link
+                })
+
+            if not replacements:
+                context['edit_result'] = '<div class="notice-bar"><p>No Genesis footnotes matched the given word.</p></div>'
+                return render(request, 'find_replace_ot.html', context)
+
+            review_key = f"find_replace_ot_{request.user.id or 'anon'}_{uuid.uuid4().hex}"
+            cache.set(review_key, {'replacements': replacements}, timeout=600)
+
+            context['replacements'] = replacements
+            context['form_type'] = 'genesis_footnotes'
+            context['replacements_key'] = review_key
+            logger.debug("Prepared %d Genesis footnote replacement previews", len(replacements))
+            return render(request, 'find_replace_review_ot.html', context)
 
         elif find_text and replace_text:
             search_pattern = build_search_pattern(find_text, exact_match)
@@ -3015,7 +3131,12 @@ def find_and_replace_ot(request):
                 logger.info("OT find/replace: no matches found for '%s'", find_text)
                 return render(request, 'find_replace_ot.html', context)
 
+            review_key = f"find_replace_ot_{request.user.id or 'anon'}_{uuid.uuid4().hex}"
+            cache.set(review_key, {'replacements': replacements}, timeout=600)
+
             context['replacements'] = replacements
+            context['form_type'] = 'ot'
+            context['replacements_key'] = review_key
             logger.debug("Prepared %d replacement previews", len(replacements))
 
             return render(request, 'find_replace_review_ot.html', context)

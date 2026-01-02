@@ -30,6 +30,8 @@
     <h4>Review and Approve Old Testament Replacements</h4>
     <form method="POST">
         {% csrf_token %}
+        <input type="hidden" name="form_type" value="{{ form_type|default:'ot' }}">
+        <input type="hidden" name="replacements_key" value="{{ replacements_key|default:'' }}">
         <table class="table">
             <thead>
                 <tr>
@@ -50,12 +52,6 @@
                     <td><a href="{{ replacement.verse_link }}" target="_blank">{{ replacement.reference }}</a></td>
                     <td>{{ replacement.old_text_display|safe }}</td>
                     <td>{{ replacement.new_text_display|safe }}</td>
-                    <input type="hidden" name="old_text_{{ replacement.record_key }}" value="{{ replacement.old_text_raw|default_if_none:''|escape }}">
-                    <input type="hidden" name="new_text_{{ replacement.record_key }}" value="{{ replacement.new_text_raw|default_if_none:''|escape }}">
-                    <input type="hidden" name="old_paraphrase_{{ replacement.record_key }}" value="{{ replacement.old_paraphrase_raw|default_if_none:''|escape }}">
-                    <input type="hidden" name="new_paraphrase_{{ replacement.record_key }}" value="{{ replacement.new_paraphrase_raw|default_if_none:''|escape }}">
-                    <input type="hidden" name="old_footnote_{{ replacement.record_key }}" value="{{ replacement.old_footnote_raw|default_if_none:''|escape }}">
-                    <input type="hidden" name="new_footnote_{{ replacement.record_key }}" value="{{ replacement.new_footnote_raw|default_if_none:''|escape }}">
                 </tr>
                 {% endfor %}
             </tbody>

@@ -27,6 +27,7 @@
     <h4>Find and Update Old Testament Words:</h4>
     <form method="POST">
         {% csrf_token %}
+        <input type="hidden" name="form_type" value="ot">
         <label for="find_text">Word:</label>
         <input type="text" name="find_text" id="find_text" value="{{ find_text|default:'' }}" required>
         <br>
@@ -51,6 +52,26 @@
             </label>
         </div>
         <input type="submit" value="Find and Update">
+    </form>
+</div>
+
+<div class="container" style="margin-top: 40px;">
+    <h4>Find and Update Genesis Footnotes:</h4>
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="form_type" value="genesis_footnotes">
+        <label for="genesis_find_text">Word:</label>
+        <input type="text" name="genesis_find_text" id="genesis_find_text" value="{{ genesis_find_text|default:'' }}" required>
+        <br>
+        <label for="genesis_replace_text">Replacement:</label>
+        <input type="text" name="genesis_replace_text" id="genesis_replace_text" value="{{ genesis_replace_text|default:'' }}" required>
+        <div class="form-option">
+            <label for="genesis_exact_match">
+                <input type="checkbox" name="genesis_exact_match" id="genesis_exact_match" {% if genesis_exact_match %}checked{% endif %}>
+                Exact match only (whole word)
+            </label>
+        </div>
+        <input type="submit" value="Find and Update Genesis Footnotes">
     </form>
 </div>
 {% endblock %}
