@@ -13,22 +13,12 @@
 
 <h1>{{ book }} {{ chapter_num }}</h1>
 {% with title_prefix=book|title %}
-<div id="toggleButtonsContainer" style="display: flex; justify-content: flex-end; flex-wrap: wrap;">
-    <div id="h5ToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-eye-slash"></i> Hide Headers (H)
-    </div>
-    <div id="imageToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-eye-slash"></i> Hide Images (I)
-    </div>
-    <div id="literalToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-eye"></i> Hide Literal (L)
-    </div>
-    <div id="verseRefToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-eye-slash"></i> Hide Verse References (V)
-    </div>
-    <div id="notesToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-book"></i> Show Notes (N)
-    </div>
+<div id="toggleButtonsContainer">
+    <div id="h5ToggleButton"><i class="fas fa-eye-slash"></i> Hide Headers (H)</div>
+    <div id="imageToggleButton"><i class="fas fa-eye-slash"></i> Hide Images (I)</div>
+    <div id="literalToggleButton"><i class="fas fa-eye"></i> Show Literal (L)</div>
+    <div id="verseRefToggleButton"><i class="fas fa-eye-slash"></i> Hide Verse References (V)</div>
+    <div id="notesToggleButton"><i class="fas fa-book-open"></i> Hide Notes (N)</div>
 </div>
 
 {% endwith %}
@@ -68,6 +58,51 @@
         margin: 0;
         font-size: 14px;
         color: #666;
+    }
+
+    /* Modern toolbar container */
+    #toggleButtonsContainer {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        background: #fafafa;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 8px 12px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        position: sticky;
+        top: 0;
+        z-index: 50;
+    }
+
+    /* Toolbar buttons */
+    #toggleButtonsContainer > div {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        padding: 6px 12px;
+        color: #ba8666;
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        user-select: none;
+    }
+
+    /* Hover and active states */
+    #toggleButtonsContainer > div:hover {
+        background: #f4ebe5;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    /* Icon styling */
+    #toggleButtonsContainer i {
+        color: #ba8666;
+        font-size: 14px;
     }
 
     /* Mobile styles */
@@ -130,6 +165,40 @@
         margin-bottom: 4px;
         color: #333;
     }
+
+    .hebrew_footnote {
+        font-size: 1.5em;
+    }
+
+    /* Hide touch indicator on desktop */
+    .touch-indicator {
+        display: none;
+    }
+
+    /* Show touch indicator only on mobile/touch devices */
+    @media (max-width: 768px), (hover: none) {
+        .touch-indicator {
+            display: block;
+        }
+    }
+
+    /* Responsive images and videos in tooltip containers */
+    .tooltip-container img,
+    .tooltip-container video {
+        max-width: 500px;
+        width: 100% !important;
+        height: auto !important;
+        display: block;
+        margin: 0 auto;
+    }
+
+    @media (max-width: 768px) {
+        .tooltip-container img,
+        .tooltip-container video {
+            max-width: 100%;
+            width: 100% !important;
+        }
+    }
 </style>
 
 <script>
@@ -149,11 +218,11 @@
         // Check if device is mobile
         const isMobile = window.innerWidth <= 768;
         
-        let isLiteralVisible = !isMobile; // Hide literal by default on mobile
+        let isLiteralVisible = false; // Hide literal by default
         let isImageVisible = true;
         let isH5Visible = true;
         let isVerseRefVisible = false;
-        let isNotesVisible = false;
+        let isNotesVisible = true; // Show notes by default
 
         function updateLiteralButtonLabel() {
             literalToggleButton.innerHTML = isLiteralVisible
@@ -182,7 +251,7 @@
                     paraphraseContainer.style.width = "100%";
                 }
 
-                notesToggleButton.innerHTML = '<i class="fas fa-book"></i> Show Notes (N)';
+                 notesToggleButton.innerHTML = '<i class="fas fa-book"></i> Show Notes (N)';
             }
 
             updateLiteralButtonLabel();
@@ -203,11 +272,12 @@
         }
 
         literalToggleButton.addEventListener("click", function() {
-            isLiteralVisible = !isLiteralVisible;
-
             if (isNotesVisible) {
-                updateLiteralButtonLabel();
-                return;
+                // Override notes view: show literal instead
+                isNotesVisible = false;
+                isLiteralVisible = true;
+            } else {
+                isLiteralVisible = !isLiteralVisible;
             }
 
             updateLayout();

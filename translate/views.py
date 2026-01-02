@@ -2668,20 +2668,23 @@ def find_and_replace_ot(request):
         replace_text = (request.POST.get('replace_text') or '').strip()
         exact_match = request.POST.get('exact_match') == 'on'
         skip_rbt_html = request.POST.get('skip_rbt_html') == 'on'
+        target_footnotes = request.POST.get('target_footnotes') == 'on'
 
         context.update({
             'find_text': find_text,
             'replace_text': replace_text,
             'exact_match': exact_match,
-            'skip_rbt_html': skip_rbt_html
+            'skip_rbt_html': skip_rbt_html,
+            'target_footnotes': target_footnotes
         })
 
         logger.debug(
-            "OT find/replace submission: find='%s', replace='%s', exact=%s, skip_html=%s",
+            "OT find/replace submission: find='%s', replace='%s', exact=%s, skip_html=%s, target_footnotes=%s",
             find_text,
             replace_text,
             exact_match,
-            skip_rbt_html
+            skip_rbt_html,
+            target_footnotes
         )
 
         if 'approve_replacements' in request.POST:
@@ -2696,8 +2699,9 @@ def find_and_replace_ot(request):
             for record_key in approved_replacements:
                 new_text = request.POST.get(f'new_text_{record_key}')
                 new_paraphrase = request.POST.get(f'new_paraphrase_{record_key}')
+                new_footnote = request.POST.get(f'new_footnote_{record_key}')
 
-                if new_text is None and new_paraphrase is None:
+                if new_text is None and new_paraphrase is None and new_footnote is None:
                     continue
 
                 source, record_id = record_key.split('-', 1)
@@ -2712,6 +2716,37 @@ def find_and_replace_ot(request):
                     if update_kwargs:
                         Genesis.objects.filter(id=int(record_id)).update(**update_kwargs)
                         successful_replacements += 1
+                elif source == 'footnote':
+                    if new_footnote is None:
+                        continue
+                    execute_query("SET search_path TO old_testament;")
+                    
+                    # Get the ref for this hebrewdata row to clear cache
+                    ref_row = execute_query(
+                        "SELECT Ref FROM old_testament.hebrewdata WHERE id = %s;",
+                        (int(record_id),),
+                        fetch='one'
+                    )
+                    
+                    execute_query(
+                        "UPDATE old_testament.hebrewdata SET footnote = %s WHERE id = %s;",
+                        (new_footnote, int(record_id))
+                    )
+                    
+                    # Clear cache for this verse
+                    if ref_row:
+                        verse_ref = ref_row[0]
+                        if verse_ref:
+                            # Parse Gen.1.1-01 format
+                            parts = verse_ref.split('.')
+                            if len(parts) >= 3:
+                                book_code = parts[0]
+                                chapter_value = parts[1]
+                                verse_value = parts[2].split('-')[0]
+                                book_name = convert_book_name(book_code) or book_code
+                                _invalidate_reader_cache(book_name, chapter_value, verse_value)
+                    
+                    successful_replacements += 1
                 else:
                     if new_text is None:
                         continue
@@ -2740,166 +2775,240 @@ def find_and_replace_ot(request):
             display_replace_pattern = re.compile(re.escape(replace_text)) if replace_text else None
 
             execute_query("SET search_path TO old_testament;")
-            rows = execute_query(
-                "SELECT id, Ref, html, book, chapter, verse FROM old_testament.ot WHERE html LIKE %s;",
-                (f'%{find_text}%',),
-                fetch='all'
-            )
-
-            logger.debug("OT table candidates returned: %d", len(rows))
-
-            file_name_pattern = r'\b\w+\.\w+\b'
+            
             replacements = []
             genesis_replacements = []
-
-            for verse_id, ref, ot_html, book, chapter, verse in rows:
-                working_html = ot_html or ''
-                source = 'ot'
-                record_key = f'ot-{verse_id}'
-                try:
-                    chapter_ref = int(chapter) if chapter is not None else None
-                except (TypeError, ValueError):
-                    chapter_ref = None
-                try:
-                    verse_ref = int(verse) if verse is not None else None
-                except (TypeError, ValueError):
-                    verse_ref = None
-                book_display = _safe_book_name(book)
-
-                if book_display == 'Genesis':
-                    logger.debug(
-                        "Skipping OT row id=%s for Genesis, will use ORM data", verse_id
-                    )
-                    continue
-
-                if re.search(file_name_pattern, working_html):
-                    continue
-
-                if not search_pattern.search(working_html):
-                    continue
-
-                highlighted_old = highlight_html(working_html, search_pattern, 'find')
-                new_text_raw, replacements_count = search_pattern.subn(replace_text, working_html)
-
-                if replacements_count == 0:
-                    continue
-
-                if display_replace_pattern:
-                    highlighted_new = highlight_html(new_text_raw, display_replace_pattern, 'replace')
-                else:
-                    highlighted_new = new_text_raw
-
-                verse_link = (
-                    f'../edit/?book=Genesis&chapter={chapter_ref}&verse={verse_ref}'
-                    if source == 'genesis'
-                    else f'../translate/?book={book}&chapter={chapter_ref}&verse={verse_ref}'
+            
+            # If targeting footnotes, query hebrewdata footnote column instead
+            if target_footnotes:
+                footnote_rows = execute_query(
+                    "SELECT id, Ref, footnote FROM old_testament.hebrewdata WHERE footnote IS NOT NULL AND footnote LIKE %s;",
+                    (f'%{find_text}%',),
+                    fetch='all'
+                )
+                
+                logger.debug("Hebrewdata footnote candidates returned: %d", len(footnote_rows))
+                logger.debug("Search pattern: %s", search_pattern.pattern if search_pattern else 'None')
+                
+                for row_id, ref, footnote_text in footnote_rows:
+                    if not footnote_text:
+                        continue
+                    
+                    # For footnotes with HTML, use simple string replacement instead of regex
+                    # to avoid issues with escaped characters in patterns
+                    if exact_match:
+                        # For exact match, ensure word boundaries (use regex)
+                        highlighted_old = highlight_html(footnote_text, search_pattern, 'find')
+                        new_footnote_raw, replacements_count = search_pattern.subn(replace_text, footnote_text)
+                    else:
+                        # For non-exact match with HTML content, use simple string replace
+                        replacements_count = footnote_text.count(find_text)
+                        if replacements_count > 0:
+                            new_footnote_raw = footnote_text.replace(find_text, replace_text)
+                            # Highlight using simple string patterns
+                            highlighted_old = footnote_text.replace(find_text, f'<span class="highlight-find">{find_text}</span>')
+                        else:
+                            new_footnote_raw = footnote_text
+                    
+                    if replacements_count == 0:
+                        logger.debug("Ref %s: LIKE matched but no replacements found", ref)
+                        logger.debug("Find text: %r", find_text)
+                        logger.debug("Footnote preview: %s", footnote_text[:300])
+                        continue
+                    
+                    if display_replace_pattern and not exact_match:
+                        # For non-exact match, use simple string highlighting
+                        highlighted_new = new_footnote_raw.replace(replace_text, f'<span class="highlight-replace">{replace_text}</span>')
+                    elif display_replace_pattern:
+                        highlighted_new = highlight_html(new_footnote_raw, display_replace_pattern, 'replace')
+                    else:
+                        highlighted_new = new_footnote_raw
+                    
+                    # Parse ref to get book/chapter/verse for link
+                    parts = ref.split('.')
+                    if len(parts) >= 3:
+                        book_code = parts[0]
+                        chapter_ref = parts[1]
+                        verse_ref = parts[2].split('-')[0]
+                        book_display = convert_book_name(book_code) or book_code
+                        
+                        verse_link = f'../translate/?book={book_display}&chapter={chapter_ref}&verse={verse_ref}'
+                        reference_label = f'{book_display} {chapter_ref}:{verse_ref} (footnote)'
+                        record_key = f'footnote-{row_id}'
+                        
+                        replacements.append({
+                            'record_key': record_key,
+                            'reference': reference_label,
+                            'old_text_display': highlighted_old,
+                            'new_text_display': highlighted_new,
+                            'old_footnote_raw': footnote_text,
+                            'new_footnote_raw': new_footnote_raw,
+                            'old_text_raw': '',
+                            'new_text_raw': '',
+                            'old_paraphrase_raw': '',
+                            'new_paraphrase_raw': '',
+                            'verse_link': verse_link
+                        })
+            else:
+                # Original OT table query
+                rows = execute_query(
+                    "SELECT id, Ref, html, book, chapter, verse FROM old_testament.ot WHERE html LIKE %s;",
+                    (f'%{find_text}%',),
+                    fetch='all'
                 )
 
-                reference_label = ref or f'{book_display} {chapter_ref}:{verse_ref}'
+                logger.debug("OT table candidates returned: %d", len(rows))
 
-                replacements.append({
-                    'record_key': record_key,
-                    'reference': reference_label,
-                    'old_text_display': highlighted_old,
-                    'new_text_display': highlighted_new,
-                    'old_text_raw': working_html,
-                    'new_text_raw': new_text_raw,
-                    'old_paraphrase_raw': '',
-                    'new_paraphrase_raw': '',
-                    'verse_link': verse_link
-                })
+                file_name_pattern = r'\b\w+\.\w+\b'
 
-            genesis_rows = list(
-                Genesis.objects.filter(
-                    Q(html__icontains=find_text) | Q(rbt_reader__icontains=find_text)
-                ).values('id', 'chapter', 'verse', 'html', 'rbt_reader')
-            )
-            logger.debug("Genesis candidates returned: %d", len(genesis_rows))
+                for verse_id, ref, ot_html, book, chapter, verse in rows:
+                    working_html = ot_html or ''
+                    source = 'ot'
+                    record_key = f'ot-{verse_id}'
+                    try:
+                        chapter_ref = int(chapter) if chapter is not None else None
+                    except (TypeError, ValueError):
+                        chapter_ref = None
+                    try:
+                        verse_ref = int(verse) if verse is not None else None
+                    except (TypeError, ValueError):
+                        verse_ref = None
+                    book_display = _safe_book_name(book)
 
-            for row in genesis_rows:
-                html_text = row.get('html') or ''
-                paraphrase_text = row.get('rbt_reader') or ''
+                    if book_display == 'Genesis':
+                        logger.debug(
+                            "Skipping OT row id=%s for Genesis, will use ORM data", verse_id
+                        )
+                        continue
 
-                if re.search(file_name_pattern, html_text) and not skip_rbt_html:
-                    logger.debug(
-                        "Skipping Genesis id=%s due to file-like pattern", row.get('id')
-                    )
-                    continue
+                    if re.search(file_name_pattern, working_html):
+                        continue
 
-                html_new = html_text
-                html_count = 0
-                if not skip_rbt_html and html_text:
-                    html_new, html_count = search_pattern.subn(replace_text, html_text)
+                    if not search_pattern.search(working_html):
+                        continue
 
-                paraphrase_new, paraphrase_count = search_pattern.subn(replace_text, paraphrase_text)
+                    highlighted_old = highlight_html(working_html, search_pattern, 'find')
+                    new_text_raw, replacements_count = search_pattern.subn(replace_text, working_html)
 
-                total_matches = html_count + paraphrase_count
-                if total_matches == 0:
-                    logger.debug(
-                        "Genesis id=%s pattern found zero replacements in html/paraphrase",
-                        row.get('id')
-                    )
-                    continue
+                    if replacements_count == 0:
+                        continue
 
-                highlighted_html_old = ''
-                highlighted_html_new = ''
-                if not skip_rbt_html and html_text:
-                    highlighted_html_old = highlight_html(html_text, search_pattern, 'find')
-                    highlighted_html_new = (
-                        highlight_html(html_new, display_replace_pattern, 'replace')
-                        if display_replace_pattern else escape(html_new)
+                    if display_replace_pattern:
+                        highlighted_new = highlight_html(new_text_raw, display_replace_pattern, 'replace')
+                    else:
+                        highlighted_new = new_text_raw
+
+                    verse_link = (
+                        f'../edit/?book=Genesis&chapter={chapter_ref}&verse={verse_ref}'
+                        if source == 'genesis'
+                        else f'../translate/?book={book}&chapter={chapter_ref}&verse={verse_ref}'
                     )
 
-                highlighted_para_old = ''
-                highlighted_para_new = ''
-                if paraphrase_text:
-                    highlighted_para_old = highlight_html(paraphrase_text, search_pattern, 'find')
-                    highlighted_para_new = (
-                        highlight_html(paraphrase_new, display_replace_pattern, 'replace')
-                        if display_replace_pattern else escape(paraphrase_new)
-                    )
+                    reference_label = ref or f'{book_display} {chapter_ref}:{verse_ref}'
 
-                def format_section(label: str, content: str) -> str:
-                    if not content:
-                        return ''
-                    return f'<div class="genesis-field"><strong>{label}:</strong><div>{content}</div></div>'
+                    replacements.append({
+                        'record_key': record_key,
+                        'reference': reference_label,
+                        'old_text_display': highlighted_old,
+                        'new_text_display': highlighted_new,
+                        'old_text_raw': working_html,
+                        'new_text_raw': new_text_raw,
+                        'old_paraphrase_raw': '',
+                        'new_paraphrase_raw': '',
+                        'verse_link': verse_link
+                    })
 
-                combined_old_display = (
-                    format_section('HTML', highlighted_html_old) +
-                    format_section('Paraphrase', highlighted_para_old)
-                ) or '<em>No content</em>'
-
-                combined_new_display = (
-                    format_section('HTML', highlighted_html_new) +
-                    format_section('Paraphrase', highlighted_para_new)
-                ) or '<em>No content</em>'
-
-                chapter_ref = row.get('chapter')
-                verse_ref = row.get('verse')
-
-                verse_link = f"../edit/?book=Genesis&chapter={chapter_ref}&verse={verse_ref}"
-                reference_label = f"Genesis {chapter_ref}:{verse_ref}"
-                record_key = f"genesis-{row['id']}"
-
-                logger.debug(
-                    "Queued Genesis replacement: record_key=%s matches=%d",
-                    record_key,
-                    total_matches
+                genesis_rows = list(
+                    Genesis.objects.filter(
+                        Q(html__icontains=find_text) | Q(rbt_reader__icontains=find_text)
+                    ).values('id', 'chapter', 'verse', 'html', 'rbt_reader')
                 )
+                logger.debug("Genesis candidates returned: %d", len(genesis_rows))
 
-                genesis_replacements.append({
-                    'record_key': record_key,
-                    'reference': reference_label,
-                    'old_text_display': combined_old_display,
-                    'new_text_display': combined_new_display,
-                    'old_text_raw': html_text,
-                    'new_text_raw': html_new,
-                    'old_paraphrase_raw': paraphrase_text,
-                    'new_paraphrase_raw': paraphrase_new,
-                    'verse_link': verse_link
-                })
+                for row in genesis_rows:
+                    html_text = row.get('html') or ''
+                    paraphrase_text = row.get('rbt_reader') or ''
 
-            replacements = genesis_replacements + replacements
+                    if re.search(file_name_pattern, html_text) and not skip_rbt_html:
+                        logger.debug(
+                            "Skipping Genesis id=%s due to file-like pattern", row.get('id')
+                        )
+                        continue
+
+                    html_new = html_text
+                    html_count = 0
+                    if not skip_rbt_html and html_text:
+                        html_new, html_count = search_pattern.subn(replace_text, html_text)
+
+                    paraphrase_new, paraphrase_count = search_pattern.subn(replace_text, paraphrase_text)
+
+                    total_matches = html_count + paraphrase_count
+                    if total_matches == 0:
+                        logger.debug(
+                            "Genesis id=%s pattern found zero replacements in html/paraphrase",
+                            row.get('id')
+                        )
+                        continue
+
+                    highlighted_html_old = ''
+                    highlighted_html_new = ''
+                    if not skip_rbt_html and html_text:
+                        highlighted_html_old = highlight_html(html_text, search_pattern, 'find')
+                        highlighted_html_new = (
+                            highlight_html(html_new, display_replace_pattern, 'replace')
+                            if display_replace_pattern else escape(html_new)
+                        )
+
+                    highlighted_para_old = ''
+                    highlighted_para_new = ''
+                    if paraphrase_text:
+                        highlighted_para_old = highlight_html(paraphrase_text, search_pattern, 'find')
+                        highlighted_para_new = (
+                            highlight_html(paraphrase_new, display_replace_pattern, 'replace')
+                            if display_replace_pattern else escape(paraphrase_new)
+                        )
+
+                    def format_section(label: str, content: str) -> str:
+                        if not content:
+                            return ''
+                        return f'<div class="genesis-field"><strong>{label}:</strong><div>{content}</div></div>'
+
+                    combined_old_display = (
+                        format_section('HTML', highlighted_html_old) +
+                        format_section('Paraphrase', highlighted_para_old)
+                    ) or '<em>No content</em>'
+
+                    combined_new_display = (
+                        format_section('HTML', highlighted_html_new) +
+                        format_section('Paraphrase', highlighted_para_new)
+                    ) or '<em>No content</em>'
+
+                    chapter_ref = row.get('chapter')
+                    verse_ref = row.get('verse')
+
+                    verse_link = f"../edit/?book=Genesis&chapter={chapter_ref}&verse={verse_ref}"
+                    reference_label = f"Genesis {chapter_ref}:{verse_ref}"
+                    record_key = f"genesis-{row['id']}"
+
+                    logger.debug(
+                        "Queued Genesis replacement: record_key=%s matches=%d",
+                        record_key,
+                        total_matches
+                    )
+
+                    genesis_replacements.append({
+                        'record_key': record_key,
+                        'reference': reference_label,
+                        'old_text_display': combined_old_display,
+                        'new_text_display': combined_new_display,
+                        'old_text_raw': html_text,
+                        'new_text_raw': html_new,
+                        'old_paraphrase_raw': paraphrase_text,
+                        'new_paraphrase_raw': paraphrase_new,
+                        'verse_link': verse_link
+                    })
+
+                replacements = genesis_replacements + replacements
 
             if not replacements:
                 context['edit_result'] = '<div class="notice-bar"><p>No matches found for the given word.</p></div>'

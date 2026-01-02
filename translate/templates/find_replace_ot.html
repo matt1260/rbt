@@ -41,7 +41,13 @@
         <div class="form-option">
             <label for="skip_rbt_html">
                 <input type="checkbox" name="skip_rbt_html" id="skip_rbt_html" {% if skip_rbt_html %}checked{% endif %}>
-                Skip Genesis HTML (rbt_html) replacements
+                Skip Genesis HTML (rbt_html Hebrew literal) replacements
+            </label>
+        </div>
+        <div class="form-option">
+            <label for="target_footnotes">
+                <input type="checkbox" name="target_footnotes" id="target_footnotes" {% if target_footnotes %}checked{% endif %}>
+                Target footnotes only (old_testament.hebrewdata.footnote column)
             </label>
         </div>
         <input type="submit" value="Find and Update">
