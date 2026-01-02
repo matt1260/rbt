@@ -269,23 +269,32 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 }
 
 /* --- 🔹 TOUCH INDICATOR (mobile cue) --- */
-@media (max-width: 600px) {
-    .touch-indicator {
-        position: absolute;
-        left: 50%;
-        bottom: 10px;
-        transform: translate(-50%, -50%);
-        font-size: 24px;
-        color: #533e30;
-        z-index: 2;
-        animation: pulse 1.6s infinite;
-    }
+.touch-indicator {
+	display: none;
 }
 
-@media (min-width: 601px) {
-    .touch-indicator {
-        display: none; /* Hide on desktop */
-    }
+body.no-touch .touch-indicator {
+	display: none !important;
+}
+
+@media (max-width: 768px), (hover: none) {
+	.touch-indicator {
+		display: block;
+		position: absolute;
+		left: 50%;
+		bottom: 10px;
+		transform: translate(-50%, -50%);
+		font-size: 24px;
+		color: #533e30;
+		z-index: 2;
+		animation: pulse 1.6s infinite;
+	}
+}
+
+@media (min-width: 769px) {
+	.touch-indicator {
+		display: none; /* Hide on desktop */
+	}
 }
 
 /* --- 🔹 RESPONSIVE TOOLTIP SIZING --- */
@@ -589,7 +598,11 @@ blockquote {
     font-weight: bold;
     color: #222;
 }
-
+.hebrew_footnote {
+	font-family: "Times New Roman", David, "Noto Serif Hebrew", serif;
+	font-size: 1.5em;
+	font-weight: 600;
+}
 /* Custom Hebrew font fallback and toggle */
 @font-face {
     font-family: 'siloam_hebrew';
@@ -636,6 +649,19 @@ table.front_search td {
 </head>
 
 <body class="page-template-default page page-id-9943 logged-in admin-bar custom-background  nv-blog-default nv-sidebar-full-width menu_sidebar_slide_left wpb-js-composer js-comp-ver-5.1.1 vc_responsive customize-support" id="neve_body">
+	<script>
+		(function () {
+			const hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints || 0) > 0 || window.matchMedia('(pointer: coarse)').matches;
+			const body = document.body;
+			if (hasTouch) {
+				body.classList.add('has-touch');
+				body.classList.remove('no-touch');
+			} else {
+				body.classList.add('no-touch');
+				body.classList.remove('has-touch');
+			}
+		})();
+	</script>
 	<script type="text/javascript">
 		(function() {
 			var request, b = document.body, c = 'className', cs = 'customize-support', rcs = new RegExp('(^|\\s+)(no-)?'+cs+'(\\s+|$)');

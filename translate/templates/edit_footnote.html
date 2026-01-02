@@ -56,20 +56,69 @@
       // Attach a click event to the search button
       $("#search-button").click(performSearch);
 
-      tinymce.init({
-        license_key: 'gpl',
-        selector: 'textarea',
-        plugins: 'anchor autolink charmap codesample code emoticons image link lists media searchreplace table visualblocks wordcount',
-        toolbar: 'undo redo  | blocks fontfamily fontsize | code bold italic underline | link image media table mergetags | align lineheight | tinycomments | checklist numlist bullist indent outdent | charmap | removeformat',
-        tinycomments_mode: 'embedded',
-        tinycomments_author: 'Author name',
-        mergetags_list: [
-          { value: 'First.Name', title: 'First Name' },
-          { value: 'Email', title: 'Email' },
-        ],
-        branding: false,  // Hide the TinyMCE branding
-        ai_request: (request, respondWith) => respondWith.string(() => Promise.reject("See docs to implement AI Assistant"))
-      });
+        tinymce.init({
+          license_key: 'gpl',
+          selector: 'textarea',
+          plugins: 'anchor autolink charmap codesample code emoticons image link lists searchreplace table visualblocks wordcount',
+          toolbar: 'undo redo  | blocks fontfamily fontsize | code bold italic underline | link image table | align lineheight | checklist numlist bullist indent outdent | charmap | hebrewFootnote | colorFf00aa colorBlue | removeformat',
+          tinycomments_mode: 'embedded',
+          tinycomments_author: 'Author name',
+          mergetags_list: [
+            { value: 'First.Name', title: 'First Name' },
+            { value: 'Email', title: 'Email' },
+          ],
+          branding: false,  // Hide the TinyMCE branding
+          setup(editor) {
+            // Register custom buttons in UI registry
+            editor.ui.registry.addToggleButton('hebrewFootnote', {
+              text: 'Hebrew',
+              tooltip: 'Mark as Hebrew footnote',
+              onAction: () => editor.formatter.toggle('hebrewFootnote'),
+              onSetup(buttonApi) {
+                const toggleButtonState = () => buttonApi.setActive(editor.formatter.match('hebrewFootnote'));
+                editor.on('NodeChange', toggleButtonState);
+                return () => editor.off('NodeChange', toggleButtonState);
+              }
+            });
+            editor.ui.registry.addToggleButton('colorFf00aa', {
+              text: 'Magenta',
+              tooltip: 'Apply magenta color',
+              onAction: () => editor.formatter.toggle('colorFf00aa'),
+              onSetup(buttonApi) {
+                const toggleButtonState = () => buttonApi.setActive(editor.formatter.match('colorFf00aa'));
+                editor.on('NodeChange', toggleButtonState);
+                return () => editor.off('NodeChange', toggleButtonState);
+              }
+            });
+            editor.ui.registry.addToggleButton('colorBlue', {
+              text: 'Blue',
+              tooltip: 'Apply blue color',
+              onAction: () => editor.formatter.toggle('colorBlue'),
+              onSetup(buttonApi) {
+                const toggleButtonState = () => buttonApi.setActive(editor.formatter.match('colorBlue'));
+                editor.on('NodeChange', toggleButtonState);
+                return () => editor.off('NodeChange', toggleButtonState);
+              }
+            });
+            
+            // Register formatters after editor is initialized
+            editor.on('init', () => {
+              editor.formatter.register('hebrewFootnote', {
+                inline: 'span',
+                classes: 'hebrew_footnote'
+              });
+              editor.formatter.register('colorFf00aa', {
+                inline: 'span',
+                styles: { color: '#ff00aa' }
+              });
+              editor.formatter.register('colorBlue', {
+                inline: 'span',
+                styles: { color: 'blue' }
+              });
+            });
+          },
+          ai_request: (request, respondWith) => respondWith.string(() => Promise.reject("See docs to implement AI Assistant"))
+        });
   });
 
 </script>
