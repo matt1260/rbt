@@ -1,2 +1,2 @@
-# rbtproject
-Translation, editing Django app + Postgres
+# the rbt project
+App handles translation, editing, reading of the RBT
