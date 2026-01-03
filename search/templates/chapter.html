@@ -18,7 +18,7 @@
     <div id="imageToggleButton"><i class="fas fa-eye-slash"></i> Hide Images (I)</div>
     <div id="literalToggleButton"><i class="fas fa-eye"></i> Show Literal (L)</div>
     <div id="verseRefToggleButton"><i class="fas fa-eye-slash"></i> Hide Verse References (V)</div>
-    <div id="notesToggleButton"><i class="fas fa-book-open"></i> Hide Notes (N)</div>
+    <div id="notesToggleButton"><i class="fas fa-book"></i> Show Notes (N)</div>
 </div>
 
 {% endwith %}
@@ -32,8 +32,8 @@
         {% endif %}
     </div>
 
-    <div id="toggleDivContainer" style="width: 50%; padding-left: 10px; border-left: 1px solid #000;">
-        <div id="literal-pane">
+    <div id="toggleDivContainer" style="width: 50%; padding-left: 10px; border-left: 1px solid #000; display: none;">
+        <div id="literal-pane" style="display: none;">
             <h4>RBT Hebrew Literal</h4>
             {% if html %}
                 {{ html|safe }}
@@ -222,7 +222,7 @@
         let isImageVisible = true;
         let isH5Visible = true;
         let isVerseRefVisible = false;
-        let isNotesVisible = true; // Show notes by default
+        let isNotesVisible = false; // Hide notes by default
 
         function updateLiteralButtonLabel() {
             literalToggleButton.innerHTML = isLiteralVisible
