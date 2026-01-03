@@ -264,6 +264,13 @@ def get_context(book, chapter_num, verse_num):
             'hebrew': hebrew,
             'rbt_greek': rbt_greek,
             'cached_hit': cached_hit,
+            'strong_row': results.get('strong_row'),
+            'english_row': results.get('english_row'),
+            'hebrew_row': results.get('hebrew_row'),
+            'hebrew_clean': results.get('hebrew_clean'),
+            'morph_row': results.get('morph_row'),
+            'hebrew_cards': results.get('hebrew_interlinear_cards', []),
+            'hebrewdata_rows': results.get('hebrewdata_rows', []),
         }
 
         return context
@@ -876,6 +883,90 @@ def edit(request):
         replacements = request.POST.get('replacements')
         edited_greek = request.POST.get('edited_greek')
         verse_input = request.POST.get('verse_input')
+        hebrewdata_action = request.POST.get('hebrewdata_action')
+
+        if hebrewdata_action == 'update_rows' and book == 'Genesis':
+            hebrew_ids = request.POST.getlist('hebrew_ids')
+            hebrew_refs = request.POST.getlist('hebrew_refs')
+            hebrew_eng_values = request.POST.getlist('hebrew_eng')
+            hebrew_eng_original = request.POST.getlist('hebrew_eng_original')
+            hebrew_morph_values = request.POST.getlist('hebrew_morph')
+            hebrew_morph_original = request.POST.getlist('hebrew_morph_original')
+
+            updated_rows: list[str] = []
+            for row in zip(
+                hebrew_ids,
+                hebrew_refs,
+                hebrew_eng_values,
+                hebrew_eng_original,
+                hebrew_morph_values,
+                hebrew_morph_original,
+            ):
+                (
+                    row_id,
+                    row_ref,
+                    eng_value,
+                    eng_original_value,
+                    morph_value,
+                    morph_original_value,
+                ) = row
+
+                try:
+                    row_id_int = int(row_id)
+                except (TypeError, ValueError):
+                    continue
+
+                eng_value = (eng_value or '').strip()
+                eng_original_value = (eng_original_value or '').strip()
+                morph_value = (morph_value or '').strip()
+                morph_original_value = (morph_original_value or '').strip()
+
+                row_updates: list[str] = []
+                if eng_value != eng_original_value:
+                    execute_query(
+                        "UPDATE old_testament.hebrewdata SET Eng = %s WHERE id = %s;",
+                        (eng_value, row_id_int),
+                    )
+                    row_updates.append(f'Eng="{eng_value}"')
+
+                if morph_value != morph_original_value:
+                    execute_query(
+                        "UPDATE old_testament.hebrewdata SET morphology = %s WHERE id = %s;",
+                        (morph_value, row_id_int),
+                    )
+                    row_updates.append('Morphology updated')
+
+                if row_updates:
+                    display_ref = row_ref or f'Row {row_id_int}'
+                    updated_rows.append(f'{display_ref}: ' + ', '.join(row_updates))
+
+            cache_string = 'No cache keys cleared'
+            if updated_rows:
+                reference_book = _safe_book_name(book)
+                update_instance = TranslationUpdates(
+                    date=datetime.now(),
+                    version='Hebrew Data',
+                    reference=f"{reference_book} {chapter_num}:{verse_num}",
+                    update_text='; '.join(updated_rows)
+                )
+                update_instance.save()
+
+                cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
+                if cleared_keys:
+                    cache_string = 'Deleted Cache key: ' + ', '.join(cleared_keys)
+
+            context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
+            if updated_rows:
+                context['edit_result'] = (
+                    '<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>'
+                    f'Updated {len(updated_rows)} Hebrewdata entries. {cache_string}</p></div>'
+                )
+            else:
+                context['edit_result'] = (
+                    '<div class="notice-bar"><p><span class="icon"><i class="fas fa-info-circle"></i></span>'
+                    'No Hebrewdata changes detected.</p></div>'
+                )
+            return render(request, 'edit_verse.html', context)
 
         if replacements:
             

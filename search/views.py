@@ -361,6 +361,7 @@ def get_results(book, chapter_num, verse_num=None):
     commentary = None
     entries = None
     hebrew_cards = None
+    hebrewdata_rows: list[dict[str, object]] = []
 
     def build_empty_result():
         return {
@@ -392,7 +393,76 @@ def get_results(book, chapter_num, verse_num=None):
             "morph_row": None,
             "hebrew_clean": None,
             "hebrew_interlinear_cards": [],
+            "hebrewdata_rows": [],
         }
+
+    def _serialize_hebrew_rows(rows: list | tuple | None) -> list[dict[str, object]]:
+        if not rows:
+            return []
+
+        serialized: list[dict[str, object]] = []
+        for raw in rows:
+            row = tuple(raw)
+            padded = list(row)
+            if len(padded) < 25:
+                padded += [None] * (25 - len(padded))
+
+            (
+                row_id,
+                ref,
+                eng,
+                heb1,
+                heb2,
+                heb3,
+                heb4,
+                heb5,
+                heb6,
+                morph,
+                unique,
+                strongs,
+                color,
+                html_value,
+                heb1_n,
+                heb2_n,
+                heb3_n,
+                heb4_n,
+                heb5_n,
+                heb6_n,
+                combined_heb,
+                combined_heb_niqqud,
+                footnote,
+                morphology,
+                *_
+            ) = padded
+
+            clean_token = ''.join(filter(None, [heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n]))
+            token_ordinal = None
+            if ref:
+                try:
+                    token_ordinal = ref.split('-')[-1]
+                except Exception:
+                    token_ordinal = None
+
+            serialized.append({
+                'id': row_id,
+                'ref': ref,
+                'token': token_ordinal,
+                'english': eng or '',
+                'english_original': eng or '',
+                'morph_code': morph or '',
+                'morphology': morphology or '',
+                'morphology_original': morphology or '',
+                'hebrew': combined_heb or clean_token or '',
+                'hebrew_niqqud': combined_heb_niqqud or ''.join(filter(None, [heb1, heb2, heb3, heb4, heb5, heb6])) or '',
+                'strongs': strongs or '',
+                'unique': unique or '0',
+                'color': color or '',
+                'footnote': footnote or '',
+                'footnote_original': footnote or '',
+                'html': html_value or '',
+            })
+
+        return serialized
 
     # Sets/Retrieves cache only for verse, not whole chapter
     sanitized_book = book.replace(':', '_').replace(' ', '')
@@ -486,12 +556,15 @@ def get_results(book, chapter_num, verse_num=None):
                 sql_query_hebrew = f"""
                     SELECT {select_columns}
                     FROM old_testament.hebrewdata
-                    WHERE ref LIKE %s;
+                    WHERE ref LIKE %s
+                    ORDER BY ref;
                 """
                 rows_data = execute_query(sql_query_hebrew, (f'{rbt_heb_ref2}%',), fetch='all') or []
+                hebrewdata_rows = _serialize_hebrew_rows(rows_data)
 
                 if rows_data:
                     strong_row, english_row, hebrew_row, morph_row, hebrew_clean, hebrew_cards = build_heb_interlinear(rows_data)
+                    hebrewdata_rows = _serialize_hebrew_rows(rows_data)
                     
                     # Reverse the order for RTL display
                     strong_row.reverse()
@@ -535,6 +608,9 @@ def get_results(book, chapter_num, verse_num=None):
                     morph_row = None
                     hebrew_clean = None
                     hebrew_cards = []
+                    hebrewdata_rows = []
+
+                chapter_list = [str(i) for i in range(1, 51)]
             
                 # Get the previous and next row verse references
                 current_row_id = rbt.values_list('id', flat=True).first()
@@ -592,9 +668,11 @@ def get_results(book, chapter_num, verse_num=None):
                 sql_query_hebrew = f"""
                     SELECT {select_columns}
                     FROM old_testament.hebrewdata
-                    WHERE ref LIKE %s;
+                    WHERE ref LIKE %s
+                    ORDER BY ref;
                 """
                 rows_data = execute_query(sql_query_hebrew, (f'{rbt_heb_ref2}%',), fetch='all') or []
+                hebrewdata_rows = _serialize_hebrew_rows(rows_data)
   
                 #verse_footnote = row_data[4]
                 ref = row_data[1]
@@ -953,6 +1031,7 @@ def get_results(book, chapter_num, verse_num=None):
                     "morph_row": morph_row,
                     "hebrew_clean": hebrew_clean,
                     "hebrew_interlinear_cards": hebrew_cards,
+                    "hebrewdata_rows": hebrewdata_rows,
                 }
 
             cache.set(cache_key_base, data)

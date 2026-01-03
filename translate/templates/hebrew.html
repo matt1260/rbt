@@ -2247,12 +2247,6 @@ function openMappingModal(buttonElement) {
   // Read data from button's data attributes
   const hebrewNiqqud = buttonElement.getAttribute('data-hebrew-niqqud') || '';
   const hebrewConsonantal = buttonElement.getAttribute('data-hebrew-consonantal') || '';
-  const strongsRaw = buttonElement.getAttribute('data-strongs') || '';
-  
-  // Extract first Strong's number from potentially concatenated string
-  // Match pattern: H followed by digits (e.g., H8179)
-  const strongsMatch = strongsRaw.match(/H\d+/);
-  const firstStrongs = strongsMatch ? strongsMatch[0] : '';
   
   currentMappingData = {
     hebrew_niqqud: hebrewNiqqud,
@@ -2261,7 +2255,7 @@ function openMappingModal(buttonElement) {
 
   document.getElementById('modalHebrewNiqqud').textContent = hebrewNiqqud;
   document.getElementById('modalHebrewConsonantal').textContent = hebrewConsonantal;
-  document.getElementById('modalStrongsInput').value = firstStrongs || '';
+  document.getElementById('modalStrongsInput').value = '';
 
   // Prefill search term with consonantal root (strip vowels) and auto-select Root mode when it looks like Hebrew
   const prefill = stripHebrewVowels(hebrewNiqqud) || hebrewConsonantal || '';
