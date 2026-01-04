@@ -29,6 +29,12 @@
         <i class="fas fa-book"></i> Show Notes (N)
     </div>
     {% endif %}
+    <div id="fontDecreaseButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-minus"></i> A-
+    </div>
+    <div id="fontIncreaseButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-plus"></i> A+
+    </div>
 
 </div>
 {% endwith %}
@@ -314,6 +320,29 @@
         const resizeHandle = document.getElementById("resizeHandle");
         const verseRefs = document.querySelectorAll(".verse_ref");
         const paraphraseArea = document.getElementById("paraphrase-area");
+        const fontDecreaseButton = document.getElementById("fontDecreaseButton");
+        const fontIncreaseButton = document.getElementById("fontIncreaseButton");
+        
+        // Font size management
+        let currentFontSize = 100; // percentage
+        const MIN_FONT_SIZE = 80;
+        const MAX_FONT_SIZE = 150;
+        const FONT_STEP = 10;
+        
+        function updateFontSize() {
+            document.getElementById('mainTextArea').style.fontSize = currentFontSize + '%';
+            if (document.getElementById('sidePanel')) {
+                document.getElementById('sidePanel').style.fontSize = currentFontSize + '%';
+            }
+            localStorage.setItem('ntChapterFontSize', currentFontSize);
+        }
+        
+        // Load saved font size
+        const savedFontSize = localStorage.getItem('ntChapterFontSize');
+        if (savedFontSize) {
+            currentFontSize = parseInt(savedFontSize);
+            updateFontSize();
+        }
         
         let isLiteralVisible = false;
         let isImageVisible = true;
@@ -573,6 +602,10 @@
                 toggleFootnotes();
             } else if (event.key === "p" || event.key === "P") {
                 toggleParentheses();
+            } else if (event.key === "+" || event.key === "=") {
+                if (fontIncreaseButton) fontIncreaseButton.click();
+            } else if (event.key === "-" || event.key === "_") {
+                if (fontDecreaseButton) fontDecreaseButton.click();
             } else if (event.key === "Escape" && isFootnotesVisible && isMobile()) {
                 toggleFootnotes();
             }
@@ -587,6 +620,20 @@
         if (footnotesToggleButton) footnotesToggleButton.addEventListener("click", toggleFootnotes);
         if (parenthesesToggleButton) parenthesesToggleButton.addEventListener("click", toggleParentheses);
         if (closeSidebarButton) closeSidebarButton.addEventListener("click", toggleFootnotes);
+        
+        if (fontIncreaseButton) fontIncreaseButton.addEventListener("click", function() {
+            if (currentFontSize < MAX_FONT_SIZE) {
+                currentFontSize += FONT_STEP;
+                updateFontSize();
+            }
+        });
+        
+        if (fontDecreaseButton) fontDecreaseButton.addEventListener("click", function() {
+            if (currentFontSize > MIN_FONT_SIZE) {
+                currentFontSize -= FONT_STEP;
+                updateFontSize();
+            }
+        });
         
         // Handle footnote link clicks
         document.querySelectorAll('.footnote-link').forEach(function(link) {

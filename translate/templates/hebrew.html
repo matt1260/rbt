@@ -791,8 +791,130 @@
         text-decoration: underline;
     }
 
+    /* Edit button styling */
+    .edit-lexicon-btn {
+        background: #28a745;
+        color: #fff;
+        border: none;
+        padding: 2px 6px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 11px;
+        margin-left: 8px;
+        transition: all 0.2s;
+    }
 
+    .edit-lexicon-btn:hover {
+        background: #218838;
+        transform: scale(1.05);
+    }
 
+    .edit-lexicon-btn i {
+        font-size: 10px;
+    }
+
+    /* Form group styling */
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 5px;
+        color: #333;
+        font-size: 13px;
+    }
+
+    .form-group textarea.mapping-input {
+        resize: vertical;
+        min-height: 80px;
+    }
+
+    /* Hebrew Keyboard Styling */
+    .hebrew-keyboard {
+        background: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 12px;
+        margin: 15px 0;
+    }
+
+    .keyboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .keyboard-toggle-btn {
+        background: #6c757d;
+        color: #fff;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.2s;
+    }
+
+    .keyboard-toggle-btn:hover {
+        background: #5a6268;
+    }
+
+    .keyboard-row {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 4px;
+        justify-content: center;
+    }
+
+    .heb-key {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 8px 10px;
+        font-size: 18px;
+        cursor: pointer;
+        transition: all 0.15s;
+        min-width: 40px;
+        font-family: 'Times New Roman', serif;
+    }
+
+    .heb-key:hover {
+        background: #e9ecef;
+        border-color: #adb5bd;
+        transform: translateY(-1px);
+    }
+
+    .heb-key:active {
+        transform: translateY(0);
+        background: #dee2e6;
+    }
+
+    .heb-key.vowel-key {
+        border-color: #ffc107;
+    }
+
+    .heb-key.vowel-key:hover {
+        background: #ffe69c;
+    }
+
+    .heb-key.special-key {
+        background: #939699;
+        font-size: 14px;
+    }
+
+    .heb-key.delete-key {
+        background: #f8d7da;
+        border-color: #dc3545;
+        color: #dc3545;
+    }
+
+    .heb-key.delete-key:hover {
+        background: #f5c6cb;
+    }
 
      /* Default styles for the desktop view */
      .desktop-view {
@@ -2010,6 +2132,127 @@
   </div>
 </div>
 
+<!-- Edit Lexicon Entry Modal -->
+<div id="editLexiconModal" class="mapping-modal" style="display: none;">
+  <div class="mapping-modal-content">
+    <div class="mapping-modal-header">
+      <h3>Edit Lexicon Entry</h3>
+      <button type="button" class="close-modal-btn" onclick="closeEditLexiconModal()">×</button>
+    </div>
+    <div class="mapping-modal-body">
+      <form id="editLexiconForm" onsubmit="saveEditLexicon(event)">
+        <input type="hidden" id="editLexiconId" name="lexicon_id">
+        <input type="hidden" id="editLexiconType" name="lexicon_type">
+        
+        <div class="form-group">
+          <label for="editHebrewWord">Hebrew Word (with niqqud):</label>
+          <input type="text" id="editHebrewWord" name="hebrew_word" class="mapping-input hebrew-input" style="font-size: 20px; direction: rtl;">
+        </div>
+        
+        <div class="form-group">
+          <label for="editHebrewConsonantal">Hebrew Consonantal:</label>
+          <input type="text" id="editHebrewConsonantal" name="hebrew_consonantal" class="mapping-input hebrew-input" style="font-size: 20px; direction: rtl;">
+        </div>
+        
+        <!-- Hebrew Virtual Keyboard -->
+        <div class="hebrew-keyboard">
+          <div class="keyboard-header">
+            <span style="font-weight: 600; color: #666;">Hebrew Keyboard:</span>
+            <button type="button" class="keyboard-toggle-btn" onclick="toggleKeyboardMode()" title="Toggle vowels">
+              <i class="fas fa-circle" id="vowelModeIcon"></i> <span id="vowelModeText">Show Vowels</span>
+            </button>
+          </div>
+          <div class="keyboard-row">
+            <button type="button" class="heb-key" data-char="א">א</button>
+            <button type="button" class="heb-key" data-char="ב">ב</button>
+            <button type="button" class="heb-key" data-char="ג">ג</button>
+            <button type="button" class="heb-key" data-char="ד">ד</button>
+            <button type="button" class="heb-key" data-char="ה">ה</button>
+            <button type="button" class="heb-key" data-char="ו">ו</button>
+            <button type="button" class="heb-key" data-char="ז">ז</button>
+            <button type="button" class="heb-key" data-char="ח">ח</button>
+            <button type="button" class="heb-key" data-char="ט">ט</button>
+            <button type="button" class="heb-key" data-char="י">י</button>
+          </div>
+          <div class="keyboard-row">
+            <button type="button" class="heb-key" data-char="כ">כ</button>
+            <button type="button" class="heb-key" data-char="ל">ל</button>
+            <button type="button" class="heb-key" data-char="מ">מ</button>
+            <button type="button" class="heb-key" data-char="נ">נ</button>
+            <button type="button" class="heb-key" data-char="ס">ס</button>
+            <button type="button" class="heb-key" data-char="ע">ע</button>
+            <button type="button" class="heb-key" data-char="פ">פ</button>
+            <button type="button" class="heb-key" data-char="צ">צ</button>
+            <button type="button" class="heb-key" data-char="ק">ק</button>
+            <button type="button" class="heb-key" data-char="ר">ר</button>
+          </div>
+          <div class="keyboard-row">
+            <button type="button" class="heb-key" data-char="ש">ש</button>
+            <button type="button" class="heb-key" data-char="ת">ת</button>
+            <button type="button" class="heb-key" data-char="ך">ך</button>
+            <button type="button" class="heb-key" data-char="ם">ם</button>
+            <button type="button" class="heb-key" data-char="ן">ן</button>
+            <button type="button" class="heb-key" data-char="ף">ף</button>
+            <button type="button" class="heb-key" data-char="ץ">ץ</button>
+            <button type="button" class="heb-key special-key" data-char="־" title="Maqaf (hyphen)">־</button>
+            <button type="button" class="heb-key special-key" data-char=" " title="Space">Space</button>
+            <button type="button" class="heb-key delete-key" onclick="deleteLastChar()" title="Backspace"><i class="fas fa-backspace"></i></button>
+          </div>
+          <div class="keyboard-row vowel-row" style="display: none;">
+            <button type="button" class="heb-key vowel-key" data-char="ְ" title="Sheva">ְ</button>
+            <button type="button" class="heb-key vowel-key" data-char="ֱ" title="Hataf Segol">ֱ</button>
+            <button type="button" class="heb-key vowel-key" data-char="ֲ" title="Hataf Patah">ֲ</button>
+            <button type="button" class="heb-key vowel-key" data-char="ֳ" title="Hataf Qamats">ֳ</button>
+            <button type="button" class="heb-key vowel-key" data-char="ִ" title="Hiriq">ִ</button>
+            <button type="button" class="heb-key vowel-key" data-char="ֵ" title="Tsere">ֵ</button>
+            <button type="button" class="heb-key vowel-key" data-char="ֶ" title="Segol">ֶ</button>
+            <button type="button" class="heb-key vowel-key" data-char="ַ" title="Patah">ַ</button>
+            <button type="button" class="heb-key vowel-key" data-char="ָ" title="Qamats">ָ</button>
+            <button type="button" class="heb-key vowel-key" data-char="ֹ" title="Holam">ֹ</button>
+            <button type="button" class="heb-key vowel-key" data-char="ֻ" title="Qubuts">ֻ</button>
+            <button type="button" class="heb-key vowel-key" data-char="ּ" title="Dagesh">ּ</button>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="editPartOfSpeech">Part of Speech:</label>
+          <input type="text" id="editPartOfSpeech" name="part_of_speech" class="mapping-input">
+        </div>
+        
+        <div class="form-group">
+          <label for="editDefinition">Definition:</label>
+          <textarea id="editDefinition" name="definition" class="mapping-input" rows="4"></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label for="editRoot">Root:</label>
+          <input type="text" id="editRoot" name="root" class="mapping-input" style="direction: rtl;">
+        </div>
+        
+        <div class="form-group">
+          <label for="editSourcePage">Source Page:</label>
+          <input type="text" id="editSourcePage" name="source_page" class="mapping-input">
+        </div>
+        
+        <div class="form-group">
+          <label for="editStrongsNumbers">Strong's Numbers (comma-separated, e.g., H2357, H2358):</label>
+          <input type="text" id="editStrongsNumbers" name="strongs_numbers" class="mapping-input" placeholder="Leave blank to remove all mappings">
+          <small style="color: #666; font-size: 11px; display: block; margin-top: 4px;">Leave blank to remove all Strong's mappings, or enter comma-separated values to replace</small>
+        </div>
+        
+        <div class="mapping-actions" style="display: flex; gap: 10px; margin-top: 20px;">
+          <button type="submit" class="mapping-btn mapping-btn-search">
+            <i class="fas fa-save"></i> Save Changes
+          </button>
+          <button type="button" onclick="closeEditLexiconModal()" class="mapping-btn mapping-btn-cancel">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <style>
 .card-map-button {
   margin-top: 8px;
@@ -2276,6 +2519,173 @@ function openMappingModal(buttonElement) {
 function closeMappingModal() {
   document.getElementById('mappingModal').style.display = 'none';
   currentMappingData = {};
+}
+
+// Edit Lexicon Entry Functions
+async function openEditLexiconModal(buttonElement) {
+  const lexiconId = buttonElement.getAttribute('data-lexicon-id');
+  const lexiconType = buttonElement.getAttribute('data-lexicon-type');
+  const hebrewWord = buttonElement.getAttribute('data-hebrew-word') || '';
+  const hebrewConsonantal = buttonElement.getAttribute('data-hebrew-consonantal') || '';
+  const partOfSpeech = buttonElement.getAttribute('data-part-of-speech') || '';
+  const definition = buttonElement.getAttribute('data-definition') || '';
+  const root = buttonElement.getAttribute('data-root') || '';
+  const sourcePage = buttonElement.getAttribute('data-source-page') || '';
+
+  // Populate form fields
+  document.getElementById('editLexiconId').value = lexiconId;
+  document.getElementById('editLexiconType').value = lexiconType;
+  document.getElementById('editHebrewWord').value = hebrewWord;
+  document.getElementById('editHebrewConsonantal').value = hebrewConsonantal;
+  document.getElementById('editPartOfSpeech').value = partOfSpeech;
+  document.getElementById('editDefinition').value = definition;
+  document.getElementById('editRoot').value = root;
+  document.getElementById('editSourcePage').value = sourcePage;
+  
+  // Fetch current Strong's mappings
+  document.getElementById('editStrongsNumbers').value = 'Loading...';
+  try {
+    const response = await fetch(`/translate/api/get-lexicon-strongs/?lexicon_id=${encodeURIComponent(lexiconId)}&lexicon_type=${lexiconType}`);
+    const data = await response.json();
+    if (data.success && data.strongs_numbers) {
+      document.getElementById('editStrongsNumbers').value = data.strongs_numbers.join(', ');
+    } else {
+      document.getElementById('editStrongsNumbers').value = '';
+    }
+  } catch (error) {
+    console.error('Error fetching Strong\'s numbers:', error);
+    document.getElementById('editStrongsNumbers').value = '';
+  }
+
+  // Show modal
+  document.getElementById('editLexiconModal').style.display = 'flex';
+}
+
+function closeEditLexiconModal() {
+  document.getElementById('editLexiconModal').style.display = 'none';
+  document.getElementById('editLexiconForm').reset();
+}
+
+async function saveEditLexicon(event) {
+  event.preventDefault();
+  
+  const form = event.target;
+  const formData = new FormData(form);
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  
+  const payload = {
+    lexicon_id: formData.get('lexicon_id'),
+    lexicon_type: formData.get('lexicon_type'),
+    hebrew_word: formData.get('hebrew_word'),
+    hebrew_consonantal: formData.get('hebrew_consonantal'),
+    part_of_speech: formData.get('part_of_speech'),
+    definition: formData.get('definition'),
+    root: formData.get('root'),
+    source_page: formData.get('source_page'),
+    strongs_numbers: formData.get('strongs_numbers')
+  };
+  
+  try {
+    const response = await fetch('/translate/api/update-lexicon-entry/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('✓ Lexicon entry updated successfully! The page will reload to show changes.');
+      closeEditLexiconModal();
+      // Reload the page to show updated data (clears cache)
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } else {
+      alert('Error: ' + (data.error || 'Failed to update entry'));
+    }
+  } catch (error) {
+    console.error('Update error:', error);
+    alert('Failed to update lexicon entry. Please try again.');
+  }
+}
+
+// Delegate click events for edit buttons (since they're in dynamic popups)
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.edit-lexicon-btn')) {
+    const btn = e.target.closest('.edit-lexicon-btn');
+    openEditLexiconModal(btn);
+  }
+});
+
+// Hebrew Keyboard Functionality
+let currentHebrewInput = null;
+let vowelModeActive = false;
+
+// Track which Hebrew input field is focused
+document.addEventListener('focusin', function(e) {
+  if (e.target.classList.contains('hebrew-input')) {
+    currentHebrewInput = e.target;
+  }
+});
+
+// Hebrew keyboard button clicks
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.heb-key') && !e.target.classList.contains('delete-key')) {
+    const btn = e.target.closest('.heb-key');
+    const char = btn.getAttribute('data-char');
+    if (char && currentHebrewInput) {
+      insertAtCursor(currentHebrewInput, char);
+    }
+  }
+});
+
+function insertAtCursor(input, text) {
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  const value = input.value;
+  
+  input.value = value.substring(0, start) + text + value.substring(end);
+  input.selectionStart = input.selectionEnd = start + text.length;
+  input.focus();
+}
+
+function deleteLastChar() {
+  if (!currentHebrewInput) return;
+  
+  const start = currentHebrewInput.selectionStart;
+  const end = currentHebrewInput.selectionEnd;
+  
+  if (start !== end) {
+    // Delete selection
+    currentHebrewInput.value = currentHebrewInput.value.substring(0, start) + currentHebrewInput.value.substring(end);
+    currentHebrewInput.selectionStart = currentHebrewInput.selectionEnd = start;
+  } else if (start > 0) {
+    // Delete one character before cursor
+    currentHebrewInput.value = currentHebrewInput.value.substring(0, start - 1) + currentHebrewInput.value.substring(start);
+    currentHebrewInput.selectionStart = currentHebrewInput.selectionEnd = start - 1;
+  }
+  currentHebrewInput.focus();
+}
+
+function toggleKeyboardMode() {
+  vowelModeActive = !vowelModeActive;
+  const vowelRow = document.querySelector('.vowel-row');
+  const icon = document.getElementById('vowelModeIcon');
+  const text = document.getElementById('vowelModeText');
+  
+  if (vowelModeActive) {
+    vowelRow.style.display = 'flex';
+    icon.className = 'fas fa-dot-circle';
+    text.textContent = 'Hide Vowels';
+  } else {
+    vowelRow.style.display = 'none';
+    icon.className = 'fas fa-circle';
+    text.textContent = 'Show Vowels';
+  }
 }
 
 // Auto-detect Hebrew input in the search box and switch to Root mode

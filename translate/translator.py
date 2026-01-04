@@ -1135,7 +1135,22 @@ def build_fuerst_popup(strong_ref: str, hebrew_word: str = '', book: Optional[st
             note_text = html.escape(entry['notes'])
             note_html = f'<div class="fuerst-note">{note_text}</div>'
 
-        body_parts = [f'<div class="fuerst-headword">{headword_html}</div>']
+        # Add edit button with data attributes
+        fuerst_id = str(entry['fuerst_id'] or '')
+        edit_button_html = f'''<button type="button" class="edit-lexicon-btn" 
+            data-lexicon-id="{html.escape(fuerst_id)}" 
+            data-lexicon-type="fuerst"
+            data-hebrew-word="{html.escape(entry['hebrew_word'] or '')}"
+            data-hebrew-consonantal="{html.escape(entry['hebrew_consonantal'] or '')}"
+            data-part-of-speech="{html.escape(entry['part_of_speech'] or '')}"
+            data-definition="{html.escape(entry['definition'] or '')}"
+            data-root="{html.escape(entry['root'] or '')}"
+            data-source-page="{html.escape(entry['source_page'] or '')}"
+            title="Edit this lexicon entry">
+            <i class="fas fa-edit"></i>
+        </button>'''
+
+        body_parts = [f'<div class="fuerst-headword">{headword_html} {edit_button_html}</div>']
         if meta_html:
             body_parts.append(meta_html)
         if definition_html:

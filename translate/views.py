@@ -4114,6 +4114,204 @@ def add_manual_lexicon_mapping(request):
 
 
 @login_required
+def get_lexicon_strongs(request):
+    """
+    Get current Strong's number mappings for a Fürst or Gesenius lexicon entry.
+    """
+    lexicon_id = request.GET.get('lexicon_id', '').strip()
+    lexicon_type = request.GET.get('lexicon_type', '').strip().lower()
+    
+    if not lexicon_id or lexicon_type not in ['fuerst', 'gesenius']:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid lexicon_id or lexicon_type'
+        }, status=400)
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SET search_path TO old_testament")
+            
+            if lexicon_type == 'fuerst':
+                # Get Strong's numbers for Fürst entry via lexeme_fuerst join
+                cursor.execute(
+                    """
+                    SELECT DISTINCT l.strongs
+                    FROM lexemes l
+                    JOIN lexeme_fuerst lf ON lf.lexeme_id = l.lexeme_id
+                    WHERE lf.fuerst_id = %s
+                    ORDER BY l.strongs
+                    """,
+                    (lexicon_id,)
+                )
+            else:  # gesenius
+                # Get Strong's numbers from strongsNumbers column (comma-separated)
+                cursor.execute(
+                    """
+                    SELECT "strongsNumbers"
+                    FROM gesenius_lexicon
+                    WHERE id = %s
+                    """,
+                    (lexicon_id,)
+                )
+                row = cursor.fetchone()
+                if row and row[0]:
+                    strongs_list = [s.strip() for s in row[0].split(',') if s.strip()]
+                    return JsonResponse({
+                        'success': True,
+                        'strongs_numbers': strongs_list
+                    })
+                else:
+                    return JsonResponse({
+                        'success': True,
+                        'strongs_numbers': []
+                    })
+            
+            rows = cursor.fetchall()
+            strongs_numbers = [row[0] for row in rows if row[0]]
+            
+            return JsonResponse({
+                'success': True,
+                'strongs_numbers': strongs_numbers
+            })
+            
+    except Exception as e:
+        logger.error(f"Error fetching Strong's numbers: {e}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def update_lexicon_entry(request):
+    """
+    Update a Fürst or Gesenius lexicon entry.
+    Only allows updating: hebrew_word, hebrew_consonantal, part_of_speech, definition, root, source_page
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        lexicon_id = data.get('lexicon_id', '').strip()
+        lexicon_type = data.get('lexicon_type', '').strip().lower()
+        
+        if not lexicon_id or lexicon_type not in ['fuerst', 'gesenius']:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid lexicon_id or lexicon_type'
+            }, status=400)
+        
+        # Collect updatable fields
+        hebrew_word = data.get('hebrew_word', '').strip()
+        hebrew_consonantal = data.get('hebrew_consonantal', '').strip()
+        part_of_speech = data.get('part_of_speech', '').strip()
+        definition = data.get('definition', '').strip()
+        root = data.get('root', '').strip()
+        source_page = data.get('source_page', '').strip()
+        strongs_numbers_raw = data.get('strongs_numbers', '').strip()
+        
+        # Parse Strong's numbers (comma-separated)
+        strongs_numbers = []
+        if strongs_numbers_raw:
+            strongs_numbers = [s.strip().upper() for s in strongs_numbers_raw.split(',') if s.strip()]
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SET search_path TO old_testament")
+            
+            if lexicon_type == 'fuerst':
+                # Update fuerst_lexicon table
+                cursor.execute(
+                    """
+                    UPDATE fuerst_lexicon
+                    SET hebrew_word = %s,
+                        hebrew_consonantal = %s,
+                        part_of_speech = %s,
+                        definition = %s,
+                        root = %s,
+                        source_page = %s
+                    WHERE id = %s
+                    """,
+                    (hebrew_word, hebrew_consonantal, part_of_speech, 
+                     definition, root, source_page, lexicon_id)
+                )
+                
+                # Update Strong's mappings (always process, even if empty to allow removal)
+                # Delete existing mappings first
+                cursor.execute(
+                    "DELETE FROM lexeme_fuerst WHERE fuerst_id = %s",
+                    (lexicon_id,)
+                )
+                
+                # Add new mappings if provided
+                if strongs_numbers:
+                    for strong_num in strongs_numbers:
+                        # Get or create lexeme for this Strong's number
+                        cursor.execute(
+                            "SELECT lexeme_id FROM lexemes WHERE strongs = %s LIMIT 1",
+                            (strong_num,)
+                        )
+                        lexeme_row = cursor.fetchone()
+                        
+                        if lexeme_row:
+                            lexeme_id = lexeme_row[0]
+                            # Insert mapping
+                            cursor.execute(
+                                """
+                                INSERT INTO lexeme_fuerst (lexeme_id, fuerst_id, confidence, mapping_basis)
+                                VALUES (%s, %s, 'high', 'manual')
+                                ON CONFLICT (lexeme_id, fuerst_id) DO NOTHING
+                                """,
+                                (lexeme_id, lexicon_id)
+                            )
+                        else:
+                            logger.warning(f"Strong's number {strong_num} not found in lexemes table")
+            else:  # gesenius
+                # Update gesenius_lexicon table (note different column names)
+                # Gesenius stores Strong's numbers as comma-separated string in strongsNumbers column
+                strongs_csv = ','.join(strongs_numbers) if strongs_numbers else None
+                
+                cursor.execute(
+                    """
+                    UPDATE gesenius_lexicon
+                    SET "hebrewWord" = %s,
+                        "hebrewConsonantal" = %s,
+                        "partOfSpeech" = %s,
+                        definition = %s,
+                        root = %s,
+                        "sourcePage" = %s,
+                        "strongsNumbers" = %s
+                    WHERE id = %s
+                    """,
+                    (hebrew_word, hebrew_consonantal, part_of_speech,
+                     definition, root, source_page, strongs_csv, lexicon_id)
+                )
+            
+            if cursor.rowcount == 0:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'No {lexicon_type} entry found with ID {lexicon_id}'
+                }, status=404)
+            
+            conn.commit()
+        
+        # Clear the Fürst cache so updated entries appear immediately
+        from translate.translator import clear_fuerst_cache
+        clear_fuerst_cache()
+        
+        logger.info(f"Updated {lexicon_type} lexicon entry {lexicon_id} by user {request.user.username}")
+        return JsonResponse({
+            'success': True,
+            'message': f'{lexicon_type.title()} entry {lexicon_id} updated successfully'
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error updating lexicon entry: {e}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
 def get_lexicon_search_results(request):
     """
     Search Fürst and Gesenius lexicons to find entries for manual mapping.
@@ -4249,7 +4447,7 @@ def get_lexicon_search_results(request):
 
                 if match == 'strong' or (strong_number and match == 'exact'):
                     if strong_number:
-                        where_clauses.append('%s = ANY(string_to_array("strongsNumbers", ","))')
+                        where_clauses.append("%s = ANY(string_to_array(\"strongsNumbers\", ','))")
                         params.append(strong_number)
 
                 if not where_clauses:

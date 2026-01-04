@@ -38,6 +38,9 @@ grok.py
 extract_verses.py
 run-batch-job.js
 resequence_new.py
+catss_lexicon_guide.md
+catss_lexicon.py
+clean_spaces_.py
 
 # Django
 *.sqlite3
