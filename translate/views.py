@@ -4476,3 +4476,79 @@ def get_lexicon_search_results(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@login_required
+@require_POST
+def search_consonantal(request):
+    """
+    Search for Hebrew text in the ot_consonantal table (raw consonantal text without niqqud).
+    Returns matching verses with highlighted search terms.
+    """
+    try:
+        data = json.loads(request.body)
+        search_term = data.get('search_term', '').strip()
+        search_term2 = data.get('search_term2', '').strip()
+        
+        if not search_term:
+            return JsonResponse({'error': 'Search term is required'}, status=400)
+        
+        results = []
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SET search_path TO old_testament")
+            
+            # Search for the term in the hebrew column (case-insensitive with ILIKE)
+            query = """
+                SELECT ref, hebrew
+                FROM ot_consonantal
+                WHERE hebrew ILIKE %s
+                ORDER BY ref
+                LIMIT 500
+            """
+            cursor.execute(query, (f'%{search_term}%',))
+            
+            for row in cursor.fetchall():
+                ref = row[0]  # Format: Book.Chapter.Verse
+                hebrew_text = row[1]
+                
+                # Parse ref into book, chapter, verse
+                ref_parts = ref.split('.')
+                book = ref_parts[0] if len(ref_parts) > 0 else ''
+                chapter = ref_parts[1] if len(ref_parts) > 1 else ''
+                verse = ref_parts[2] if len(ref_parts) > 2 else ''
+                
+                # Highlight search terms in the Hebrew text
+                highlighted = hebrew_text
+                if search_term:
+                    highlighted = highlighted.replace(
+                        search_term,
+                        f'<span class="search-highlight">{search_term}</span>'
+                    )
+                if search_term2:
+                    highlighted = highlighted.replace(
+                        search_term2,
+                        f'<span class="search-highlight-2">{search_term2}</span>'
+                    )
+                
+                results.append({
+                    'ref': ref,
+                    'book': book,
+                    'chapter': chapter,
+                    'verse': verse,
+                    'hebrew': hebrew_text,
+                    'hebrew_highlighted': highlighted
+                })
+        
+        return JsonResponse({
+            'success': True,
+            'results': results,
+            'count': len(results)
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error searching consonantal Hebrew: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+

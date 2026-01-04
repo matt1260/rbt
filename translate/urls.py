@@ -28,6 +28,7 @@ urlpatterns = [
     path('api/get-lexicon-strongs/', views.get_lexicon_strongs, name='get_lexicon_strongs'),
     path('api/update-lexicon-entry/', views.update_lexicon_entry, name='update_lexicon_entry'),
     path('api/search-lexicon/', views.get_lexicon_search_results, name='search_lexicon'),
+    path('api/search-consonantal/', views.search_consonantal, name='search_consonantal'),
     path('', views.translate, name='translate'),
 
 ]

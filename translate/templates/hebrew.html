@@ -136,6 +136,121 @@
     padding-bottom: 10px;
 }
 
+/* Consonantal Search Panel */
+.consonantal-search-container {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    grid-column: 2; /* Align with paraphrase editor (second column) */
+}
+
+.consonantal-search-container h4 {
+    margin: 0 0 15px 0;
+    font-size: 18px;
+    color: #333;
+    border-bottom: 2px solid #4a90e2;
+    padding-bottom: 10px;
+}
+
+.search-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.search-controls input[type="text"] {
+    flex: 1;
+    min-width: 200px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: 'Times New Roman', serif;
+    font-size: 16px;
+}
+
+.search-controls button {
+    padding: 10px 20px;
+    background: #4a90e2;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.search-controls button:hover {
+    background: #357abd;
+}
+
+.search-controls button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+#consonantalResults {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.search-result-row {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+}
+
+.search-result-row:last-child {
+    border-bottom: none;
+}
+
+.search-result-ref {
+    font-weight: bold;
+    color: #4a90e2;
+    min-width: 120px;
+    cursor: pointer;
+}
+
+.search-result-ref:hover {
+    text-decoration: underline;
+}
+
+.search-result-hebrew {
+    flex: 1;
+    font-family: 'Times New Roman', serif;
+    font-size: 18px;
+    direction: rtl;
+    line-height: 1.8;
+}
+
+.search-highlight {
+    background-color: darkgreen;
+    color: white;
+    padding: 2px 4px;
+    border-radius: 2px;
+}
+
+.search-highlight-2 {
+    background-color: red;
+    color: white;
+    padding: 2px 4px;
+    border-radius: 2px;
+}
+
+.search-count {
+    margin-top: 10px;
+    font-weight: bold;
+    color: #666;
+}
+
 #englishReader {
     display: block;
     padding: 15px;
@@ -1434,6 +1549,21 @@
       </label>
     </div>
     <a href="/find_and_replace_ot">Find and Replace OT</a>
+
+    <!-- Consonantal Hebrew Search Panel (inside paraphrase editor container) -->
+    <div style="margin-top: 30px; padding-top: 30px; border-top: 2px solid #ddd;">
+      <h4 style="margin: 0 0 15px 0; font-size: 18px; color: #333; border-bottom: 2px solid #4a90e2; padding-bottom: 10px;">Consonantal Hebrew Search</h4>
+      
+      <div class="search-controls">
+        <input type="text" id="consonantalSearchTerm" placeholder="Enter Hebrew text (consonantal)" />
+        <input type="text" id="consonantalSearchTerm2" placeholder="Optional 2nd term (red highlight)" />
+        <button id="consonantalSearchBtn" onclick="searchConsonantal()">Search</button>
+      </div>
+      
+      <div id="consonantalResults">
+        <p style="color: #666; font-style: italic;">Enter a Hebrew search term and click Search</p>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1482,6 +1612,93 @@
       textarea.value += code;
     });
   });
+</script>
+
+<script>
+// Consonantal Hebrew Search
+async function searchConsonantal() {
+  const searchTerm = document.getElementById('consonantalSearchTerm').value.trim();
+  const searchTerm2 = document.getElementById('consonantalSearchTerm2').value.trim();
+  const resultsDiv = document.getElementById('consonantalResults');
+  const searchBtn = document.getElementById('consonantalSearchBtn');
+  
+  if (!searchTerm) {
+    resultsDiv.innerHTML = '<p style="color: red;">Please enter a search term</p>';
+    return;
+  }
+  
+  // Disable button and show loading
+  searchBtn.disabled = true;
+  searchBtn.textContent = 'Searching...';
+  resultsDiv.innerHTML = '<p style="color: #666;">Searching...</p>';
+  
+  try {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const response = await fetch('/translate/api/search-consonantal/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken
+      },
+      body: JSON.stringify({
+        search_term: searchTerm,
+        search_term2: searchTerm2
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Search failed');
+    }
+    
+    if (data.results && data.results.length > 0) {
+      let html = '';
+      data.results.forEach(result => {
+        html += `
+          <div class="search-result-row">
+            <div class="search-result-ref" onclick="window.location.href='/translate/?book=${encodeURIComponent(result.book)}&chapter=${result.chapter}&verse=${result.verse}'">
+              ${result.ref}
+            </div>
+            <div class="search-result-hebrew">${result.hebrew_highlighted}</div>
+          </div>
+        `;
+      });
+      html += `<div class="search-count">Total count: ${data.count}</div>`;
+      resultsDiv.innerHTML = html;
+    } else {
+      resultsDiv.innerHTML = '<p style="color: #666;">No results found</p>';
+    }
+  } catch (error) {
+    console.error('Search error:', error);
+    resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+  } finally {
+    searchBtn.disabled = false;
+    searchBtn.textContent = 'Search';
+  }
+}
+
+// Allow Enter key to trigger search
+document.addEventListener('DOMContentLoaded', function() {
+  const searchInput = document.getElementById('consonantalSearchTerm');
+  const searchInput2 = document.getElementById('consonantalSearchTerm2');
+  
+  if (searchInput) {
+    searchInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        searchConsonantal();
+      }
+    });
+  }
+  
+  if (searchInput2) {
+    searchInput2.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        searchConsonantal();
+      }
+    });
+  }
+});
 </script>
 
 <script>
