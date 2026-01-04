@@ -13,27 +13,27 @@
 {% with title_prefix=book|title %}
 <div id="toggleButtonsContainer" style="display: flex; justify-content: flex-end;">
     <div id="h5ToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-eye-slash"></i> Hide Headers (H)
+        <i class="fas fa-eye-slash"></i> Headers (H)
     </div>
     <div id="imageToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-eye-slash"></i> Hide Images (I)
+        <i class="fas fa-eye-slash"></i> Images (I)
     </div>
     <div id="verseRefToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-eye"></i> Show Verse References (V)
+        <i class="fas fa-eye"></i> Verse References (V)
     </div>
     <div id="parenthesesToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-eye"></i> Show Names (P)
+        <i class="fas fa-eye"></i> Names (P)
     </div>
     {% if footnotes %}
     <div id="footnotesToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-book"></i> Show Notes (N)
+        <i class="fas fa-book"></i> Notes (N)
     </div>
     {% endif %}
     <div id="fontDecreaseButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-minus"></i> A-
+        <i class="fas fa-minus"></i> -
     </div>
     <div id="fontIncreaseButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-plus"></i> A+
+        <i class="fas fa-plus"></i> +
     </div>
 
 </div>
@@ -454,7 +454,7 @@
                         paraphraseArea.style.paddingRight = '10px';
                     }
                 }
-                footnotesToggleButton.innerHTML = '<i class="fas fa-book"></i> Show Notes (N)';
+                footnotesToggleButton.innerHTML = '<i class="fas fa-book"></i> Notes (N)';
             } else {
                 // OPEN sidebar
                 if (isMobile()) {
@@ -547,7 +547,7 @@
             isVerseRefVisible = !isVerseRefVisible;
             verseRefToggleButton.innerHTML = isVerseRefVisible ? 
                 '<i class="fas fa-eye-slash"></i> Hide Verse References (V)' : 
-                '<i class="fas fa-eye"></i> Show Verse References (V)';       
+                '<i class="fas fa-eye"></i> Verse References (V)';       
         }
 
         function toggleH5Headers() {
@@ -558,7 +558,7 @@
             isH5Visible = !isH5Visible;
             h5ToggleButton.innerHTML = isH5Visible ? 
                 '<i class="fas fa-eye-slash"></i> Hide Headers (H)' : 
-                '<i class="fas fa-eye"></i> Show Headers (H)';
+                '<i class="fas fa-eye"></i> Headers (H)';
         }
 
         function toggleImages() {
@@ -569,7 +569,7 @@
             isImageVisible = !isImageVisible;
             imageToggleButton.innerHTML = isImageVisible ? 
                 '<i class="fas fa-eye-slash"></i> Hide Images (I)' : 
-                '<i class="fas fa-eye"></i> Show Images (I)';
+                '<i class="fas fa-eye"></i> Images (I)';
         }
 
         function toggleParentheses() {
@@ -583,7 +583,7 @@
             isParenthesesVisible = !isParenthesesVisible;
             parenthesesToggleButton.innerHTML = isParenthesesVisible ? 
                 '<i class="fas fa-eye-slash"></i> Hide Names (P)' : 
-                '<i class="fas fa-eye"></i> Show Names (P)';
+                '<i class="fas fa-eye"></i> Names (P)';
         }
 
         function handleKeyDown(event) {

@@ -14,13 +14,13 @@
 <h1>{{ book }} {{ chapter_num }}</h1>
 {% with title_prefix=book|title %}
 <div id="toggleButtonsContainer">
-    <div id="h5ToggleButton"><i class="fas fa-eye-slash"></i> Hide Headers (H)</div>
-    <div id="imageToggleButton"><i class="fas fa-eye-slash"></i> Hide Images (I)</div>
-    <div id="literalToggleButton"><i class="fas fa-eye"></i> Show Literal (L)</div>
-    <div id="verseRefToggleButton"><i class="fas fa-eye-slash"></i> Hide Verse References (V)</div>
-    <div id="notesToggleButton"><i class="fas fa-book"></i> Show Notes (N)</div>
-    <div id="fontDecreaseButton"><i class="fas fa-minus"></i> A-</div>
-    <div id="fontIncreaseButton"><i class="fas fa-plus"></i> A+</div>
+    <div id="h5ToggleButton"><i class="fas fa-eye-slash"></i> Headers (H)</div>
+    <div id="imageToggleButton"><i class="fas fa-eye-slash"></i> Images (I)</div>
+    <div id="literalToggleButton"><i class="fas fa-eye"></i> Literal (L)</div>
+    <div id="verseRefToggleButton"><i class="fas fa-eye-slash"></i> Verse References (V)</div>
+    <div id="notesToggleButton"><i class="fas fa-book"></i> Notes (N)</div>
+    <div id="fontDecreaseButton"><i class="fas fa-minus"></i></div>
+    <div id="fontIncreaseButton"><i class="fas fa-plus"></i>/div>
 </div>
 
 {% endwith %}
@@ -248,8 +248,8 @@
 
         function updateLiteralButtonLabel() {
             literalToggleButton.innerHTML = isLiteralVisible
-                ? '<i class="fas fa-eye-slash"></i> Hide Literal (L)'
-                : '<i class="fas fa-eye"></i> Show Literal (L)';
+                ? '<i class="fas fa-eye-slash"></i> Literal (L)'
+                : '<i class="fas fa-eye"></i> Literal (L)';
         }
 
         function updateLayout() {
@@ -260,7 +260,7 @@
                 literalPane.style.display = "none";
                 toggleDivContainer.style.display = "block";
                 paraphraseContainer.style.width = isWideScreen ? "50%" : "100%";
-                notesToggleButton.innerHTML = '<i class="fas fa-book-open"></i> Hide Notes (N)';
+                notesToggleButton.innerHTML = '<i class="fas fa-book-open"></i> Notes (N)';
             } else {
                 notesPane.style.display = "none";
                 literalPane.style.display = isLiteralVisible ? "block" : "none";
@@ -273,7 +273,7 @@
                     paraphraseContainer.style.width = "100%";
                 }
 
-                 notesToggleButton.innerHTML = '<i class="fas fa-book"></i> Show Notes (N)';
+                 notesToggleButton.innerHTML = '<i class="fas fa-book"></i> Notes (N)';
             }
 
             updateLiteralButtonLabel();
@@ -290,7 +290,7 @@
                 }
             });
             isVerseRefVisible = !isVerseRefVisible; // Toggle the visibility state
-            verseRefToggleButton.innerHTML = isVerseRefVisible ? '<i class="fas fa-eye-slash"></i> Hide Verse References (V)' : '<i class="fas fa-eye"></i> Show Verse References (V)';
+            verseRefToggleButton.innerHTML = isVerseRefVisible ? '<i class="fas fa-eye-slash"></i> Verse References (V)' : '<i class="fas fa-eye"></i> Verse References (V)';
         }
 
         literalToggleButton.addEventListener("click", function() {
@@ -310,10 +310,10 @@
             h5Elements.forEach(function(element) {
                 if (isH5Visible) {
                     element.style.display = "none";
-                    h5ToggleButton.innerHTML = '<i class="fas fa-eye"></i> Show Headers (H)';
+                    h5ToggleButton.innerHTML = '<i class="fas fa-eye"></i> Headers (H)';
                 } else {
                     element.style.display = "block";
-                    h5ToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Headers (H)';
+                    h5ToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Headers (H)';
                 }
             });
             isH5Visible = !isH5Visible; // Toggle the visibility state
@@ -324,10 +324,10 @@
             tooltipContainers.forEach(function(container) {
                 if (isImageVisible) {
                     container.style.display = "none";
-                    imageToggleButton.innerHTML = '<i class="fas fa-eye"></i> Show Images (I)';
+                    imageToggleButton.innerHTML = '<i class="fas fa-eye"></i> Images (I)';
                 } else {
                     container.style.display = "block";
-                    imageToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Hide Images (I)';
+                    imageToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Images (I)';
                 }
             });
             isImageVisible = !isImageVisible; // Toggle the visibility state
