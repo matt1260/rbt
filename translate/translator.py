@@ -1135,22 +1135,25 @@ def build_fuerst_popup(strong_ref: str, hebrew_word: str = '', book: Optional[st
             note_text = html.escape(entry['notes'])
             note_html = f'<div class="fuerst-note">{note_text}</div>'
 
-        # Add edit button with data attributes
-        fuerst_id = str(entry['fuerst_id'] or '')
-        edit_button_html = f'''<button type="button" class="edit-lexicon-btn" 
-            data-lexicon-id="{html.escape(fuerst_id)}" 
-            data-lexicon-type="fuerst"
-            data-hebrew-word="{html.escape(entry['hebrew_word'] or '')}"
-            data-hebrew-consonantal="{html.escape(entry['hebrew_consonantal'] or '')}"
-            data-part-of-speech="{html.escape(entry['part_of_speech'] or '')}"
-            data-definition="{html.escape(entry['definition'] or '')}"
-            data-root="{html.escape(entry['root'] or '')}"
-            data-source-page="{html.escape(entry['source_page'] or '')}"
-            title="Edit this lexicon entry">
-            <i class="fas fa-edit"></i>
-        </button>'''
+        # Add edit button with data attributes (only if show_edit_buttons is True)
+        edit_button_html = ''
+        if show_edit_buttons:
+            fuerst_id = str(entry['fuerst_id'] or '')
+            edit_button_html = f'''<button type="button" class="edit-lexicon-btn" 
+                data-lexicon-id="{html.escape(fuerst_id)}" 
+                data-lexicon-type="fuerst"
+                data-hebrew-word="{html.escape(entry['hebrew_word'] or '')}"
+                data-hebrew-consonantal="{html.escape(entry['hebrew_consonantal'] or '')}"
+                data-part-of-speech="{html.escape(entry['part_of_speech'] or '')}"
+                data-definition="{html.escape(entry['definition'] or '')}"
+                data-root="{html.escape(entry['root'] or '')}"
+                data-source-page="{html.escape(entry['source_page'] or '')}"
+                title="Edit this lexicon entry">
+                <i class="fas fa-edit"></i>
+            </button>'''
 
-        body_parts = [f'<div class="fuerst-headword">{headword_html} {edit_button_html}</div>']
+        headword_with_button = f'{headword_html} {edit_button_html}' if edit_button_html else headword_html
+        body_parts = [f'<div class="fuerst-headword">{headword_with_button}</div>']
         if meta_html:
             body_parts.append(meta_html)
         if definition_html:
@@ -1346,8 +1349,8 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
     return tuple(entries)
 
 
-def build_gesenius_popup(entries: list[dict] | tuple[dict, ...]) -> str:
-    """Render a Gesenius popup that mirrors Fürst styling and includes page image links."""
+def build_gesenius_popup(entries: list[dict] | tuple[dict, ...], show_edit_buttons: bool = False) -> str:
+    """Render a Gesenius popup that mirrors Fürst styling and includes page image links with optional edit buttons."""
     if not entries:
         return ''
 
@@ -1392,22 +1395,25 @@ def build_gesenius_popup(entries: list[dict] | tuple[dict, ...]) -> str:
             note_text = html.escape(entry['notes'])
             note_html = f'<div class="gesenius-note">{note_text}</div>'
 
-        # Add edit button with data attributes
-        gesenius_id = str(entry.get('id') or '')
-        edit_button_html = f'''<button type="button" class="edit-lexicon-btn" 
-            data-lexicon-id="{html.escape(gesenius_id)}" 
-            data-lexicon-type="gesenius"
-            data-hebrew-word="{html.escape(entry.get('hebrew_word') or '')}"
-            data-hebrew-consonantal="{html.escape(entry.get('hebrew_consonantal') or '')}"
-            data-part-of-speech="{html.escape(entry.get('part_of_speech') or '')}"
-            data-definition="{html.escape(entry.get('definition') or '')}"
-            data-root="{html.escape(entry.get('root') or '')}"
-            data-source-page="{html.escape(entry.get('source_page') or '')}"
-            title="Edit this lexicon entry">
-            <i class="fas fa-edit"></i>
-        </button>'''
+        # Add edit button with data attributes (only if show_edit_buttons is True)
+        edit_button_html = ''
+        if show_edit_buttons:
+            gesenius_id = str(entry.get('id') or '')
+            edit_button_html = f'''<button type="button" class="edit-lexicon-btn" 
+                data-lexicon-id="{html.escape(gesenius_id)}" 
+                data-lexicon-type="gesenius"
+                data-hebrew-word="{html.escape(entry.get('hebrew_word') or '')}"
+                data-hebrew-consonantal="{html.escape(entry.get('hebrew_consonantal') or '')}"
+                data-part-of-speech="{html.escape(entry.get('part_of_speech') or '')}"
+                data-definition="{html.escape(entry.get('definition') or '')}"
+                data-root="{html.escape(entry.get('root') or '')}"
+                data-source-page="{html.escape(entry.get('source_page') or '')}"
+                title="Edit this lexicon entry">
+                <i class="fas fa-edit"></i>
+            </button>'''
 
-        body_parts = [f'<div class="gesenius-headword">{headword_html} {edit_button_html}</div>']
+        headword_with_button = f'{headword_html} {edit_button_html}' if edit_button_html else headword_html
+        body_parts = [f'<div class="gesenius-headword">{headword_with_button}</div>']
         if meta_html:
             body_parts.append(meta_html)
         if definition_html:
@@ -1464,7 +1470,7 @@ def get_lxx_stats_for_strongs(strong_refs):
     return stats
 
 
-def build_heb_interlinear(rows_data):
+def build_heb_interlinear(rows_data, show_edit_buttons: bool = False):
     # Initialize rows for English and Hebrew
     english_rows = []
     hebrew_rows = []
@@ -1602,7 +1608,8 @@ def build_heb_interlinear(rows_data):
                     hebrew_word=combined_heb_niqqud, 
                     book=book_name, 
                     chapter=chapter_num, 
-                    verse=verse_num
+                    verse=verse_num,
+                    show_edit_buttons=show_edit_buttons
                 )
                 if fuerst_popup_html:
                     fuerst_popups.append(fuerst_popup_html)
@@ -1645,7 +1652,7 @@ def build_heb_interlinear(rows_data):
 
         ges_popup = ''
         if ges_entries:
-            ges_popup = build_gesenius_popup(ges_entries)
+            ges_popup = build_gesenius_popup(ges_entries, show_edit_buttons=show_edit_buttons)
         
         # Combine all popups with consistent spacing
         strongs_references = strongs_popup

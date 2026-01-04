@@ -563,7 +563,7 @@ def get_results(book, chapter_num, verse_num=None):
                 hebrewdata_rows = _serialize_hebrew_rows(rows_data)
 
                 if rows_data:
-                    strong_row, english_row, hebrew_row, morph_row, hebrew_clean, hebrew_cards = build_heb_interlinear(rows_data)
+                    strong_row, english_row, hebrew_row, morph_row, hebrew_clean, hebrew_cards = build_heb_interlinear(rows_data, show_edit_buttons=False)
                     hebrewdata_rows = _serialize_hebrew_rows(rows_data)
                     
                     # Reverse the order for RTL display
@@ -687,7 +687,7 @@ def get_results(book, chapter_num, verse_num=None):
                 
                 rbt_heb = row_data[3]
                     
-                strong_row, english_row, hebrew_row, morph_row, hebrew_clean, hebrew_cards = build_heb_interlinear(rows_data)
+                strong_row, english_row, hebrew_row, morph_row, hebrew_clean, hebrew_cards = build_heb_interlinear(rows_data, show_edit_buttons=False)
                 
                 # Reverse the order 
                 strong_row.reverse()
