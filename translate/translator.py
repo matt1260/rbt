@@ -1392,7 +1392,22 @@ def build_gesenius_popup(entries: list[dict] | tuple[dict, ...]) -> str:
             note_text = html.escape(entry['notes'])
             note_html = f'<div class="gesenius-note">{note_text}</div>'
 
-        body_parts = [f'<div class="gesenius-headword">{headword_html}</div>']
+        # Add edit button with data attributes
+        gesenius_id = str(entry.get('id') or '')
+        edit_button_html = f'''<button type="button" class="edit-lexicon-btn" 
+            data-lexicon-id="{html.escape(gesenius_id)}" 
+            data-lexicon-type="gesenius"
+            data-hebrew-word="{html.escape(entry.get('hebrew_word') or '')}"
+            data-hebrew-consonantal="{html.escape(entry.get('hebrew_consonantal') or '')}"
+            data-part-of-speech="{html.escape(entry.get('part_of_speech') or '')}"
+            data-definition="{html.escape(entry.get('definition') or '')}"
+            data-root="{html.escape(entry.get('root') or '')}"
+            data-source-page="{html.escape(entry.get('source_page') or '')}"
+            title="Edit this lexicon entry">
+            <i class="fas fa-edit"></i>
+        </button>'''
+
+        body_parts = [f'<div class="gesenius-headword">{headword_html} {edit_button_html}</div>']
         if meta_html:
             body_parts.append(meta_html)
         if definition_html:
