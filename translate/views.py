@@ -1845,7 +1845,7 @@ def translate(request):
                 chapter_reader += html_string + close_text
 
         # Build the Hebrew row
-        strong_rows, english_rows, hebrew_rows, morph_rows, hebrew_clean, interlinear_cards = build_heb_interlinear(rows_data)
+        strong_rows, english_rows, hebrew_rows, morph_rows, hebrew_clean, interlinear_cards = build_heb_interlinear(rows_data, show_edit_buttons=True)
     
         # Reverse the order 
         strong_rows.reverse()
