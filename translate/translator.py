@@ -1026,8 +1026,8 @@ def build_strongs_popup(strong_refs: list[str]) -> str:
     return popup_html
 
 
-def build_fuerst_popup(strong_ref: str, hebrew_word: str = '', book: Optional[str] = None, chapter: Optional[int] = None, verse: Optional[int] = None) -> str:
-    """Render a dedicated Fuerst popup trigger next to a Strong's reference."""
+def build_fuerst_popup(strong_ref: str, hebrew_word: str = '', book: Optional[str] = None, chapter: Optional[int] = None, verse: Optional[int] = None, show_edit_buttons: bool = False) -> str:
+    """Render a Fürst lexicon popup with optional edit buttons for manual correction."""
     
     num = get_strongs_numeric_value(strong_ref)
     if num is None or num >= 9000:
