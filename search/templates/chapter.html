@@ -18,6 +18,7 @@
     <div id="imageToggleButton"><i class="fas fa-eye-slash"></i> Images (I)</div>
     <div id="literalToggleButton"><i class="fas fa-eye"></i> Literal (L)</div>
     <div id="verseRefToggleButton"><i class="fas fa-eye-slash"></i> Verse References (V)</div>
+    <div id="parenthesesToggleButton"><i class="fas fa-eye"></i> Names (P)</div>
     <div id="notesToggleButton"><i class="fas fa-book"></i> Notes (N)</div>
     <div id="fontDecreaseButton"><i class="fas fa-minus"></i></div>
     <div id="fontIncreaseButton"><i class="fas fa-plus"></i></div>
@@ -205,10 +206,48 @@
 
 <script>
     document.addEventListener("DOMContentLoaded", function() {
+        // Parentheses toggle logic
+        function wrapParenthesesText(element) {
+            if (!element) return;
+            // Only wrap text nodes, not HTML tags
+            function wrapTextNodes(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    // Replace space + ( ... ) with span (include preceding space)
+                    // Only match parentheses that contain double-quoted text, e.g. ("word")
+                    let replaced = node.textContent.replace(/\s\(\s*\"([^\"]+)\"\s*\)/g, function(match) {
+                        return '<span class="paren-hide">' + match + '</span>';
+                    });
+                    if (replaced !== node.textContent) {
+                        const temp = document.createElement('span');
+                        temp.innerHTML = replaced;
+                        while (temp.firstChild) {
+                            node.parentNode.insertBefore(temp.firstChild, node);
+                        }
+                        node.parentNode.removeChild(node);
+                    }
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    Array.from(node.childNodes).forEach(wrapTextNodes);
+                }
+            }
+            wrapTextNodes(element);
+        }
+
+        // Wrap parentheses in both areas on page load
+        wrapParenthesesText(document.getElementById('paraphraseContainer'));
+        wrapParenthesesText(document.getElementById('literal-pane'));
+        
+        // Hide parentheses by default (including server-side rendered ones)
+        setTimeout(() => {
+            document.querySelectorAll('.paren-hide').forEach(span => {
+                span.style.setProperty('display', 'none', 'important');
+            });
+        }, 0);
+
         const literalToggleButton = document.getElementById("literalToggleButton");
         const imageToggleButton = document.getElementById("imageToggleButton");
         const h5ToggleButton = document.getElementById("h5ToggleButton");
         const verseRefToggleButton = document.getElementById("verseRefToggleButton");
+        const parenthesesToggleButton = document.getElementById("parenthesesToggleButton");
         const notesToggleButton = document.getElementById("notesToggleButton");
         const toggleDivContainer = document.getElementById("toggleDivContainer");
         const paraphraseContainer = document.getElementById("paraphraseContainer");
@@ -244,6 +283,7 @@
         let isImageVisible = true;
         let isH5Visible = true;
         let isVerseRefVisible = false;
+        let isParenthesesVisible = false;
         let isNotesVisible = false; // Hide notes by default
 
         function updateLiteralButtonLabel() {
@@ -342,6 +382,22 @@
             updateLayout();
         });
         
+        function toggleParentheses() {
+            document.querySelectorAll('.paren-hide').forEach(span => {
+                if (isParenthesesVisible) {
+                    span.style.setProperty('display', 'none', 'important');
+                } else {
+                    span.style.setProperty('display', 'inline', 'important');
+                }
+            });
+            isParenthesesVisible = !isParenthesesVisible;
+            parenthesesToggleButton.innerHTML = isParenthesesVisible ? 
+                '<i class="fas fa-eye-slash"></i> Names (P)' : 
+                '<i class="fas fa-eye"></i> Names (P)';
+        }
+        
+        parenthesesToggleButton.addEventListener("click", toggleParentheses);
+        
         fontIncreaseButton.addEventListener("click", function() {
             if (currentFontSize < MAX_FONT_SIZE) {
                 currentFontSize += FONT_STEP;
@@ -357,6 +413,11 @@
         });
 
         function handleKeyDown(event) {
+            // Don't trigger if user is typing in an input
+            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            
             if (event.key === "v") {
                 toggleVerseRefs();
             } else if (event.key === "h") { 
@@ -365,6 +426,8 @@
                 imageToggleButton.click();
             } else if (event.key === "l") { 
                 literalToggleButton.click();
+            } else if (event.key === "p") {
+                toggleParentheses();
             } else if (event.key === "n") {
                 notesToggleButton.click();
             } else if (event.key === "+" || event.key === "=") {
