@@ -2114,12 +2114,21 @@ def translate(request):
 
 
                 foot_ref = ref.replace(".", "-") # type: ignore
+                footnote_code = f'<a class="sdfootnoteanc" href="?footnote={foot_ref}"><sup>num</sup></a>'
                 footnote = f'''
                 <td colspan="14" class="footnotes-{row_id_str}" style="display: none;">
                     {footnote}<br>
                     <textarea class="my-tinymce" name="footnote-{row_id_str}" id="footnote-{row_id_str}" autocomplete="off" style="width: 100%;" rows="6">{footnote}</textarea><br>
                     <input type="hidden" name="old_footnote-{row_id_str}" value="does not work">
-                    &lt;a class=&quot;sdfootnoteanc&quot; href=&quot;?footnote={foot_ref}&quot;&gt;&lt;sup&gt;num&lt;/sup&gt;&lt;/a&gt;
+                    <div style="margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; gap: 8px;">
+                        <code style="flex: 1; font-size: 12px; color: #333;">{escape(footnote_code)}</code>
+                        <button type="button" onclick="copyFootnoteCode(this, '{escape(footnote_code).replace("'", "\\'")}')"
+                                style="padding: 4px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap;"
+                                onmouseover="this.style.backgroundColor='#45a049'"
+                                onmouseout="this.style.backgroundColor='#4CAF50'">
+                            📋 Copy
+                        </button>
+                    </div>
                 </td>
                 '''
 
@@ -2145,11 +2154,21 @@ def translate(request):
                 '''
 
                 foot_ref = ref.replace(".", "-") # type: ignore
+                footnote_code = f'<a class="sdfootnoteanc" href="?footnote={foot_ref}"><sup>num</sup></a>'
                 footnote = f'''
                 <td colspan="14" class="footnotes-{row_id_str}" style="display: none;">
                     No footnote<br>
                     <textarea class="my-tinymce" name="footnote-{row_id_str}" id="footnote-{row_id_str}" autocomplete="off" style="width: 100%;" rows="6"></textarea><br>
                     <input type="hidden" name="old_footnote-{row_id_str}" value="">
+                    <div style="margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; gap: 8px;">
+                        <code style="flex: 1; font-size: 12px; color: #333;">{escape(footnote_code)}</code>
+                        <button type="button" onclick="copyFootnoteCode(this, '{escape(footnote_code).replace("'", "\\'")}')"
+                                style="padding: 4px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap;"
+                                onmouseover="this.style.backgroundColor='#45a049'"
+                                onmouseout="this.style.backgroundColor='#4CAF50'">
+                            📋 Copy
+                        </button>
+                    </div>
                 </td>
                 '''
             # Append all data to edit_table_data

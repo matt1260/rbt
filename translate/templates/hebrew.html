@@ -468,6 +468,36 @@
     padding-bottom: 10px;
 }
 
+.chapter-reader-section.highlight-sups sup {
+    background: #ffeb3b;
+    color: #000;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 2px 5px;
+    border-radius: 3px;
+    margin: 0 2px;
+}
+
+.sup-toggle-btn {
+    padding: 6px 12px;
+    background: #b78550;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    margin-left: 10px;
+    transition: all 0.2s;
+}
+
+.sup-toggle-btn:hover {
+    background: #965f35;
+}
+
+.sup-toggle-btn.active {
+    background: #4CAF50;
+}
+
 /* Popup */
 .popup {
     position: fixed;
@@ -1621,8 +1651,13 @@
 
 </form>
 
-<div class="chapter-reader-section">
-  <h4>Chapter Reader</h4>
+<div class="chapter-reader-section" id="chapterReaderSection">
+  <h4>
+    Chapter Reader
+    <button type="button" class="sup-toggle-btn" onclick="toggleSupHighlight()" title="Highlight verse numbers and footnote markers">
+      <i class="fas fa-highlighter"></i> Highlight Numbers
+    </button>
+  </h4>
   {{ chapter_reader|safe }}
 </div>
 
@@ -3172,6 +3207,45 @@ document.addEventListener('keydown', function(e) {
     closeMappingModal();
   }
 });
+
+// Copy footnote code to clipboard
+function copyFootnoteCode(btn, code) {
+  // Decode HTML entities
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = code;
+  const decodedCode = textarea.value;
+  
+  navigator.clipboard.writeText(decodedCode).then(() => {
+    // Show success feedback
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '✓ Copied!';
+    btn.style.backgroundColor = '#2196F3';
+    
+    setTimeout(() => {
+      btn.innerHTML = originalText;
+      btn.style.backgroundColor = '#4CAF50';
+    }, 2000);
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+    alert('Failed to copy to clipboard');
+  });
+}
+
+// Toggle sup highlighting in chapter reader
+function toggleSupHighlight() {
+  const section = document.getElementById('chapterReaderSection');
+  const btn = event.target.closest('.sup-toggle-btn');
+  
+  if (section.classList.contains('highlight-sups')) {
+    section.classList.remove('highlight-sups');
+    btn.classList.remove('active');
+    btn.innerHTML = '<i class="fas fa-highlighter"></i> Highlight Numbers';
+  } else {
+    section.classList.add('highlight-sups');
+    btn.classList.add('active');
+    btn.innerHTML = '<i class="fas fa-times"></i> Hide Highlight';
+  }
+}
 </script>
 
 {% endblock %}
