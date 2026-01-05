@@ -1,0 +1,542 @@
+{% extends 'base.html' %}
+{% load custom_tags %}
+{% load static %}
+{% block title %}Search Results for "{{ query }}" - Real Bible{% endblock %}
+{% block content %}
+
+<style>
+.results-page {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.results-header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 12px;
+    padding: 30px;
+    margin-bottom: 30px;
+    color: #fff;
+}
+
+.results-header h1 {
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+    color: #b78550;
+}
+
+.results-header .search-meta {
+    color: #c0c0c0;
+    font-size: 14px;
+}
+
+.results-header .search-meta strong {
+    color: #fff;
+}
+
+.back-to-search {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #b78550;
+    text-decoration: none;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+.back-to-search:hover {
+    text-decoration: underline;
+}
+
+/* Filters */
+.results-filters {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.filter-btn {
+    padding: 8px 16px;
+    border: 1px solid #e0e0e0;
+    border-radius: 20px;
+    background: #f8f9fa;
+    color: #333;
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.filter-btn:hover {
+    border-color: #b78550;
+    background: #fff;
+}
+
+.filter-btn.active {
+    background: #b78550;
+    color: #fff;
+    border-color: #b78550;
+}
+
+/* Results Sections */
+.results-section {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    margin-bottom: 25px;
+    overflow: hidden;
+}
+
+.section-header {
+    background: #f8f9fa;
+    padding: 15px 20px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.section-header h2 {
+    font-size: 16px;
+    margin: 0;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-header h2 i {
+    color: #b78550;
+}
+
+.section-header .count {
+    background: #b78550;
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+.result-item {
+    padding: 18px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.15s;
+}
+
+.result-item:hover {
+    background: #f8f9fa;
+}
+
+.result-item:last-child {
+    border-bottom: none;
+}
+
+.result-reference {
+    font-weight: 600;
+    color: #b78550;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.result-reference i {
+    color: #999;
+}
+
+.source-badge {
+    font-size: 10px;
+    background: #e0e0e0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: #666;
+    font-weight: normal;
+}
+
+.result-text {
+    font-size: 15px;
+    color: #444;
+    line-height: 1.6;
+}
+
+.result-text mark {
+    background: #ffeb3b;
+    padding: 1px 3px;
+    border-radius: 2px;
+}
+
+.result-meta {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #888;
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.hebrew-text {
+    font-family: 'SBL Hebrew', 'Ezra SIL', serif;
+    font-size: 20px;
+    direction: rtl;
+}
+
+.greek-text {
+    font-family: 'SBL Greek', 'Gentium Plus', serif;
+    font-size: 18px;
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin: 30px 0;
+    flex-wrap: wrap;
+}
+
+.pagination a, .pagination span {
+    padding: 10px 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    text-decoration: none;
+    color: #333;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.pagination a:hover {
+    border-color: #b78550;
+    background: #fff;
+}
+
+.pagination .current {
+    background: #b78550;
+    color: #fff;
+    border-color: #b78550;
+}
+
+.pagination .disabled {
+    color: #ccc;
+    cursor: not-allowed;
+}
+
+/* No Results */
+.no-results {
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+}
+
+.no-results i {
+    font-size: 48px;
+    color: #ddd;
+    margin-bottom: 20px;
+}
+
+.no-results h3 {
+    margin-bottom: 10px;
+}
+
+/* Loading */
+.loading-results {
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+}
+
+.loading-results i {
+    font-size: 32px;
+    color: #b78550;
+    margin-bottom: 15px;
+}
+</style>
+
+<div class="results-page">
+    <a href="/search/" class="back-to-search">
+        <i class="fas fa-arrow-left"></i> Back to Search
+    </a>
+    
+    <div class="results-header">
+        <h1><i class="fas fa-search"></i> Search Results</h1>
+        <div class="search-meta">
+            Searching for "<strong>{{ query }}</strong>" 
+            {% if scope != 'all' %} in <strong>{{ scope|title }}</strong>{% endif %}
+            &bull; <span id="totalCount">Loading...</span> results found
+        </div>
+    </div>
+    
+    <div class="results-filters">
+        <a href="?q={{ query }}&scope=all&page=1" class="filter-btn {% if scope == 'all' %}active{% endif %}">All</a>
+        <a href="?q={{ query }}&scope=ot&page=1" class="filter-btn {% if scope == 'ot' %}active{% endif %}">Old Testament</a>
+        <a href="?q={{ query }}&scope=nt&page=1" class="filter-btn {% if scope == 'nt' %}active{% endif %}">New Testament</a>
+        <a href="?q={{ query }}&scope=hebrew&page=1" class="filter-btn {% if scope == 'hebrew' %}active{% endif %}">Hebrew</a>
+        <a href="?q={{ query }}&scope=greek&page=1" class="filter-btn {% if scope == 'greek' %}active{% endif %}">Greek</a>
+        <a href="?q={{ query }}&scope=footnotes&page=1" class="filter-btn {% if scope == 'footnotes' %}active{% endif %}">Footnotes</a>
+    </div>
+    
+    <div id="resultsContainer">
+        <div class="loading-results">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading results...</p>
+        </div>
+    </div>
+    
+    <div id="paginationContainer"></div>
+</div>
+
+<script>
+(function() {
+    const query = "{{ query|escapejs }}";
+    const scope = "{{ scope }}";
+    const page = {{ page }};
+    const limit = 50;
+    
+    async function loadResults() {
+        try {
+            const response = await fetch(`/api/live/?q=${encodeURIComponent(query)}&scope=${scope}&limit=${limit}&page=${page}`);
+            const data = await response.json();
+            
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+            
+            document.getElementById('totalCount').textContent = data.total.toLocaleString();
+            renderResults(data);
+            renderPagination(data.total);
+            
+        } catch (error) {
+            console.error('Error loading results:', error);
+            showError('Failed to load results. Please try again.');
+        }
+    }
+    
+    function showError(message) {
+        document.getElementById('resultsContainer').innerHTML = `
+            <div class="no-results">
+                <i class="fas fa-exclamation-circle"></i>
+                <h3>Error</h3>
+                <p>${escapeHtml(message)}</p>
+            </div>
+        `;
+    }
+    
+    function renderResults(data) {
+        const { results, counts } = data;
+        let html = '';
+        
+        // Check if there are any results
+        const hasResults = (results.ot_verses?.length || 0) + 
+                          (results.ot_hebrew?.length || 0) + 
+                          (results.nt_verses?.length || 0) + 
+                          (results.nt_greek?.length || 0) + 
+                          (results.footnotes?.length || 0) + 
+                          (results.references?.length || 0) > 0;
+        
+        if (!hasResults) {
+            html = `
+                <div class="no-results">
+                    <i class="fas fa-search"></i>
+                    <h3>No Results Found</h3>
+                    <p>Try a different search term or scope.</p>
+                </div>
+            `;
+            document.getElementById('resultsContainer').innerHTML = html;
+            return;
+        }
+        
+        // OT Verses
+        if (results.ot_verses && results.ot_verses.length > 0) {
+            html += `
+                <div class="results-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-scroll"></i> Old Testament Verses</h2>
+                        <span class="count">${counts.ot_verses.toLocaleString()} total</span>
+                    </div>
+                    ${results.ot_verses.map(r => `
+                        <a href="${r.url}" class="result-item">
+                            <div class="result-reference">
+                                <i class="fas fa-book-open"></i>
+                                ${escapeHtml(r.book)} ${r.chapter}:${r.verse}
+                                <span class="source-badge">OT</span>
+                            </div>
+                            <div class="result-text">${r.text || ''}</div>
+                        </a>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        // Hebrew Words
+        if (results.ot_hebrew && results.ot_hebrew.length > 0) {
+            html += `
+                <div class="results-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-font"></i> Hebrew Words</h2>
+                        <span class="count">${counts.ot_hebrew.toLocaleString()} total</span>
+                    </div>
+                    ${results.ot_hebrew.map(r => `
+                        <a href="${r.url}" class="result-item">
+                            <div class="result-reference">
+                                <span class="hebrew-text">${escapeHtml(r.hebrew_niqqud || r.hebrew || '')}</span>
+                                <span class="source-badge">${escapeHtml(r.book)} ${r.chapter}:${r.verse}</span>
+                            </div>
+                            <div class="result-text">
+                                <strong>English:</strong> ${escapeHtml(r.english || 'N/A')}
+                            </div>
+                            <div class="result-meta">
+                                ${r.strongs ? `<span>Strong's: ${escapeHtml(r.strongs)}</span>` : ''}
+                                ${r.morphology ? `<span>Morphology: ${escapeHtml(r.morphology)}</span>` : ''}
+                            </div>
+                        </a>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        // NT Verses
+        if (results.nt_verses && results.nt_verses.length > 0) {
+            html += `
+                <div class="results-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-cross"></i> New Testament Verses</h2>
+                        <span class="count">${counts.nt_verses.toLocaleString()} total</span>
+                    </div>
+                    ${results.nt_verses.map(r => `
+                        <a href="${r.url}" class="result-item">
+                            <div class="result-reference">
+                                <i class="fas fa-book-open"></i>
+                                ${escapeHtml(r.book)} ${r.chapter}:${r.verse}
+                                <span class="source-badge">NT</span>
+                            </div>
+                            <div class="result-text">${r.text || ''}</div>
+                        </a>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        // Greek Words
+        if (results.nt_greek && results.nt_greek.length > 0) {
+            html += `
+                <div class="results-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-language"></i> Greek Words</h2>
+                        <span class="count">${counts.nt_greek.toLocaleString()} total</span>
+                    </div>
+                    ${results.nt_greek.map(r => `
+                        <a href="${r.url}" class="result-item">
+                            <div class="result-reference">
+                                <span class="greek-text">${escapeHtml(r.lemma || r.greek || '')}</span>
+                                <em style="margin-left: 10px; color: #666;">${escapeHtml(r.translit || '')}</em>
+                                <span class="source-badge">${escapeHtml(r.book)} ${r.chapter}:${r.verse}</span>
+                            </div>
+                            <div class="result-text">
+                                <strong>English:</strong> ${escapeHtml(r.english || 'N/A')}
+                            </div>
+                            <div class="result-meta">
+                                ${r.strongs ? `<span>Strong's: G${escapeHtml(r.strongs)}</span>` : ''}
+                                ${r.morph_desc ? `<span>${escapeHtml(r.morph_desc)}</span>` : ''}
+                            </div>
+                        </a>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        // Footnotes
+        if (results.footnotes && results.footnotes.length > 0) {
+            html += `
+                <div class="results-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-sticky-note"></i> Footnotes</h2>
+                        <span class="count">${counts.footnotes.toLocaleString()} total</span>
+                    </div>
+                    ${results.footnotes.map(r => `
+                        <a href="${r.url}" class="result-item">
+                            <div class="result-reference">
+                                <i class="fas fa-sticky-note"></i>
+                                ${escapeHtml(r.book)} ${r.chapter}:${r.verse}
+                                <span class="source-badge">footnote</span>
+                            </div>
+                            <div class="result-text">${r.text || ''}</div>
+                        </a>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        document.getElementById('resultsContainer').innerHTML = html;
+    }
+    
+    function renderPagination(total) {
+        const totalPages = Math.ceil(total / limit);
+        if (totalPages <= 1) return;
+        
+        let html = '<div class="pagination">';
+        
+        // Previous
+        if (page > 1) {
+            html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${page - 1}">&laquo; Prev</a>`;
+        } else {
+            html += `<span class="disabled">&laquo; Prev</span>`;
+        }
+        
+        // Page numbers
+        const maxVisible = 7;
+        let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+        
+        if (endPage - startPage < maxVisible - 1) {
+            startPage = Math.max(1, endPage - maxVisible + 1);
+        }
+        
+        if (startPage > 1) {
+            html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=1">1</a>`;
+            if (startPage > 2) {
+                html += `<span class="disabled">...</span>`;
+            }
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            if (i === page) {
+                html += `<span class="current">${i}</span>`;
+            } else {
+                html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${i}">${i}</a>`;
+            }
+        }
+        
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                html += `<span class="disabled">...</span>`;
+            }
+            html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${totalPages}">${totalPages}</a>`;
+        }
+        
+        // Next
+        if (page < totalPages) {
+            html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${page + 1}">Next &raquo;</a>`;
+        } else {
+            html += `<span class="disabled">Next &raquo;</span>`;
+        }
+        
+        html += '</div>';
+        document.getElementById('paginationContainer').innerHTML = html;
+    }
+    
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Load results on page load
+    loadResults();
+})();
+</script>
+
+{% endblock %}

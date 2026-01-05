@@ -2,21 +2,63 @@
 {% block title %}Real Bible Translation - {{ page_title }}{% endblock %}
 {% block content %}
 
-<table class="front_search" style="border: none;">
-    <tbody>
-        <tr>
-            <td class="front">
-                <form method="get" action="/search/" style="text-align: left;">
-                    <input type="text" name="q" placeholder="Enter a search word...">
+<style>
+     /* Default styles for the desktop view */
+     .desktop-view {
+        display: block;
+    }
+
+    .mobile-view {
+        display: none;
+    }
+
+    .front_search {
+        border: none;
+        display: table;
+    }
+
+    .front_search form {
+        text-align: left;
+        margin-bottom: 10px;
+    }
+
+    /* Styles for the mobile view */
+    @media only screen and (max-width: 767px) {
+        .desktop-view {
+            display: none;
+        }
+
+        .mobile-view {
+            display: block;
+            margin-bottom: 10px;
+        }
+    }
+</style>
+<div class="desktop-view">
+    <table class="front_search" style="border: none;">
+        <tbody>
+            <tr>
+                <td>
+                    <form method="get" action="https://read.realbible.tech/" style="text-align: left;">
+                        <input type="text" name="ref" placeholder="Enter a reference...">
+                        <input type="hidden" name="book" id="book" value="{{ book }}">
+                        <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
+                        <input type="hidden" name="verse" id="verse" value="{{ verse_num }}">
+                        <button type="submit">Search</button>
+                    </form>
+                </td>
+                <td class="front">
+                    <form method="get" action="https://read.realbible.tech/" style="text-align: left;">
+                        <input type="text" name="q" placeholder="Enter a search word...">
                         <select name="book">
                             <option value="all">Search all books</option>
                             <option value="OT">Search all Hebrew books</option>
                             <option value="NT">Search all Greek books</option>
                             <option value="Gen">In the Head</option>
                             <option value="Exo">And a Mighty One</option>
-                            <option value="Lev">And He is Reading</option>
-                            <option value="Num">And He is Ordering Words</option>
-                            <option value="Deu">A Mighty One of the Words</option>
+                            <option value="Lev">And He Is Calling</option>
+                            <option value="Num">And He Is Aligning</option>
+                            <option value="Deu">A Mighty One of the Alignments</option>
                             <option value="Jos">He is Salvation</option>
                             <option value="Jdg">Rulers</option>
                             <option value="Rut">Companion</option>
@@ -28,7 +70,7 @@
                             <option value="2Ch">Words of the Days 2</option>
                             <option value="Ezr">Helper</option>
                             <option value="Neh">He is Comfort</option>
-                            <option value="Est">Star</option>
+                            <option value="Est">I am Hidden</option>
                             <option value="Job">Adversary</option>
                             <option value="Psa">Melodies</option>
                             <option value="Pro">Comparisons</option>
@@ -79,19 +121,116 @@
                             <option value="Jud">Cast One</option>
                             <option value="Rev">The Unveiling</option>
                         </select>
+                        <button type="submit">Search</button>
+                    </form>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
 
-                    <button type="submit">Search</button>
-                </form>
-            </td>
-            <td>
-                <form method="get" action="/search/" style="text-align: left;">
-                    <input type="text" name="ref" placeholder="Enter a reference...">
-                    <button type="submit">Search</button>
-            </td>
-        </tr>
-    </tbody>
-</table>
+<!-- Mobile view -->
+<div class="mobile-view">
+    <table class="front_search" style="border: none;">
+        <tbody>
+            <tr>
+                <td class="front">
+                    <form method="get" action="https://read.realbible.tech/">
+                        <input type="text" name="ref" placeholder="Enter a reference...">
+                        <input type="hidden" name="book" id="book" value="{{ book }}">
+                        <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
+                        <input type="hidden" name="verse" id="verse" value="{{ verse_num }}">
+                        <button type="submit">Search</button>
+                    </form>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <table class="front_search" style="border: none;">
+        <tbody>
+            <tr>
+                <td class="front">
+                    <form method="get" action="https://read.realbible.tech/">
+                        <input type="text" name="q" placeholder="Enter a search word...">
+                        <select name="book">
+                            <option value="all">Search all books</option>
+                            <option value="OT">Search all Hebrew books</option>
+                            <option value="NT">Search all Greek books</option>
+                            <option value="Gen">In the Head</option>
+                            <option value="Exo">And a Mighty One</option>
+                            <option value="Lev">And He Is Calling</option>
+                            <option value="Num">And He Is Aligning</option>
+                            <option value="Deu">A Mighty One of the Alignments</option>
+                            <option value="Jos">He is Salvation</option>
+                            <option value="Jdg">Rulers</option>
+                            <option value="Rut">Companion</option>
+                            <option value="1Sa">His Name is God 1</option>
+                            <option value="2Sa">His Name is God 2</option>
+                            <option value="1Ki">Kings 1</option>
+                            <option value="2Ki">Kings 2</option>
+                            <option value="1Ch">Words of the Days 1</option>
+                            <option value="2Ch">Words of the Days 2</option>
+                            <option value="Ezr">Helper</option>
+                            <option value="Neh">He is Comfort</option>
+                            <option value="Est">I am Hidden</option>
+                            <option value="Job">Adversary</option>
+                            <option value="Psa">Melodies</option>
+                            <option value="Pro">Comparisons</option>
+                            <option value="Ecc">Words of the Teacher</option>
+                            <option value="Son">Song of Singing Ones</option>
+                            <option value="Isa">He Is Liberator</option>
+                            <option value="Jer">He Is Lifting Up</option>
+                            <option value="Lam">How She has Sat Separated!</option>
+                            <option value="Eze">God Holds Strongly</option>
+                            <option value="Dan">God Has Judged</option>
+                            <option value="Hos">Salvation</option>
+                            <option value="Joe">He is a Mighty One</option>
+                            <option value="Amo">Heavy Burdened</option>
+                            <option value="Oba">Slave of He Is</option>
+                            <option value="Jon">Dove</option>
+                            <option value="Mic">Who is Like Her?</option>
+                            <option value="Nah">Sorry/Consolation</option>
+                            <option value="Hab">Embrace Himself</option>
+                            <option value="Zep">He is Concealed</option>
+                            <option value="Hag">Festival</option>
+                            <option value="Zec">He Is Remembered</option>
+                            <option value="Mal">Angel of Myself</option>
+                            <option value="Mat">He Is a Gift</option>
+                            <option value="Mar">Hammer</option>
+                            <option value="Luk">Light Giver</option>
+                            <option value="Joh">He Is Favored</option>
+                            <option value="Act">Acts of the Sent Away Ones</option>
+                            <option value="Rom">The People of Bodily Strength</option>
+                            <option value="1Co">The People of Youth 1</option>
+                            <option value="2Co">The People of Youth 2</option>
+                            <option value="Gal">The People of the Land of Milk</option>
+                            <option value="Eph">The People of the Land of Bees</option>
+                            <option value="Php">The People of the Horse</option>
+                            <option value="Col">The People of the Colossal Ones</option>
+                            <option value="1Th">The People of the Prayer of Victory 1</option>
+                            <option value="2Th">The People of the Prayer of Victory 2</option>
+                            <option value="1Ti">Honored One 1</option>
+                            <option value="2Ti">Honored One 2</option>
+                            <option value="Tit">Avenged</option>
+                            <option value="Phm">Affectionate One</option>
+                            <option value="Heb">Beyond Ones</option>
+                            <option value="Jas">Heel Chaser</option>
+                            <option value="1Pe">Small Stone 1</option>
+                            <option value="2Pe">Small Stone 2</option>
+                            <option value="1Jo">Favored 1</option>
+                            <option value="2Jo">Favored 2</option>
+                            <option value="3Jo">Favored 3</option>
+                            <option value="Jud">Cast One</option>
+                            <option value="Rev">The Unveiling</option>
+                        </select>
+                        <button type="submit">Search</button>
+                    </form>
+                </td>
+            </tr>
+        </tbody>
+    </table>
 
+</div>
 <h1>{{book}} {{ chapter_ref }}:{{ verse_ref }}</h1>
 {% if hebrew %}
 <div style="display: flex; justify-content: flex-end;">
