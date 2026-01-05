@@ -12,6 +12,11 @@
 <link rel="alternate" type="application/rss+xml" title="Real Bible Translation Project » Feed" href="https://www.realbible.tech/feed/">
 <link rel="alternate" type="application/rss+xml" title="Real Bible Translation Project » Comments Feed" href="https://www.realbible.tech/comments/feed/">
 
+<!-- Font Awesome CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" 
+      integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" 
+      crossorigin="anonymous" referrerpolicy="no-referrer" />
+
 <!-- KaTeX CSS -->
 <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
@@ -127,11 +132,11 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 			font-size: 16px;
 		}
 		h4 {
-			margin-top: 1.2em;
+			margin-top: 2px;
 			line-height: inherit;
 		}
 		h3 {
-			margin-top: 1.2em;
+			margin-top: 2px;
 			line-height: inherit;
 		}
 
@@ -777,46 +782,257 @@ table.front_search td {
 
     </main><!--/.neve-main-->
 
-<footer class="site-footer" id="site-footer">
-	<div class="hfg_footer">
-		<div class="footer--row footer-top layout-full-contained" id="cb-row--footer-top" data-row-id="top" data-show-on="desktop">
-	<div class="footer--row-inner footer-top-inner footer-content-wrap">
-		<div class="container">
-			<div class="hfg-grid nv-footer-content hfg-grid-top row--wrapper row " data-section="hfg_footer_layout_top">
-				<div class="hfg-slot left"><div class="builder-item desktop-left tablet-left mobile-left"><div class="item--inner builder-item--footer-menu has_menu" data-section="footer_menu_primary" data-item-id="footer-menu">
-	<div class="component-wrap">
-	<div role="navigation" class="nav-menu-footer" aria-label="Footer Menu">
+<style>
+/* Enhanced Footer Styles */
+.rbt-footer {
+    background: linear-gradient(135deg, #312317 0%, #50331c 100%);
+    color: #e0e0e0;
+    padding: 0;
+    margin-top: 40px;
+}
 
-		<ul id="footer-menu" class="footer-menu nav-ul"><li id="menu-item-10282" class="menu-item menu-item-type-post_type menu-item-object-page current-menu-item page_item page-item-9943 current_page_item menu-item-10282"><div class="wrap"><a href="https://www.realbible.tech/about/" aria-current="page">About the Real Bible Translation Project</a></div></li>
-<li id="menu-item-10304" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10304"><div class="wrap"><a href="https://www.realbible.tech/methodology/">Methodology</a></div></li>
-<li id="menu-item-10283" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10283"><div class="wrap"><a href="https://www.realbible.tech/visualizations/">Visualizations</a></div></li>
-<li id="menu-item-10284" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10284"><div class="wrap"><a href="https://read.realbible.tech/statistics/">Statistics</a></div></li>
-<li id="menu-item-10284" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10284"><div class="wrap"><a href="https://www.realbible.tech/notes/">Notes</a></div></li>
-<li id="menu-item-10281" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10281"><div class="wrap"><a href="https://www.realbible.tech/copyrights/">Copyrights</a></div></li>
-</ul>	</div>
-</div>
+.rbt-footer-main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 20px 30px;
+}
 
-	</div>
+.rbt-footer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 30px;
+}
 
-</div></div><div class="hfg-slot c-left"><div class="builder-item desktop-center tablet-left mobile-left"><div class="item--inner builder-item--footer-three-widgets" data-section="neve_sidebar-widgets-footer-three-widgets" data-item-id="footer-three-widgets">
+.rbt-footer-section h4 {
+    color: #b78550;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #b78550;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 
-	</div>
+.rbt-footer-section h4 i {
+    font-size: 14px;
+}
 
-</div></div>							</div>
-		</div>
-	</div>
-</div>
+.rbt-footer-nav {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
 
-<div class="footer--row footer-bottom layout-full-contained" id="cb-row--footer-bottom" data-row-id="bottom" data-show-on="desktop">
-	<div class="footer--row-inner footer-bottom-inner footer-content-wrap">
-		<div class="container">
-			<div class="hfg-grid nv-footer-content hfg-grid-bottom row--wrapper row " data-section="hfg_footer_layout_bottom">
-				<div class="hfg-slot left"><div class="builder-item"><div class="item--inner"><div class="component-wrap"><div><p>© Copyright Now RealBible Project. All rights reserved.</p></div></div></div></div></div>							</div>
-		</div>
-	</div>
-</div>
+.rbt-footer-nav li {
+    margin-bottom: 12px;
+}
 
-	</div>
+.rbt-footer-nav a {
+    color: #c0c0c0;
+    text-decoration: none;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+    padding: 6px 0;
+}
+
+.rbt-footer-nav a i {
+    color: #b78550;
+    font-size: 12px;
+    width: 16px;
+    text-align: center;
+    transition: transform 0.2s ease;
+}
+
+.rbt-footer-nav a:hover {
+    color: #b78550;
+    padding-left: 5px;
+}
+
+.rbt-footer-nav a:hover i {
+    transform: translateX(3px);
+}
+
+.rbt-footer-bottom {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 20px;
+    text-align: center;
+    border-top: 1px solid rgba(183, 133, 80, 0.2);
+}
+
+.rbt-footer-bottom p {
+    margin: 0;
+    font-size: 13px;
+    color: #888;
+}
+
+.rbt-footer-bottom a {
+    color: #b78550;
+    text-decoration: none;
+}
+
+.rbt-footer-bottom a:hover {
+    text-decoration: underline;
+}
+
+/* Social Links */
+.rbt-social-links {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.rbt-social-links a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: rgba(183, 133, 80, 0.15);
+    border: 1px solid rgba(183, 133, 80, 0.3);
+    border-radius: 8px;
+    color: #b78550;
+    font-size: 16px;
+    transition: all 0.2s ease;
+}
+
+.rbt-social-links a:hover {
+    background: #b78550;
+    color: #fff;
+    transform: translateY(-3px);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .rbt-footer-main {
+        padding: 30px 15px 20px;
+    }
+    
+    .rbt-footer-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 25px;
+    }
+    
+    .rbt-footer-section h4 {
+        font-size: 14px;
+        margin-bottom: 15px;
+    }
+    
+    .rbt-footer-nav a {
+        font-size: 13px;
+        padding: 5px 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .rbt-footer-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .rbt-footer-section {
+        text-align: center;
+    }
+    
+    .rbt-footer-nav a {
+        justify-content: center;
+    }
+    
+    .rbt-social-links {
+        justify-content: center;
+    }
+}
+</style>
+
+<footer class="rbt-footer" id="site-footer">
+    <div class="rbt-footer-main">
+        <div class="rbt-footer-grid">
+            <!-- About Section -->
+            <div class="rbt-footer-section">
+                <h4>About</h4>
+                <ul class="rbt-footer-nav">
+                    <li>
+                        <a href="https://www.realbible.tech/about/">
+                            <i class="fas fa-info-circle"></i>
+                            About the RBT Project
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.realbible.tech/methodology/">
+                            <i class="fas fa-flask"></i>
+                            Methodology
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.realbible.tech/copyrights/">
+                            <i class="fas fa-copyright"></i>
+                            Copyrights
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Resources Section -->
+            <div class="rbt-footer-section">
+                <h4>Resources</h4>
+                <ul class="rbt-footer-nav">
+                    <li>
+                        <a href="https://www.realbible.tech/let-there-be-science/">
+                            <i class="fa-solid fa-atom"></i>
+                            Let There Be Science
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://read.realbible.tech/statistics/">
+                            <i class="fas fa-chart-bar"></i>
+                            Statistics
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.realbible.tech/notes/">
+                            <i class="fas fa-sticky-note"></i>
+                            Notes
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Quick Links Section -->
+            <div class="rbt-footer-section">
+                <h4>Quick Links</h4>
+                <ul class="rbt-footer-nav">
+                    <li>
+                        <a href="/">
+                            <i class="fas fa-home"></i>
+                            Home
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/search/">
+                            <i class="fas fa-search"></i>
+                            Search
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/updates/">
+                            <i class="fas fa-clock"></i>
+                            Recent Updates
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+
+        </div>
+    </div>
+
+    <div class="rbt-footer-bottom">
+        <p>© Now <a href="https://www.realbible.tech">Real Bible Translation Project</a>. All rights reserved.</p>
+    </div>
 </footer>
 
 </div><!--/.wrapper-->

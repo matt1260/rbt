@@ -19,6 +19,8 @@ ENV/
 .DS_Store
 scripts/
 
+neve-child/
+
 searchimage.py
 replace_exact_match.py
 TODO.md
