@@ -17,7 +17,7 @@
 
 /* Page Layout */
 .page-wrapper {
-    max-width: 1800px;
+    max-width: 1500px;
     margin: 0 auto;
     padding: 20px;
 }
@@ -1573,6 +1573,9 @@
       <button type="button" onclick="applyHayahStyle(); updateEnglishReader(document.getElementById('textArea').value)" title="Hayah Style">
         <i>היה</i>
       </button>
+      <button type="button" onclick="applyHebrewHeader(); updateEnglishReader(document.getElementById('textArea').value)" title="Hebrew Header" style="background-color: #4a90e2; color: white; padding: 4px 8px;">
+        H5
+      </button>
       <button type="button" style="background-color: red;" onclick="applyFontColor('red'); updateEnglishReader(document.getElementById('textArea').value)" title="Red"></button>
       <button type="button" style="background-color: #ff00aa;" onclick="applyFontColor('#ff00aa'); updateEnglishReader(document.getElementById('textArea').value)" title="Pink"></button>
       <button type="button" style="background-color: blue;" onclick="applyFontColor('blue'); updateEnglishReader(document.getElementById('textArea').value)" title="Blue"></button>
@@ -1832,6 +1835,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (selectedText) {
       var styledText = `<span class="hayah">${selectedText}</span>`;
+      var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+      textArea.value = newText;
+    }
+  }
+
+  function applyHebrewHeader() {
+    var textArea = document.getElementById('textArea');
+    var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+    if (selectedText) {
+      var styledText = `<span class="hebrew-header">${selectedText}</span>`;
       var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
       textArea.value = newText;
     }
