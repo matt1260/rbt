@@ -308,7 +308,7 @@
                             <strong>English:</strong> ${escapeHtml(r.english || '')}
                         </div>
                         <div class="result-meta">
-                            ${r.strongs ? `<span>Strong's: ${r.strongs}</span>` : ''}
+                            ${r.strongs ? `<span style="font-size: 11px;">${parseStrongs(r.strongs)}</span>` : ''}
                             ${r.morphology ? `<span>Morph: ${r.morphology}</span>` : ''}
                         </div>
                     </a>
@@ -451,6 +451,25 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    function parseStrongs(strongsData) {
+        if (!strongsData) return '';
+        
+        // Parse format like: "H9001=ו=seq/H1961=הָיָה=to be/H9014=־=link"
+        const entries = strongsData.split('/');
+        const parsed = entries.map(entry => {
+            const parts = entry.split('=');
+            if (parts.length >= 3) {
+                const num = parts[0]; // e.g., H9001
+                const hebrew = parts[1]; // e.g., ו
+                const gloss = parts.slice(2).join('=').split('_§')[0].split('@')[0]; // e.g., "seq" from "seq_§..."
+                return `<span title="${escapeHtml(entry)}">${num}: ${gloss}</span>`;
+            }
+            return escapeHtml(entry);
+        });
+        
+        return parsed.slice(0, 3).join(' + ') + (entries.length > 3 ? ` <small>(+${entries.length - 3} more)</small>` : '');
     }
     
 })();
