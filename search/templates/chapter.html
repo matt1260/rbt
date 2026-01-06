@@ -1164,12 +1164,16 @@
                     if (!match) return;
                     
                     const footnoteId = match[1];
+                    console.log('Footnote clicked:', footnoteId, 'Cached?', !!footnoteCache[footnoteId]);
                     
                     // Check cache first (pre-loaded from notes table)
                     if (footnoteCache[footnoteId]) {
+                        console.log('Loading from cache');
                         showFootnotePopup(footnoteId, footnoteCache[footnoteId].content, footnoteCache[footnoteId].title);
                         return;
                     }
+                    
+                    console.log('Not in cache, fetching from API...');
                     
                     // Fetch footnote content via JSON API (fallback)
                     fetch('/footnote/' + footnoteId + '/json/')
@@ -1183,6 +1187,7 @@
                             const title = data.title || 'Footnote ' + footnoteId;
                             const content = data.content || '<p>No content available</p>';
                             
+                            console.log('Fetched from API, caching result');
                             // Cache the result
                             footnoteCache[footnoteId] = { title: title, content: content };
                             
