@@ -1180,11 +1180,11 @@
                     if (!match) return;
                     
                     const footnoteId = match[1];
-                    console.log('Footnote clicked:', footnoteId, 'Cached?', !!footnoteCache[footnoteId]);
+                    console.log('Footnote:', footnoteId, 'Cached?', !!footnoteCache[footnoteId]);
                     
                     // Check cache first (pre-loaded from notes table)
                     if (footnoteCache[footnoteId]) {
-                        console.log('Loading from cache');
+                        // console.log('Loading from cache');
                         showFootnotePopup(footnoteId, footnoteCache[footnoteId].content, footnoteCache[footnoteId].title);
                         return;
                     }
