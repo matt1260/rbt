@@ -380,6 +380,7 @@
                 <div class="result-reference">
                     <i class="fas fa-book-open"></i> ${escapeHtml(r.book)} ${r.chapter}:${r.verse}
                     <span class="source-badge">${type === 'ot_verse' ? 'OT' : 'NT'}</span>
+                    ${r.version ? `<span class="source-badge" style="background-color: #e3c997;">${escapeHtml(r.version)}</span>` : ''}
                 </div>
                 <div class="result-preview">${r.text || ''}</div>
             </a>
