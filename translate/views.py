@@ -2062,7 +2062,22 @@ def translate(request):
             elif isinstance(morph, str) and 'm' in morph:
                 morph_color = 'style="color: blue;"'
             
-            morph_display = f'<input type="hidden" id="code" value="{morph}"/><div {morph_color}>{morphology}</div>'
+            colored_morphology = morphology or ''
+            if colored_morphology:
+                segments = re.split(r'(\s*,\s*)', colored_morphology)
+                for idx in range(0, len(segments), 2):
+                    segment = segments[idx]
+                    lower_segment = segment.lower()
+                    color = None
+                    if 'feminine' in lower_segment:
+                        color = '#FF1493'
+                    elif 'masculine' in lower_segment:
+                        color = 'blue'
+                    if color:
+                        segments[idx] = f'<span style="color: {color};">{segment}</span>'
+                colored_morphology = ''.join(segments)
+
+            morph_display = f'<input type="hidden" id="code" value="{morph}"/><div {morph_color}>{colored_morphology}</div>'
 
             
             morphology_raw = morphology or ''
