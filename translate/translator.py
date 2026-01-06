@@ -1700,10 +1700,19 @@ def build_heb_interlinear(rows_data, show_edit_buttons: bool = False):
         elif 'm' in morph:
             morph_color = 'style="color: blue;"'
         
-        if 'feminine' in morphology:
-            morphology = f'<font style="color: #FF1493;">{morphology}</font>'
-        elif 'masculine' in morphology:
-            morphology = f'<font style="color: blue;">{morphology}</font>'
+        if morphology:
+            segments = re.split(r'(\s*,\s*)', morphology)
+            for idx in range(0, len(segments), 2):
+                segment = segments[idx]
+                lower_segment = segment.lower()
+                color = None
+                if 'feminine' in lower_segment:
+                    color = '#FF1493'
+                elif 'masculine' in lower_segment:
+                    color = 'blue'
+                if color:
+                    segments[idx] = f'<span style="color: {color};">{segment}</span>'
+            morphology = ''.join(segments)
 
         morph_cell = f'<td style="font-size: 12px;" class="morph-cell"><input type="hidden" id="code" value="{morph}"/><div {morph_color}>{morph}</div><div class="morph-popup" id="morph"></div></td>'
 
