@@ -1075,24 +1075,45 @@
         const footnoteCache = {};
         function preloadFootnoteData() {
             const notesPane = document.getElementById('notes-pane');
-            if (!notesPane) return;
+            if (!notesPane) {
+                console.log('Notes pane not found');
+                return;
+            }
+            
+            // Find the notes table
+            const notesTable = notesPane.querySelector('table.notes-table, table');
+            if (!notesTable) {
+                console.log('Notes table not found');
+                return;
+            }
             
             // Find all footnote rows in the notes table
-            const footnoteRows = notesPane.querySelectorAll('.notes-table tr');
+            const footnoteRows = notesTable.querySelectorAll('tr');
+            console.log('Found', footnoteRows.length, 'rows in notes table');
+            
             footnoteRows.forEach(row => {
                 const cells = row.querySelectorAll('td');
                 if (cells.length < 2) return;
                 
-                // First cell contains the footnote link
+                // First cell contains the footnote reference/link
                 const linkCell = cells[0];
+                
+                // Try to find the footnote ID from the link or text content
+                let footnoteId = null;
                 const link = linkCell.querySelector('a[href*="?footnote="]');
-                if (!link) return;
                 
-                const href = link.getAttribute('href');
-                const match = href.match(/\?footnote=([^&]+)/);
-                if (!match) return;
+                if (link) {
+                    const href = link.getAttribute('href');
+                    const match = href.match(/\?footnote=([^&]+)/);
+                    if (match) {
+                        footnoteId = match[1];
+                    }
+                } else {
+                    // Fallback: use the text content as ID
+                    footnoteId = linkCell.textContent.trim();
+                }
                 
-                const footnoteId = match[1];
+                if (!footnoteId) return;
                 
                 // Second cell contains the content
                 const contentCell = cells[1];
@@ -1117,7 +1138,7 @@
                 };
             });
             
-            console.log('Pre-loaded', Object.keys(footnoteCache).length, 'footnotes');
+            console.log('Pre-loaded', Object.keys(footnoteCache).length, 'footnotes:', Object.keys(footnoteCache));
         }
         
         // Pre-load on page load
