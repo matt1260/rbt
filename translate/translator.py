@@ -925,28 +925,23 @@ def build_strongs_popup(strong_refs: list[str]) -> str:
         return ''
     
     # Filter out H9014-H9018 range
-    filtered_refs = []
+    filtered_refs: list[tuple[str, int]] = []
     for ref in strong_refs:
         num = get_strongs_numeric_value(ref)
-        if num is not None and 9014 <= num <= 9018:
+        if num is None:
             continue
-        filtered_refs.append(ref)
+        if 9014 <= num <= 9018:
+            continue
+        filtered_refs.append((ref, num))
     
     if not filtered_refs:
         return ''
     
     entry_blocks: list[str] = []
     entry_blocks.append("<div class='strongs-title'>Strong's Lexicon</div>")
-    for strong_ref in filtered_refs:
-        # Normalize the reference
-        if len(strong_ref) == 6:
-            last_character = strong_ref[-1]
-        else:
-            last_character = ''
-        
-        strong_number = re.sub(r'[^0-9]', '', strong_ref)
-        strong_number = int(strong_number)
-        strong_number = str(strong_number)
+    for strong_ref, numeric_value in filtered_refs:
+        last_character = strong_ref[-1] if strong_ref and strong_ref[-1].isalpha() else ''
+        strong_number = str(numeric_value)
         display_ref = strong_number + last_character
         
         # Look up the dictionary entry
