@@ -198,29 +198,104 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 .tooltip-container {
     position: relative;
     display: block;
+    cursor: pointer;
 }
 
-/* Tooltip base */
+/* Tooltip overlay background */
+.tooltip-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9998;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.tooltip-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+/* Tooltip base - enhanced styling matching site theme */
 .tooltip,
 .tooltip2 {
     display: none;
-    position: absolute;
-    background: #f7f1ea;
+    position: fixed;
+    background: #fff;
     color: #35271e;
-    padding: 15px;
-    border-radius: 10px;
-    z-index: 999; /* Ensure the tooltip appears on top of everything */
-    width: 400px;
+    padding: 20px 24px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+    z-index: 9999;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
     text-align: left;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(0.9);
+    font-size: 16px;
+    line-height: 1.7;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-/* Hover reveal */
-.tooltip-container:hover .tooltip,
-.tooltip-container:hover .tooltip2 {
+.tooltip.active,
+.tooltip2.active {
     display: block;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+/* Tooltip header bar */
+.tooltip::before,
+.tooltip2::before {
+    content: '';
+    display: block;
+    height: 3px;
+    background: linear-gradient(90deg, #b78550, #d4a574);
+    margin: -20px -24px 16px -24px;
+    border-radius: 12px 12px 0 0;
+}
+
+/* Tooltip close button */
+.tooltip-close-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: #f5f5f5;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #666;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.tooltip-close-btn:hover {
+    background: #e0e0e0;
+    color: #333;
+}
+
+/* Hover reveal - desktop only */
+@media (hover: hover) and (pointer: fine) {
+    .tooltip-container:hover .tooltip,
+    .tooltip-container:hover .tooltip2 {
+        display: block;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
 }
 
 /* --- 🔹 IMAGE + VIDEO MEDIA BLOCKS --- */
@@ -235,71 +310,82 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 }
 
 .tooltip-container video {
-    background: #fff; /* fallback background for video frames */
-}
-
-.tooltip-container:hover img,
-.tooltip-container:hover video {
-    display: block;
+    background: #fff;
 }
 
 /* --- 🔹 TOUCH INDICATOR (mobile cue) --- */
 .touch-indicator {
-	display: none;
+    display: none !important;
 }
 
-body.no-touch .touch-indicator {
-	display: none !important;
-}
-
-@media (max-width: 768px), (hover: none) {
-	.touch-indicator {
-		display: block;
-		position: absolute;
-		left: 50%;
-		bottom: 10px;
-		transform: translate(-50%, -50%);
-		font-size: 24px;
-		color: #533e30;
-		z-index: 2;
-		animation: pulse 1.6s infinite;
-	}
-}
-
-@media (min-width: 769px) {
-	.touch-indicator {
-		display: none; /* Hide on desktop */
-	}
+/* Only show touch indicator on actual touch devices with small screens */
+@media (max-width: 768px) and (hover: none) and (pointer: coarse) {
+    .touch-indicator {
+        display: block !important;
+        position: absolute;
+        left: 50%;
+        bottom: 10px;
+        transform: translate(-50%, 0);
+        font-size: 24px;
+        color: #b78550;
+        z-index: 2;
+        animation: pulse 1.6s infinite;
+    }
+    
+    .tooltip-container::after {
+        display: none;
+    }
 }
 
 /* --- 🔹 RESPONSIVE TOOLTIP SIZING --- */
 @media (max-width: 600px) {
-    .tooltip {
-        width: 90%;
-        max-width: 400px;
-        z-index: 999;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-    }
-}
-
-@media (max-width: 600px) {
+    .tooltip,
     .tooltip2 {
-        width: 90%;
-        max-width: 400px;
-        z-index: 999;
-        top: 80%;
-        left: 50%;
-        transform: translate(-50%, -50%);
+        width: 92%;
+        max-width: 95vw;
+        padding: 18px 20px;
+        font-size: 15px;
+    }
+    
+    .tooltip::before,
+    .tooltip2::before {
+        margin: -18px -20px 14px -20px;
     }
 }
 
 /* --- 🔹 PULSE ANIMATION FOR TOUCH ICON --- */
 @keyframes pulse {
-    0% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
-    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.25); }
-    100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+    0% { opacity: 0.7; transform: translate(-50%, 0) scale(1); }
+    50% { opacity: 1; transform: translate(-50%, 0) scale(1.25); }
+    100% { opacity: 0.7; transform: translate(-50%, 0) scale(1); }
+}
+
+/* Tooltip content styling */
+.tooltip p,
+.tooltip2 p {
+    margin: 0 0 12px 0;
+}
+
+.tooltip p:last-child,
+.tooltip2 p:last-child {
+    margin-bottom: 0;
+}
+
+/* Tooltip hint text */
+.tooltip-hint {
+    display: block;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+    font-size: 12px;
+    color: #999;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    .tooltip-hint {
+        display: none;
+    }
 }
 </style>
 

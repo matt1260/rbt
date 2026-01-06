@@ -24,11 +24,6 @@
     <div id="parenthesesToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-eye"></i> Names (P)
     </div>
-    {% if footnotes %}
-    <div id="footnotesToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-book"></i> Notes (N)
-    </div>
-    {% endif %}
     <div id="fontDecreaseButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-minus"></i>
     </div>
@@ -70,55 +65,33 @@
 
     </div>
 
-    <!-- Footnotes Sidebar -->
+    <!-- Hidden footnotes data for popup access -->
     {% if footnotes %}
-        <div id="footnotesSidebar" style="position: fixed; right: -400px; top: 0; width: 350px; height: 100vh; background: #f9f9f9; border-left: 2px solid #ba8666; /* padding: 20px; */ padding: 0 20px; overflow-y: auto; transition: right 0.3s ease; z-index: 1000; box-shadow: -2px 0 10px rgba(0,0,0,0.1);">
-        <div id="resizeHandle" style="
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 10px;
-            height: auto;
-            cursor: ew-resize;
-            background: transparent;
-            z-index: 1001;
-        ">
-            <div style="
-                position: absolute;
-                left: 3px;
-                top: 40%;
-                bottom: 40%;
-                width: 4px;
-                background: #ba8666;
-                border-radius: 2px;
-                opacity: 0.8;
-            "></div>
-        </div>
-
-        <div style="padding: 20px 0;"> <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: sticky; top: 0; background: #f9f9f9; padding-bottom: 10px; border-bottom: 2px solid #ba8666; z-index: 10;">
-                <h3 style="margin: 0; color: #ba8666;">Footnotes</h3>
-                <div id="closeSidebarButton" style="cursor: pointer; font-size: 24px; color: #ba8666;">&times;</div>
+    <div id="footnotesData" style="display: none;">
+        {% for footnote_id, footnote_data in footnotes.items %}
+        <div id="footnote-{{ footnote_id }}" class="footnote-entry" data-verse="{{ footnote_data.verse }}">
+            <div class="footnote-title">
+                <sup>{{ footnote_id }}</sup> (Verse {{ footnote_data.verse }})
             </div>
-
-            <div id="footnotesContent">
-                </div>
-        </div>
-        
-        <div id="footnotesContent">
-            {% for footnote_id, footnote_data in footnotes.items %}
-            <div id="footnote-{{ footnote_id }}" class="footnote-entry" style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #ddd;">
-                <div style="font-weight: bold; color: #ba8666; margin-bottom: 5px;">
-                    <sup>{{ footnote_id }}</sup> (Verse {{ footnote_data.verse }})
-                </div>
-                <div style="font-size: 14px; line-height: 1.6;">
-                    {{ footnote_data.content|safe }}
-                </div>
+            <div class="footnote-body">
+                {{ footnote_data.content|safe }}
             </div>
-            {% endfor %}
         </div>
+        {% endfor %}
     </div>
     {% endif %}
+
+<!-- Store footnotes data for JavaScript access -->
+<script>
+    window.footnotesData = {
+        {% for footnote_id, footnote_data in footnotes.items %}
+        "{{ footnote_id }}": {
+            "verse": "{{ footnote_data.verse }}",
+            "content": {{ footnote_data.content|safe|escapejs|safe }}
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    };
+</script>
 
 </div>
 
@@ -149,42 +122,166 @@
         }
     }
 
-    /* Ensure smooth transitions */
-    #footnotesSidebar {
-        transition: right 0.3s ease;
-        overflow-y: auto;
-        overflow-x: hidden;
-        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
-    }
-
-    /* Prevent horizontal scroll when sidebar is open */
-    body.resizing {
-        overflow: hidden;
-        user-select: none;
-    }
-    .footnote-link {
+    .footnote-link,
+    .sdfootnoteanc {
         color: #ba8666;
         text-decoration: none;
+        cursor: pointer;
     }
-    .footnote-link:hover {
+    .footnote-link:hover,
+    .sdfootnoteanc:hover {
         text-decoration: underline;
     }
-    .footnote-entry:last-child {
-        border-bottom: none;
-    }
-    
-    /* Disable text selection during resize */
-    body.resizing {
-        user-select: none;
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-    }
-    
-    #resizeHandle:hover > div {
-        opacity: 0.8 !important;
+
+    /* Modern footnote reference styling */
+    .sdfootnoteanc sup,
+    .footnote-link sup,
+    a[href*="footnote="] sup {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+        font-style: normal;
+        color: #fff;
+        background: linear-gradient(135deg, #ba8666, #d4a574);
+        padding: 2px 5px;
+        border-radius: 4px;
+        margin: 0 2px;
+        vertical-align: middle;
+        position: relative;
+        top: -2px;
+        min-width: 16px;
+        text-align: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        transition: all 0.2s ease;
+        line-height: 1.2;
     }
 
+    .sdfootnoteanc:hover sup,
+    .footnote-link:hover sup,
+    a[href*="footnote="]:hover sup {
+        background: linear-gradient(135deg, #a67550, #c99562);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        transform: translateY(-1px);
+    }
+
+    /* Modern Footnote Popup Styles */
+    .footnote-popup-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+    }
+
+    .footnote-popup-overlay.active {
+        display: block;
+        opacity: 1;
+    }
+
+    .footnote-popup {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.9);
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        padding: 0;
+        width: 90%;
+        max-width: 500px;
+        max-height: 80vh;
+        overflow: hidden;
+        z-index: 10001;
+        opacity: 0;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    .footnote-popup.active {
+        display: block;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    .footnote-popup-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        background: linear-gradient(135deg, #ba8666, #d4a574);
+        color: #fff;
+    }
+
+    .footnote-popup-title {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .footnote-popup-close {
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        color: #fff;
+        transition: background 0.2s ease;
+    }
+
+    .footnote-popup-close:hover {
+        background: rgba(255, 255, 255, 0.35);
+    }
+
+    .footnote-popup-content {
+        padding: 20px;
+        font-size: 16px;
+        line-height: 1.7;
+        color: #333;
+        overflow-y: auto;
+        max-height: calc(80vh - 60px);
+    }
+
+    .footnote-popup-content .hebrew_footnote {
+        font-size: 1.4em;
+    }
+
+    .footnote-popup-hint {
+        padding: 10px 20px;
+        background: #f8f8f8;
+        border-top: 1px solid #eee;
+        font-size: 12px;
+        color: #999;
+        text-align: center;
+    }
+
+    @media (max-width: 600px) {
+        .footnote-popup {
+            width: 94%;
+            max-height: 85vh;
+        }
+        
+        .footnote-popup-content {
+            font-size: 15px;
+            max-height: calc(85vh - 60px);
+        }
+        
+        .footnote-popup-hint {
+            display: none;
+        }
+    }
+    
     /* Mobile: Ensure all images and videos scale responsively */
     @media (max-width: 768px) {
         img, video, .tooltip-container img, .tooltip-container video {
@@ -312,12 +409,8 @@
         const imageToggleButton = document.getElementById("imageToggleButton");
         const h5ToggleButton = document.getElementById("h5ToggleButton");
         const verseRefToggleButton = document.getElementById("verseRefToggleButton");
-        const footnotesToggleButton = document.getElementById("footnotesToggleButton");
         const parenthesesToggleButton = document.getElementById("parenthesesToggleButton");
-        const closeSidebarButton = document.getElementById("closeSidebarButton");
-        const footnotesSidebar = document.getElementById("footnotesSidebar");
         const mainTextArea = document.getElementById("mainTextArea");
-        const resizeHandle = document.getElementById("resizeHandle");
         const verseRefs = document.querySelectorAll(".verse_ref");
         const paraphraseArea = document.getElementById("paraphrase-area");
         const fontDecreaseButton = document.getElementById("fontDecreaseButton");
@@ -348,196 +441,11 @@
         let isImageVisible = true;
         let isH5Visible = true;
         let isVerseRefVisible = false;
-        let isFootnotesVisible = false;
         let isParenthesesVisible = false;
-        
-        // Resizing variables
-        let isResizing = false;
-        let startX = 0;
-        let startWidth = 450;
-        const minWidth = 250;
-        const maxWidth = 800;
         
         // Detect if mobile
         function isMobile() {
             return window.innerWidth <= 768;
-        }
-        
-        // Initialize sidebar positioning based on screen size
-        function initializeSidebar() {
-            if (!footnotesSidebar) return;
-            
-            if (isMobile()) {
-                // Mobile: Full width overlay, positioned off-screen initially
-                footnotesSidebar.style.width = '97vw';
-                footnotesSidebar.style.right = '-100vw';
-                footnotesSidebar.style.position = 'fixed';
-                footnotesSidebar.style.top = '0';
-                footnotesSidebar.style.height = '100vh';
-                footnotesSidebar.style.zIndex = '1000';
-                footnotesSidebar.style.overflowY = 'auto';
-                footnotesSidebar.style.overflowX = 'hidden';
-                
-                // Reset main text area for mobile
-                if (mainTextArea) {
-                    mainTextArea.style.marginRight = '0';
-                    mainTextArea.style.width = '100%';
-                    mainTextArea.style.maxWidth = '100%';
-                    mainTextArea.style.paddingLeft = '15px';
-                    mainTextArea.style.paddingRight = '15px';
-                    mainTextArea.style.boxSizing = 'border-box';
-                }
-                
-                // Hide resize handle on mobile
-                if (resizeHandle) {
-                    resizeHandle.style.display = 'none';
-                }
-            } else {
-                // Desktop: Side panel
-                footnotesSidebar.style.width = '450px';
-                footnotesSidebar.style.position = 'fixed';
-                footnotesSidebar.style.top = '0px';
-                footnotesSidebar.style.height = '100vh';
-                footnotesSidebar.style.zIndex = '100';
-                footnotesSidebar.style.overflowY = 'auto';
-                footnotesSidebar.style.overflowX = 'hidden';
-                
-                if (!isFootnotesVisible) {
-                    footnotesSidebar.style.right = '-470px';
-                }
-                
-                // Reset main text area for desktop
-                if (mainTextArea) {
-                    mainTextArea.style.width = '';
-                    mainTextArea.style.maxWidth = '';
-                    mainTextArea.style.paddingLeft = '';
-                    mainTextArea.style.paddingRight = '';
-                    mainTextArea.style.boxSizing = '';
-                }
-                
-                // Show resize handle on desktop
-                if (resizeHandle) {
-                    resizeHandle.style.display = 'block';
-                }
-            }
-        }
-        
-        // Toggle Footnotes Sidebar
-        function toggleFootnotes() {
-            if (!footnotesSidebar) return;
-            
-            if (isFootnotesVisible) {
-                // CLOSE sidebar
-                if (isMobile()) {
-                    footnotesSidebar.style.right = '-100vw';
-                    // Remove any backdrop
-                    const backdrop = document.getElementById('footnotesBackdrop');
-                    if (backdrop) {
-                        backdrop.style.opacity = '0';
-                        setTimeout(() => backdrop.remove(), 300);
-                    }
-                    // Ensure main text is full width
-                    if (mainTextArea) {
-                        mainTextArea.style.marginRight = '0';
-                        mainTextArea.style.width = '100%';
-                    }
-                    if (paraphraseArea) {
-                        paraphraseArea.style.paddingRight = '10px';
-                    }
-                } else {
-                    const sidebarWidth = footnotesSidebar.offsetWidth;
-                    footnotesSidebar.style.right = `-${sidebarWidth + 20}px`;
-                    if (mainTextArea) {
-                        mainTextArea.style.marginRight = '0';
-                    }
-                    if (paraphraseArea) {
-                        paraphraseArea.style.paddingRight = '10px';
-                    }
-                }
-                footnotesToggleButton.innerHTML = '<i class="fas fa-book"></i> Notes (N)';
-            } else {
-                // OPEN sidebar
-                if (isMobile()) {
-                    // Create backdrop for mobile
-                    let backdrop = document.getElementById('footnotesBackdrop');
-                    if (!backdrop) {
-                        backdrop = document.createElement('div');
-                        backdrop.id = 'footnotesBackdrop';
-                        backdrop.style.cssText = `
-                            position: fixed;
-                            top: 0;
-                            left: 0;
-                            width: 100vw;
-                            height: 100vh;
-                            background-color: rgba(0, 0, 0, 0.5);
-                            z-index: 999;
-                            opacity: 0;
-                            transition: opacity 0.3s ease;
-                        `;
-                        backdrop.addEventListener('click', toggleFootnotes);
-                        document.body.appendChild(backdrop);
-                    }
-                    // Trigger reflow for transition
-                    setTimeout(() => backdrop.style.opacity = '1', 10);
-                    
-                    footnotesSidebar.style.right = '0';
-                    // Main text stays full width on mobile
-                    if (mainTextArea) {
-                        mainTextArea.style.marginRight = '0';
-                        mainTextArea.style.width = '100%';
-                    }
-
-                } else {
-                    footnotesSidebar.style.right = '0';
-                    const sidebarWidth = footnotesSidebar.offsetWidth;
-                    const margin = Math.max(50, sidebarWidth - 330);
-                    if (mainTextArea) {
-                        mainTextArea.style.marginRight = margin + 'px';
-                    }
-                    if (paraphraseArea) {
-                        paraphraseArea.style.paddingRight = '20px';
-                    }
-                }
-                footnotesToggleButton.innerHTML = '<i class="fas fa-book-open"></i> Notes (N)';
-            }
-            isFootnotesVisible = !isFootnotesVisible;
-        }
-        
-        // Resize functionality (desktop only)
-        if (resizeHandle) {
-            resizeHandle.addEventListener('mousedown', function(e) {
-                if (isMobile()) return;
-
-                isResizing = true;
-                startX = e.clientX;
-                startWidth = footnotesSidebar.offsetWidth;
-                document.body.classList.add('resizing');
-                footnotesSidebar.style.transition = 'none';
-                e.preventDefault();
-            });
-            
-            document.addEventListener('mousemove', function(e) {
-                if (!isResizing || isMobile()) return;
-                
-                const deltaX = startX - e.clientX;
-                let newWidth = startWidth + deltaX;
-                
-                newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
-                footnotesSidebar.style.width = newWidth + 'px';
-                
-                if (isFootnotesVisible) {
-                    const margin = Math.max(50, newWidth - 330);
-                    mainTextArea.style.marginRight = margin + 'px';
-                }
-            });
-            
-            document.addEventListener('mouseup', function() {
-                if (isResizing) {
-                    isResizing = false;
-                    document.body.classList.remove('resizing');
-                    footnotesSidebar.style.transition = 'right 0.3s ease';
-                }
-            });
         }
         
         function toggleVerseRefs() {
@@ -598,16 +506,12 @@
                 toggleH5Headers();
             } else if (event.key === "i" || event.key === "I") { 
                 toggleImages();
-            } else if (event.key === "n" || event.key === "N") {
-                toggleFootnotes();
             } else if (event.key === "p" || event.key === "P") {
                 toggleParentheses();
             } else if (event.key === "+" || event.key === "=") {
                 if (fontIncreaseButton) fontIncreaseButton.click();
             } else if (event.key === "-" || event.key === "_") {
                 if (fontDecreaseButton) fontDecreaseButton.click();
-            } else if (event.key === "Escape" && isFootnotesVisible && isMobile()) {
-                toggleFootnotes();
             }
         }
 
@@ -617,9 +521,7 @@
         if (h5ToggleButton) h5ToggleButton.addEventListener("click", toggleH5Headers);
         if (imageToggleButton) imageToggleButton.addEventListener("click", toggleImages);
         if (verseRefToggleButton) verseRefToggleButton.addEventListener("click", toggleVerseRefs);
-        if (footnotesToggleButton) footnotesToggleButton.addEventListener("click", toggleFootnotes);
         if (parenthesesToggleButton) parenthesesToggleButton.addEventListener("click", toggleParentheses);
-        if (closeSidebarButton) closeSidebarButton.addEventListener("click", toggleFootnotes);
         
         if (fontIncreaseButton) fontIncreaseButton.addEventListener("click", function() {
             if (currentFontSize < MAX_FONT_SIZE) {
@@ -635,43 +537,275 @@
             }
         });
         
-        // Handle footnote link clicks
-        document.querySelectorAll('.footnote-link').forEach(function(link) {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                if (!isFootnotesVisible) {
-                    toggleFootnotes();
-                }
-                const targetId = this.getAttribute('href');
-                const targetElement = document.querySelector(targetId);
-                if (targetElement) {
-                    setTimeout(() => {
-                        targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        targetElement.style.backgroundColor = '#ffe6d5';
-                        setTimeout(() => {
-                            targetElement.style.backgroundColor = '';
-                        }, 2000);
-                    }, 100);
-                }
+        // Handle footnote link clicks - open panel and scroll to footnote
+        function attachFootnoteHandlers() {
+            // Handle both .footnote-link and .sdfootnoteanc (standard footnote links)
+            document.querySelectorAll('.footnote-link, .sdfootnoteanc, a[href*="?footnote="], a[href*="footnote="]').forEach(function(link) {
+                // Skip if already initialized
+                if (link.dataset.footnoteInit) return;
+                link.dataset.footnoteInit = 'true';
+                
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Extract footnote ID from href
+                    let hrefFootnoteId;
+                    const href = this.getAttribute('href') || '';
+                    
+                    if (href.includes('footnote=')) {
+                        // Format: ?footnote=22-10-41b&book=Mat
+                        const match = href.match(/footnote=([^&]+)/);
+                        if (match) {
+                            hrefFootnoteId = match[1];
+                        }
+                    } else if (href.startsWith('#footnote-')) {
+                        hrefFootnoteId = href.replace('#footnote-', '');
+                    } else if (href.startsWith('#')) {
+                        hrefFootnoteId = href.substring(1);
+                    }
+                    
+                    // Also try getting text content from the sup element
+                    const supEl = this.querySelector('sup');
+                    const supText = supEl ? supEl.textContent.trim() : null;
+                    
+                    console.log('Href footnote ID:', hrefFootnoteId, 'Sup text:', supText);
+                    
+                    if (!hrefFootnoteId && !supText) {
+                        console.log('No footnote ID found');
+                        return;
+                    }
+                    
+                    // Try to find the footnote element
+                    // The href ID format is: chapter-verse-footnoteNumber (e.g., 22-10-41b)
+                    // The actual footnote ID might just be the footnoteNumber (e.g., 41b)
+                    let footnoteElement = null;
+                    let matchedId = null;
+                    
+                    // First try direct match
+                    footnoteElement = document.getElementById('footnote-' + hrefFootnoteId);
+                    if (footnoteElement) {
+                        matchedId = hrefFootnoteId;
+                    }
+                    
+                    // If not found, try using just the sup text (e.g., "41b")
+                    if (!footnoteElement && supText) {
+                        footnoteElement = document.getElementById('footnote-' + supText);
+                        if (footnoteElement) {
+                            matchedId = supText;
+                        }
+                    }
+                    
+                    // If still not found, search all footnote entries for partial match
+                    if (!footnoteElement) {
+                        const allFootnotes = document.querySelectorAll('.footnote-entry');
+                        const searchParts = hrefFootnoteId ? hrefFootnoteId.split('-') : [];
+                        const lastPart = searchParts.length > 0 ? searchParts[searchParts.length - 1] : supText;
+                        
+                        console.log('Searching for footnote ending with:', lastPart);
+                        
+                        allFootnotes.forEach(function(fn) {
+                            if (footnoteElement) return; // Already found
+                            const fnId = fn.id.replace('footnote-', '');
+                            // Check if the footnote ID ends with the same suffix
+                            if (fnId === lastPart || fnId.endsWith('-' + lastPart)) {
+                                footnoteElement = fn;
+                                matchedId = fnId;
+                            }
+                        });
+                    }
+                    
+                    console.log('Found element:', footnoteElement, 'Matched ID:', matchedId);
+                    
+                    if (footnoteElement) {
+                        showFootnotePopup(matchedId, footnoteElement);
+                    } else {
+                        // Fallback: Show the link text content
+                        console.log('Footnote element not found, showing fallback');
+                        showFootnotePopupFallback(hrefFootnoteId || supText);
+                    }
+                });
             });
+        }
+        
+        // ============================================
+        // Modern Footnote Popup System
+        // ============================================
+        
+        // Create popup elements
+        const footnotePopupOverlay = document.createElement('div');
+        footnotePopupOverlay.className = 'footnote-popup-overlay';
+        document.body.appendChild(footnotePopupOverlay);
+        
+        const footnotePopup = document.createElement('div');
+        footnotePopup.className = 'footnote-popup';
+        footnotePopup.innerHTML = `
+            <div class="footnote-popup-header">
+                <span class="footnote-popup-title"></span>
+                <button class="footnote-popup-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="footnote-popup-content"></div>
+            <div class="footnote-popup-hint">Press Escape or click outside to close</div>
+        `;
+        document.body.appendChild(footnotePopup);
+        
+        const popupTitle = footnotePopup.querySelector('.footnote-popup-title');
+        const popupContent = footnotePopup.querySelector('.footnote-popup-content');
+        const popupClose = footnotePopup.querySelector('.footnote-popup-close');
+        
+        function showFootnotePopup(footnoteId, footnoteElement) {
+            // Get title (verse info) and content using class names
+            const titleEl = footnoteElement.querySelector('.footnote-title');
+            const contentEl = footnoteElement.querySelector('.footnote-body');
+            
+            const title = titleEl ? titleEl.textContent.trim() : 'Footnote ' + footnoteId;
+            const content = contentEl ? contentEl.innerHTML : footnoteElement.innerHTML;
+            
+            popupTitle.textContent = title;
+            popupContent.innerHTML = content;
+            
+            // Show popup
+            requestAnimationFrame(() => {
+                footnotePopupOverlay.classList.add('active');
+                footnotePopup.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+        }
+        
+        function showFootnotePopupFallback(footnoteId) {
+            popupTitle.textContent = 'Footnote ' + footnoteId;
+            popupContent.innerHTML = '<p>Footnote content not found. Please open the Notes panel to view all footnotes.</p>';
+            
+            requestAnimationFrame(() => {
+                footnotePopupOverlay.classList.add('active');
+                footnotePopup.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+        }
+        
+        function closeFootnotePopup() {
+            footnotePopupOverlay.classList.remove('active');
+            footnotePopup.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        
+        // Close handlers
+        popupClose.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeFootnotePopup();
         });
         
-        // Handle window resize
-        let resizeTimeout;
-        window.addEventListener('resize', function() {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(function() {
-                // Close sidebar on resize to prevent layout issues
-                if (isFootnotesVisible) {
-                    toggleFootnotes();
-                }
-                initializeSidebar();
-            }, 250);
+        footnotePopupOverlay.addEventListener('click', closeFootnotePopup);
+        
+        footnotePopup.addEventListener('click', function(e) {
+            e.stopPropagation();
         });
         
-        // Initialize on load
-        initializeSidebar();
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && footnotePopup.classList.contains('active')) {
+                closeFootnotePopup();
+            }
+        });
+        
+        // Initial attach
+        attachFootnoteHandlers();
+        
+        // Re-attach when content changes
+        const contentObserver = new MutationObserver(attachFootnoteHandlers);
+        if (mainTextArea) {
+            contentObserver.observe(mainTextArea, { childList: true, subtree: true });
+        }
+        
+        // Initialize verse refs on load
         toggleVerseRefs();
+
+        // ============================================
+        // Tooltip Touch/Click Support
+        // ============================================
+        
+        // Create tooltip overlay element
+        let tooltipOverlay = document.querySelector('.tooltip-overlay');
+        if (!tooltipOverlay) {
+            tooltipOverlay = document.createElement('div');
+            tooltipOverlay.className = 'tooltip-overlay';
+            document.body.appendChild(tooltipOverlay);
+        }
+        
+        let activeTooltip = null;
+        
+        function openTooltip(tooltipEl) {
+            if (activeTooltip) {
+                closeTooltip();
+            }
+            
+            // Add close button if not present
+            if (!tooltipEl.querySelector('.tooltip-close-btn')) {
+                const closeBtn = document.createElement('button');
+                closeBtn.className = 'tooltip-close-btn';
+                closeBtn.innerHTML = '×';
+                closeBtn.setAttribute('aria-label', 'Close');
+                closeBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeTooltip();
+                });
+                tooltipEl.insertBefore(closeBtn, tooltipEl.firstChild);
+            }
+            
+            activeTooltip = tooltipEl;
+            tooltipOverlay.classList.add('active');
+            tooltipEl.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeTooltip() {
+            if (activeTooltip) {
+                activeTooltip.classList.remove('active');
+                activeTooltip = null;
+            }
+            tooltipOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        
+        // Attach click/touch listeners to tooltip containers
+        function attachTooltipListeners() {
+            const tooltipContainers = document.querySelectorAll('.tooltip-container');
+            tooltipContainers.forEach(container => {
+                // Skip if already initialized
+                if (container.dataset.tooltipInit) return;
+                container.dataset.tooltipInit = 'true';
+                
+                container.addEventListener('click', function(e) {
+                    // Don't trigger if clicking a link inside
+                    if (e.target.tagName === 'A') return;
+                    
+                    const tooltip = container.querySelector('.tooltip, .tooltip2');
+                    if (tooltip) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openTooltip(tooltip);
+                    }
+                });
+            });
+        }
+        
+        // Close tooltip when clicking overlay
+        tooltipOverlay.addEventListener('click', closeTooltip);
+        
+        // Close on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && activeTooltip) {
+                closeTooltip();
+            }
+        });
+        
+        // Initialize tooltip listeners
+        attachTooltipListeners();
+        
+        // Re-attach when content changes
+        const tooltipObserver = new MutationObserver(attachTooltipListeners);
+        tooltipObserver.observe(document.body, { childList: true, subtree: true });
     });
 </script>
 

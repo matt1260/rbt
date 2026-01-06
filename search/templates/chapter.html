@@ -177,6 +177,242 @@
         font-size: 1.5em;
     }
 
+    /* Footnote excerpt styling */
+    #notes-pane .notes-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    #notes-pane .notes-table td:first-child {
+        width: 40px;
+        vertical-align: top;
+        padding-top: 8px;
+    }
+
+    #notes-pane .notes-table td:last-child {
+        padding: 8px 0;
+    }
+
+    #notes-pane .notes-table .footnote-excerpt {
+        max-height: 4.2em;
+        overflow: hidden;
+        position: relative;
+        line-height: 1.4;
+    }
+
+    #notes-pane .notes-table .footnote-excerpt::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 1.4em;
+        background: linear-gradient(transparent, #fff);
+        pointer-events: none;
+    }
+
+    #notes-pane .notes-table .footnote-excerpt.short::after {
+        display: none;
+    }
+
+    #notes-pane .notes-table .read-more-hint {
+        font-size: 11px;
+        color: #b78550;
+        margin-top: 4px;
+        font-style: italic;
+    }
+
+    /* Footnote zoom functionality */
+    #notes-pane .notes-table tr {
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        position: relative;
+    }
+
+    #notes-pane .notes-table tr:hover {
+        background-color: #f8f4f0;
+    }
+
+    #notes-pane .notes-table tr:hover .read-more-hint {
+        color: #8b5a3c;
+    }
+
+    #notes-pane .notes-table tr td {
+        position: relative;
+    }
+
+    /* Zoom overlay for footnotes */
+    .footnote-zoom-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 9998;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .footnote-zoom-overlay.active {
+        display: block;
+        opacity: 1;
+    }
+
+    .footnote-zoom-container {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.9);
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+        padding: 24px 28px;
+        max-width: 90vw;
+        max-height: 80vh;
+        overflow-y: auto;
+        z-index: 9999;
+        font-size: 18px;
+        line-height: 1.7;
+        color: #333;
+        opacity: 0;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .footnote-zoom-container.active {
+        display: block;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    .footnote-zoom-container .zoom-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #b78550;
+    }
+
+    .footnote-zoom-container .zoom-location {
+        font-size: 14px;
+        font-weight: 600;
+        color: #b78550;
+    }
+
+    .footnote-zoom-container .zoom-close {
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: #f0f0f0;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        color: #666;
+        transition: all 0.2s ease;
+    }
+
+    .footnote-zoom-container .zoom-close:hover {
+        background: #e0e0e0;
+        color: #333;
+    }
+
+    .footnote-zoom-container .zoom-content {
+        font-size: 18px;
+        line-height: 1.8;
+    }
+
+    .footnote-zoom-container .zoom-content .hebrew_footnote {
+        font-size: 1.6em;
+    }
+
+    /* Proper list formatting in zoom content */
+    .footnote-zoom-container .zoom-content ul,
+    .footnote-zoom-container .zoom-content ol {
+        margin: 12px 0;
+        padding-left: 28px;
+    }
+
+    .footnote-zoom-container .zoom-content li {
+        margin-bottom: 8px;
+        padding-left: 4px;
+    }
+
+    .footnote-zoom-container .zoom-content ul ul,
+    .footnote-zoom-container .zoom-content ol ol,
+    .footnote-zoom-container .zoom-content ul ol,
+    .footnote-zoom-container .zoom-content ol ul {
+        margin: 8px 0;
+        padding-left: 24px;
+    }
+
+    .footnote-zoom-container .zoom-content p {
+        margin: 12px 0;
+    }
+
+    .footnote-zoom-container .zoom-content p:first-child {
+        margin-top: 0;
+    }
+
+    .footnote-zoom-container .zoom-content p:last-child {
+        margin-bottom: 0;
+    }
+
+    .footnote-zoom-container .zoom-hint {
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid #eee;
+        font-size: 12px;
+        color: #999;
+        text-align: center;
+    }
+
+    /* Tap indicator for mobile */
+    #notes-pane .notes-table tr::after {
+        content: '👆 Tap to enlarge';
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 11px;
+        color: #999;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        pointer-events: none;
+    }
+
+    @media (hover: hover) {
+        #notes-pane .notes-table tr:hover::after {
+            opacity: 1;
+        }
+        #notes-pane .notes-table tr::after {
+            content: '🔍 Click to enlarge';
+        }
+    }
+
+    @media (max-width: 768px) {
+        .footnote-zoom-container {
+            width: 92vw;
+            padding: 20px;
+            max-width: 95vw;
+            max-height: 85vh;
+            font-size: 17px;
+        }
+
+        .footnote-zoom-container .zoom-content {
+            font-size: 17px;
+        }
+
+        #notes-pane .notes-table tr::after {
+            display: none;
+        }
+    }
+
     /* Hide touch indicator on desktop */
     .touch-indicator {
         display: none;
@@ -464,6 +700,253 @@
                 paneContents.forEach((pane) => pane.classList.toggle('active', pane.id === targetId));
             });
         });
+
+        // ============================================
+        // Footnote Zoom Functionality
+        // ============================================
+        
+        // Create zoom overlay and container elements
+        const zoomOverlay = document.createElement('div');
+        zoomOverlay.className = 'footnote-zoom-overlay';
+        document.body.appendChild(zoomOverlay);
+
+        const zoomContainer = document.createElement('div');
+        zoomContainer.className = 'footnote-zoom-container';
+        zoomContainer.innerHTML = `
+            <div class="zoom-header">
+                <span class="zoom-location"></span>
+                <button class="zoom-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="zoom-content"></div>
+            <div class="zoom-hint">Press Escape or click outside to close</div>
+        `;
+        document.body.appendChild(zoomContainer);
+
+        const zoomLocation = zoomContainer.querySelector('.zoom-location');
+        const zoomContent = zoomContainer.querySelector('.zoom-content');
+        const zoomClose = zoomContainer.querySelector('.zoom-close');
+
+        function openFootnoteZoom(row) {
+            // Get the footnote content from the second cell (the content cell)
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 2) return;
+
+            const contentCell = cells[1];
+            const locationEl = contentCell.querySelector('.note-location');
+            const location = locationEl ? locationEl.textContent : '';
+            
+            // Use stored full content if available, otherwise clone
+            let fullContent;
+            if (contentCell.hasAttribute('data-full-content')) {
+                fullContent = contentCell.getAttribute('data-full-content');
+                // Remove the note-location from the full content for display
+                const temp = document.createElement('div');
+                temp.innerHTML = fullContent;
+                const locEl = temp.querySelector('.note-location');
+                if (locEl) locEl.remove();
+                fullContent = temp.innerHTML;
+            } else {
+                // Fallback: Clone content without the location div
+                const contentClone = contentCell.cloneNode(true);
+                const locClone = contentClone.querySelector('.note-location');
+                if (locClone) locClone.remove();
+                fullContent = contentClone.innerHTML;
+            }
+
+            zoomLocation.textContent = location;
+            zoomContent.innerHTML = fullContent;
+
+            // Activate with slight delay for animation
+            requestAnimationFrame(() => {
+                zoomOverlay.classList.add('active');
+                zoomContainer.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+        }
+
+        function closeFootnoteZoom() {
+            zoomOverlay.classList.remove('active');
+            zoomContainer.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Wrap footnote content in excerpt containers for truncation
+        function wrapFootnoteExcerpts() {
+            const footnoteRows = document.querySelectorAll('#notes-pane .notes-table tr');
+            footnoteRows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length < 2) return;
+                
+                const contentCell = cells[1];
+                // Skip if already wrapped
+                if (contentCell.querySelector('.footnote-excerpt')) return;
+                
+                // Find the note-location element
+                const locationEl = contentCell.querySelector('.note-location');
+                
+                // Get all content except the location
+                const excerptWrapper = document.createElement('div');
+                excerptWrapper.className = 'footnote-excerpt';
+                
+                // Store original full HTML for the modal
+                const fullContentHtml = contentCell.innerHTML;
+                contentCell.setAttribute('data-full-content', fullContentHtml);
+                
+                // Move non-location content into the excerpt wrapper
+                Array.from(contentCell.childNodes).forEach(node => {
+                    if (node !== locationEl) {
+                        excerptWrapper.appendChild(node.cloneNode(true));
+                    }
+                });
+                
+                // Clear and rebuild the cell
+                contentCell.innerHTML = '';
+                if (locationEl) contentCell.appendChild(locationEl);
+                contentCell.appendChild(excerptWrapper);
+                
+                // Add "tap to read" hint
+                const hint = document.createElement('div');
+                hint.className = 'read-more-hint';
+                hint.textContent = 'Tap to read full note';
+                contentCell.appendChild(hint);
+                
+                // After a frame, check if content is short (doesn't overflow)
+                requestAnimationFrame(() => {
+                    if (excerptWrapper.scrollHeight <= excerptWrapper.clientHeight + 5) {
+                        excerptWrapper.classList.add('short');
+                        hint.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        // Attach click listeners to footnote rows
+        function attachFootnoteZoomListeners() {
+            const footnoteRows = document.querySelectorAll('#notes-pane .notes-table tr');
+            footnoteRows.forEach(row => {
+                row.addEventListener('click', function(e) {
+                    // Don't zoom if clicking a link
+                    if (e.target.tagName === 'A') return;
+                    openFootnoteZoom(row);
+                });
+            });
+        }
+
+        // Close handlers
+        zoomClose.addEventListener('click', closeFootnoteZoom);
+        zoomOverlay.addEventListener('click', closeFootnoteZoom);
+
+        // Close on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && zoomContainer.classList.contains('active')) {
+                closeFootnoteZoom();
+            }
+        });
+
+        // Prevent closing when clicking inside the zoom container
+        zoomContainer.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+
+        // Initialize footnote excerpts and zoom listeners
+        wrapFootnoteExcerpts();
+        attachFootnoteZoomListeners();
+
+        // Re-wrap and re-attach listeners when notes pane changes (in case it loads dynamically)
+        const notesObserver = new MutationObserver(function() {
+            wrapFootnoteExcerpts();
+            attachFootnoteZoomListeners();
+        });
+        if (notesPane) {
+            notesObserver.observe(notesPane, { childList: true, subtree: true });
+        }
+
+        // ============================================
+        // Tooltip Touch/Click Support
+        // ============================================
+        
+        // Create tooltip overlay element
+        let tooltipOverlay = document.querySelector('.tooltip-overlay');
+        if (!tooltipOverlay) {
+            tooltipOverlay = document.createElement('div');
+            tooltipOverlay.className = 'tooltip-overlay';
+            document.body.appendChild(tooltipOverlay);
+        }
+        
+        let activeTooltip = null;
+        
+        function openTooltip(tooltipEl) {
+            if (activeTooltip) {
+                closeTooltip();
+            }
+            
+            // Add close button if not present
+            if (!tooltipEl.querySelector('.tooltip-close-btn')) {
+                const closeBtn = document.createElement('button');
+                closeBtn.className = 'tooltip-close-btn';
+                closeBtn.innerHTML = '×';
+                closeBtn.setAttribute('aria-label', 'Close');
+                closeBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeTooltip();
+                });
+                tooltipEl.insertBefore(closeBtn, tooltipEl.firstChild);
+            }
+            
+            activeTooltip = tooltipEl;
+            tooltipOverlay.classList.add('active');
+            tooltipEl.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeTooltip() {
+            if (activeTooltip) {
+                activeTooltip.classList.remove('active');
+                activeTooltip = null;
+            }
+            tooltipOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        
+        // Attach click/touch listeners to tooltip containers
+        function attachTooltipListeners() {
+            const tooltipContainers = document.querySelectorAll('.tooltip-container');
+            tooltipContainers.forEach(container => {
+                // Skip if already initialized
+                if (container.dataset.tooltipInit) return;
+                container.dataset.tooltipInit = 'true';
+                
+                container.addEventListener('click', function(e) {
+                    // Don't trigger if clicking a link inside
+                    if (e.target.tagName === 'A') return;
+                    
+                    const tooltip = container.querySelector('.tooltip, .tooltip2');
+                    if (tooltip) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openTooltip(tooltip);
+                    }
+                });
+            });
+        }
+        
+        // Close tooltip when clicking overlay
+        tooltipOverlay.addEventListener('click', closeTooltip);
+        
+        // Close on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && activeTooltip) {
+                closeTooltip();
+            }
+        });
+        
+        // Initialize tooltip listeners
+        attachTooltipListeners();
+        
+        // Re-attach when content changes
+        const tooltipObserver = new MutationObserver(attachTooltipListeners);
+        tooltipObserver.observe(document.body, { childList: true, subtree: true });
     });
 </script>
 
