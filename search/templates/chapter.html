@@ -1074,58 +1074,44 @@
         // Pre-load footnote data from notes table
         const footnoteCache = {};
         function preloadFootnoteData() {
+            // Strategy: Find all footnote links in the content (paraphrase & literal panes)
+            // and match them to content in the notes table by verse reference
+            
+            const allFootnoteLinks = document.querySelectorAll('a[href*="?footnote="]');
             const notesPane = document.getElementById('notes-pane');
+            
             if (!notesPane) {
                 console.log('Notes pane not found');
                 return;
             }
             
-            // Find the notes table
-            const notesTable = notesPane.querySelector('table.notes-table, table');
+            const notesTable = notesPane.querySelector('table');
             if (!notesTable) {
                 console.log('Notes table not found');
                 return;
             }
             
-            // Find all footnote rows in the notes table
+            console.log('Found', allFootnoteLinks.length, 'footnote links in content');
+            
+            // Build a map of verse references to table rows
+            const verseToRows = {};
             const footnoteRows = notesTable.querySelectorAll('tr');
-            console.log('Found', footnoteRows.length, 'rows in notes table');
             
             footnoteRows.forEach(row => {
                 const cells = row.querySelectorAll('td');
                 if (cells.length < 2) return;
                 
-                // First cell contains the footnote reference/link
-                const linkCell = cells[0];
+                const verseRef = cells[0].textContent.trim(); // e.g., "Eze. 16:4"
+                if (!verseRef) return;
                 
-                // Try to find the footnote ID from the link
-                let footnoteId = null;
-                const link = linkCell.querySelector('a');
-                
-                if (link) {
-                    const href = link.getAttribute('href');
-                    console.log('Link href:', href);
-                    
-                    if (href) {
-                        // Extract ID from href like "?footnote=Eze-16-4-07" or "?footnote=1-3-15"
-                        const match = href.match(/[?&]footnote=([^&]+)/);
-                        if (match) {
-                            footnoteId = match[1];
-                        }
-                    }
+                if (!verseToRows[verseRef]) {
+                    verseToRows[verseRef] = [];
                 }
                 
-                if (!footnoteId) {
-                    console.log('Could not extract footnote ID from row, link:', link ? link.outerHTML : 'no link');
-                    return;
-                }
-                
-                // Second cell contains the content
                 const contentCell = cells[1];
                 const locationEl = contentCell.querySelector('.note-location');
-                const location = locationEl ? locationEl.textContent.trim() : '';
+                const location = locationEl ? locationEl.textContent.trim() : verseRef;
                 
-                // Get content (use data-full-content if available, otherwise innerHTML)
                 let content;
                 if (contentCell.hasAttribute('data-full-content')) {
                     content = contentCell.getAttribute('data-full-content');
@@ -1136,15 +1122,39 @@
                     content = contentClone.innerHTML;
                 }
                 
-                // Cache it
-                console.log('Caching footnote:', footnoteId);
-                footnoteCache[footnoteId] = {
-                    title: location || 'Footnote ' + footnoteId,
-                    content: content
-                };
+                verseToRows[verseRef].push({ location, content });
             });
             
-            console.log('Pre-loaded', Object.keys(footnoteCache).length, 'footnotes:', Object.keys(footnoteCache));
+            // Now match footnote links to table rows
+            allFootnoteLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                const match = href.match(/[?&]footnote=([^&]+)/);
+                if (!match) return;
+                
+                const footnoteId = match[1]; // e.g., "Eze-16-13-05"
+                
+                // Parse the verse reference from the ID: "Eze-16-13-05" -> "Eze. 16:13"
+                const parts = footnoteId.split('-');
+                if (parts.length < 3) return;
+                
+                const book = parts[0];
+                const chapter = parts[1];
+                const verse = parts[2];
+                const verseRef = `${book}. ${chapter}:${verse}`;
+                
+                // Find matching rows for this verse
+                const rows = verseToRows[verseRef];
+                if (rows && rows.length > 0) {
+                    // Use the first matching row (or we could try to match by position)
+                    const rowIndex = Math.min(rows.length - 1, 0);
+                    footnoteCache[footnoteId] = {
+                        title: rows[rowIndex].location,
+                        content: rows[rowIndex].content
+                    };
+                }
+            });
+            
+            console.log('Pre-loaded', Object.keys(footnoteCache).length, 'footnotes');
         }
         
         // Pre-load on page load
