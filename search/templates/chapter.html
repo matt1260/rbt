@@ -1071,6 +1071,58 @@
             }
         });
 
+        // Pre-load footnote data from notes table
+        const footnoteCache = {};
+        function preloadFootnoteData() {
+            const notesPane = document.getElementById('notes-pane');
+            if (!notesPane) return;
+            
+            // Find all footnote rows in the notes table
+            const footnoteRows = notesPane.querySelectorAll('.notes-table tr');
+            footnoteRows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length < 2) return;
+                
+                // First cell contains the footnote link
+                const linkCell = cells[0];
+                const link = linkCell.querySelector('a[href*="?footnote="]');
+                if (!link) return;
+                
+                const href = link.getAttribute('href');
+                const match = href.match(/\?footnote=([^&]+)/);
+                if (!match) return;
+                
+                const footnoteId = match[1];
+                
+                // Second cell contains the content
+                const contentCell = cells[1];
+                const locationEl = contentCell.querySelector('.note-location');
+                const location = locationEl ? locationEl.textContent.trim() : '';
+                
+                // Get content (use data-full-content if available, otherwise innerHTML)
+                let content;
+                if (contentCell.hasAttribute('data-full-content')) {
+                    content = contentCell.getAttribute('data-full-content');
+                } else {
+                    const contentClone = contentCell.cloneNode(true);
+                    const locClone = contentClone.querySelector('.note-location');
+                    if (locClone) locClone.remove();
+                    content = contentClone.innerHTML;
+                }
+                
+                // Cache it
+                footnoteCache[footnoteId] = {
+                    title: location || 'Footnote ' + footnoteId,
+                    content: content
+                };
+            });
+            
+            console.log('Pre-loaded', Object.keys(footnoteCache).length, 'footnotes');
+        }
+        
+        // Pre-load on page load
+        preloadFootnoteData();
+
         // Attach click handlers to inline footnote links
         function attachFootnotePopupHandlers() {
             const footnoteLinks = document.querySelectorAll('a[href*="?footnote="]');
@@ -1092,7 +1144,13 @@
                     
                     const footnoteId = match[1];
                     
-                    // Fetch footnote content via JSON API
+                    // Check cache first (pre-loaded from notes table)
+                    if (footnoteCache[footnoteId]) {
+                        showFootnotePopup(footnoteId, footnoteCache[footnoteId].content, footnoteCache[footnoteId].title);
+                        return;
+                    }
+                    
+                    // Fetch footnote content via JSON API (fallback)
                     fetch('/footnote/' + footnoteId + '/json/')
                         .then(response => {
                             if (!response.ok) {
@@ -1103,6 +1161,10 @@
                         .then(data => {
                             const title = data.title || 'Footnote ' + footnoteId;
                             const content = data.content || '<p>No content available</p>';
+                            
+                            // Cache the result
+                            footnoteCache[footnoteId] = { title: title, content: content };
+                            
                             showFootnotePopup(footnoteId, content, title);
                         })
                         .catch(error => {
