@@ -222,6 +222,156 @@
         font-style: italic;
     }
 
+    /* Modern footnote reference badge styling */
+    a[href*="footnote="] {
+        color: #b78550;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    a[href*="footnote="] sup {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 600;
+        font-style: normal;
+        color: #a26b24;
+        background: #e8e8e8;
+        padding: 1px 4px;
+        border-radius: 3px;
+        margin: 0 1px;
+        vertical-align: super;
+        position: relative;
+        top: -4px;
+        min-width: 14px;
+        text-align: center;
+        transition: all 0.2s ease;
+        line-height: 1.2;
+    }
+
+    a[href*="footnote="]:hover sup {
+        background: #d0d0d0;
+        color: #333;
+    }
+
+    /* Footnote popup overlay */
+    .footnote-popup-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+    }
+
+    .footnote-popup-overlay.active {
+        display: block;
+        opacity: 1;
+    }
+
+    /* Footnote popup modal */
+    .footnote-popup {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.9);
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        padding: 0;
+        width: 90%;
+        max-width: 500px;
+        max-height: 80vh;
+        overflow: hidden;
+        z-index: 10001;
+        opacity: 0;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    .footnote-popup.active {
+        display: block;
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    .footnote-popup-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        background: linear-gradient(135deg, #b78550, #d4a574);
+        color: #fff;
+    }
+
+    .footnote-popup-title {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .footnote-popup-close {
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        color: #fff;
+        transition: background 0.2s ease;
+    }
+
+    .footnote-popup-close:hover {
+        background: rgba(255, 255, 255, 0.35);
+    }
+
+    .footnote-popup-content {
+        padding: 20px;
+        font-size: 16px;
+        line-height: 1.7;
+        color: #333;
+        overflow-y: auto;
+        max-height: calc(80vh - 100px);
+    }
+
+    .footnote-popup-content .hebrew_footnote {
+        font-size: 1.4em;
+    }
+
+    .footnote-popup-hint {
+        padding: 10px 20px;
+        background: #f8f8f8;
+        border-top: 1px solid #eee;
+        font-size: 12px;
+        color: #999;
+        text-align: center;
+    }
+
+    @media (max-width: 600px) {
+        .footnote-popup {
+            width: 94%;
+            max-height: 85vh;
+        }
+        
+        .footnote-popup-content {
+            font-size: 15px;
+            max-height: calc(85vh - 100px);
+        }
+        
+        .footnote-popup-hint {
+            display: none;
+        }
+    }
+
     /* Footnote zoom functionality */
     #notes-pane .notes-table tr {
         cursor: pointer;
@@ -860,6 +1010,116 @@
         if (notesPane) {
             notesObserver.observe(notesPane, { childList: true, subtree: true });
         }
+
+        // ============================================
+        // Inline Footnote Popup System
+        // ============================================
+        
+        // Create popup overlay and container
+        let footnotePopupOverlay = document.createElement('div');
+        footnotePopupOverlay.className = 'footnote-popup-overlay';
+        document.body.appendChild(footnotePopupOverlay);
+
+        let footnotePopup = document.createElement('div');
+        footnotePopup.className = 'footnote-popup';
+        footnotePopup.innerHTML = `
+            <div class="footnote-popup-header">
+                <h3 class="footnote-popup-title">Footnote</h3>
+                <button class="footnote-popup-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="footnote-popup-content"></div>
+            <div class="footnote-popup-hint">Press Escape or click outside to close</div>
+        `;
+        document.body.appendChild(footnotePopup);
+
+        const footnotePopupTitle = footnotePopup.querySelector('.footnote-popup-title');
+        const footnotePopupContent = footnotePopup.querySelector('.footnote-popup-content');
+        const footnotePopupClose = footnotePopup.querySelector('.footnote-popup-close');
+
+        function showFootnotePopup(footnoteId, content, title) {
+            footnotePopupTitle.textContent = title || 'Footnote ' + footnoteId;
+            footnotePopupContent.innerHTML = content || '<p>Loading footnote content...</p>';
+            
+            requestAnimationFrame(() => {
+                footnotePopupOverlay.classList.add('active');
+                footnotePopup.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+        }
+
+        function closeFootnotePopup() {
+            footnotePopupOverlay.classList.remove('active');
+            footnotePopup.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Close handlers for popup
+        footnotePopupClose.addEventListener('click', function(e) {
+            e.stopPropagation();
+            closeFootnotePopup();
+        });
+        
+        footnotePopupOverlay.addEventListener('click', closeFootnotePopup);
+        
+        footnotePopup.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && footnotePopup.classList.contains('active')) {
+                closeFootnotePopup();
+            }
+        });
+
+        // Attach click handlers to inline footnote links
+        function attachFootnotePopupHandlers() {
+            const footnoteLinks = document.querySelectorAll('a[href*="?footnote="]');
+            
+            footnoteLinks.forEach(link => {
+                // Skip if already handled or is inside notes panel
+                if (link.dataset.footnoteHandled) return;
+                if (link.closest('#notes-pane')) return;
+                
+                link.dataset.footnoteHandled = 'true';
+                
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const href = link.getAttribute('href');
+                    const match = href.match(/\?footnote=([^&]+)/);
+                    if (!match) return;
+                    
+                    const footnoteId = match[1];
+                    
+                    // Fetch footnote content via JSON API
+                    fetch('/footnote/' + footnoteId + '/json/')
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Footnote not found');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            const title = data.title || 'Footnote ' + footnoteId;
+                            const content = data.content || '<p>No content available</p>';
+                            showFootnotePopup(footnoteId, content, title);
+                        })
+                        .catch(error => {
+                            console.error('Error fetching footnote:', error);
+                            // Fallback: navigate to footnote page
+                            window.location.href = '/?footnote=' + footnoteId;
+                        });
+                });
+            });
+        }
+
+        // Initialize footnote popup handlers
+        attachFootnotePopupHandlers();
+
+        // Re-attach when content changes
+        const footnotePopupObserver = new MutationObserver(attachFootnotePopupHandlers);
+        footnotePopupObserver.observe(document.body, { childList: true, subtree: true });
 
         // ============================================
         // Tooltip Touch/Click Support

@@ -14,6 +14,9 @@ urlpatterns = [
     path('statistics/', views.update_statistics_view, name='update_statistics'),
     path('stats/', views.update_statistics_api, name='update_statistics_api'),
     
+    # Footnote JSON API for popup display
+    path('footnote/<str:footnote_id>/json/', views.footnote_json, name='footnote_json'),
+    
     # Search API endpoints (note: base URL is already /api/ from main urls.py)
     path('live/', views.search_api, name='search_api'),
     path('suggest/', views.search_suggestions, name='search_suggestions'),

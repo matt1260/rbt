@@ -2989,3 +2989,68 @@ def search_suggestions(request):
             })
     
     return JsonResponse({'suggestions': suggestions[:10]})
+
+
+def footnote_json(request, footnote_id):
+    """
+    Return footnote content as JSON for popup display.
+    Supports Genesis format (1-3-15) and other OT format (Eze-16-4-07)
+    """
+    footnote_html = ""
+    title = ""
+    
+    try:
+        footnote_parts = footnote_id.split('-')
+        
+        # Genesis format: 1-3-15 (chapter-verse-footnoteNum)
+        if len(footnote_parts) == 3 and footnote_parts[0].isdigit():
+            chapter_ref, verse_ref, footnote_ref = footnote_parts
+            book = 'Genesis'
+            title = f'Genesis {chapter_ref}:{verse_ref}'
+            
+            results = GenesisFootnotes.objects.filter(
+                footnote_id=footnote_id).values('footnote_html')
+            
+            if results:
+                footnote_html = results[0]['footnote_html']
+            else:
+                footnote_html = f"No footnote found for {footnote_id}."
+        
+        # Other OT format: Eze-16-4-07 (book-chapter-verse-footnoteNum)
+        elif len(footnote_parts) == 4:
+            book, chapter_ref, verse_ref, footnote_ref = footnote_parts
+            
+            # Map abbreviations to full book names
+            abbrev_to_book = {abbrev: bk for bk, abbrev in book_abbreviations.items()}
+            full_book_name = abbrev_to_book.get(book, book)
+            title = f'{full_book_name} {chapter_ref}:{verse_ref}'
+            
+            # Build reference for hebrewdata table: Book.Chapter.Verse-FootnoteNum
+            rbt_heb_ref = f'{book}.{chapter_ref}.{verse_ref}-{footnote_ref}'
+            
+            # Query old_testament.hebrewdata table
+            result = execute_query(
+                "SELECT footnote FROM old_testament.hebrewdata WHERE Ref = %s",
+                (rbt_heb_ref,),
+                fetch='one'
+            )
+            
+            if result and result[0]:
+                footnote_html = result[0]
+            else:
+                footnote_html = f"No footnote found for {footnote_id}."
+        
+        else:
+            footnote_html = f"Invalid footnote format: {footnote_id}"
+            title = "Error"
+    
+    except Exception as e:
+        footnote_html = f"Error retrieving footnote: {str(e)}"
+        title = "Error"
+    
+    return JsonResponse({
+        'footnote_id': footnote_id,
+        'title': title,
+        'content': footnote_html
+    })
+
