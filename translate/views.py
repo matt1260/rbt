@@ -3100,7 +3100,8 @@ def find_and_replace_ot(request):
 
                 logger.debug("OT table candidates returned: %d", len(rows))
 
-                file_name_pattern = r'\b\w+\.\w+\b'
+                # Pattern to detect standalone filenames (not URLs) - looks for filename.ext preceded by whitespace or quotes
+                file_name_pattern = r'(?:^|[\s"\'])(\w+\.(py|js|json|xml|csv|txt|md|html|css))\b'
 
                 for verse_id, ref, ot_html, book, chapter, verse in rows:
                     working_html = ot_html or ''
