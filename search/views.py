@@ -2542,13 +2542,28 @@ def search_api(request):
         # =================================================================
         if scope in ['all', 'ot', 'english']:
             try:
-                # Search in Genesis (Django ORM)
+                # Search in Genesis (Django ORM) - html=Hebrew Literal, rbt_reader=Paraphrase
                 genesis_results = Genesis.objects.filter(
-                    Q(html__icontains=query) | Q(text__icontains=query)
+                    Q(html__icontains=query) | 
+                    Q(rbt_reader__icontains=query) |
+                    Q(hebrew__icontains=query)
                 )[:limit]
                 
                 for result in genesis_results:
-                    text = result.html or result.text or ''
+                    # Determine which field matched and set version accordingly
+                    if result.html and query.lower() in result.html.lower():
+                        text = result.html
+                        version = 'Hebrew Literal'
+                    elif result.rbt_reader and query.lower() in result.rbt_reader.lower():
+                        text = result.rbt_reader
+                        version = 'Paraphrase'
+                    elif result.hebrew and query.lower() in result.hebrew.lower():
+                        text = result.hebrew
+                        version = 'Hebrew Text'
+                    else:
+                        text = result.html or result.rbt_reader or ''
+                        version = 'Hebrew Literal' if result.html else 'Paraphrase'
+                    
                     results['ot_verses'].append({
                         'type': 'ot_verse',
                         'source': 'genesis',
@@ -2556,6 +2571,7 @@ def search_api(request):
                         'chapter': result.chapter,
                         'verse': result.verse,
                         'text': highlight_match(text, query),
+                        'version': version,
                         'url': f'/?book=Genesis&chapter={result.chapter}&verse={result.verse}'
                     })
                 
@@ -2574,7 +2590,18 @@ def search_api(request):
                 
                 for row in ot_rows or []:
                     book_name = convert_book_name(row[0]) if row[0] else row[0]
-                    text = row[3] or row[4] or ''
+                    # row[3]=html (Paraphrase), row[4]=literal (RBT Interlinear)
+                    # Determine which field matched
+                    if row[3] and query.lower() in row[3].lower():
+                        text = row[3]
+                        version = 'Paraphrase'
+                    elif row[4] and query.lower() in row[4].lower():
+                        text = row[4]
+                        version = 'RBT Interlinear'
+                    else:
+                        text = row[3] or row[4] or ''
+                        version = 'Paraphrase' if row[3] else 'RBT Interlinear'
+                    
                     results['ot_verses'].append({
                         'type': 'ot_verse',
                         'source': 'old_testament.ot',
@@ -2582,6 +2609,7 @@ def search_api(request):
                         'chapter': row[1],
                         'verse': row[2],
                         'text': highlight_match(text, query),
+                        'version': version,
                         'url': f'/?book={book_name}&chapter={row[1]}&verse={row[2]}'
                     })
                 

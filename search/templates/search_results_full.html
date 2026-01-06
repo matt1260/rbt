@@ -362,6 +362,7 @@
                                 <i class="fas fa-book-open"></i>
                                 ${escapeHtml(r.book)} ${r.chapter}:${r.verse}
                                 <span class="source-badge">OT</span>
+                                ${r.version ? `<span class="source-badge" style="background-color: #e3c997;">${escapeHtml(r.version)}</span>` : ''}
                             </div>
                             <div class="result-text">${r.text || ''}</div>
                         </a>
