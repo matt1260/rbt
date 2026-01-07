@@ -1093,11 +1093,11 @@
             
             console.log('Found', allFootnoteLinks.length, 'footnote links in content');
             
-            // Build a map of verse references to table rows
+            // Build a map of verse references to table rows, indexed by footnote number
             const verseToRows = {};
             const footnoteRows = notesTable.querySelectorAll('tr');
             
-            footnoteRows.forEach(row => {
+            footnoteRows.forEach((row, rowIndex) => {
                 const cells = row.querySelectorAll('td');
                 if (cells.length < 2) return;
                 
@@ -1122,18 +1122,20 @@
                     content = contentClone.innerHTML;
                 }
                 
-                verseToRows[verseRef].push({ location, content });
+                // Store with index for matching multiple footnotes in same verse
+                verseToRows[verseRef].push({ location, content, rowIndex });
             });
             
             // Now match footnote links to table rows
+            // Group links by verse to properly sequence multiple footnotes
+            const linksByVerse = {};
+            
             allFootnoteLinks.forEach(link => {
                 const href = link.getAttribute('href');
                 const match = href.match(/[?&]footnote=([^&]+)/);
                 if (!match) return;
                 
                 const footnoteId = match[1]; // e.g., "Eze-16-13-05"
-                
-                // Parse the verse reference from the ID: "Eze-16-13-05" -> "Eze. 16:13"
                 const parts = footnoteId.split('-');
                 if (parts.length < 3) return;
                 
@@ -1142,16 +1144,27 @@
                 const verse = parts[2];
                 const verseRef = `${book}. ${chapter}:${verse}`;
                 
-                // Find matching rows for this verse
+                if (!linksByVerse[verseRef]) {
+                    linksByVerse[verseRef] = [];
+                }
+                linksByVerse[verseRef].push(footnoteId);
+            });
+            
+            // Now cache each footnote with the correct row
+            Object.keys(linksByVerse).forEach(verseRef => {
+                const footnoteIds = linksByVerse[verseRef];
                 const rows = verseToRows[verseRef];
-                if (rows && rows.length > 0) {
-                    // Use the first matching row (or we could try to match by position)
-                    const rowIndex = Math.min(rows.length - 1, 0);
+                
+                if (!rows || rows.length === 0) return;
+                
+                // Match footnotes to rows sequentially
+                footnoteIds.forEach((footnoteId, index) => {
+                    const rowIndex = Math.min(index, rows.length - 1);
                     footnoteCache[footnoteId] = {
                         title: rows[rowIndex].location,
                         content: rows[rowIndex].content
                     };
-                }
+                });
             });
             
             console.log('Pre-loaded', Object.keys(footnoteCache).length, 'footnotes');
