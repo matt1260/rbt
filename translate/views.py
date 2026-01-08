@@ -547,10 +547,13 @@ def gemini_translate_hebrew(
     return _request_gemini_response(prompt, model_name)
 
 
-@login_required
 @require_POST
 def request_gemini_translation(request):
     """Serve Gemini suggestions on-demand for both Greek and Hebrew verses."""
+    # Check authentication for AJAX - return JSON error instead of redirect
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required. Please log in.'}, status=401)
+    
     try:
         payload = json.loads(request.body.decode('utf-8'))
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -602,9 +605,12 @@ def request_gemini_translation(request):
     return JsonResponse({'suggestion': suggestion})
 
 
-@login_required
 @require_POST
 def save_gemini_preferences(request):
+    # Check authentication for AJAX - return JSON error instead of redirect
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required. Please log in.'}, status=401)
+    
     try:
         payload = json.loads(request.body.decode('utf-8'))
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -3250,7 +3256,20 @@ def find_and_replace_ot(request):
                         'verse_link': verse_link
                     })
 
-                replacements = genesis_replacements + replacements
+                # Combine Genesis replacements (if any) before OT list while removing duplicates
+                # Duplicates can surface when the source table returns repeated rows
+                # (e.g., duplicate ids in views), so enforce uniqueness by record_key order.
+                combined = genesis_replacements + replacements
+                unique_replacements = []
+                seen_record_keys = set()
+                for replacement in combined:
+                    record_key = replacement.get('record_key')
+                    if not record_key or record_key in seen_record_keys:
+                        continue
+                    seen_record_keys.add(record_key)
+                    unique_replacements.append(replacement)
+
+                replacements = unique_replacements
 
             if not replacements:
                 context['edit_result'] = '<div class="notice-bar"><p>No matches found for the given word.</p></div>'
