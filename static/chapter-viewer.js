@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const notesToggleButton = document.getElementById("notesToggleButton");
     const toggleDivContainer = document.getElementById("toggleDivContainer");
     const paraphraseContainer = document.getElementById("paraphraseContainer");
-    const container = document.getElementById("container");
+    const container = document.getElementById("container") || document.getElementById("mainTextArea");
     const verseRefs = document.querySelectorAll(".verse_ref");
     const literalPane = document.getElementById("literal-pane");
     const notesPane = document.getElementById("notes-pane");
@@ -56,8 +56,11 @@ document.addEventListener("DOMContentLoaded", function() {
     const FONT_STEP = 10;
     
     function updateFontSize() {
-        document.getElementById('container').style.fontSize = currentFontSize + '%';
-        localStorage.setItem('chapterFontSize', currentFontSize);
+        const targetContainer = document.getElementById('container') || document.getElementById('mainTextArea');
+        if (targetContainer) {
+            targetContainer.style.fontSize = currentFontSize + '%';
+            localStorage.setItem('chapterFontSize', currentFontSize);
+        }
     }
     
     const savedFontSize = localStorage.getItem('chapterFontSize');
