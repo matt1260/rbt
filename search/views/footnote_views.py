@@ -231,8 +231,38 @@ def footnote_json(request, footnote_id):
         
         reverse_lookup = {abbrev: name for name, abbrev in book_abbreviations.items()}
 
+        # Genesis format: 1-3-15 (chapter-verse-footnoteNum) - check FIRST before NT/OT
+        # Genesis uses 3-part numeric IDs (e.g., 1-18-35b) and book=Genesis
+        is_genesis = book_param and book_param.lower() == 'genesis'
+        
+        if len(footnote_parts) == 3 and (is_genesis or (footnote_parts[0].isdigit() and not book_param)):
+            chapter_ref, verse_ref, footnote_ref = footnote_parts
+            book = 'Genesis'
+            title = f'Genesis {chapter_ref}:{verse_ref}'
+            
+            # Check for translation first
+            if language and language != 'en':
+                translation = VerseTranslation.objects.filter(
+                    book=book,
+                    language_code=language,
+                    footnote_id__icontains=footnote_id,
+                    status='completed'
+                ).first()
+                if translation and translation.footnote_text:
+                    footnote_html = translation.footnote_text
+            
+            # Fallback to English
+            if not footnote_html:
+                results = GenesisFootnotes.objects.filter(
+                    footnote_id=footnote_id).values('footnote_html')
+                
+                if results:
+                    footnote_html = results[0]['footnote_html']
+                else:
+                    footnote_html = f"No footnote found for {footnote_id}."
+
         # NT/OT explicit book with 3-part ID (e.g., ?footnote=2-1-2&book=Gal)
-        if len(footnote_parts) == 3 and book_param:
+        elif len(footnote_parts) == 3 and book_param:
             chapter_ref, verse_ref, footnote_ref = footnote_parts
             full_book = book_param if book_param in new_testament_books or book_param in old_testament_books else reverse_lookup.get(book_param, book_param)
             book_abbrev = book_abbreviations.get(full_book, full_book)
@@ -286,33 +316,6 @@ def footnote_json(request, footnote_id):
 
             if not footnote_html:
                 footnote_html = f"No footnote found for {footnote_id}."
-
-        # Genesis format: 1-3-15 (chapter-verse-footnoteNum)
-        elif len(footnote_parts) == 3 and footnote_parts[0].isdigit():
-            chapter_ref, verse_ref, footnote_ref = footnote_parts
-            book = 'Genesis'
-            title = f'Genesis {chapter_ref}:{verse_ref}'
-            
-            # Check for translation first
-            if language and language != 'en':
-                translation = VerseTranslation.objects.filter(
-                    book=book,
-                    language_code=language,
-                    footnote_id__icontains=footnote_id,
-                    status='completed'
-                ).first()
-                if translation and translation.footnote_text:
-                    footnote_html = translation.footnote_text
-            
-            # Fallback to English
-            if not footnote_html:
-                results = GenesisFootnotes.objects.filter(
-                    footnote_id=footnote_id).values('footnote_html')
-                
-                if results:
-                    footnote_html = results[0]['footnote_html']
-                else:
-                    footnote_html = f"No footnote found for {footnote_id}."
         
         # NT format: Psa-150-2-02 (abbrev-chapter-verse-footnoteNum)
         elif len(footnote_parts) == 4 and not footnote_parts[0].isdigit():
