@@ -41,11 +41,6 @@
 
 {% with title_prefix=book|title %}
 <div id="toggleButtonsContainer" style="display: flex; justify-content: flex-end;">
-    {% if paraphrase or html %}
-    <div id="languageSelector" onclick="openLanguageModal()" style="font-size: 14px; padding: 6px 10px; text-align: left; color: #ba8666; cursor: pointer; margin-right: auto; order: -1;">
-        <i class="fas fa-language"></i> {{ supported_languages|get_item:current_language|default:'English' }}
-    </div>
-    {% endif %}
     <div id="imageToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-eye-slash"></i> Images (I)
     </div>
@@ -61,7 +56,11 @@
     <div id="fontIncreaseButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-plus"></i>
     </div>
-
+    {% if paraphrase or html %}
+    <div id="languageSelector" onclick="openLanguageModal()" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+        <i class="fas fa-language"></i> {{ supported_languages|get_item:current_language|default:'English' }}
+    </div>
+    {% endif %}
 </div>
 {% endwith %}
 
