@@ -6,9 +6,8 @@ urlpatterns = [
     path('', views.search, name='search'),
     path('search/', views.search, name='search'),
     path('search/results/', views.search_results_page, name='search_results'),
-    path('RBT/search/word/', views.word_view, name='word'),
-    path('search/word/', views.word_view, name='word'),
     path('aseneth/', views.storehouse_view, name='storehouse'),
+    path('storehouse/', views.storehouse_view, name='storehouse'),
     path('updates/', views.updates, name='updates'),
     path('update_count/', views.update_count, name='update_count_api'),
     path('statistics/', views.update_statistics_view, name='update_statistics'),
@@ -20,4 +19,10 @@ urlpatterns = [
     # Search API endpoints (note: base URL is already /api/ from main urls.py)
     path('live/', views.search_api, name='search_api'),
     path('suggest/', views.search_suggestions, name='search_suggestions'),
+    path('translate_chapter/', views.translate_chapter_api, name='translate_chapter_api'),
+    
+    # Background translation job API endpoints
+    path('translation/start/', views.start_translation_job, name='start_translation_job'),
+    path('translation/status/', views.translation_job_status, name='translation_job_status'),
+    path('translation/clear-cache/', views.clear_translation_cache, name='clear_translation_cache'),
 ]

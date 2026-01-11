@@ -43,6 +43,8 @@ resequence_new.py
 catss_lexicon_guide.md
 catss_lexicon.py
 clean_spaces_.py
+MULTILINGUAL_README.md
+KEYS.md
 
 # Django
 *.sqlite3

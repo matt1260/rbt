@@ -1,8 +1,37 @@
 {% extends 'base.html' %}
 {% block title %}Real Bible Translation - {{ page_title }}{% endblock %}
 {% load custom_tags %}
+{% load static %}
 {% block content %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css" crossorigin="anonymous">
+<link rel="stylesheet" href="{% static 'chapter-viewer.css' %}">
+<script src="{% static 'translation-manager.js' %}"></script>
+<script src="{% static 'chapter-viewer.js' %}" defer></script>
+
+<!-- Language Selection Modal -->
+<div id="languageModal" class="language-modal-overlay">
+    <div class="language-modal">
+        <button class="language-modal-close" onclick="closeLanguageModal()" aria-label="Close">&times;</button>
+        <div class="language-modal-header">
+            <i class="fas fa-language"></i>
+            <h3>Select Language</h3>
+        </div>
+        <div class="language-modal-content">
+            <button class="language-option {% if current_language == 'en' %}active{% endif %}" onclick="changeLanguage('en')">
+                <span class="lang-name">English</span>
+                {% if current_language == 'en' %}<i class="fas fa-check"></i>{% endif %}
+            </button>
+            {% for lang_code, lang_name in supported_languages.items %}
+            <button class="language-option {% if current_language == lang_code %}active{% endif %}" onclick="changeLanguage('{{ lang_code }}')">
+                <span class="lang-name">{{ lang_name }}</span>
+                {% if current_language == lang_code %}<i class="fas fa-check"></i>{% endif %}
+            </button>
+            {% endfor %}
+        </div>
+        <p class="language-modal-hint">AI-powered translations via Google Gemini</p>
+    </div>
+</div>
+
 <p><a href="/">Back to Search</a></p>
 
 <div style="padding-bottom: 20px;">
@@ -12,9 +41,11 @@
 
 {% with title_prefix=book|title %}
 <div id="toggleButtonsContainer" style="display: flex; justify-content: flex-end;">
-    <div id="h5ToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
-        <i class="fas fa-eye-slash"></i> Headers (H)
+    {% if paraphrase or html %}
+    <div id="languageSelector" onclick="openLanguageModal()" style="font-size: 14px; padding: 6px 10px; text-align: left; color: #ba8666; cursor: pointer; margin-right: auto; order: -1;">
+        <i class="fas fa-language"></i> {{ supported_languages|get_item:current_language|default:'English' }}
     </div>
+    {% endif %}
     <div id="imageToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-eye-slash"></i> Images (I)
     </div>
@@ -33,7 +64,117 @@
 
 </div>
 {% endwith %}
+
+<!-- Translation Loading Modal -->
+{% if current_language != 'en' %}
+{% if translation_quota_exceeded %}
+<!-- Quota Exceeded Modal (persistent) -->
+<div id="quotaExceededModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+    <div style="background: white; padding: 40px 50px; border-radius: 12px; text-align: center; max-width: 500px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div style="margin-bottom: 20px;">
+            <i class="fas fa-exclamation-triangle" style="font-size: 56px; color: #d9534f;"></i>
+        </div>
+        <h2 style="margin: 0 0 10px 0; color: #333; font-size: 24px;">Translation Quota Exhausted</h2>
+        <p style="color: #666; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6;">
+            The Gemini API translation quota has been exceeded for today.
+        </p>
+        <p style="color: #999; margin: 0 0 30px 0; font-size: 14px;">
+            Please try again tomorrow when the quota resets, or switch back to English.
+        </p>
+        <button onclick="changeLanguage('en')" style="background: #ba8666; color: white; border: none; padding: 12px 30px; font-size: 16px; border-radius: 6px; cursor: pointer; transition: background 0.3s;">
+            Switch to English
+        </button>
+    </div>
+</div>
+{% else %}
+<!-- Translation Loading Modal (starts hidden, JS shows it when needed) -->
+<div id="translationLoadingModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 10000; display: none; align-items: center; justify-content: center; opacity: 1;">
+    <div style="background: white; padding: 40px 50px; border-radius: 12px; text-align: center; max-width: 450px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+        <div style="margin-bottom: 20px;">
+            <i class="fas fa-language" style="font-size: 56px; color: #ba8666; animation: pulse 1.5s ease-in-out infinite;"></i>
+        </div>
+        <h2 style="margin: 0 0 10px 0; color: #333; font-size: 24px;">Translating Content...</h2>
+        <p style="color: #666; margin: 0 0 8px 0; font-size: 16px;">
+            {{ supported_languages|get_item:current_language|default:current_language }} Translation
+        </p>
+        <p id="translationProgressText" style="color: #999; margin: 0 0 15px 0; font-size: 13px;">
+            Preparing translation request...
+        </p>
+        <div style="width: 100%; height: 4px; background: #eee; border-radius: 2px; overflow: hidden; margin-bottom: 15px;">
+            <div style="height: 100%; background: linear-gradient(90deg, #ba8666, #d4a574, #ba8666); animation: loading 2s ease-in-out infinite;"></div>
+        </div>
+        <p style="color: #aaa; margin: 0; font-size: 11px; font-style: italic;">
+            Translating with Google Gemini. This can take 1-3 minutes. <br>You can leave this page and return later.
+        </p>
+    </div>
+</div>
+
+<style>
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.15); }
+}
+@keyframes loading {
+    0% { width: 0%; margin-left: 0%; }
+    50% { width: 60%; margin-left: 20%; }
+    100% { width: 0%; margin-left: 100%; }
+}
+</style>
+
+<script>
+// Functions to show/hide translation loading modal
+function showTranslationLoading() {
+    const modal = document.getElementById('translationLoadingModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.style.opacity = '1';
+    }
+}
+
+function hideTranslationLoading() {
+    const modal = document.getElementById('translationLoadingModal');
+    if (modal) {
+        modal.style.transition = 'opacity 0.5s ease-out';
+        modal.style.opacity = '0';
+        setTimeout(function() {
+            modal.style.display = 'none';
+        }, 500);
+    }
+}
+
+// NOTE: Do NOT auto-hide the modal on page load!
+// The modal should only be hidden when:
+// 1. Translation completes successfully (then page reloads)
+// 2. Translation fails (JavaScript handles this)
+// 3. Translation is skipped (JavaScript handles this)
+</script>
+{% endif %}
+{% endif %}
+
 <h1>{{book}} {{ chapter_num }}</h1>
+
+{% if current_language in 'ar,he,ur,fa' %}
+<style>
+    /* RTL support for Arabic, Hebrew, Urdu, Persian */
+    #mainTextArea, #paraphrase-area, #literal-area {
+        direction: rtl;
+        text-align: right;
+        font-size: 1.3em;
+    }
+    
+    /* Adjust borders for RTL */
+    #paraphrase-area {
+        padding-right: 0 !important;
+        padding-left: 10px !important;
+    }
+    
+    #literal-area {
+        padding-left: 0 !important;
+        padding-right: 10px !important;
+    }
+</style>
+{% endif %}
+
 <!-- Main Content Container -->
 <div style="display: flex; position: relative;">
     
@@ -41,7 +182,7 @@
     <div id="mainTextArea" style="flex: 1; transition: margin-right 0.3s ease;">
 
         {% if html %}
-        <div style="display: flex; justify-content: space-between;">
+        <div class="content-flex-container" style="display: flex; justify-content: space-between;">
             <div id="paraphrase-area" style="width: 50%; border-right: 1px solid #000; padding-right: 10px;">
                 {% if paraphrase %}
                     {{ paraphrase|safe }}
@@ -87,7 +228,7 @@
         {% for footnote_id, footnote_data in footnotes.items %}
         "{{ footnote_id }}": {
             "verse": "{{ footnote_data.verse }}",
-            "content": {{ footnote_data.content|safe|escapejs|safe }}
+            "content": "{{ footnote_data.content|escapejs }}"
         }{% if not forloop.last %},{% endif %}
         {% endfor %}
     };
@@ -117,6 +258,24 @@
             max-width: 100% !important;
         }
         
+        .content-flex-container {
+            flex-direction: column !important;
+        }
+
+        #paraphrase-area, 
+        #literal-area {
+            width: 100% !important;
+            border-right: none !important;
+            padding-right: 0 !important;
+            padding-left: 0 !important;
+        }
+
+        #literal-area {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        
         body {
             overflow-x: hidden;
         }
@@ -137,14 +296,14 @@
     .sdfootnoteanc sup,
     .footnote-link sup,
     a[href*="footnote="] sup {
-        display: inline-flex;
+        /* display: inline-flex; */
         align-items: center;
         justify-content: center;
         font-size: 9px;
         font-weight: 600;
         font-style: normal;
-        color: #a26b24;
-        background: #e8e8e8;
+        color: #885616;
+        background: #d4a57473;
         padding: 1px 4px;
         border-radius: 3px;
         margin: 0 1px;
@@ -253,6 +412,44 @@
 
     .footnote-popup-content .hebrew_footnote {
         font-size: 1.4em;
+    }
+    
+    /* List styling for footnote content */
+    .footnote-popup-content ol,
+    .footnote-popup-content ul {
+        margin: 10px 0;
+        padding-left: 30px;
+    }
+    
+    .footnote-popup-content li {
+        margin: 8px 0;
+        padding-left: 5px;
+    }
+    
+    .footnote-popup-content li p:first-child {
+        margin-top: 0;
+    }
+    
+    .footnote-popup-content li p:last-child {
+        margin-bottom: 0;
+    }
+    
+    /* Blockquote styling for footnote content */
+    .footnote-popup-content blockquote {
+        position: relative;
+        margin: 20px 0;
+        padding: 15px 20px 15px 60px;
+    }
+    
+    .footnote-popup-content blockquote:before {
+        left: 15px;
+        top: 10px;
+    }
+    
+    .footnote-popup-content blockquote:after {
+        right: 15px;
+        bottom: -10px;
+
     }
 
     .footnote-popup-hint {
@@ -363,449 +560,10 @@
     }
 
 
+
+
 </style>
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        // Parentheses toggle logic
-        function wrapParenthesesText(element) {
-            if (!element) return;
-            // Only wrap text nodes, not HTML tags
-            function wrapTextNodes(node) {
-                if (node.nodeType === Node.TEXT_NODE) {
-                    // Replace space + ( ... ) with span (include preceding space)
-                    // Only match parentheses that contain double-quoted text, e.g. ("word")
-                    let replaced = node.textContent.replace(/\s\(\s*\"([^\"]+)\"\s*\)/g, function(match) {
-                        return '<span class="paren-hide">' + match + '</span>';
-                    });
-                    if (replaced !== node.textContent) {
-                        const temp = document.createElement('span');
-                        temp.innerHTML = replaced;
-                        while (temp.firstChild) {
-                            node.parentNode.insertBefore(temp.firstChild, node);
-                        }
-                        node.parentNode.removeChild(node);
-                    }
-                } else if (node.nodeType === Node.ELEMENT_NODE) {
-                    Array.from(node.childNodes).forEach(wrapTextNodes);
-                }
-            }
-            wrapTextNodes(element);
-        }
-
-        // Wrap parentheses in both areas on page load
-        wrapParenthesesText(document.getElementById('paraphrase-area'));
-        wrapParenthesesText(document.getElementById('literal-area'));
-        
-        // Hide parentheses by default (including server-side rendered ones)
-        setTimeout(() => {
-            document.querySelectorAll('.paren-hide').forEach(span => {
-                span.style.setProperty('display', 'none', 'important');
-            });
-        }, 0);
-
-        const literalToggleButton = document.getElementById("literalToggleButton");
-        const imageToggleButton = document.getElementById("imageToggleButton");
-        const h5ToggleButton = document.getElementById("h5ToggleButton");
-        const verseRefToggleButton = document.getElementById("verseRefToggleButton");
-        const parenthesesToggleButton = document.getElementById("parenthesesToggleButton");
-        const mainTextArea = document.getElementById("mainTextArea");
-        const verseRefs = document.querySelectorAll(".verse_ref");
-        const paraphraseArea = document.getElementById("paraphrase-area");
-        const fontDecreaseButton = document.getElementById("fontDecreaseButton");
-        const fontIncreaseButton = document.getElementById("fontIncreaseButton");
-        
-        // Font size management
-        let currentFontSize = 100; // percentage
-        const MIN_FONT_SIZE = 80;
-        const MAX_FONT_SIZE = 150;
-        const FONT_STEP = 10;
-        
-        function updateFontSize() {
-            document.getElementById('mainTextArea').style.fontSize = currentFontSize + '%';
-            if (document.getElementById('sidePanel')) {
-                document.getElementById('sidePanel').style.fontSize = currentFontSize + '%';
-            }
-            localStorage.setItem('ntChapterFontSize', currentFontSize);
-        }
-        
-        // Load saved font size
-        const savedFontSize = localStorage.getItem('ntChapterFontSize');
-        if (savedFontSize) {
-            currentFontSize = parseInt(savedFontSize);
-            updateFontSize();
-        }
-        
-        let isLiteralVisible = false;
-        let isImageVisible = true;
-        let isH5Visible = true;
-        let isVerseRefVisible = false;
-        let isParenthesesVisible = false;
-        
-        // Detect if mobile
-        function isMobile() {
-            return window.innerWidth <= 768;
-        }
-        
-        function toggleVerseRefs() {
-            verseRefs.forEach(function(ref) {
-                ref.style.display = isVerseRefVisible ? "none" : "inline";
-            });
-            isVerseRefVisible = !isVerseRefVisible;
-            verseRefToggleButton.innerHTML = isVerseRefVisible ? 
-                '<i class="fas fa-eye-slash"></i> Verse References (V)' : 
-                '<i class="fas fa-eye"></i> Verse References (V)';       
-        }
-
-        function toggleH5Headers() {
-            const h5Elements = document.querySelectorAll("h5");
-            h5Elements.forEach(function(element) {
-                element.style.display = isH5Visible ? "none" : "block";
-            });
-            isH5Visible = !isH5Visible;
-            h5ToggleButton.innerHTML = isH5Visible ? 
-                '<i class="fas fa-eye-slash"></i> Headers (H)' : 
-                '<i class="fas fa-eye"></i> Headers (H)';
-        }
-
-        function toggleImages() {
-            const tooltipContainers = document.querySelectorAll(".tooltip-container");
-            tooltipContainers.forEach(function(container) {
-                container.style.display = isImageVisible ? "none" : "block";
-            });
-            isImageVisible = !isImageVisible;
-            imageToggleButton.innerHTML = isImageVisible ? 
-                '<i class="fas fa-eye-slash"></i> Images (I)' : 
-                '<i class="fas fa-eye"></i> Images (I)';
-        }
-
-        function toggleParentheses() {
-            document.querySelectorAll('.paren-hide').forEach(span => {
-                if (isParenthesesVisible) {
-                    span.style.setProperty('display', 'none', 'important');
-                } else {
-                    span.style.setProperty('display', 'inline', 'important');
-                }
-            });
-            isParenthesesVisible = !isParenthesesVisible;
-            parenthesesToggleButton.innerHTML = isParenthesesVisible ? 
-                '<i class="fas fa-eye-slash"></i> Names (P)' : 
-                '<i class="fas fa-eye"></i> Names (P)';
-        }
-
-        function handleKeyDown(event) {
-            // Don't trigger if user is typing in an input
-            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
-                return;
-            }
-            
-            if (event.key === "v" || event.key === "V") {
-                toggleVerseRefs();
-            } else if (event.key === "h" || event.key === "H") { 
-                toggleH5Headers();
-            } else if (event.key === "i" || event.key === "I") { 
-                toggleImages();
-            } else if (event.key === "p" || event.key === "P") {
-                toggleParentheses();
-            } else if (event.key === "+" || event.key === "=") {
-                if (fontIncreaseButton) fontIncreaseButton.click();
-            } else if (event.key === "-" || event.key === "_") {
-                if (fontDecreaseButton) fontDecreaseButton.click();
-            }
-        }
-
-        // Event Listeners
-        document.addEventListener("keydown", handleKeyDown);
-        
-        if (h5ToggleButton) h5ToggleButton.addEventListener("click", toggleH5Headers);
-        if (imageToggleButton) imageToggleButton.addEventListener("click", toggleImages);
-        if (verseRefToggleButton) verseRefToggleButton.addEventListener("click", toggleVerseRefs);
-        if (parenthesesToggleButton) parenthesesToggleButton.addEventListener("click", toggleParentheses);
-        
-        if (fontIncreaseButton) fontIncreaseButton.addEventListener("click", function() {
-            if (currentFontSize < MAX_FONT_SIZE) {
-                currentFontSize += FONT_STEP;
-                updateFontSize();
-            }
-        });
-        
-        if (fontDecreaseButton) fontDecreaseButton.addEventListener("click", function() {
-            if (currentFontSize > MIN_FONT_SIZE) {
-                currentFontSize -= FONT_STEP;
-                updateFontSize();
-            }
-        });
-        
-        // Handle footnote link clicks - open panel and scroll to footnote
-        function attachFootnoteHandlers() {
-            // Handle both .footnote-link and .sdfootnoteanc (standard footnote links)
-            document.querySelectorAll('.footnote-link, .sdfootnoteanc, a[href*="?footnote="], a[href*="footnote="]').forEach(function(link) {
-                // Skip if already initialized
-                if (link.dataset.footnoteInit) return;
-                link.dataset.footnoteInit = 'true';
-                
-                link.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    // Extract footnote ID from href
-                    let hrefFootnoteId;
-                    const href = this.getAttribute('href') || '';
-                    
-                    if (href.includes('footnote=')) {
-                        // Format: ?footnote=22-10-41b&book=Mat
-                        const match = href.match(/footnote=([^&]+)/);
-                        if (match) {
-                            hrefFootnoteId = match[1];
-                        }
-                    } else if (href.startsWith('#footnote-')) {
-                        hrefFootnoteId = href.replace('#footnote-', '');
-                    } else if (href.startsWith('#')) {
-                        hrefFootnoteId = href.substring(1);
-                    }
-                    
-                    // Also try getting text content from the sup element
-                    const supEl = this.querySelector('sup');
-                    const supText = supEl ? supEl.textContent.trim() : null;
-                    
-                    console.log('Href footnote ID:', hrefFootnoteId, 'Sup text:', supText);
-                    
-                    if (!hrefFootnoteId && !supText) {
-                        console.log('No footnote ID found');
-                        return;
-                    }
-                    
-                    // Try to find the footnote element
-                    // The href ID format is: chapter-verse-footnoteNumber (e.g., 22-10-41b)
-                    // The actual footnote ID might just be the footnoteNumber (e.g., 41b)
-                    let footnoteElement = null;
-                    let matchedId = null;
-                    
-                    // First try direct match
-                    footnoteElement = document.getElementById('footnote-' + hrefFootnoteId);
-                    if (footnoteElement) {
-                        matchedId = hrefFootnoteId;
-                    }
-                    
-                    // If not found, try using just the sup text (e.g., "41b")
-                    if (!footnoteElement && supText) {
-                        footnoteElement = document.getElementById('footnote-' + supText);
-                        if (footnoteElement) {
-                            matchedId = supText;
-                        }
-                    }
-                    
-                    // If still not found, search all footnote entries for partial match
-                    if (!footnoteElement) {
-                        const allFootnotes = document.querySelectorAll('.footnote-entry');
-                        const searchParts = hrefFootnoteId ? hrefFootnoteId.split('-') : [];
-                        const lastPart = searchParts.length > 0 ? searchParts[searchParts.length - 1] : supText;
-                        
-                        console.log('Searching for footnote ending with:', lastPart);
-                        
-                        allFootnotes.forEach(function(fn) {
-                            if (footnoteElement) return; // Already found
-                            const fnId = fn.id.replace('footnote-', '');
-                            // Check if the footnote ID ends with the same suffix
-                            if (fnId === lastPart || fnId.endsWith('-' + lastPart)) {
-                                footnoteElement = fn;
-                                matchedId = fnId;
-                            }
-                        });
-                    }
-                    
-                    console.log('Found element:', footnoteElement, 'Matched ID:', matchedId);
-                    
-                    if (footnoteElement) {
-                        showFootnotePopup(matchedId, footnoteElement);
-                    } else {
-                        // Fallback: Show the link text content
-                        console.log('Footnote element not found, showing fallback');
-                        showFootnotePopupFallback(hrefFootnoteId || supText);
-                    }
-                });
-            });
-        }
-        
-        // ============================================
-        // Modern Footnote Popup System
-        // ============================================
-        
-        // Create popup elements
-        const footnotePopupOverlay = document.createElement('div');
-        footnotePopupOverlay.className = 'footnote-popup-overlay';
-        document.body.appendChild(footnotePopupOverlay);
-        
-        const footnotePopup = document.createElement('div');
-        footnotePopup.className = 'footnote-popup';
-        footnotePopup.innerHTML = `
-            <div class="footnote-popup-header">
-                <span class="footnote-popup-title"></span>
-                <button class="footnote-popup-close" aria-label="Close">&times;</button>
-            </div>
-            <div class="footnote-popup-content"></div>
-            <div class="footnote-popup-hint">Press Escape or click outside to close</div>
-        `;
-        document.body.appendChild(footnotePopup);
-        
-        const popupTitle = footnotePopup.querySelector('.footnote-popup-title');
-        const popupContent = footnotePopup.querySelector('.footnote-popup-content');
-        const popupClose = footnotePopup.querySelector('.footnote-popup-close');
-        
-        function showFootnotePopup(footnoteId, footnoteElement) {
-            // Get title (verse info) and content using class names
-            const titleEl = footnoteElement.querySelector('.footnote-title');
-            const contentEl = footnoteElement.querySelector('.footnote-body');
-            
-            const title = titleEl ? titleEl.textContent.trim() : 'Footnote ' + footnoteId;
-            const content = contentEl ? contentEl.innerHTML : footnoteElement.innerHTML;
-            
-            popupTitle.textContent = title;
-            popupContent.innerHTML = content;
-            
-            // Show popup
-            requestAnimationFrame(() => {
-                footnotePopupOverlay.classList.add('active');
-                footnotePopup.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            });
-        }
-        
-        function showFootnotePopupFallback(footnoteId) {
-            popupTitle.textContent = 'Footnote ' + footnoteId;
-            popupContent.innerHTML = '<p>Footnote content not found. Please open the Notes panel to view all footnotes.</p>';
-            
-            requestAnimationFrame(() => {
-                footnotePopupOverlay.classList.add('active');
-                footnotePopup.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            });
-        }
-        
-        function closeFootnotePopup() {
-            footnotePopupOverlay.classList.remove('active');
-            footnotePopup.classList.remove('active');
-            document.body.style.overflow = '';
-        }
-        
-        // Close handlers
-        popupClose.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            closeFootnotePopup();
-        });
-        
-        footnotePopupOverlay.addEventListener('click', closeFootnotePopup);
-        
-        footnotePopup.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-        
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && footnotePopup.classList.contains('active')) {
-                closeFootnotePopup();
-            }
-        });
-        
-        // Initial attach
-        attachFootnoteHandlers();
-        
-        // Re-attach when content changes
-        const contentObserver = new MutationObserver(attachFootnoteHandlers);
-        if (mainTextArea) {
-            contentObserver.observe(mainTextArea, { childList: true, subtree: true });
-        }
-        
-        // Initialize verse refs on load
-        toggleVerseRefs();
-
-        // ============================================
-        // Tooltip Touch/Click Support
-        // ============================================
-        
-        // Create tooltip overlay element
-        let tooltipOverlay = document.querySelector('.tooltip-overlay');
-        if (!tooltipOverlay) {
-            tooltipOverlay = document.createElement('div');
-            tooltipOverlay.className = 'tooltip-overlay';
-            document.body.appendChild(tooltipOverlay);
-        }
-        
-        let activeTooltip = null;
-        
-        function openTooltip(tooltipEl) {
-            if (activeTooltip) {
-                closeTooltip();
-            }
-            
-            // Add close button if not present
-            if (!tooltipEl.querySelector('.tooltip-close-btn')) {
-                const closeBtn = document.createElement('button');
-                closeBtn.className = 'tooltip-close-btn';
-                closeBtn.innerHTML = '×';
-                closeBtn.setAttribute('aria-label', 'Close');
-                closeBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    closeTooltip();
-                });
-                tooltipEl.insertBefore(closeBtn, tooltipEl.firstChild);
-            }
-            
-            activeTooltip = tooltipEl;
-            tooltipOverlay.classList.add('active');
-            tooltipEl.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        }
-        
-        function closeTooltip() {
-            if (activeTooltip) {
-                activeTooltip.classList.remove('active');
-                activeTooltip = null;
-            }
-            tooltipOverlay.classList.remove('active');
-            document.body.style.overflow = '';
-        }
-        
-        // Attach click/touch listeners to tooltip containers
-        function attachTooltipListeners() {
-            const tooltipContainers = document.querySelectorAll('.tooltip-container');
-            tooltipContainers.forEach(container => {
-                // Skip if already initialized
-                if (container.dataset.tooltipInit) return;
-                container.dataset.tooltipInit = 'true';
-                
-                container.addEventListener('click', function(e) {
-                    // Don't trigger if clicking a link inside
-                    if (e.target.tagName === 'A') return;
-                    
-                    const tooltip = container.querySelector('.tooltip, .tooltip2');
-                    if (tooltip) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        openTooltip(tooltip);
-                    }
-                });
-            });
-        }
-        
-        // Close tooltip when clicking overlay
-        tooltipOverlay.addEventListener('click', closeTooltip);
-        
-        // Close on Escape key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && activeTooltip) {
-                closeTooltip();
-            }
-        });
-        
-        // Initialize tooltip listeners
-        attachTooltipListeners();
-        
-        // Re-attach when content changes
-        const tooltipObserver = new MutationObserver(attachTooltipListeners);
-        tooltipObserver.observe(document.body, { childList: true, subtree: true });
-    });
-</script>
+<!-- Main chapter viewer UI scripts loaded from chapter-viewer.js -->
 
 <script>
     {% if cache_hit %}
@@ -814,5 +572,231 @@
         console.log("Verse(s) not served from cache.");
     {% endif %}
 </script>
+
+
+{% if needs_translation %}
+{% if paraphrase or html %}
+<script>
+    // Detect browser back/forward cache (bfcache) loads
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            // Page was loaded from bfcache (browser back/forward button)
+            console.log('Page loaded from bfcache, cleaning up active modals and overlays');
+
+            // Hide translation loading modals (several variants used across templates)
+            const tlById = document.getElementById('translationLoadingModal');
+            if (tlById) {
+                try { tlById.style.display = 'none'; } catch(e){}
+                tlById.classList.remove('active');
+                tlById.style.opacity = '';
+            }
+            const tlOverlay = document.querySelector('.translation-loading-overlay');
+            if (tlOverlay) tlOverlay.classList.remove('active');
+
+            // Close language modal if it was left open
+            const langModal = document.getElementById('languageModal');
+            if (langModal) langModal.classList.remove('active');
+
+            // Close any active tooltips, footnote popups, and zooms
+            document.querySelectorAll('.tooltip.active, .tooltip2.active, .footnote-popup.active, .footnote-zoom-container.active, .footnote-popup-overlay.active, .footnote-zoom-overlay.active, .tooltip-overlay.active, .language-modal-overlay.active').forEach(el => {
+                el.classList.remove('active');
+                try { el.style.display = 'none'; } catch(e){}
+            });
+
+            // Reset body overflow (prevent cut-off page)
+            try { document.body.style.overflow = ''; } catch(e){}
+
+            // Scroll to top to avoid any clipped view restored by bfcache
+            try { window.scrollTo(0,0); } catch(e){}
+        }
+    });
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if this is a reload after successful translation (has _t parameter)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('_t')) {
+            console.log("Post-translation reload detected, skipping translation trigger");
+            // Clean up the URL by removing the _t parameter
+            urlParams.delete('_t');
+            const cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+            window.history.replaceState({}, '', cleanUrl);
+            // Hide modal if visible
+            var modal = document.getElementById('translationLoadingModal');
+            if (modal) modal.style.display = 'none';
+            return; // Don't trigger translation again
+        }
+        
+        console.log("Translations needed, triggering API...");
+        
+        // Show the loading modal immediately (force display as backup)
+        var modal = document.getElementById('translationLoadingModal');
+        var progressText = document.getElementById('translationProgressText');
+        if (modal) modal.style.display = 'flex';
+
+        // Check for function existence
+        if (typeof showTranslationLoading === 'function') {
+            showTranslationLoading();
+        } 
+
+        // Use original book name from context (not display name)
+        const book = '{{ original_book|default:book }}';
+        const chapter = '{{ chapter_num }}';
+        const lang = '{{ current_language }}';
+        
+        console.log(`Triggering translation for: ${book} ch${chapter} (${lang})`);
+
+        if (book && chapter && lang && lang !== 'en') {
+            // Small delay to ensure page content is rendered before showing modal
+            setTimeout(function() {
+                // Show the loading modal
+                var modal = document.getElementById('translationLoadingModal');
+                var progressText = document.getElementById('translationProgressText');
+                if (modal) modal.style.display = 'flex';
+                if (typeof showTranslationLoading === 'function') {
+                    showTranslationLoading();
+                }
+                
+                // Update progress text
+                if (progressText) progressText.textContent = 'Starting background translation job...';
+                
+                // Start background translation job (non-blocking)
+                fetch(`/api/translation/start/?book=${encodeURIComponent(book)}&chapter=${chapter}&lang=${lang}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'ok' && data.job_id) {
+                            console.log("Translation job started:", data.job_id);
+                            if (progressText) progressText.textContent = 'Translation job started. Processing...';
+                            
+                            // Poll for job status
+                            pollJobStatus(data.job_id, book, chapter, lang, progressText);
+                        } else {
+                            console.error('Failed to start translation job:', data.message);
+                            if (progressText) {
+                                progressText.innerHTML = '<span style="color: #d32f2f;">⚠️ Failed to start translation</span><br><span style="font-size: 11px; color: #666;">' + (data.message || 'Unknown error') + '</span>';
+                            }
+                            setTimeout(() => {
+                                if (typeof hideTranslationLoading === 'function') hideTranslationLoading();
+                            }, 5000);
+                        }
+                    })
+                    .catch(err => {
+                        console.error('API Error:', err);
+                        if (progressText) {
+                            progressText.innerHTML = '<span style="color: #d32f2f;">⚠️ Connection failed</span><br><span style="font-size: 11px; color: #666;">Unable to connect to translation service.</span>';
+                        }
+                        setTimeout(() => {
+                            if (typeof hideTranslationLoading === 'function') hideTranslationLoading();
+                        }, 5000);
+                    });
+            }, 100);
+        }
+    });
+    
+    // Poll for translation job status
+    function pollJobStatus(jobId, book, chapter, lang, progressText) {
+        const pollInterval = 2000; // Poll every 2 seconds
+        const maxPolls = 300; // Max 10 minutes (300 * 2 seconds)
+        let pollCount = 0;
+        
+        const poll = () => {
+            pollCount++;
+            
+            fetch(`/api/translation/status/?job_id=${jobId}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Job status:", data);
+                    
+                    if (data.status === 'completed') {
+                        // Job completed successfully
+                        const verses = data.translated_verses || 0;
+                        const footnotes = data.translated_footnotes || 0;
+                        if (progressText) {
+                            progressText.textContent = `Translated ${verses} verses and ${footnotes} footnotes. Clearing cache...`;
+                        }
+                        
+                        // Clear cache and reload
+                        fetch(`/api/translation/clear-cache/?book=${encodeURIComponent(book)}&chapter=${chapter}&lang=${lang}`)
+                            .then(() => {
+                                if (progressText) progressText.textContent = 'Reloading page...';
+                                setTimeout(() => {
+                                    const url = new URL(window.location.href);
+                                    url.searchParams.set('_t', Date.now());
+                                    window.location.href = url.toString();
+                                }, 500);
+                            });
+                            
+                    } else if (data.status === 'failed') {
+                        // Job failed
+                        console.error('Translation job failed:', data.error);
+                        if (progressText) {
+                            let errorMsg = data.error || 'Unknown error';
+                            if (errorMsg.includes('quota') || errorMsg.includes('429')) {
+                                progressText.innerHTML = '<span style="color: #d32f2f;">⚠️ Translation quota exhausted</span><br><span style="font-size: 11px; color: #666;">API limits reached. Please try again later.</span>';
+                            } else {
+                                progressText.innerHTML = '<span style="color: #d32f2f;">⚠️ Translation failed</span><br><span style="font-size: 11px; color: #666;">' + errorMsg + '</span>';
+                            }
+                        }
+                        setTimeout(() => {
+                            if (typeof hideTranslationLoading === 'function') hideTranslationLoading();
+                        }, 5000);
+                        
+                    } else if (data.status === 'processing' || data.status === 'pending') {
+                        // Still processing - update progress and poll again
+                        const progress = data.progress || 0;
+                        const verses = data.translated_verses || 0;
+                        const totalVerses = data.total_verses || 0;
+                        const footnotes = data.translated_footnotes || 0;
+                        const totalFootnotes = data.total_footnotes || 0;
+                        
+                        if (progressText) {
+                            if (data.status === 'pending' && data.queue_position) {
+                                // Show queue position
+                                let queueMsg = `Position in queue: #${data.queue_position}`;
+                                if (data.current_job) {
+                                    queueMsg += `<br><span style="font-size: 11px; color: #666;">Currently processing: ${data.current_job.book} ${data.current_job.chapter} (${data.current_job.progress}%)</span>`;
+                                }
+                                progressText.innerHTML = queueMsg;
+                            } else if (totalVerses > 0 || totalFootnotes > 0) {
+                                progressText.textContent = `Translating ${data.book || ''} ${data.chapter || ''}... ${progress}% (${verses}/${totalVerses} verses, ${footnotes}/${totalFootnotes} footnotes)`;
+                            } else {
+                                progressText.textContent = data.status === 'pending' ? 'Starting translation...' : 'Processing translation...';
+                            }
+                        }
+                        
+                        if (pollCount < maxPolls) {
+                            setTimeout(poll, pollInterval);
+                        } else {
+                            // Timeout
+                            if (progressText) {
+                                progressText.innerHTML = '<span style="color: #d32f2f;">⚠️ Translation timeout</span><br><span style="font-size: 11px; color: #666;">Translation is taking too long. It will continue in the background.</span>';
+                            }
+                            setTimeout(() => {
+                                if (typeof hideTranslationLoading === 'function') hideTranslationLoading();
+                            }, 5000);
+                        }
+                        
+                    } else {
+                        // Unknown status
+                        console.warn('Unknown job status:', data.status);
+                        if (pollCount < maxPolls) {
+                            setTimeout(poll, pollInterval);
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error('Poll error:', err);
+                    // Retry a few times on network errors
+                    if (pollCount < maxPolls) {
+                        setTimeout(poll, pollInterval * 2);
+                    }
+                });
+        };
+        
+        // Start polling
+        poll();
+    }
+{% endif %}
+</script>
+{% endif %}
 
 {% endblock %}

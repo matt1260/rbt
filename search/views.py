@@ -1,7 +1,7 @@
 from attrs import field
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
-from search.models import Genesis, GenesisFootnotes, EngLXX, LITV, TranslationUpdates
+from search.models import Genesis, GenesisFootnotes, EngLXX, LITV, TranslationUpdates, VerseTranslation
 from django.db.models import Q, Max, Min
 from django.http import JsonResponse
 from django.core.cache import cache
@@ -12,6 +12,8 @@ import pythonbible as bible
 from pythonbible.errors import InvalidChapterError
 import requests
 from translate.translator import *
+from search.rbt_titles import rbt_books
+from search.translation_utils import SUPPORTED_LANGUAGES, translate_chapter_batch, translate_footnotes_batch
 from dateutil.relativedelta import relativedelta
 from calendar import month_name
 import calendar
@@ -34,6 +36,9 @@ from django.utils import timezone
 from datetime import datetime, timedelta, timezone as dt_timezone
 from .db_utils import get_db_connection, execute_query, table_has_column
 import os
+
+# Import storehouse_view from modular views
+from search.views.storehouse_views import storehouse_view
 
 INTERLINEAR_CACHE_VERSION = 'v2'
 
@@ -321,9 +326,19 @@ def collect_chapter_notes(html_chunks, book, chapter_num=None, verse_num=None):
     return collected
 
 
-def build_notes_html(html_chunks, book, chapter_num=None, verse_num=None):
-    """Format aggregated chapter notes into a table suitable for rendering."""
-    rows = collect_chapter_notes(html_chunks, book, chapter_num, verse_num)
+def build_notes_html(html_chunks, book, chapter_num=None, verse_num=None, translated_footnotes=None):
+    """Format aggregated chapter notes into a table suitable for rendering.
+    
+    Args:
+        html_chunks: List of HTML strings to extract footnote references from
+        book: Book name
+        chapter_num: Chapter number (optional)
+        verse_num: Verse number (optional)
+        translated_footnotes: Dict of {full_footnote_id: translated_content} for translations
+    """
+    rows = collect_chapter_notes_with_translations(
+        html_chunks, book, chapter_num, verse_num, translated_footnotes
+    )
     if not rows:
         return ''
 
@@ -331,8 +346,48 @@ def build_notes_html(html_chunks, book, chapter_num=None, verse_num=None):
     return f'<table class="notes-table"><tbody>{merged}</tbody></table>'
 
 
+def collect_chapter_notes_with_translations(html_chunks, book, chapter_num=None, verse_num=None, translated_footnotes=None):
+    """Extract unique footnote rows, using translated content when available."""
+    if not html_chunks:
+        return []
+
+    collected: list[str] = []
+    seen: set[str] = set()
+    translated_footnotes = translated_footnotes or {}
+
+    for chunk in html_chunks:
+        if not chunk:
+            continue
+
+        matches = FOOTNOTE_LINK_PATTERN.findall(str(chunk))
+        for footnote_id in matches:
+            if footnote_id in seen:
+                continue
+
+            seen.add(footnote_id)
+            
+            # Check if we have a translated version
+            full_footnote_id = f"{book}-{footnote_id}"
+            if full_footnote_id in translated_footnotes:
+                # Translated footnotes already contain the full <tr>...</tr> row structure
+                # Just use them directly
+                footnote_row = translated_footnotes[full_footnote_id]
+            else:
+                # Fall back to original English footnote
+                try:
+                    footnote_row = get_footnote(footnote_id, book, chapter_num, verse_num)
+                except Exception as exc:
+                    print(f"[WARN] Unable to collect footnote {footnote_id}: {exc}", flush=True)
+                    footnote_row = ''
+
+            if footnote_row:
+                collected.append(footnote_row)
+
+    return collected
+
+
 # RBT DATABASE (uses django database for Genesis.
-def get_results(book, chapter_num, verse_num=None):
+def get_results(book, chapter_num, verse_num=None, language='en'):
     rbt_nt = None
     rbt_greek = None
     rbt_text = None
@@ -466,7 +521,7 @@ def get_results(book, chapter_num, verse_num=None):
 
     # Sets/Retrieves cache only for verse, not whole chapter
     sanitized_book = book.replace(':', '_').replace(' ', '')
-    cache_key_base = f'{sanitized_book}_{chapter_num}_{verse_num}_{INTERLINEAR_CACHE_VERSION}'
+    cache_key_base = f'{sanitized_book}_{chapter_num}_{verse_num}_{language}_{INTERLINEAR_CACHE_VERSION}'
     cached_data = cache.get(cache_key_base)
 
     
@@ -1196,7 +1251,7 @@ def get_results(book, chapter_num, verse_num=None):
         cached_data['cached_hit'] = True
         return cached_data
 
-# /RBT/ root home
+# / root home
 def search(request):
     query = request.GET.get('q')  # keyword search form used
     ref_query = request.GET.get('ref')
@@ -1204,11 +1259,12 @@ def search(request):
     book = request.GET.get('book')
     verse_num = request.GET.get('verse')
     footnote_id = request.GET.get('footnote')
+    language = request.GET.get('lang', 'en')  # Get language parameter, default to English
     
     error = None
     reference = None
+    
     # REFERENCE SEARCH
-
     if ref_query:
 
         try:
@@ -1499,7 +1555,7 @@ def search(request):
 
         try:
             
-            results = get_results(book, chapter_num, verse_num)
+            results = get_results(book, chapter_num, verse_num, language)
             
             if not results['rbt_greek']:
                 if not results['hebrew']:
@@ -1576,7 +1632,7 @@ def search(request):
         try:
 
             source_book = book
-            results = get_results(book, chapter_num)
+            results = get_results(book, chapter_num, None, language)
             
             hebrew_literal = ""
             nt_literal = ""
@@ -1589,78 +1645,183 @@ def search(request):
                 cached_hit = results['cached_hit']
                 chapter_list = results['chapter_list']
                 notes_sources: list[str] = []
+                
+                # Handle translations for non-English languages
+                translation_quota_exceeded = False
+                verses_to_translate = {}
+                footnotes_to_translate = {}
+                book_name_translation = None
+                footnotes_collection = {}
+                
+                if language != 'en':
+                    # Check which verses need translation
+                    existing_translations = VerseTranslation.objects.filter(
+                        book=book,
+                        chapter=chapter_num,
+                        language_code=language,
+                        status__in=['completed', 'processing'],
+                        footnote_id__isnull=True
+                    ).values_list('verse', flat=True)
+                    
+                    for result in rbt:
+                        if int(result.verse) not in existing_translations:
+                            verses_to_translate[int(result.verse)] = True
+                    
+                    # Check if book name needs translation
+                    book_name_translation = VerseTranslation.objects.filter(
+                        book=book,
+                        chapter=0,
+                        verse=0,
+                        language_code=language,
+                        status__in=['completed', 'processing'],
+                        footnote_id__isnull=True
+                    ).first()
+                    
+                    if not book_name_translation:
+                        verses_to_translate[0] = True
+                    
+                    # Get existing translations
+                    translated_verses = {}
+                    translations_qs = VerseTranslation.objects.filter(
+                        book=book,
+                        chapter=chapter_num,
+                        language_code=language,
+                        status='completed',
+                        footnote_id__isnull=True
+                    )
+                    for trans in translations_qs:
+                        if trans.verse_text:
+                            translated_verses[trans.verse] = trans.verse_text
 
                 for result in rbt:
+                    # verse_html = Hebrew Literal (DO NOT translate - always English)
+                    # verse_reader = Paraphrase (translate this)
+                    verse_html = result.html  # Always use original English Hebrew Literal
+                    verse_reader = result.rbt_reader
+                    
+                    if language != 'en' and int(result.verse) in translated_verses:
+                        # Apply translation ONLY to paraphrase (verse_reader), NOT to Hebrew Literal (verse_html)
+                        verse_reader = translated_verses[int(result.verse)]
+                    
+                    # Extract footnotes for translation from both HTML and reader
+                    if verse_html:
+                        sup_texts = re.findall(r'\?footnote=([^"&\s]+)', verse_html)
+                        for sup_text in sup_texts:
+                            if sup_text not in footnotes_collection:
+                                footnote_html = get_footnote(sup_text, book)
+                                if footnote_html:
+                                    footnotes_collection[sup_text] = {
+                                        'verse': result.verse,
+                                        'content': footnote_html,
+                                        'id': sup_text
+                                    }
 
-                    if '</p><p>' in result.html:
-                        # Split html into two parts using '</p><p>' as separator
-                        # and add result.verse in between
-                        parts = result.html.split('</p><p>')
+                    if '</p><p>' in verse_html:
+                        parts = verse_html.split('</p><p>')
                         hebrew_literal += f'{parts[0]}</p><p><span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{parts[1]}'
-                    elif result.html.startswith('<p>'):
-                        # If HTML starts with '<p>', replace it with the verse_ref link
-                        hebrew_literal += f'<p><span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{result.html[3:]}'  # Remove the first '<p>'
+                    elif verse_html.startswith('<p>'):
+                        hebrew_literal += f'<p><span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{verse_html[3:]}'
                     else:
-                        hebrew_literal += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{result.html}'
+                        hebrew_literal += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{verse_html}'
 
-                    if result.rbt_reader.endswith('</span>'):
+                    if verse_reader.endswith('</span>'):
                         close_text = ''
                     else:
                         close_text = '<br>'
 
-
-                    if '<h5>' in result.rbt_reader:
-                        parts = result.rbt_reader.split('</h5>')
-
-                        # Check if the list has at least two elements
+                    if '<h5>' in verse_reader:
+                        parts = verse_reader.split('</h5>')
                         if len(parts) >= 2:
                             heading = parts[0] + '</h5>'
                             paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{parts[1]}{close_text}'
                         else:
-                            paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{result.rbt_reader}{close_text}'
-
-                    elif result.rbt_reader == '':
+                            paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
+                    elif verse_reader == '':
                         paraphrase += ''
                     else:
-                        paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{result.rbt_reader}{close_text}'
+                        paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
 
                     if result.html:
                         notes_sources.append(result.html)
                     if result.rbt_reader:
                         notes_sources.append(result.rbt_reader)
 
-                # Fetch commentary for a specific book and chapter
-                # commentary_row = execute_query(
-                #     "SELECT html FROM ai_commentary WHERE book = %s AND chapter = %s;",
-                #     ('Gen', chapter_num),
-                #     fetch='one'
-                # )
+                # Handle footnote translations
+                translated_footnotes = {}
+                if language != 'en':
+                    # Get translated footnotes from database
+                    for trans in VerseTranslation.objects.filter(
+                        book=book,
+                        chapter=chapter_num,
+                        language_code=language,
+                        status='completed'
+                    ).exclude(footnote_text__isnull=True).exclude(footnote_text=''):
+                        if trans.footnote_id:
+                            translated_footnotes[trans.footnote_id] = trans.footnote_text
+                    
+                    if footnotes_collection:
+                        existing_footnote_ids = set(translated_footnotes.keys())
+                        
+                        for footnote_key, footnote_data in footnotes_collection.items():
+                            full_footnote_id = f"{book}-{footnote_key}"
+                            if full_footnote_id not in existing_footnote_ids:
+                                footnotes_to_translate[footnote_key] = True
+                        
+                        for footnote_id, footnote_data in footnotes_collection.items():
+                            full_id = f"{book}-{footnote_id}"
+                            if full_id in translated_footnotes:
+                                footnote_data['content'] = translated_footnotes[full_id]
 
                 commentary = None
-                
-                # if commentary is not None:
-                #     commentary = commentary[0]
 
+                # Store original book name
+                original_book = book
 
                 chapters = ""
                 for number in chapter_list:
-                    chapters += f'<a href="?book={book}&chapter={number}" style="text-decoration: none;">{number}</a> |'
+                    chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" style="text-decoration: none;">{number}</a> |'
 
-                notes_html = build_notes_html(notes_sources, source_book, chapter_num)
+                # Build notes_html with translated footnotes when available
+                notes_html = build_notes_html(notes_sources, source_book, chapter_num, translated_footnotes=translated_footnotes)
 
-                book = rbt_books.get(book, book)
+                # Transform book name for display
+                display_book = rbt_books.get(book, book)
+                
+                # Apply translated book name if available
+                if language != 'en' and book_name_translation and book_name_translation.verse_text:
+                    display_book = book_name_translation.verse_text
 
-                page_title = f'{book} {chapter_num}'
-                context = {'chapters': chapters, 
-                        'html': hebrew_literal, 
-                        'paraphrase': paraphrase,
-                        'commentary': commentary,
-                        'book': book, 
-                        'chapter_num': chapter_num, 
-                        'chapter_list': chapter_list,
+                page_title = f'{display_book} {chapter_num}'
+                
+                # Determine if translation is needed
+                needs_translation = False
+                if language != 'en':
+                    print(f"[SEARCH VIEW DEBUG Genesis] Checking translation needs for {book} ch{chapter_num} lang={language}")
+                    print(f"[SEARCH VIEW DEBUG Genesis] verses_to_translate count: {len(verses_to_translate)}")
+                    print(f"[SEARCH VIEW DEBUG Genesis] footnotes_to_translate count: {len(footnotes_to_translate)}")
+                    if verses_to_translate or footnotes_to_translate:
+                        needs_translation = True
+                        print(f"[SEARCH VIEW DEBUG Genesis] Setting needs_translation=True")
+                    else:
+                        print(f"[SEARCH VIEW DEBUG Genesis] All translations exist, needs_translation=False")
+                
+                context = {
+                    'chapters': chapters, 
+                    'html': hebrew_literal, 
+                    'paraphrase': paraphrase,
+                    'commentary': commentary,
+                    'book': display_book,
+                    'original_book': original_book,
+                    'chapter_num': chapter_num, 
+                    'chapter_list': chapter_list,
+                    'footnotes': footnotes_collection,
                     'cache_hit': cached_hit,
                     'notes_html': notes_html,
-                        }
+                    'supported_languages': SUPPORTED_LANGUAGES,
+                    'current_language': language,
+                    'translation_quota_exceeded': translation_quota_exceeded,
+                    'needs_translation': needs_translation,
+                }
                 return render(request, 'chapter.html', {'page_title': page_title, **context})
 
 
@@ -1672,33 +1833,115 @@ def search(request):
                 cached_hit = results['cached_hit']
                 commentary = results['commentary']
                 
+                print(f"[RENDER DEBUG] Book: '{book}', Has chapter_rows: {len(chapter_rows) if chapter_rows else 0}")
+                print(f"[RENDER DEBUG] Is NT book: {book in new_testament_books}")
+                print(f"[RENDER DEBUG] Is OT book: {book in old_testament_books}")
+                
                 if commentary is not None:
                     commentary = commentary[0]
 
                 if book in new_testament_books:
 
+                    # Handle translations for non-English languages
+                    translation_quota_exceeded = False
+                    verses_to_translate = {}
+                    footnotes_to_translate = {}
+                    
+                    if language != 'en':
+                        # Check which verses need translation (completed OR processing)
+                        existing_translations = VerseTranslation.objects.filter(
+                            book=book,
+                            chapter=chapter_num,
+                            language_code=language,
+                            status__in=['completed', 'processing'],
+                            footnote_id__isnull=True
+                        ).values_list('verse', flat=True)
+                        
+                        verses_to_translate = {}
+                        for row in chapter_rows:
+                            bk, ch_num, vrs, html_verse = row
+                            if int(vrs) not in existing_translations:
+                                verses_to_translate[int(vrs)] = True
+                        
+                        # Check if book name needs translation (stored with verse=0)
+                        book_name_translation = VerseTranslation.objects.filter(
+                            book=book,
+                            chapter=0,
+                            verse=0,
+                            language_code=language,
+                            status__in=['completed', 'processing'],
+                            footnote_id__isnull=True
+                        ).first()
+                        
+                        if not book_name_translation:
+                            verses_to_translate[0] = True  # Indicate book name needs translation
+
+                        # Collect all translated verses (existing only, new ones fetched via API)
+                        translated_verses = {}
+                        # Only fetch verse translations (where footnote_id is None) meaning it is the verse text
+                        # We must use proper filtering to assume new API handles creation
+                        
+                        translations_qs = VerseTranslation.objects.filter(
+                            book=book,
+                            chapter=chapter_num,
+                            language_code=language,
+                            status='completed',
+                            footnote_id__isnull=True
+                        )
+                        for trans in translations_qs:
+                            if trans.verse_text:
+                                translated_verses[trans.verse] = trans.verse_text
+                        
+                        # Apply translations to chapter_rows
+                        # Since translations now contain complete HTML, simply replace the entire verse
+                        updated_rows = []
+                        for row in chapter_rows:
+                            bk, ch_num, vrs, html_verse = row
+                            if int(vrs) in translated_verses:
+                                # Complete replacement - translated HTML includes headers, spans, everything
+                                html_verse = translated_verses[int(vrs)]
+                            updated_rows.append((bk, ch_num, vrs, html_verse))
+                        chapter_rows = updated_rows
+
                     footnotes_collection = {}
                     def query_footnote(book, sup_text):
+                        # Use book abbreviation for table name lookup
+                        book_abbrev = book_abbreviations.get(book, book)
                         footnote_id = f"{book}-{sup_text}"
 
-                        # Determine table name
-                        if book[0].isdigit():
-                            table_name = f"table_{book.lower()}_footnotes"
+                        # Determine schema based on book classification
+                        # book here is likely an abbreviation from the DB (e.g., 'Psa')
+                        # We need to check the full book name against the lists
+                        schema = 'new_testament' if book in new_testament_books else 'old_testament'
+                        
+                        print(f"[QUERY_FOOTNOTE DEBUG] book='{book}', abbrev='{book_abbrev}', sup_text='{sup_text}', schema={schema}")
+
+                        # Determine table name using abbreviation
+                        # Books starting with numbers have 'table_' prefix (NT only)
+                        abbrev_lower = book_abbrev.lower() # type: ignore
+                        if schema == 'new_testament' and abbrev_lower[0].isdigit():
+                            table_name = f"table_{abbrev_lower}_footnotes"
                         else:
-                            table_name = f"{book.lower()}_footnotes"
+                            table_name = f"{abbrev_lower}_footnotes"
 
-                        # Set schema for NT footnotes
-                        execute_query("SET search_path TO new_testament;")
+                        # Set schema
+                        execute_query(f"SET search_path TO {schema};")
 
+                        # Footnote IDs in DB use abbreviation format (e.g., '1Jo-1')
+                        db_footnote_id = f"{book_abbrev}-{sup_text}"
+                        
                         # Query the footnote
-                        result = execute_query(
-                            f"SELECT footnote_html FROM new_testament.{table_name} WHERE footnote_id = %s",
-                            (footnote_id,),
-                            fetch='one'
-                        )
-
-                        # Return footnote text or None
-                        return result[0] if result else None
+                        try:
+                            result = execute_query(
+                                f"SELECT footnote_html FROM {schema}.{table_name} WHERE footnote_id = %s",
+                                (db_footnote_id,),
+                                fetch='one'
+                            )
+                            # Return footnote text or None
+                            return result[0] if result else None
+                        except Exception as e:
+                            print(f"[FOOTNOTE QUERY ERROR] Schema: {schema}, Table: {table_name}, ID: {db_footnote_id}, Error: {e}")
+                            return None
 
                     for row in chapter_rows:
                         bk, chapter_num, vrs, html_verse = row
@@ -1735,92 +1978,307 @@ def search(request):
                             else:
                                 html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a></b></span> {html_verse}'
                                 paraphrase += html_verse + close_text
-                                
+                    
+                    # Handle footnote translations for non-English languages
+                    if language != 'en' and footnotes_collection:
+                        # Check which footnotes need translation
+                        # DB stores footnote_id as 'Book-X' format (e.g., 'John-1', 'John-1a')
+                        existing_footnote_ids = set()
+                        for trans in VerseTranslation.objects.filter(
+                            book=book,
+                            chapter=chapter_num,
+                            language_code=language,
+                            status='completed'
+                        ).exclude(footnote_text__isnull=True).exclude(footnote_text=''):
+                            if trans.footnote_id:
+                                existing_footnote_ids.add(trans.footnote_id)
+                        
+                        footnotes_to_translate = {}
+                        for footnote_key, footnote_data in footnotes_collection.items():
+                            # footnote_key is the sup_text (e.g. '1', '1a')
+                            # DB stores full ID as 'Book-X' (e.g. 'John-1')
+                            full_footnote_id = f"{book}-{footnote_key}"
+                            if full_footnote_id not in existing_footnote_ids:
+                                footnotes_to_translate[footnote_key] = True
+
+                        # Blocking translation REMOVED here
+                        # Logic moved to translate_chapter_api
+                        
+                        # Apply translated footnotes (existing ones only)
+                        translated_footnotes = {}
+                        for trans in VerseTranslation.objects.filter(
+                            book=book,
+                            chapter=chapter_num,
+                            language_code=language,
+                            status='completed'
+                        ).exclude(footnote_text__isnull=True).exclude(footnote_text=''):
+                            if trans.footnote_id:
+                                translated_footnotes[trans.footnote_id] = trans.footnote_text
+                        
+                        for footnote_id, footnote_data in footnotes_collection.items():
+                            # footnote_id in collection is the short key (e.g. '1', '1a')
+                            # stored footnote_id is full key (e.g. 'John-1-1-1')
+                            # Check if the collected footnote ID is just the suffix or full?
+                            # In collection: 'id': sup_text.
+                            # So we construct full ID for lookup.
+                            full_id = f"{book}-{footnote_id}"
+                            
+                            if full_id in translated_footnotes:
+                                footnote_data['content'] = translated_footnotes[full_id]
                                 
 
+                    # Store original book name BEFORE transformation for API calls
+                    original_book = book
+                    
                     chapters = ''
                     for number in chapter_list:
-                        chapters += f'<a href="?book={book}&chapter={number}" style="text-decoration: none;">{number}</a> |'
+                        chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" style="text-decoration: none;">{number}</a> |'
 
-                    # add space
-                    book =  re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
-                    book = rbt_books.get(book, book)
-                    page_title = f'{book} {chapter_num}'
+                    # Transform book name for display only
+                    display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
+                    display_book = rbt_books.get(display_book, display_book)
+                    
+                    # Apply translated book name if available
+                    if language != 'en' and book_name_translation and book_name_translation.verse_text:
+                        display_book = book_name_translation.verse_text
+                    page_title = f'{display_book} {chapter_num}'
+                    
+                    needs_translation = False
+                    if language != 'en':
+                        # DEBUG PRINT
+                        print(f"[SEARCH VIEW DEBUG] Checking translation needs for {book} ch{chapter_num} lang={language}")
+                        print(f"[SEARCH VIEW DEBUG] verses_to_translate count: {len(verses_to_translate)}")
+                        print(f"[SEARCH VIEW DEBUG] footnotes_to_translate count: {len(footnotes_to_translate)}")
+                        if verses_to_translate:
+                            print(f"[SEARCH VIEW DEBUG] Missing verse numbers: {list(verses_to_translate.keys())[:10]}")
+                        if footnotes_to_translate:
+                            print(f"[SEARCH VIEW DEBUG] Missing footnote keys: {list(footnotes_to_translate.keys())[:10]}")
+                        if verses_to_translate or footnotes_to_translate:
+                            needs_translation = True
+                            print(f"[SEARCH VIEW DEBUG] Setting needs_translation=True")
+                        else:
+                            print(f"[SEARCH VIEW DEBUG] All translations exist, needs_translation=False")
+                            
                     context = {
                         'cache_hit': cached_hit, 
                         'chapters': chapters, 
                         'html': nt_literal, 
                         'paraphrase': paraphrase, 
-                        'book': book, 
+                        'book': display_book,
+                        'original_book': original_book,  # Keep original for API calls
                         'chapter_num': chapter_num, 
                         'chapter_list': chapter_list,
-                        'footnotes': footnotes_collection
+                        'footnotes': footnotes_collection,
+                        'current_language': language,
+                        'supported_languages': SUPPORTED_LANGUAGES,
+                        'translation_quota_exceeded': translation_quota_exceeded,
+                        'needs_translation': needs_translation
                     }
                     
                     return render(request, 'nt_chapter.html', {'page_title': page_title, **context})
 
-                # Rest of Hebrew books
+                # Rest of Hebrew books (Old Testament except Genesis)
                 else:
-                    # First, collect and sort chapter_rows by verse number
-                    verse_data = []
-                    for row in chapter_rows:
-                        vrs = row[0].split('.')[2].split('-')[0]
-                        html_verse = row[1]
-                        # Convert verse number to integer for proper sorting
-                        verse_num = int(vrs) if vrs.isdigit() else float('inf')
-                        verse_data.append((verse_num, vrs, html_verse))
+                    # Handle translations for non-English languages
+                    translation_quota_exceeded = False
+                    verses_to_translate = {}
+                    footnotes_to_translate = {}
+                    book_name_translation = None
+                    translated_footnotes = {}  # Initialize here for use later
                     
-                    # Sort by numeric verse number
-                    verse_data.sort(key=lambda x: x[0])
+                    # Build verse_data from html_rows (already grouped by verse) - NOT chapter_rows (word-level)
+                    # html_rows is a dict: {'01': (eng_literal, html_paraphrase), '02': ...}
+                    sorted_verse_keys = sorted(html_rows.keys(), key=lambda x: int(x) if x.isdigit() else float('inf'))
                     
-                    # Process sorted verses
+                    if language != 'en':
+                        # Check which verses need translation (completed OR processing)
+                        existing_translations = VerseTranslation.objects.filter(
+                            book=book,
+                            chapter=chapter_num,
+                            language_code=language,
+                            status__in=['completed', 'processing'],
+                            footnote_id__isnull=True
+                        ).values_list('verse', flat=True)
+                        
+                        # Build verse_data from html_rows (one entry per verse)
+                        verse_data = []
+                        for vrs_key in sorted_verse_keys:
+                            eng_literal, html_paraphrase = html_rows[vrs_key]
+                            verse_num_int = int(vrs_key) if vrs_key.isdigit() else float('inf')
+                            verse_data.append((verse_num_int, vrs_key, html_paraphrase))
+                        
+                        # Check which verses need translation
+                        for verse_num_int, vrs, html_verse in verse_data:
+                            if verse_num_int not in existing_translations:
+                                verses_to_translate[verse_num_int] = True
+                        
+                        # Check if book name needs translation (stored with verse=0)
+                        book_name_translation = VerseTranslation.objects.filter(
+                            book=book,
+                            chapter=0,
+                            verse=0,
+                            language_code=language,
+                            status__in=['completed', 'processing'],
+                            footnote_id__isnull=True
+                        ).first()
+                        
+                        if not book_name_translation:
+                            verses_to_translate[0] = True  # Indicate book name needs translation
+                        
+                        # Get existing translations
+                        translated_verses = {}
+                        translations_qs = VerseTranslation.objects.filter(
+                            book=book,
+                            chapter=chapter_num,
+                            language_code=language,
+                            status='completed',
+                            footnote_id__isnull=True
+                        )
+                        for trans in translations_qs:
+                            if trans.verse_text:
+                                translated_verses[trans.verse] = trans.verse_text
+                        
+                        # Apply translations to verses
+                        updated_verse_data = []
+                        for verse_num_int, vrs, html_verse in verse_data:
+                            if verse_num_int in translated_verses:
+                                html_verse = translated_verses[verse_num_int]
+                            updated_verse_data.append((verse_num_int, vrs, html_verse))
+                        verse_data = updated_verse_data
+                    else:
+                        # For English, build verse_data from html_rows (one entry per verse)
+                        verse_data = []
+                        for vrs_key in sorted_verse_keys:
+                            eng_literal, html_paraphrase = html_rows[vrs_key]
+                            verse_num_int = int(vrs_key) if vrs_key.isdigit() else float('inf')
+                            verse_data.append((verse_num_int, vrs_key, html_paraphrase))
+                    
+                    # Collect footnotes from verse HTML for translation
+                    footnotes_collection = {}
+                    
+                    # Process sorted verses (one entry per verse now)
                     for verse_num, vrs, html_verse in verse_data:
+                        # Strip leading zeros for display and links
+                        display_vrs = vrs.lstrip('0') or '0'
                         if html_verse:
+                            # Extract footnote references from verse HTML
+                            sup_texts = re.findall(r'\?footnote=([^"&\s]+)', html_verse)
+                            for sup_text in sup_texts:
+                                if sup_text not in footnotes_collection:
+                                    # Get footnote content from OT footnotes
+                                    footnote_html = get_footnote(sup_text, source_book)
+                                    if footnote_html:
+                                        footnotes_collection[sup_text] = {
+                                            'verse': display_vrs,
+                                            'content': footnote_html,
+                                            'id': sup_text
+                                        }
+                            
                             close_text = '' if html_verse.endswith('</span>') else '<br>'
                             if '<h5>' in html_verse:
                                 parts = html_verse.split('</h5>')
                                 if len(parts) >= 2:
                                     heading = parts[0] + '</h5>'
-                                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a> </b></span>{parts[1]}{close_text}'
+                                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={display_vrs}">{display_vrs}</a> </b></span>{parts[1]}{close_text}'
                                 else:
-                                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a> </b></span>{html_verse}{close_text}'
+                                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={display_vrs}">{display_vrs}</a> </b></span>{html_verse}{close_text}'
                             else:
-                                html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a></b></span> {html_verse}'
+                                html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={display_vrs}">{display_vrs}</a></b></span> {html_verse}'
                                 paraphrase += html_verse + close_text
 
+                    # Handle footnote translations for non-English languages
+                    if language != 'en' and footnotes_collection:
+                        existing_footnote_ids = set()
+                        for trans in VerseTranslation.objects.filter(
+                            book=book,
+                            chapter=chapter_num,
+                            language_code=language,
+                            status='completed'
+                        ).exclude(footnote_text__isnull=True).exclude(footnote_text=''):
+                            if trans.footnote_id:
+                                existing_footnote_ids.add(trans.footnote_id)
+                        
+                        for footnote_key, footnote_data in footnotes_collection.items():
+                            full_footnote_id = f"{book}-{footnote_key}"
+                            if full_footnote_id not in existing_footnote_ids:
+                                footnotes_to_translate[footnote_key] = True
+                        
+                        # Apply translated footnotes
+                        translated_footnotes = {}
+                        for trans in VerseTranslation.objects.filter(
+                            book=book,
+                            chapter=chapter_num,
+                            language_code=language,
+                            status='completed'
+                        ).exclude(footnote_text__isnull=True).exclude(footnote_text=''):
+                            if trans.footnote_id:
+                                translated_footnotes[trans.footnote_id] = trans.footnote_text
+                        
+                        for footnote_id, footnote_data in footnotes_collection.items():
+                            full_id = f"{book}-{footnote_id}"
+                            if full_id in translated_footnotes:
+                                footnote_data['content'] = translated_footnotes[full_id]
+
                     # Compile the Hebrew Literal
-                    # Sort html_rows keys numerically instead of as strings
                     sorted_keys = sorted(html_rows.keys(), key=lambda x: int(x) if x.isdigit() else float('inf'))
 
                     for key in sorted_keys:
                         english_literal = html_rows[key][0]
                         words_str = english_literal if english_literal is not None else ''
 
-                        display_key = key.lstrip('0') or '0'  # Handle case where key is all zeros
+                        display_key = key.lstrip('0') or '0'
                         hebrew_literal += (
                             f'<span class="verse_ref" style="display: none;">'
                             f'<b><a href="?book={book}&chapter={chapter_num}&verse={display_key}">{display_key}</a> </b></span>'
                             f'{words_str}<br>'
                         )
+                    
+                    # Store original book name BEFORE transformation
+                    original_book = book
+                    
                     chapters = ''
                     for number in chapter_list:
-                        chapters += f'<a href="?book={book}&chapter={number}" style="text-decoration: none;">{number}</a> |'
+                        chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" style="text-decoration: none;">{number}</a> |'
 
-                    # add space
-                    book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
-                    book = rbt_books.get(book, book)
-                    page_title = f'{book} {chapter_num}'
-                    notes_html = build_notes_html([paraphrase, hebrew_literal], source_book, chapter_num)
+                    # Transform book name for display
+                    display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
+                    display_book = rbt_books.get(display_book, display_book)
+                    
+                    # Apply translated book name if available
+                    if language != 'en' and book_name_translation and book_name_translation.verse_text:
+                        display_book = book_name_translation.verse_text
+                    
+                    page_title = f'{display_book} {chapter_num}'
+                    notes_html = build_notes_html([paraphrase, hebrew_literal], source_book, chapter_num, translated_footnotes=translated_footnotes)
+                    
+                    # Determine if translation is needed
+                    needs_translation = False
+                    if language != 'en':
+                        print(f"[SEARCH VIEW DEBUG OT] Checking translation needs for {book} ch{chapter_num} lang={language}")
+                        print(f"[SEARCH VIEW DEBUG OT] verses_to_translate count: {len(verses_to_translate)}")
+                        print(f"[SEARCH VIEW DEBUG OT] footnotes_to_translate count: {len(footnotes_to_translate)}")
+                        if verses_to_translate or footnotes_to_translate:
+                            needs_translation = True
+                            print(f"[SEARCH VIEW DEBUG OT] Setting needs_translation=True")
+                        else:
+                            print(f"[SEARCH VIEW DEBUG OT] All translations exist, needs_translation=False")
                     
                     context = {
                         'chapters': chapters, 
                         'html': hebrew_literal, 
                         'paraphrase': paraphrase, 
                         'commentary': commentary, 
-                        'book': book, 
+                        'book': display_book,
+                        'original_book': original_book,
                         'chapter_num': chapter_num, 
                         'chapter_list': chapter_list,
+                        'footnotes': footnotes_collection,
                         'notes_html': notes_html,
+                        'supported_languages': SUPPORTED_LANGUAGES,
+                        'current_language': language,
+                        'translation_quota_exceeded': translation_quota_exceeded,
+                        'needs_translation': needs_translation,
+                        'cache_hit': cached_hit,
                     }
                     
                     return render(request, 'chapter.html', {'page_title': page_title, **context})
@@ -1834,48 +2292,101 @@ def search(request):
     elif footnote_id:
         
         if book:
-            chapter_ref, verse_ref, footnote_ref = footnote_id.split('-')
-            
-            # Split the footnote_id by '-' and get the last slice
+            # footnote_id format: abbrev-chapter-verse-footnote (e.g., Psa-150-2-02)
             footnote_parts = footnote_id.split('-')
-            footnote_ref = footnote_parts[-1]
-            chapter = footnote_parts[0]
-            verse = footnote_parts[1]
-            footnote_id = f'{book}-{footnote_ref}'
+            
+            # Handle different formats
+            if len(footnote_parts) == 4:
+                # Format: Psa-150-2-02 (abbrev-chapter-verse-footnote)
+                book_abbrev_from_url, chapter, verse, footnote_ref = footnote_parts
+            elif len(footnote_parts) == 3:
+                # Format: 150-2-02 (chapter-verse-footnote)
+                chapter, verse, footnote_ref = footnote_parts
+            else:
+                # Fallback
+                footnote_ref = footnote_parts[-1]
+                chapter = footnote_parts[0] if len(footnote_parts) > 1 else '1'
+                verse = footnote_parts[1] if len(footnote_parts) > 2 else '1'
+            
+            chapter_ref = chapter
+            verse_ref = verse
+            db_footnote_id = f'{book}-{footnote_ref}'
 
             if book in book_abbreviations:
                 book_abbrev = book_abbreviations[book]
-                
+                full_book_name = book  # Book is already full name
             else:
                 book_abbrev = book.lower()
-                abbrev_to_book = {abbrev: book for book, abbrev in book_abbreviations.items()}
-                full_book_name = abbrev_to_book.get(book)
+                abbrev_to_book = {abbrev: bk for bk, abbrev in book_abbreviations.items()}
+                full_book_name = abbrev_to_book.get(book, book)
 
             if book[0].isdigit():
                 table = f"table_{book_abbrev}_footnotes"
             else:
                 table = f"{book_abbrev}_footnotes"
 
-            # Fetch footnote_html from the dynamically determined table
-            data = execute_query(
-                f"SELECT footnote_html FROM new_testament.{table} WHERE footnote_id = %s",
-                (footnote_id,),
-                fetch='all'
-            )
+            # Check for translated footnote first if language is not English
+            footnote_html = None
+            if language and language != 'en':
+                try:
+                    # The stored format is: book-abbrev-chapter-verse-footnote (e.g., Psalms-Psa-150-2-02)
+                    # The URL footnote_id is: abbrev-chapter-verse-footnote (e.g., Psa-150-2-02)
+                    # So construct the full ID
+                    full_footnote_id = f'{book}-{footnote_id}'  # Psalms-Psa-150-2-02
+                    
+                    possible_ids = [
+                        full_footnote_id,  # Psalms-Psa-150-2-02
+                        f'{book}-{chapter}-{verse}-{footnote_ref}',  # Psalms-150-2-02
+                        f'{book}-{footnote_ref}',  # Psalms-02
+                        db_footnote_id,  # Psalms-02
+                    ]
+                    translation = VerseTranslation.objects.filter(
+                        book=book,
+                        language_code=language,
+                        footnote_id__in=possible_ids,
+                        status='completed'
+                    ).first()
+                    if translation and translation.footnote_text:
+                        footnote_html = translation.footnote_text
+                except Exception as e:
+                    print(f"Error checking footnote translation: {e}")
 
-            try:
-                footnote_html = data[0][0]
-            except IndexError:
-                footnote_html = "Footnote not found."
+            # Fall back to original if no translation found
+            if not footnote_html:
+                # Determine correct schema based on book classification
+                schema = 'new_testament' if book in new_testament_books else 'old_testament'
+                
+                # For OT books, the footnote ID format might be just the abbreviation + number
+                # e.g., for Psa-150-2-02, the DB stores it as Psa-02
+                if schema == 'old_testament':
+                    # Use just book abbreviation + footnote number
+                    db_query_id = f"{book_abbrev}-{footnote_ref}"
+                else:
+                    # NT uses full book name + footnote suffix
+                    db_query_id = db_footnote_id
+                
+                try:
+                    data = execute_query(
+                        f"SELECT footnote_html FROM {schema}.{table} WHERE footnote_id = %s",
+                        (db_query_id,),
+                        fetch='all'
+                    )
+                    footnote_html = data[0][0] if data and len(data) > 0 else None
+                except Exception as e:
+                    print(f"[FOOTNOTE JSON ERROR] Schema: {schema}, Table: {table}, ID: {db_query_id}, Error: {e}")
+                    footnote_html = None
+                
+                if not footnote_html:
+                    footnote_html = "Footnote not found."
 
             # Create an HTML table with two columns
-            table_html = f'<tr><td style="border-bottom: 1px solid #d2d2d2;"><a href="?footnote={chapter}-{verse}-{footnote_ref}&book={book}">{footnote_ref}</a></td><td style="border-bottom: 1px solid #d2d2d2;">{footnote_html}</td></tr>'
+            table_html = f'<tr><td style="border-bottom: 1px solid #d2d2d2;"><a href="?footnote={chapter}-{verse}-{footnote_ref}&book={book}&lang={language}">{footnote_ref}</a></td><td style="border-bottom: 1px solid #d2d2d2;">{footnote_html}</td></tr>'
 
             footnote_html = f'<table><tbody>{table_html}</tbody></table>'
             
             page_title = f'{full_book_name} {chapter}:{verse}'
             context = {'footnote_html': footnote_html,
-            'footnote': footnote_id,
+            'footnote': db_footnote_id,
             'book': full_book_name,
             'chapter_ref': chapter_ref, 
             'verse_ref': verse_ref, 
@@ -1953,134 +2464,8 @@ def search(request):
         context = {'error': error }
         return render(request, 'search_input.html', context)
     
-def storehouse_view(request):
-    """Public reader for Joseph and Aseneth."""
-    book_name = "He Adds and Storehouse"
-    chapter_param = request.GET.get('chapter')
-    try:
-        chapter_num = int(chapter_param)
-        if chapter_num < 1:
-            chapter_num = 1
-    except (TypeError, ValueError):
-        chapter_num = 1
-
-    cache_key = f'storehouse_{chapter_num}_{INTERLINEAR_CACHE_VERSION}'
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        context = {**cached_data, 'cache_hit': True}
-        return render(request, 'storehouse.html', context)
-
-    chapter_list = []
-    chapters_markup = ''
-    paraphrase = ''
-    greek_literal = ''
-    footnotes_collection = {}
-    verses = []
-    error_message = None
-
-    try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SET search_path TO joseph_aseneth")
-                cursor.execute(
-                    """
-                    SELECT DISTINCT chapter
-                    FROM aseneth
-                    ORDER BY chapter
-                    """
-                )
-                chapter_rows = cursor.fetchall()
-
-                raw_chapters = []
-                for (chapter_value,) in chapter_rows:
-                    if chapter_value is None:
-                        continue
-                    try:
-                        raw_chapters.append(int(chapter_value))
-                    except (TypeError, ValueError):
-                        continue
-
-                if not raw_chapters:
-                    raise ValueError("Joseph and Aseneth data is unavailable.")
-
-                chapter_list = sorted(set(raw_chapters))
-
-                if chapter_num not in chapter_list:
-                    chapter_num = chapter_list[0]
-
-                for number in chapter_list:
-                    chapters_markup += (
-                        f'<a href="?chapter={number}" style="text-decoration: none;">{number}</a> |'
-                    )
-
-                cursor.execute(
-                    """
-                    SELECT verse, english, greek
-                    FROM aseneth
-                    WHERE chapter = %s
-                    ORDER BY verse
-                    """,
-                    (chapter_num,)
-                )
-                rows = cursor.fetchall()
-    except Exception as exc:
-        error_message = str(exc)
-        rows = []
-
-    for verse_value, english_text, greek_text in rows:
-        verse_label = '' if verse_value is None else str(verse_value)
-        #verse_link = f'?chapter={chapter_num}&verse={verse_label}' if verse_label else f'?chapter={chapter_num}'
-        verse_ref = (
-            f'<span class="verse_ref" style="display: none;">'
-            f'<b>{verse_label or ""} </b></span>'
-        )
-
-        english_fragment = english_text or ''
-        close_text = '' if english_fragment.endswith('</span>') else '<br>'
-
-        if english_fragment:
-            if '<h5>' in english_fragment:
-                parts = english_fragment.split('</h5>')
-                if len(parts) >= 2:
-                    heading = parts[0] + '</h5>'
-                    paraphrase += f'{heading}{verse_ref}{parts[1]}{close_text}'
-                else:
-                    paraphrase += f'{verse_ref}{english_fragment}{close_text}'
-            else:
-                formatted_paraphrase = f'{verse_ref} {english_fragment}'
-                paraphrase += formatted_paraphrase + close_text
-
-        greek_fragment = greek_text or ''
-
-        greek_literal += f'<p>{verse_ref} {greek_fragment}</p>'
-  
-        anchor = re.sub(r'[^0-9a-zA-Z]+', '-', verse_label).strip('-').lower()
-        if not anchor:
-            anchor = f'verse-{len(verses) + 1}'
-        verses.append({
-            'chapter': chapter_num,
-            'verse': verse_label,
-            'anchor': anchor,
-            'content': english_text or ''
-        })
-
-    context = {
-        'book': book_name,
-        'chapter_num': chapter_num,
-        'chapters': chapters_markup,
-        'paraphrase': paraphrase,
-        'greek': greek_literal,
-        'footnotes': footnotes_collection,
-        'verses': verses,
-        'error_message': error_message,
-        'cache_hit': False,
-        'page_title': f"{book_name} {chapter_num}" if not error_message else book_name
-    }
-
-    if not error_message:
-        cache.set(cache_key, {**context})
-
-    return render(request, 'storehouse.html', context)
+# storehouse_view has been moved to search/views/storehouse_views.py
+# and is imported at the top of this file for URL routing compatibility
 
 
 def word_view(request):
@@ -2994,10 +3379,12 @@ def search_suggestions(request):
 def footnote_json(request, footnote_id):
     """
     Return footnote content as JSON for popup display.
-    Supports Genesis format (1-3-15) and other OT format (Eze-16-4-07)
+    Supports Genesis format (1-3-15), OT format (Eze-16-4-07), and NT format (Psa-150-2-02)
     """
     footnote_html = ""
     title = ""
+    language = request.GET.get('lang', 'en')
+    book = request.GET.get('book')  # Optional book parameter for NT
     
     try:
         footnote_parts = footnote_id.split('-')
@@ -3008,43 +3395,107 @@ def footnote_json(request, footnote_id):
             book = 'Genesis'
             title = f'Genesis {chapter_ref}:{verse_ref}'
             
-            results = GenesisFootnotes.objects.filter(
-                footnote_id=footnote_id).values('footnote_html')
+            # Check for translation first
+            if language and language != 'en':
+                translation = VerseTranslation.objects.filter(
+                    book=book,
+                    language_code=language,
+                    footnote_id__icontains=footnote_id,
+                    status='completed'
+                ).first()
+                if translation and translation.footnote_text:
+                    footnote_html = translation.footnote_text
             
-            if results:
-                footnote_html = results[0]['footnote_html']
-            else:
-                footnote_html = f"No footnote found for {footnote_id}."
+            # Fallback to English
+            if not footnote_html:
+                results = GenesisFootnotes.objects.filter(
+                    footnote_id=footnote_id).values('footnote_html')
+                
+                if results:
+                    footnote_html = results[0]['footnote_html']
+                else:
+                    footnote_html = f"No footnote found for {footnote_id}."
         
-        # Other OT format: Eze-16-4-07 (book-chapter-verse-footnoteNum)
-        elif len(footnote_parts) == 4:
-            book, chapter_ref, verse_ref, footnote_ref = footnote_parts
+        # NT format: Psa-150-2-02 (abbrev-chapter-verse-footnoteNum)
+        elif len(footnote_parts) == 4 and not footnote_parts[0].isdigit():
+            book_abbrev, chapter_ref, verse_ref, footnote_ref = footnote_parts
             
             # Map abbreviations to full book names
             abbrev_to_book = {abbrev: bk for bk, abbrev in book_abbreviations.items()}
-            full_book_name = abbrev_to_book.get(book, book)
+            full_book_name = abbrev_to_book.get(book_abbrev, book_abbrev)
+            
+            # Determine if this is NT or OT book
+            is_nt_book = full_book_name in new_testament_books
+            
             title = f'{full_book_name} {chapter_ref}:{verse_ref}'
+            # For OT books, use abbrev-footnote format (e.g., Psa-02)
+            # For NT books, use fullname-footnote format (e.g., John-1)
+            db_footnote_id = f'{book_abbrev}-{footnote_ref}' if not is_nt_book else f'{full_book_name}-{footnote_ref}'
             
-            # Build reference for hebrewdata table: Book.Chapter.Verse-FootnoteNum
-            rbt_heb_ref = f'{book}.{chapter_ref}.{verse_ref}-{footnote_ref}'
+            if language and language != 'en':
+                # Try various footnote ID formats
+                possible_ids = [
+                    f'{full_book_name}-{footnote_id}',  # Psalms-Psa-150-2-02
+                    f'{full_book_name}-{chapter_ref}-{verse_ref}-{footnote_ref}',  # Psalms-150-2-02
+                    db_footnote_id,  # Psa-02 for OT, John-1 for NT
+                ]
+                translation = VerseTranslation.objects.filter(
+                    book=full_book_name,
+                    language_code=language,
+                    footnote_id__in=possible_ids,
+                    status='completed'
+                ).first()
+                if translation and translation.footnote_text:
+                    footnote_html = translation.footnote_text
             
-            # Query old_testament.hebrewdata table
-            result = execute_query(
-                "SELECT footnote FROM old_testament.hebrewdata WHERE Ref = %s",
-                (rbt_heb_ref,),
-                fetch='one'
-            )
-            
-            if result and result[0]:
-                footnote_html = result[0]
-            else:
-                footnote_html = f"No footnote found for {footnote_id}."
+            # Fallback to English from database
+            if not footnote_html:
+                # Use correct schema based on book type
+                schema = 'new_testament' if is_nt_book else 'old_testament'
+                
+                print(f"[FOOTNOTE JSON] Book: {full_book_name}, Abbrev: {book_abbrev}, Schema: {schema}, Is NT: {is_nt_book}")
+                
+                try:
+                    if is_nt_book:
+                        # NT books have separate footnote tables
+                        if book_abbrev[0].isdigit():
+                            table = f"table_{book_abbrev.lower()}_footnotes"
+                        else:
+                            table = f"{book_abbrev.lower()}_footnotes"
+                        
+                        result = execute_query(
+                            f"SELECT footnote_html FROM {schema}.{table} WHERE footnote_id = %s",
+                            (db_footnote_id,),
+                            fetch='one'
+                        )
+                        if result and result[0]:
+                            footnote_html = result[0]
+                    else:
+                        # OT books store footnotes in hebrewdata table
+                        # Reference format: Psa.150.2-02
+                        rbt_heb_ref = f'{book_abbrev}.{chapter_ref}.{verse_ref}-{footnote_ref}'
+                        result = execute_query(
+                            "SELECT footnote FROM old_testament.hebrewdata WHERE Ref = %s",
+                            (rbt_heb_ref,),
+                            fetch='one'
+                        )
+                        if result and result[0]:
+                            footnote_html = result[0]
+                    
+                    if not footnote_html:
+                        footnote_html = f"No footnote found for {footnote_id} (tried {db_footnote_id if is_nt_book else rbt_heb_ref})."
+                        
+                except Exception as e:
+                    print(f"[FOOTNOTE JSON ERROR] {e}")
+                    footnote_html = f"Error retrieving footnote: {e}"
         
         else:
             footnote_html = f"Invalid footnote format: {footnote_id}"
             title = "Error"
     
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         footnote_html = f"Error retrieving footnote: {str(e)}"
         title = "Error"
     
@@ -3053,4 +3504,685 @@ def footnote_json(request, footnote_id):
         'title': title,
         'content': footnote_html
     })
+
+
+
+def get_cache_key(book, chapter_num, verse_num, language):
+    sanitized_book = book.replace(':', '_').replace(' ', '')
+    return f'{sanitized_book}_{chapter_num}_{verse_num}_{language}_{INTERLINEAR_CACHE_VERSION}'
+
+
+def translate_chapter_api(request):
+    """
+    API endpoint to trigger translation for a chapter.
+    This allows non-blocking translation handling on the frontend.
+    """
+    book = request.GET.get('book')
+    chapter_num = request.GET.get('chapter')
+    language = request.GET.get('lang')
+    
+    if not book or not chapter_num or not language or language == 'en':
+        print(f"[API DEBUG] Invalid params: book={book}, chapter={chapter_num}, lang={language}")
+        return JsonResponse({'status': 'skipped', 'message': 'Invalid parameters or English language'})
+    
+    # Ensure chapter_num is integer for DB comparisons
+    try:
+        chapter_num = int(chapter_num)
+    except ValueError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'})
+    
+    print(f"[API DEBUG] Starting translation for {book} ch{chapter_num} in {language}")
+
+    try:
+        from .translation_utils import translate_chapter_batch, translate_footnotes_batch
+        from .views import get_results, get_cache_key # Self-import
+        
+        # Force English source to get canonical text for translation
+        # This bypasses any potentially partial/broken cached 'es', 'fr', etc. results
+        results = get_results(book, chapter_num, None, 'en')
+        
+        # Import book lists for testament detection
+        from translate.translator import new_testament_books, old_testament_books, book_abbreviations
+        
+        # Initialize translation_stats for all code paths
+        translation_stats = {'verses': 0, 'footnotes': 0}
+        
+        if book in new_testament_books:
+            chapter_rows = results['chapter_reader']
+            print(f"[API DEBUG] Found {len(chapter_rows)} rows in chapter")
+            
+            # --- VERSE TEXT TRANSLATION ---
+            
+            # Check existing translations (completed OR processing to avoid duplicates)
+            existing_translations = VerseTranslation.objects.filter(
+                book=book,
+                chapter=chapter_num,
+                language_code=language,
+                status__in=['completed', 'processing'],
+                footnote_id__isnull=True
+            ).values_list('verse', flat=True)
+            
+            print(f"[API DEBUG] Existing translations: {list(existing_translations)}")
+
+            verses_to_translate = {}
+            
+            for row in chapter_rows:
+                bk, ch_num, vrs, html_verse = row
+                if int(vrs) not in existing_translations:
+                    # Send FULL verse content INCLUDING tooltips for translation
+                    # The AI should translate tooltip content while preserving HTML structure
+                    verses_to_translate[int(vrs)] = html_verse
+            
+            # Check if book name needs translation (stored with verse=0)
+            book_name_exists = VerseTranslation.objects.filter(
+                book=book,
+                chapter=0,
+                verse=0,
+                language_code=language,
+                status='completed',
+                footnote_id__isnull=True
+            ).exists()
+            
+            if not book_name_exists:
+                # Get English display name for translation
+                display_book_en = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
+                display_book_en = rbt_books.get(display_book_en, display_book_en)
+                verses_to_translate[0] = display_book_en  # verse 0 = book name
+                print(f"[API DEBUG] Book name needs translation: {display_book_en}")
+            
+            print(f"[API DEBUG] Verses to translate: {list(verses_to_translate.keys())}")
+            
+            if verses_to_translate:
+                # Mark verses as 'processing' to prevent duplicate concurrent translations
+                for verse_num in verses_to_translate.keys():
+                    if verse_num == 0:  # Book name
+                        VerseTranslation.objects.update_or_create(
+                            book=book,
+                            chapter=0,
+                            verse=0,
+                            language_code=language,
+                            footnote_id=None,
+                            defaults={'status': 'processing', 'verse_text': ''}
+                        )
+                    else:
+                        VerseTranslation.objects.update_or_create(
+                            book=book,
+                            chapter=chapter_num,
+                            verse=verse_num,
+                            language_code=language,
+                            footnote_id=None,
+                            defaults={'status': 'processing', 'verse_text': ''}
+                        )
+                print(f"[API DEBUG] Marked {len(verses_to_translate)} verses as 'processing'")
+                
+                print(f"[API DEBUG] Calling translate_chapter_batch...")
+                translated_results = translate_chapter_batch(verses_to_translate, language)
+                print(f"[API DEBUG] Result keys: {list(translated_results.keys())}")
+                
+                if '__quota_exceeded__' in translated_results:
+                    print(f"[API DEBUG] Quota exceeded")
+                    return JsonResponse({'status': 'error', 'message': 'Translation quota exceeded'})
+                
+                # Check if ALL translations failed due to API key error
+                all_failed = all('[Translation unavailable' in str(v) for v in translated_results.values())
+                if all_failed and translated_results:
+                    print(f"[API DEBUG] All translations failed - API key not configured")
+                    return JsonResponse({'status': 'error', 'message': 'Translation service unavailable - API key not configured'})
+                
+                for verse_num, translated_text in translated_results.items():
+                    # Skip saving if translation failed (contains error message)
+                    if '[Translation unavailable' in translated_text or translated_text.startswith('[Translation unavailable'):
+                        print(f"[API DEBUG] Skipping verse {verse_num} - translation failed")
+                        continue
+                    
+                    # Handle book name translation (verse=0)
+                    if verse_num == 0:
+                        VerseTranslation.objects.update_or_create(
+                            book=book,
+                            chapter=0,
+                            verse=0,
+                            language_code=language,
+                            footnote_id=None,
+                            defaults={
+                                'verse_text': translated_text,
+                                'status': 'completed',
+                                'generated_by': 'gemini-3-flash-preview'
+                            }
+                        )
+                        print(f"[API DEBUG] Book name translated: {translated_text}")
+                    else:
+                        VerseTranslation.objects.update_or_create(
+                            book=book,
+                            chapter=chapter_num,
+                            verse=verse_num,
+                            language_code=language,
+                            footnote_id=None,
+                            defaults={
+                                'verse_text': translated_text,
+                                'status': 'completed',
+                                'generated_by': 'gemini-3-flash-preview'
+                            }
+                        )
+                    translation_stats['verses'] += 1
+
+            print(f"[API DEBUG] Verse translation complete. Starting footnote extraction...")
+            
+            # --- FOOTNOTE TRANSLATION ---
+            
+            # Need to extract footnotes from HTML similar to main view
+            footnotes_collection = {}
+            
+            # Helper to query footnote text (duplicated from main view - could be refactored)
+            def query_footnote_text(book, sup_text):
+                footnote_id = f"{book}-{sup_text}"
+                if book[0].isdigit():
+                    table_name = f"table_{book.lower()}_footnotes"
+                else:
+                    table_name = f"{book.lower()}_footnotes"
+                
+                # We need fresh connection/cursor usually, or use execute_query from db_utils
+                from search.db_utils import execute_query
+                execute_query("SET search_path TO new_testament;")
+                result = execute_query(
+                    f"SELECT footnote_html FROM new_testament.{table_name} WHERE footnote_id = %s",
+                    (footnote_id,),
+                    fetch='one'
+                )
+                return result[0] if result else None
+
+            for row in chapter_rows:
+                bk, ch_num, vrs, html_verse = row
+                if html_verse:
+                    sup_texts = re.findall(r'<sup>(.*?)</sup>', html_verse)
+                    for sup_text in sup_texts:
+                        data = query_footnote_text(bk, sup_text)
+                        if data:
+                            footnotes_collection[sup_text] = {
+                                'verse': vrs,
+                                'content': data,
+                                'id': sup_text
+                            }
+            
+            if footnotes_collection:
+                existing_footnote_ids = set()
+                
+                # Check DB for existing footnote translations (completed OR processing)
+                # Since we iterate by collection keys (sup_text like '1-1-1'), we construct ID
+                target_ids = [f"{book}-{k}" for k in footnotes_collection.keys()]
+                
+                found_objs = VerseTranslation.objects.filter(
+                    language_code=language,
+                    status__in=['completed', 'processing'],
+                    footnote_id__in=target_ids
+                ).values_list('footnote_id', flat=True)
+                
+                existing_footnote_ids = set(found_objs)
+                print(f"[API DEBUG] Existing footnotes: {existing_footnote_ids}")
+                
+                footnotes_to_translate = {}
+                for sup_text, data in footnotes_collection.items():
+                    f_id = f"{book}-{sup_text}"
+                    if f_id not in existing_footnote_ids:
+                        footnotes_to_translate[f_id] = data['content']
+                
+                print(f"[API DEBUG] Footnotes to translate: {list(footnotes_to_translate.keys())}")
+
+                if footnotes_to_translate:
+                    # Mark footnotes as 'processing' to prevent duplicate concurrent translations
+                    for f_id in footnotes_to_translate.keys():
+                        found_sup = None
+                        for s_txt in footnotes_collection:
+                            if f"{book}-{s_txt}" == f_id:
+                                found_sup = s_txt
+                                break
+                        v_obj = 0
+                        c_obj = chapter_num
+                        if found_sup:
+                            c_obj = int(footnotes_collection[found_sup].get('chapter', 0) or chapter_num)
+                            v_obj = int(footnotes_collection[found_sup].get('verse', 0))
+                        
+                        VerseTranslation.objects.update_or_create(
+                            book=book,
+                            chapter=c_obj,
+                            verse=v_obj,
+                            language_code=language,
+                            footnote_id=f_id,
+                            defaults={'status': 'processing', 'footnote_text': ''}
+                        )
+                    print(f"[API DEBUG] Marked {len(footnotes_to_translate)} footnotes as 'processing'")
+                    
+                    print(f"[API DEBUG] Starting footnote translation batch of {len(footnotes_to_translate)} items...")
+                    translated_footnotes = translate_footnotes_batch(footnotes_to_translate, language)
+                    print(f"[API DEBUG] Footnote translation returned, processing results...")
+                    
+                    if '__quota_exceeded__' in translated_footnotes:
+                         return JsonResponse({'status': 'error', 'message': 'Translation quota exceeded'})
+                    
+                    # Check if ALL footnote translations failed due to API key error
+                    all_failed = all('[Translation unavailable' in str(v) for v in translated_footnotes.values())
+                    if all_failed and translated_footnotes:
+                        print(f"[API DEBUG] All footnote translations failed - API key not configured")
+                        return JsonResponse({'status': 'error', 'message': 'Translation service unavailable - API key not configured'})
+
+                    for f_id, f_text in translated_footnotes.items():
+                        # Skip saving if translation failed (contains error message)
+                        if '[Translation unavailable' in f_text or f_text.startswith('[Translation unavailable'):
+                            print(f"[API DEBUG] Skipping footnote {f_id} - translation failed")
+                            continue
+                        
+                        # Helper to map back
+                        found_sup = None
+                        # Reverse lookup from ID
+                        for s_txt in footnotes_collection:
+                            if f"{book}-{s_txt}" == f_id:
+                                found_sup = s_txt
+                                break
+                        
+                        v_obj = 0
+                        c_obj = chapter_num
+                        
+                        if found_sup:
+                            c_obj = int(footnotes_collection[found_sup].get('chapter', 0) or chapter_num)
+                            v_obj = int(footnotes_collection[found_sup].get('verse', 0))
+                        
+                        VerseTranslation.objects.update_or_create(
+                            book=book,
+                            chapter=c_obj,
+                            verse=v_obj,
+                            language_code=language,
+                            footnote_id=f_id,
+                            defaults={
+                                'footnote_text': f_text,
+                                'status': 'completed',
+                                'generated_by': 'gemini-3-flash-preview'
+                            }
+                        )
+                        translation_stats['footnotes'] += 1
+        
+        elif book == 'Genesis' or book in old_testament_books:
+            # --- OT TRANSLATION HANDLING (including Genesis) ---
+            # IMPORTANT: Only translate PARAPHRASE content, NOT Hebrew Literal
+            print(f"[API DEBUG] Processing OT book: {book}")
+            
+            # Get book abbreviation for reference parsing
+            book_abbrev = book_abbreviations.get(book, book)
+            
+            # --- PARAPHRASE TEXT TRANSLATION (not Hebrew Literal) ---
+            existing_translations = VerseTranslation.objects.filter(
+                book=book,
+                chapter=chapter_num,
+                language_code=language,
+                status__in=['completed', 'processing'],
+                footnote_id__isnull=True
+            ).values_list('verse', flat=True)
+            
+            print(f"[API DEBUG] OT Existing translations: {list(existing_translations)}")
+            
+            verses_to_translate = {}
+            
+            # Genesis uses Django ORM queryset, other OT books use html dict
+            if book == 'Genesis':
+                # Genesis returns {'rbt': <queryset>, ...}
+                rbt_queryset = results.get('rbt', [])
+                print(f"[API DEBUG] Genesis has {len(rbt_queryset) if rbt_queryset else 0} verses in queryset")
+                
+                for verse_obj in rbt_queryset:
+                    verse_num = verse_obj.verse
+                    # Use rbt_reader (PARAPHRASE), NOT html (Hebrew Literal)
+                    paraphrase_content = verse_obj.rbt_reader or ''
+                    if verse_num not in existing_translations and paraphrase_content:
+                        verses_to_translate[verse_num] = paraphrase_content
+            else:
+                # Other OT books use html dict with verse keys like '01', '02', etc
+                # Format is {verse_key: (eng_literal, html_paraphrase)}
+                # - eng_literal (index 0) = Eng field = Hebrew Literal pane = DO NOT translate
+                # - html_paraphrase (index 1) = html field = Paraphrase pane = SHOULD translate
+                html_dict = results.get('html', {})
+                print(f"[API DEBUG] OT chapter has {len(html_dict)} verse groups")
+                
+                for verse_key, value in html_dict.items():
+                    # Handle tuple format (eng_literal, html_paraphrase)
+                    # We want the SECOND element (html/paraphrase), NOT the first (eng/literal)
+                    if isinstance(value, tuple) and len(value) >= 2:
+                        paraphrase_content = value[1] or ''  # Second element is paraphrase (html field)
+                    else:
+                        paraphrase_content = value if isinstance(value, str) else ''
+                    verse_num = int(verse_key)
+                    if verse_num not in existing_translations and paraphrase_content:
+                        verses_to_translate[verse_num] = paraphrase_content
+            
+            # Check if book name needs translation
+            book_name_exists = VerseTranslation.objects.filter(
+                book=book,
+                chapter=0,
+                verse=0,
+                language_code=language,
+                status='completed',
+                footnote_id__isnull=True
+            ).exists()
+            
+            if not book_name_exists:
+                # Get English display name for translation
+                display_book_en = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
+                display_book_en = rbt_books.get(display_book_en, display_book_en)
+                verses_to_translate[0] = display_book_en  # verse 0 = book name
+                print(f"[API DEBUG] OT Book name needs translation: {display_book_en}")
+            
+            print(f"[API DEBUG] OT Verses to translate: {list(verses_to_translate.keys())}")
+            
+            if verses_to_translate:
+                # Mark verses as 'processing'
+                for verse_num in verses_to_translate.keys():
+                    if verse_num == 0:  # Book name
+                        VerseTranslation.objects.update_or_create(
+                            book=book, chapter=0, verse=0,
+                            language_code=language, footnote_id=None,
+                            defaults={'status': 'processing', 'verse_text': ''}
+                        )
+                    else:
+                        VerseTranslation.objects.update_or_create(
+                            book=book, chapter=chapter_num, verse=verse_num,
+                            language_code=language, footnote_id=None,
+                            defaults={'status': 'processing', 'verse_text': ''}
+                        )
+                print(f"[API DEBUG] OT Marked {len(verses_to_translate)} verses as 'processing'")
+                
+                print(f"[API DEBUG] OT Calling translate_chapter_batch...")
+                translated_results = translate_chapter_batch(verses_to_translate, language)
+                print(f"[API DEBUG] OT Result keys: {list(translated_results.keys())}")
+                
+                if '__quota_exceeded__' in translated_results:
+                    print(f"[API DEBUG] OT Quota exceeded")
+                    return JsonResponse({'status': 'error', 'message': 'Translation quota exceeded'})
+                
+                # Check if ALL translations failed
+                all_failed = all('[Translation unavailable' in str(v) for v in translated_results.values())
+                if all_failed and translated_results:
+                    print(f"[API DEBUG] OT All translations failed - API key not configured")
+                    return JsonResponse({'status': 'error', 'message': 'Translation service unavailable - API key not configured'})
+                
+                # Save verse translations
+                for verse_num, translated_text in translated_results.items():
+                    if '[Translation unavailable' in translated_text:
+                        print(f"[API DEBUG] OT Skipping verse {verse_num} - translation failed")
+                        continue
+                    
+                    if verse_num == 0:  # Book name
+                        VerseTranslation.objects.update_or_create(
+                            book=book, chapter=0, verse=0,
+                            language_code=language, footnote_id=None,
+                            defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3-flash-preview'}
+                        )
+                        translation_stats['verses'] += 1
+                        print(f"[API DEBUG] OT Saved book name translation: {translated_text[:50]}")
+                    else:
+                        VerseTranslation.objects.update_or_create(
+                            book=book, chapter=chapter_num, verse=verse_num,
+                            language_code=language, footnote_id=None,
+                            defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3-flash-preview'}
+                        )
+                        translation_stats['verses'] += 1
+            
+            # --- OT FOOTNOTE TRANSLATION ---
+            # OT footnotes are in hebrewdata table, referenced by Ref
+            # Genesis footnotes use different format (chapter-verse-number pattern)
+            footnotes_collection = {}
+            
+            if book == 'Genesis':
+                # Genesis: extract footnotes from queryset verse HTML
+                rbt_queryset = results.get('rbt', [])
+                for verse_obj in rbt_queryset:
+                    html_content = verse_obj.html or ''
+                    verse_num = verse_obj.verse
+                    if html_content:
+                        # Genesis footnotes use pattern like "1-1-1", "1-1-2a" etc
+                        footnote_refs = re.findall(r'\?footnote=(\d+-\d+-\d+[a-zA-Z]?)', html_content)
+                        for fn_ref in footnote_refs:
+                            # Get footnote content using get_footnote function
+                            fn_content = get_footnote(fn_ref, book)
+                            if fn_content:
+                                f_id = f"{book}-{fn_ref}"
+                                if f_id not in footnotes_collection:
+                                    footnotes_collection[f_id] = {
+                                        'verse': verse_num,
+                                        'chapter': chapter_num,
+                                        'content': fn_content,
+                                        'id': f_id
+                                    }
+            else:
+                # Other OT books: extract footnotes from html dict
+                # Footnote links use pattern: ?footnote=Exo-20-1-06 (Book-Chapter-Verse-SubRef)
+                html_dict = results.get('html', {})
+                for verse_key, value in html_dict.items():
+                    if isinstance(value, tuple) and len(value) >= 2:
+                        html_content = value[1]
+                    else:
+                        html_content = value
+                    if html_content:
+                        # Extract footnote IDs from links (pattern: ?footnote=Exo-20-1-06)
+                        # Ensure html_content is a string before regex
+                        html_content_str = str(html_content) if html_content else ''
+                        footnote_refs = re.findall(r'\?footnote=([^"&\s]+)', html_content_str)
+                        for fn_ref in footnote_refs:
+                            # Get footnote content using get_footnote function
+                            fn_content = get_footnote(fn_ref, book)
+                            if fn_content:
+                                # Use full book name in ID for consistency
+                                f_id = f"{book}-{fn_ref}"
+                                if f_id not in footnotes_collection:
+                                    footnotes_collection[f_id] = {
+                                        'verse': int(verse_key) if verse_key.isdigit() else 0,
+                                        'chapter': chapter_num,
+                                        'content': fn_content,
+                                        'id': f_id
+                                    }
+            
+            if footnotes_collection:
+                print(f"[API DEBUG] OT Found {len(footnotes_collection)} footnotes")
+                
+                existing_footnote_ids = set(VerseTranslation.objects.filter(
+                    language_code=language,
+                    status__in=['completed', 'processing'],
+                    footnote_id__in=list(footnotes_collection.keys())
+                ).values_list('footnote_id', flat=True))
+                
+                print(f"[API DEBUG] OT Existing footnotes: {existing_footnote_ids}")
+                
+                footnotes_to_translate = {}
+                for f_id, data in footnotes_collection.items():
+                    if f_id not in existing_footnote_ids:
+                        footnotes_to_translate[f_id] = data['content']
+                
+                print(f"[API DEBUG] OT Footnotes to translate: {list(footnotes_to_translate.keys())}")
+                
+                if footnotes_to_translate:
+                    # Mark as processing
+                    for f_id in footnotes_to_translate.keys():
+                        data = footnotes_collection.get(f_id, {})
+                        VerseTranslation.objects.update_or_create(
+                            book=book,
+                            chapter=data.get('chapter', chapter_num),
+                            verse=data.get('verse', 0),
+                            language_code=language,
+                            footnote_id=f_id,
+                            defaults={'status': 'processing', 'footnote_text': ''}
+                        )
+                    
+                    print(f"[API DEBUG] OT Translating {len(footnotes_to_translate)} footnotes...")
+                    translated_footnotes = translate_footnotes_batch(footnotes_to_translate, language)
+                    
+                    if '__quota_exceeded__' in translated_footnotes:
+                        return JsonResponse({'status': 'error', 'message': 'Translation quota exceeded'})
+                    
+                    for f_id, f_text in translated_footnotes.items():
+                        if '[Translation unavailable' in f_text:
+                            continue
+                        
+                        data = footnotes_collection.get(f_id, {})
+                        VerseTranslation.objects.update_or_create(
+                            book=book,
+                            chapter=data.get('chapter', chapter_num),
+                            verse=data.get('verse', 0),
+                            language_code=language,
+                            footnote_id=f_id,
+                            defaults={'footnote_text': f_text, 'status': 'completed', 'generated_by': 'gemini-3-flash-preview'}
+                        )
+                        translation_stats['footnotes'] += 1
+        
+        else:
+            # Book not in NT or OT lists - skip translation
+            print(f"[API DEBUG] Book '{book}' not recognized for translation")
+            return JsonResponse({'status': 'skipped', 'message': f'Book {book} not supported for translation'})
+        
+        print(f"[API DEBUG] All translations saved to database.")
+        print(f"[API DEBUG] Translation complete. Verses: {translation_stats['verses']}, Footnotes: {translation_stats['footnotes']}")
+        
+        # CRITICAL: Clear cache for the target language so the main view 
+        # picks up the newly saved translations immediately.
+        try:
+             # get_results uses verse_num=None by default
+             cache_key = get_cache_key(book, chapter_num, None, language)
+             cache.delete(cache_key)
+             print(f"Cleared cache for: {cache_key}")
+        except Exception as e:
+             print(f"Error clearing cache: {e}")
+
+        print(f"[API DEBUG] Returning success response to client")
+        return JsonResponse({'status': 'ok', 'translated': translation_stats})
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
+@csrf_exempt
+def start_translation_job(request):
+    """
+    API endpoint to start a background translation job.
+    Returns immediately with job ID for status polling.
+    
+    This is the new non-blocking translation approach:
+    1. Creates a job record in the database
+    2. Background worker picks up and processes the job
+    3. Frontend polls for status updates
+    """
+    book = request.GET.get('book')
+    chapter_num = request.GET.get('chapter')
+    language = request.GET.get('lang')
+    
+    if not book or not chapter_num or not language or language == 'en':
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Invalid parameters or English language'
+        })
+    
+    try:
+        chapter_num = int(chapter_num)
+    except ValueError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'})
+    
+    try:
+        # Validate that source content exists before creating a job
+        results = get_results(book, chapter_num, None, 'en')
+        if not results:
+            return JsonResponse({'status': 'error', 'message': 'No source content found for this chapter'})
+        
+        # Determine if the chapter contains any source text depending on book type
+        has_source = False
+        if book == 'Genesis':
+            if results.get('rbt'):
+                has_source = True
+        elif book in old_testament_books:
+            html = results.get('html') or {}
+            if isinstance(html, dict) and any(v for v in html.values()):
+                has_source = True
+        elif book in new_testament_books:
+            chapter_rows = results.get('chapter_reader') or []
+            if chapter_rows:
+                has_source = True
+        else:
+            # Fallback check
+            if results.get('rbt') or results.get('html') or results.get('chapter_reader'):
+                has_source = True
+        
+        if not has_source:
+            return JsonResponse({'status': 'error', 'message': 'No source content found for this chapter'})
+        
+        from .translation_worker import create_translation_job
+        
+        job = create_translation_job(book, chapter_num, language)
+        
+        return JsonResponse({
+            'status': 'ok',
+            'job_id': job.job_id,
+            'message': f'Translation job created for {book} chapter {chapter_num}'
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
+@csrf_exempt
+def translation_job_status(request):
+    """
+    API endpoint to check the status of a translation job.
+    Frontend should poll this endpoint to track progress.
+    """
+    job_id = request.GET.get('job_id')
+    
+    if not job_id:
+        return JsonResponse({'status': 'error', 'message': 'Missing job_id'})
+    
+    try:
+        from .translation_worker import get_job_status
+        
+        status = get_job_status(job_id)
+        
+        if status is None:
+            return JsonResponse({'status': 'error', 'message': 'Job not found'})
+        
+        return JsonResponse(status)
+        
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
+@csrf_exempt
+def clear_translation_cache(request):
+    """
+    API endpoint to clear cache after translation completes.
+    Called by frontend after job completion.
+    """
+    book = request.GET.get('book')
+    chapter_num = request.GET.get('chapter')
+    language = request.GET.get('lang')
+    
+    if not book or not chapter_num or not language:
+        return JsonResponse({'status': 'error', 'message': 'Missing parameters'})
+    
+    try:
+        chapter_num = int(chapter_num)
+        
+        # Special cache key for Joseph and Aseneth (storehouse)
+        if book == "Joseph and Aseneth":
+            cache_key = f'storehouse_{chapter_num}_{language}_{INTERLINEAR_CACHE_VERSION}'
+            print(f"[CACHE DEBUG] Clearing storehouse cache: {cache_key}")
+        else:
+            cache_key = get_cache_key(book, chapter_num, None, language)
+            print(f"[CACHE DEBUG] Clearing regular cache: {cache_key}")
+        
+        result = cache.delete(cache_key)
+        print(f"[CACHE DEBUG] Cache delete result: {result}")
+        
+        return JsonResponse({
+            'status': 'ok',
+            'message': f'Cache cleared for {book} chapter {chapter_num} ({language})'
+        })
+        
+    except Exception as e:
+        print(f"[CACHE DEBUG] Cache clear error: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)})
 
