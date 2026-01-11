@@ -56,3 +56,4 @@ media/
 
 # Environment files
 *.env
+.env
