@@ -77,6 +77,19 @@ SUPPORTED_LANGUAGES = {
     'om': 'Oromoo',
     'zu': 'isiZulu',
     'af': 'Afrikaans',
+    # New languages added
+    'su': 'Basa Sunda',
+    'mad': 'Madhurâ',
+    'hmn': 'Hmoob',
+    'az': 'Azərbaycan dili',
+    'ku': 'Kurdî',
+    'uz': 'Oʻzbekcha',
+    'kk': 'Қазақ тілі',
+    'ka': 'ქართული',
+    'lt': 'Lietuvių',
+    'lv': 'Latviešu',
+    'et': 'Eesti',
+    'sl': 'Slovenščina',
 }
 
 
