@@ -15,10 +15,19 @@ from logging.handlers import TimedRotatingFileHandler
 import dj_database_url
 from dotenv import load_dotenv
 
-load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env file explicitly from BASE_DIR and OVERRIDE existing environment variables
+env_path = BASE_DIR / '.env'
+print(f"[SETTINGS DEBUG] Loading .env from: {env_path}")
+print(f"[SETTINGS DEBUG] .env exists: {env_path.exists()}")
+load_dotenv(dotenv_path=env_path, override=True)  # Force override shell env vars
+
+# Verify GEMINI_API_KEYS loaded
+gemini_keys = os.getenv('GEMINI_API_KEYS', '')
+print(f"[SETTINGS DEBUG] GEMINI_API_KEYS length: {len(gemini_keys)}")
+print(f"[SETTINGS DEBUG] Number of keys: {len([k for k in gemini_keys.split(',') if k.strip()])}")
 
 DEFAULT_CHARSET = 'utf-8'
 
@@ -38,6 +47,10 @@ SESSION_COOKIE_SECURE = True
 CSRF_TRUSTED_ORIGINS = ['https://mzg2o4p8.up.railway.app', 'https://rbtproject.up.railway.app', 'https://www.realbible.tech', 'https://read.realbible.tech', 'https://realbible.tech', 'http://rbt.realbible.tech', 'http://localhost', 'http://127.0.0.1']
 
 LOGIN_URL = 'accounts/login/'
+
+# Increase field limits for bulk editing forms (e.g., find_and_replace)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000  # Default is 1000
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB (default is 2.5MB)
 
 # Application definition
 

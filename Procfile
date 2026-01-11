@@ -1,1 +1,1 @@
-web: gunicorn hebrewtool.wsgi --log-file -
+web: gunicorn hebrewtool.wsgi --log-file - -e GUNICORN_WORKER=true

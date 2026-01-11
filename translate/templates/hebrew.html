@@ -115,10 +115,15 @@
 
 .hebrewTable input[type="text"] {
     width: 100%;
-    padding: 6px 8px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 13px;
+    padding: 6px 8px !important;
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+    font-size: 13px !important;
+    background: #fff !important;
+    color: #333 !important;
+    box-shadow: none !important;
+    line-height: normal !important;
+    min-height: auto !important;
 }
 
 .hebrewTable input[type="text"]:focus {
@@ -294,14 +299,14 @@
 
 .popup .close-top {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 28px;
+  top: -8px;
+  right: 7px;
+  width: 36px;
   height: 28px;
   padding: 0;
   border-radius: 50%;
   font-size: 18px;
-  line-height: 28px;
+  line-height: 0px;
   text-align: center;
   background: #ececec;
   color: #333;
@@ -309,16 +314,56 @@
 .popup .close-top:hover {
   background: #d5d5d5;
 }
+
+
+#textArea {
+    width: 100%;
+    min-height: 200px;
+    padding: 12px !important;
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+    font-family: 'Times New Roman', Times, serif !important;
+    font-size: 16px !important;
+    line-height: 1.4 !important;
+    resize: vertical;
+    margin-bottom: 15px;
+    box-sizing: border-box;
+    display: block;
+    
+    /* Override potential theme conflicts */
+    background: #fff !important;
+    color: #333 !important;
+    font-weight: normal !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    box-shadow: none !important;
+}
+
+#textArea:focus {
+    outline: none;
+    border-color: #b78550;
+    box-shadow: 0 0 0 2px rgba(183, 133, 80, 0.1);
+}
+
+.editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px;
+    background: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    align-items: center;
 }
 
 .editor-toolbar button {
     width: 32px;
     height: 32px;
     padding: 0;
-    background: #b78550;
-    border: none;
+    background: #fff;  /* Changed from #b78550 to white for cleaner tool look, overridden by specific buttons or hover */
+    border: 1px solid #ddd;
     border-radius: 4px;
-    color: #fff;
+    color: #333;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -328,25 +373,47 @@
 }
 
 .editor-toolbar button:hover {
-    background: #965f35;
-    transform: translateY(-1px);
+    background: #f0f0f0;
+    border-color: #bbb;
 }
 
-.editor-toolbar button:active {
-    transform: translateY(0);
+.editor-toolbar button.active {
+    background: #e0e0e0;
 }
 
 .editor-toolbar button.wide {
     width: auto;
-    padding: 0 12px;
+    padding: 0 8px;
 }
 
+.editor-toolbar button.header-btn {
+    width: auto;
+    padding: 0 8px;
+    background-color: #4a90e2; 
+    color: white; 
+    border-color: #357abd;
+    font-size: 12px;
+    font-weight: bold;
+}
+.editor-toolbar button.header-btn:hover {
+    background-color: #357abd;
+}
+
+.editor-toolbar button.color-btn {
+    border: 1px solid rgba(0,0,0,0.15);
+}
+.editor-toolbar button.color-btn:hover {
+    transform: scale(1.1);
+}
 .editor-toolbar button.reset {
-    background: #000;
+    background: #f8d7da;
+    color: #721c24;
+    border-color: #f5c6cb;
+    margin-left: auto; /* Push to right */
 }
 
 .editor-toolbar button.reset:hover {
-    background: #333;
+    background: #f1b0b7;
 }
 
 .editor-toolbar input[type="text"] {
@@ -1604,32 +1671,41 @@
     
     <div class="editor-toolbar">
       <button type="button" onclick="applyFontStyle('italic'); updateEnglishReader(document.getElementById('textArea').value)" title="Italic">
-        <i>I</i>
+        <i class="fas fa-italic"></i>
       </button>
       <button type="button" onclick="applyFontStyle('bold'); updateEnglishReader(document.getElementById('textArea').value)" title="Bold">
-        <b>B</b>
+        <i class="fas fa-bold"></i>
       </button>
+      
+      <div style="width: 1px; height: 20px; background: #ddd; margin: 0 4px;"></div>
+      
       <button type="button" onclick="applyCenterStyle(); updateEnglishReader(document.getElementById('textArea').value)" title="Center">
         <i class="fas fa-align-center"></i>
       </button>
       <button type="button" class="wide" onclick="applyLastCenterStyle(); updateEnglishReader(document.getElementById('textArea').value)" title="Center Last">
-        <i class="fas fa-align-center"></i> Last
+        <i class="fas fa-align-center"></i>&nbsp;Last
       </button>
       <button type="button" onclick="applyIndent(); updateEnglishReader(document.getElementById('textArea').value)" title="Indent">
         <i class="fas fa-indent"></i>
       </button>
+      
+      <div style="width: 1px; height: 20px; background: #ddd; margin: 0 4px;"></div>
+
       <button type="button" onclick="applyHayahStyle(); updateEnglishReader(document.getElementById('textArea').value)" title="Hayah Style">
-        <i>היה</i>
+        <span style="font-family: serif; font-size: 16px;">היה</span>
       </button>
-      <button type="button" onclick="applyHebrewHeader(); updateEnglishReader(document.getElementById('textArea').value)" title="Hebrew Header" style="background-color: #4a90e2; color: white; padding: 4px 8px;">
+      <button type="button" class="header-btn" onclick="applyHebrewHeader(); updateEnglishReader(document.getElementById('textArea').value)" title="Hebrew Header">
         H5
       </button>
-      <button type="button" style="background-color: red;" onclick="applyFontColor('red'); updateEnglishReader(document.getElementById('textArea').value)" title="Red"></button>
-      <button type="button" style="background-color: #ff00aa;" onclick="applyFontColor('#ff00aa'); updateEnglishReader(document.getElementById('textArea').value)" title="Pink"></button>
-      <button type="button" style="background-color: blue;" onclick="applyFontColor('blue'); updateEnglishReader(document.getElementById('textArea').value)" title="Blue"></button>
-      <button type="button" onclick="applySunStyle(); updateReader(document.getElementById('editor-texto').value)" title="Sun Style">☀️</button>
+      
+      <div style="width: 1px; height: 20px; background: #ddd; margin: 0 4px;"></div>
+
+      <button type="button" class="color-btn" style="background-color: #ff00aa;" onclick="applyFontColor('#ff00aa'); updateEnglishReader(document.getElementById('textArea').value)" title="Pink"></button>
+      <button type="button" class="color-btn" style="background-color: blue;" onclick="applyFontColor('blue'); updateEnglishReader(document.getElementById('textArea').value)" title="Blue"></button>
+      <button type="button" class="color-btn" style="background-color: #dc3545;" onclick="applyFontColor('#dc3545'); updateEnglishReader(document.getElementById('textArea').value)" title="Red"></button>
+      <button type="button" onclick="applySunStyle(); updateEnglishReader(document.getElementById('textArea').value)" title="Sun Style">☀️</button>
       <button type="button" class="reset" onclick="resetText(); updateEnglishReader(document.getElementById('textArea').value)" title="Reset">
-        <b>&#8630;</b>
+        <i class="fas fa-undo"></i>
       </button>
     </div>
     

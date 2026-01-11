@@ -238,40 +238,6 @@ nt_abbrev = [
     '1Jo', '2Jo', '3Jo', 'Jud', 'Rev'
 ]
 
-# For re-casting the titles on the front-end
-rbt_books = {
-    'Genesis': 'In the Head',
-    'Exodus': 'A Mighty One of Names',
-    'Leviticus': 'He is Reading',
-    'Numbers': 'He is Arranging Words',
-    'Deuteronomy': 'A Mighty One of Words',
-    'Esther': 'Star',
-    'Song of Solomon': 'Song of Singers',
-    'Job': 'Adversary',
-    'Isaiah': 'He is Liberator',
-    'Ezekiel': 'God Holds Strong',
-    'John': 'He is Favored',
-    'Matthew': 'He is a Gift',
-    'Mark': 'Hammer',
-    'Luke': 'Light Giver',
-    'Acts': 'Acts of Sent Away Ones',
-    'Revelation': 'Unveiling',
-    'Hebrews': 'Beyond Ones',
-    'Jonah': 'Dove',
-    '1 John': '1 Favored',
-    '2 John': '2 Favored',
-    '3 John': '3 Favored',
-    'James': 'Heel Chaser',
-    'Galatians': 'People of the Land of Milk',
-    'Philippians': 'People of the Horse',
-    'Ephesians': 'People of the Land of Bees',
-    'Colossians': 'People of Colossal Ones',
-    'Titus': 'Avenged',
-    '1 Timothy': 'First Honor of God',
-    '2 Timothy': 'Second Honor of God'
-}
-
-
 def _resolve_fuerst_base_url() -> str:
     """Determine the base URL used for Fuerst page image links."""
     candidate = None

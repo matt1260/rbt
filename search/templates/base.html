@@ -170,9 +170,11 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 			margin-left: 20px;
 		}
 
-        textarea {
-            white-space: normal;
-        }
+        /* 
+           Removed global textarea styling to avoid conflicts with 
+           editors in child templates (e.g. hebrew.html).
+           Specific textareas should be styled via classes.
+        */
 
         .single_verse {
         margin-bottom: 2.0em;
@@ -190,6 +192,14 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 			display: table;
 			clear: both;
 		}
+        
+        /* Mobile padding override for main content wrapper */
+        @media (max-width: 768px) {
+            .nv-single-page-wrap.col {
+                padding-left: 5px !important;
+                padding-right: 5px !important;
+            }
+        }
 
 </style>
 
@@ -199,25 +209,6 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
     position: relative;
     display: block;
     cursor: pointer;
-}
-
-/* Tooltip overlay background */
-.tooltip-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 9998;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-
-.tooltip-overlay.active {
-    display: block;
-    opacity: 1;
 }
 
 /* Tooltip base - enhanced styling matching site theme */
@@ -245,13 +236,6 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
     transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.tooltip.active,
-.tooltip2.active {
-    display: block;
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-}
-
 /* Tooltip header bar */
 .tooltip::before,
 .tooltip2::before {
@@ -263,7 +247,7 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
     border-radius: 12px 12px 0 0;
 }
 
-/* Tooltip close button */
+/* Tooltip close button - style for non-mobile/default */
 .tooltip-close-btn {
     position: absolute;
     top: 8px;
@@ -298,7 +282,7 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
     }
 }
 
-/* --- 🔹 IMAGE + VIDEO MEDIA BLOCKS --- */
+/* --- IMAGE + VIDEO MEDIA BLOCKS --- */
 .tooltip-container img,
 .tooltip-container video {
     width: 100%;
@@ -311,6 +295,83 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 
 .tooltip-container video {
     background: #fff;
+}
+
+/* Tooltip / Image Popup Styles for Mobile Click-to-Lock */
+.tooltip-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9998;
+    cursor: pointer;
+}
+
+.tooltip-overlay.active {
+    display: block;
+}
+
+/* When tooltip is active (locked open on mobile) */
+.tooltip.active, .tooltip2.active {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 9999 !important;
+    max-width: 95vw !important;
+    max-height: 90vh !important;
+    overflow: auto !important;
+    background: white !important;
+    padding: 24px 20px 20px 20px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+    width: 85vw !important; /* Force wide width on mobile */
+    margin: 0 !important;   /* Reset any margins */
+}
+
+/* Ensure images in active tooltip scale nicely */
+.tooltip.active img, .tooltip2.active img {
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+}
+
+/* Fix decorative header bar alignment for active tooltips */
+.tooltip.active::before, .tooltip2.active::before {
+    margin: -24px -10px 16px -20px !important;
+    width: calc(100% + 40px) !important; /* Ensure it covers full width including negated margins */
+}
+
+/* Mobile-specific close button override */
+.tooltip.active .tooltip-close-btn, .tooltip2.active .tooltip-close-btn {
+    top: 0px;
+    right: 0px;
+    width: 28px;
+    height: 28px;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 0 0 0 10px;
+    font-size: 24px;
+    box-shadow: -2px 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Mobile: Ensure all images and videos scale responsively */
+@media (max-width: 768px) {
+    img, video, .tooltip-container img, .tooltip-container video {
+        width: 100% !important;
+        height: auto !important;
+        max-width: 100% !important;
+        display: block;
+        margin: 0 auto;
+        background: #fff;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
 }
 
 /* --- 🔹 TOUCH INDICATOR (mobile cue) --- */
@@ -334,22 +395,6 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
     
     .tooltip-container::after {
         display: none;
-    }
-}
-
-/* --- 🔹 RESPONSIVE TOOLTIP SIZING --- */
-@media (max-width: 600px) {
-    .tooltip,
-    .tooltip2 {
-        width: 92%;
-        max-width: 95vw;
-        padding: 18px 20px;
-        font-size: 15px;
-    }
-    
-    .tooltip::before,
-    .tooltip2::before {
-        margin: -18px -20px 14px -20px;
     }
 }
 
@@ -1226,6 +1271,208 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   });
 })();
+</script>
+
+<script>
+/**
+ * Global Tooltip Handling (Mobile Click-to-Lock + Desktop Hover)
+ * Centralized in base.html to serve all templates
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // --- UTILITIES ---
+    function isMobile() {
+        return window.matchMedia("(max-width: 768px)").matches || 
+               ('ontouchstart' in window) || 
+               (navigator.maxTouchPoints > 0);
+    }
+
+    // --- TOOLTIP STATE & ELEMENTS ---
+    let activeTooltip = null;
+    let tooltipOverlay = document.querySelector('.tooltip-overlay');
+
+    // Create overlay if missing
+    if (!tooltipOverlay) {
+        tooltipOverlay = document.createElement('div');
+        tooltipOverlay.className = 'tooltip-overlay';
+        document.body.appendChild(tooltipOverlay);
+    }
+
+    // --- TOOLTIP ACTIONS ---
+    function openTooltip(tooltipEl) {
+        if (activeTooltip && activeTooltip !== tooltipEl) {
+            closeTooltip();
+        }
+        
+        // Add close button if not present
+        if (!tooltipEl.querySelector('.tooltip-close-btn')) {
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'tooltip-close-btn';
+            closeBtn.innerHTML = '×';
+            closeBtn.setAttribute('aria-label', 'Close');
+            closeBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                closeTooltip();
+            });
+            tooltipEl.insertBefore(closeBtn, tooltipEl.firstChild);
+        }
+        
+        activeTooltip = tooltipEl;
+        tooltipOverlay.classList.add('active');
+        tooltipEl.classList.add('active');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+    
+    function closeTooltip() {
+        if (activeTooltip) {
+            activeTooltip.classList.remove('active');
+            activeTooltip = null;
+        }
+        if (tooltipOverlay) {
+            tooltipOverlay.classList.remove('active');
+        }
+        document.body.style.overflow = '';
+    }
+
+    // --- EVENT LISTENERS ---
+
+    // 1. Attach click handlers to all tooltip containers
+    function attachTooltipListeners() {
+        const tooltipContainers = document.querySelectorAll('.tooltip-container');
+        tooltipContainers.forEach(container => {
+            // Avoid duplicate listeners
+            if (container.dataset.tooltipInit === 'true') return;
+            container.dataset.tooltipInit = 'true';
+            
+            container.addEventListener('click', function(e) {
+                // Ignore clicks on links/inputs inside the container
+                if (e.target.tagName === 'A' || e.target.tagName === 'INPUT') return;
+
+                // On DESKTOP, hover handles it. On MOBILE, we use click-to-lock.
+                if (!isMobile()) return;
+                
+                // Find the tooltip text/content inside
+                const tooltip = container.querySelector('.tooltip, .tooltip2');
+                if (tooltip) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openTooltip(tooltip);
+                }
+            });
+        });
+    }
+
+    // 2. Close on overlay click
+    tooltipOverlay.addEventListener('click', closeTooltip);
+    
+    // 3. Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && activeTooltip) {
+            closeTooltip();
+        }
+    });
+
+    // --- INITIALIZATION ---
+    attachTooltipListeners();
+    
+    // Watch for new content (e.g. dynamic loads)
+    const tooltipObserver = new MutationObserver(attachTooltipListeners);
+    tooltipObserver.observe(document.body, { childList: true, subtree: true });
+});
+</script>
+
+<!-- Translation Loading Modal Global -->
+<div id="translationLoadingModal" class="translation-loading-overlay">
+    <div class="translation-loading-content">
+        <div class="spinner"></div>
+        <h3>Translating...</h3>
+        <p>Generative AI is processing translation.</p>
+        <p class="sub-text">Please wait...</p>
+    </div>
+</div>
+
+<style>
+.translation-loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.95);
+    z-index: 20000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.translation-loading-overlay.active {
+    display: flex;
+    opacity: 1;
+}
+.translation-loading-content {
+    text-align: center;
+    padding: 40px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    max-width: 90%;
+    width: 320px;
+    transform: translateY(20px);
+    transition: transform 0.3s ease;
+}
+.translation-loading-overlay.active .translation-loading-content {
+    transform: translateY(0);
+}
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #ba8666;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 24px;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.translation-loading-content h3 {
+    margin: 0 0 12px;
+    color: #333;
+    font-size: 20px;
+}
+.translation-loading-content p {
+    margin: 0;
+    color: #666;
+    font-size: 16px;
+    line-height: 1.5;
+}
+.translation-loading-content .sub-text {
+    font-size: 13px;
+    margin-top: 8px;
+    color: #999;
+}
+</style>
+
+<script>
+    function showTranslationLoading() {
+        const modal = document.getElementById('translationLoadingModal');
+        if (modal) {
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    function hideTranslationLoading() {
+        const modal = document.getElementById('translationLoadingModal');
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
 </script>
 
 </body></html>

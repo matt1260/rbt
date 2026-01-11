@@ -115,23 +115,52 @@ def gpt_translate(hebrew_construct: str | None, morph_data: str | None, english_
 
 
 def _invalidate_reader_cache(book: str | None, chapter: str | int | None, verse: str | int | None = None) -> list[str]:
-    """Remove cached reader entries for the requested location."""
+    """Remove cached reader entries for the requested location, including all language versions."""
     deleted_keys: list[str] = []
     if not book or chapter in (None, ''):
         return deleted_keys
 
+    # Import supported languages to clear all language caches
+    from search.translation_utils import SUPPORTED_LANGUAGES
+    from search.models import VerseTranslation
+    all_languages = ['en'] + list(SUPPORTED_LANGUAGES.keys())
+
     sanitized_book = str(book).replace(':', '_').replace(' ', '')
     chapter_str = str(chapter)
 
+    # Delete translation records so they get re-translated with new English text
     if verse not in (None, '', 'None'):
-        verse_str = str(verse)
-        verse_key = f'{sanitized_book}_{chapter_str}_{verse_str}_{INTERLINEAR_CACHE_VERSION}'
-        cache.delete(verse_key)
-        deleted_keys.append(verse_key)
+        # Specific verse edited - delete only that verse's translations
+        verse_int = int(verse)
+        deleted_count = VerseTranslation.objects.filter(
+            book=book,
+            chapter=int(chapter),
+            verse=verse_int,
+            footnote_id__isnull=True  # Only delete verse translations, not footnotes
+        ).delete()[0]
+        if deleted_count > 0:
+            print(f"[CACHE DEBUG] Deleted {deleted_count} verse translation(s) for {book} {chapter}:{verse}")
+    else:
+        # Whole chapter edited - delete all verse translations for chapter
+        deleted_count = VerseTranslation.objects.filter(
+            book=book,
+            chapter=int(chapter),
+            footnote_id__isnull=True  # Only delete verse translations, not footnotes
+        ).delete()[0]
+        if deleted_count > 0:
+            print(f"[CACHE DEBUG] Deleted {deleted_count} verse translation(s) for {book} chapter {chapter}")
 
-    chapter_key = f'{sanitized_book}_{chapter_str}_None_{INTERLINEAR_CACHE_VERSION}'
-    cache.delete(chapter_key)
-    deleted_keys.append(chapter_key)
+    # Clear cache for each language
+    for lang in all_languages:
+        if verse not in (None, '', 'None'):
+            verse_str = str(verse)
+            verse_key = f'{sanitized_book}_{chapter_str}_{verse_str}_{lang}_{INTERLINEAR_CACHE_VERSION}'
+            cache.delete(verse_key)
+            deleted_keys.append(verse_key)
+
+        chapter_key = f'{sanitized_book}_{chapter_str}_None_{lang}_{INTERLINEAR_CACHE_VERSION}'
+        cache.delete(chapter_key)
+        deleted_keys.append(chapter_key)
 
     return deleted_keys
 
@@ -958,8 +987,7 @@ def edit(request):
                 update_instance.save()
 
                 cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
-                if cleared_keys:
-                    cache_string = 'Deleted Cache key: ' + ', '.join(cleared_keys)
+                cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
             context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
             if updated_rows:
@@ -1019,7 +1047,7 @@ def edit(request):
                     update_instance.save()
                     
                     cleared_keys = _invalidate_reader_cache(nt_book, chapter_num, verse_num)
-                    cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
+                    cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
                     context = _apply_gemini_preferences(request, get_context(nt_book, chapter_num, verse_num))
                     context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Added footnote successfully! {cache_string}</p></div>'
@@ -1065,7 +1093,7 @@ def edit(request):
             update_instance.save()
 
             cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
-            cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
+            cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
             context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
             context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Updated verse successfully! {cache_string}</p></div>'
@@ -1087,8 +1115,7 @@ def edit(request):
             update_instance.save()
 
             cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
-            cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
-            
+            cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
             context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
             context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Added new footnote successfully! {cache_string}</p></div>'
@@ -1109,7 +1136,7 @@ def edit(request):
             update_instance.save()
 
             cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
-            cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
+            cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
             context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
             context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Updated verse successfully! {cache_string}</p></div>'
@@ -1311,9 +1338,7 @@ def translate(request):
 
         book_name = convert_book_name(book_code) or book_code
         cleared_keys = _invalidate_reader_cache(book_name, chapter_value, verse_value)
-        updates.append(f'Updated HTML Paraphrase: {verse_id} in HTML with "{html}".')
-        if cleared_keys:
-            updates.append(f"Deleted Cache key: {', '.join(cleared_keys)}")
+        updates.append(f'Updated HTML Paraphrase: {verse_id} in HTML with "{html}". Cache cleared ({len(cleared_keys)} keys).')
 
     def save_footnote_to_database(verse_id, id, key, text):
         execute_query("UPDATE old_testament.hebrewdata SET footnote = %s WHERE id = %s;", (text, id))
@@ -1334,9 +1359,9 @@ def translate(request):
 
         book_name = convert_book_name(book_code) or book_code
         cleared_keys = _invalidate_reader_cache(book_name, chapter_value, verse_value)
-        cache_string = "Deleted Cache key: " + ', '.join(cleared_keys) if cleared_keys else 'No cache keys cleared'
+        cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
-        update = f'Updated ID: {verse_id} in footnote with "{text}".\n{cache_string}'
+        update = f'Updated ID: {verse_id} in footnote with "{text}". {cache_string}'
         updates.append(update)
 
 
@@ -3712,7 +3737,7 @@ def edit_aseneth(request):
                     # Also clear the public reader cache for this chapter
                     cache.delete(f'storehouse_{chapter_num}_{INTERLINEAR_CACHE_VERSION}')
 
-                    cache_string = f"Deleted Cache key: {cache_key_base_verse}, {cache_key_base_chapter}"
+                    cache_string = "Cache cleared."
 
                     context = get_aseneth_context(chapter_num, verse_num)
                     context['edit_result'] = (
