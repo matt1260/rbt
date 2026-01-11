@@ -1,1 +1,1 @@
-web: bash start.sh
+web: gunicorn hebrewtool.wsgi --log-file -
