@@ -269,12 +269,12 @@
     </div>
     
     <div class="results-filters">
-        <a href="?q={{ query }}&scope=all&page=1" class="filter-btn {% if scope == 'all' %}active{% endif %}">All</a>
-        <a href="?q={{ query }}&scope=ot&page=1" class="filter-btn {% if scope == 'ot' %}active{% endif %}">Old Testament</a>
-        <a href="?q={{ query }}&scope=nt&page=1" class="filter-btn {% if scope == 'nt' %}active{% endif %}">New Testament</a>
-        <a href="?q={{ query }}&scope=hebrew&page=1" class="filter-btn {% if scope == 'hebrew' %}active{% endif %}">Hebrew</a>
-        <a href="?q={{ query }}&scope=greek&page=1" class="filter-btn {% if scope == 'greek' %}active{% endif %}">Greek</a>
-        <a href="?q={{ query }}&scope=footnotes&page=1" class="filter-btn {% if scope == 'footnotes' %}active{% endif %}">Footnotes</a>
+        <a href="?q={{ query }}&scope=all&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'all' %}active{% endif %}">All</a>
+        <a href="?q={{ query }}&scope=ot&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'ot' %}active{% endif %}">Old Testament</a>
+        <a href="?q={{ query }}&scope=nt&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'nt' %}active{% endif %}">New Testament</a>
+        <a href="?q={{ query }}&scope=hebrew&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'hebrew' %}active{% endif %}">Hebrew</a>
+        <a href="?q={{ query }}&scope=greek&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'greek' %}active{% endif %}">Greek</a>
+        <a href="?q={{ query }}&scope=footnotes&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'footnotes' %}active{% endif %}">Footnotes</a>
     </div>
     
     <div id="resultsContainer">
@@ -291,12 +291,13 @@
 (function() {
     const query = "{{ query|escapejs }}";
     const scope = "{{ scope }}";
+    const searchType = "{{ search_type|default:'keyword' }}";
     const page = {{ page }};
     const limit = 50;
     
     async function loadResults() {
         try {
-            const response = await fetch(`/api/live/?q=${encodeURIComponent(query)}&scope=${scope}&limit=${limit}&page=${page}`);
+            const response = await fetch(`/api/live/?q=${encodeURIComponent(query)}&scope=${scope}&limit=${limit}&page=${page}&type=${searchType}`);
             const data = await response.json();
             
             if (data.error) {

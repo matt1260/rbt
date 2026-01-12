@@ -2818,6 +2818,7 @@ def search_results_page(request):
     """
     query = request.GET.get('q', '').strip()
     scope = request.GET.get('scope', 'all').lower()
+    search_type = request.GET.get('type', 'keyword')  # Default to keyword search
     page = max(int(request.GET.get('page', 1)), 1)
     
     if not query:
@@ -2826,6 +2827,7 @@ def search_results_page(request):
     context = {
         'query': query,
         'scope': scope,
+        'search_type': search_type,
         'page': page,
     }
     return render(request, 'search_results_full.html', context)
