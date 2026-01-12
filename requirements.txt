@@ -20,3 +20,4 @@ python-dotenv
 attrs==23.2.0
 gunicorn
 whitenoise
+django-cors-headers

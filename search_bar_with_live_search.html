@@ -1,0 +1,312 @@
+<style>
+/* Search Bar Styles */
+.front_search {
+    width: 100%;
+    border: none;
+    margin-bottom: 20px;
+}
+
+.front_search input[type="text"] {
+    width: 80%;
+    padding: 12px;
+    font-size: 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    transition: all 0.3s;
+}
+
+.front_search input[type="text"]:focus {
+    outline: none;
+    border-color: #b78550;
+    box-shadow: 0 0 0 3px rgba(183, 133, 80, 0.15);
+}
+
+.front_search button {
+    padding: 12px 24px;
+    background: #b78550;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 10px;
+}
+
+.front_search button:hover {
+    background: #965f35;
+    transform: translateY(-2px);
+}
+
+.front td {
+    padding: 15px;
+}
+
+/* Live Results Dropdown */
+.search-wrapper {
+    position: relative;
+}
+
+.live-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    max-height: 400px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+    margin-top: 8px;
+}
+
+.live-results.active {
+    display: block;
+}
+
+.result-item {
+    padding: 12px 15px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background 0.15s;
+    text-decoration: none;
+    display: block;
+    color: inherit;
+}
+
+.result-item:hover {
+    background: #f8f9fa;
+}
+
+.result-reference {
+    font-weight: 600;
+    color: #b78550;
+    margin-bottom: 5px;
+}
+
+.result-preview {
+    font-size: 14px;
+    color: #555;
+    line-height: 1.5;
+}
+
+.result-preview mark {
+    background: #ffeb3b;
+    padding: 1px 3px;
+    border-radius: 2px;
+}
+
+.results-meta {
+    padding: 10px 15px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 13px;
+    color: #666;
+}
+
+.no-results {
+    padding: 20px;
+    text-align: center;
+    color: #999;
+}
+
+/* Responsive */
+@media (min-width: 768px) {
+    .mobile-view { display: none; }
+}
+
+@media (max-width: 767px) {
+    .desktop-view { display: none; }
+    .front_search input[type="text"] {
+        width: 70%;
+    }
+}
+</style>
+
+<!-- Desktop View -->
+<div class="desktop-view">
+    <table class="front_search" style="border: none;">
+        <tbody>
+            <tr>
+                <td>
+                    <div class="search-wrapper">
+                        <form method="get" action="https://read.realbible.tech/" style="text-align: left;">
+                            <input type="text" name="ref" id="refInputDesktop" placeholder="Enter a reference..." autocomplete="off">
+                            <button type="submit">Go</button>
+                            <div class="live-results" id="refResultsDesktop"></div>
+                        </form>
+                    </div>
+                </td>
+                <td class="front">
+                    <div class="search-wrapper">
+                        <form method="get" action="https://read.realbible.tech/" style="text-align: left;">
+                            <input type="text" name="q" id="keywordInputDesktop" placeholder="Enter a search word..." autocomplete="off">
+                            <button type="submit">Search</button>
+                            <div class="live-results" id="keywordResultsDesktop"></div>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Mobile View -->
+<div class="mobile-view">
+    <table class="front_search" style="border: none;">
+        <tbody>
+            <tr>
+                <td class="front">
+                    <div class="search-wrapper">
+                        <form method="get" action="https://read.realbible.tech/">
+                            <input type="text" name="ref" id="refInputMobile" placeholder="Enter a reference..." autocomplete="off">
+                            <button type="submit">Go</button>
+                            <div class="live-results" id="refResultsMobile"></div>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <table class="front_search" style="border: none;">
+        <tbody>
+            <tr>
+                <td class="front">
+                    <div class="search-wrapper">
+                        <form method="get" action="https://read.realbible.tech/">
+                            <input type="text" name="q" id="keywordInputMobile" placeholder="Enter a search word..." autocomplete="off">
+                            <button type="submit">Search</button>
+                            <div class="live-results" id="keywordResultsMobile"></div>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+// Live Search Functionality
+(function() {
+    let searchTimeout;
+    const API_BASE = 'https://read.realbible.tech';
+    
+    // Debounce function
+    function debounce(func, wait) {
+        return function executedFunction(...args) {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => func(...args), wait);
+        };
+    }
+    
+    // Setup live search for an input
+    function setupLiveSearch(inputId, resultsId, searchType) {
+        const input = document.getElementById(inputId);
+        const results = document.getElementById(resultsId);
+        
+        if (!input || !results) return;
+        
+        // Handle input changes
+        input.addEventListener('input', debounce(function(e) {
+            const query = e.target.value.trim();
+            
+            if (query.length < 2) {
+                results.classList.remove('active');
+                return;
+            }
+            
+            // Build search URL based on type
+            let searchUrl;
+            if (searchType === 'reference') {
+                searchUrl = `${API_BASE}/api/search/?type=reference&q=${encodeURIComponent(query)}`;
+            } else {
+                searchUrl = `${API_BASE}/api/search/?type=keyword&q=${encodeURIComponent(query)}`;
+            }
+            
+            // Fetch results
+            fetch(searchUrl)
+                .then(response => response.json())
+                .then(data => displayResults(data, results, query))
+                .catch(error => {
+                    console.error('Search error:', error);
+                    results.innerHTML = '<div class="no-results">Search unavailable</div>';
+                    results.classList.add('active');
+                });
+        }, 300));
+        
+        // Close results when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!input.contains(e.target) && !results.contains(e.target)) {
+                results.classList.remove('active');
+            }
+        });
+        
+        // Show results when input is focused with existing query
+        input.addEventListener('focus', function() {
+            if (input.value.trim().length >= 2 && results.innerHTML) {
+                results.classList.add('active');
+            }
+        });
+    }
+    
+    // Display search results
+    function displayResults(data, resultsContainer, query) {
+        if (!data || !data.results || data.results.length === 0) {
+            resultsContainer.innerHTML = '<div class="no-results">No results found</div>';
+            resultsContainer.classList.add('active');
+            return;
+        }
+        
+        let html = '';
+        
+        if (data.count) {
+            html += `<div class="results-meta">Found ${data.count} result${data.count !== 1 ? 's' : ''}</div>`;
+        }
+        
+        // Show up to 5 results
+        const results = data.results.slice(0, 5);
+        results.forEach(result => {
+            const preview = highlightMatch(result.text || result.preview || '', query);
+            html += `
+                <a href="${result.url}" class="result-item" target="_blank">
+                    <div class="result-reference">${result.reference || result.title}</div>
+                    <div class="result-preview">${preview}</div>
+                </a>
+            `;
+        });
+        
+        resultsContainer.innerHTML = html;
+        resultsContainer.classList.add('active');
+    }
+    
+    // Highlight matching text
+    function highlightMatch(text, query) {
+        if (!text || !query) return text;
+        
+        // Escape special regex characters
+        const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(${escaped})`, 'gi');
+        
+        // Truncate long text
+        let truncated = text.substring(0, 200);
+        if (text.length > 200) truncated += '...';
+        
+        return truncated.replace(regex, '<mark>$1</mark>');
+    }
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Desktop inputs
+        setupLiveSearch('refInputDesktop', 'refResultsDesktop', 'reference');
+        setupLiveSearch('keywordInputDesktop', 'keywordResultsDesktop', 'keyword');
+        
+        // Mobile inputs
+        setupLiveSearch('refInputMobile', 'refResultsMobile', 'reference');
+        setupLiveSearch('keywordInputMobile', 'keywordResultsMobile', 'keyword');
+    });
+})();
+</script>

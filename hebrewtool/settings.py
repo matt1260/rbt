@@ -46,6 +46,13 @@ SESSION_COOKIE_SECURE = True
 
 CSRF_TRUSTED_ORIGINS = ['https://mzg2o4p8.up.railway.app', 'https://rbtproject.up.railway.app', 'https://www.realbible.tech', 'https://read.realbible.tech', 'https://realbible.tech', 'http://rbt.realbible.tech', 'http://localhost', 'http://127.0.0.1']
 
+# CORS Settings - Allow WordPress frontend to make API requests
+CORS_ALLOWED_ORIGINS = [
+    'https://www.realbible.tech',
+    'https://realbible.tech',
+]
+CORS_ALLOW_CREDENTIALS = True
+
 LOGIN_URL = 'accounts/login/'
 
 # Increase field limits for bulk editing forms (e.g., find_and_replace)
@@ -61,6 +68,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'search',
     'translate',
     'rest_framework',
@@ -75,6 +83,7 @@ REST_FRAMEWORK = {
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
