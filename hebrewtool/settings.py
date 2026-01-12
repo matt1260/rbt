@@ -50,6 +50,9 @@ CSRF_TRUSTED_ORIGINS = ['https://mzg2o4p8.up.railway.app', 'https://rbtproject.u
 CORS_ALLOWED_ORIGINS = [
     'https://www.realbible.tech',
     'https://realbible.tech',
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+    'null',  # For file:// protocol testing
 ]
 CORS_ALLOW_CREDENTIALS = True
 

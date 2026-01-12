@@ -193,6 +193,7 @@
 // Live Search Functionality
 (function() {
     let searchTimeout;
+    // Production WordPress → Django API (cross-origin request)
     const API_BASE = 'https://read.realbible.tech';
     
     // Debounce function
@@ -219,12 +220,12 @@
                 return;
             }
             
-            // Build search URL based on type
+            // Build search URL - API is at /api/live/ not /api/search/
             let searchUrl;
             if (searchType === 'reference') {
-                searchUrl = `${API_BASE}/api/search/?type=reference&q=${encodeURIComponent(query)}`;
+                searchUrl = `${API_BASE}/api/live/?type=reference&q=${encodeURIComponent(query)}`;
             } else {
-                searchUrl = `${API_BASE}/api/search/?type=keyword&q=${encodeURIComponent(query)}`;
+                searchUrl = `${API_BASE}/api/live/?type=keyword&q=${encodeURIComponent(query)}`;
             }
             
             // Fetch results
@@ -253,38 +254,81 @@
         });
     }
     
-    // Display search results
+    // Display search results with categories
     function displayResults(data, resultsContainer, query) {
-        if (!data || !data.results || data.results.length === 0) {
+        const results = data.results || data;
+        let html = '';
+        let totalShown = 0;
+        
+        // Calculate total count
+        const totalCount = data.total || 0;
+        
+        if (totalCount === 0) {
             resultsContainer.innerHTML = '<div class="no-results">No results found</div>';
             resultsContainer.classList.add('active');
             return;
         }
         
-        let html = '';
+        // Meta header with total count
+        html += `<div class="results-meta">Found ${totalCount} result${totalCount !== 1 ? 's' : ''}</div>`;
         
-        if (data.count) {
-            html += `<div class="results-meta">Found ${data.count} result${data.count !== 1 ? 's' : ''}</div>`;
+        // Helper to add category results
+        function addCategory(items, title, limit = 3) {
+            if (!items || items.length === 0) return;
+            
+            html += `<div class="results-category"><i class="fas fa-bookmark"></i> ${title} (${items.length})</div>`;
+            const displayItems = items.slice(0, limit);
+            
+            displayItems.forEach(item => {
+                const ref = item.display || `${item.book} ${item.chapter}:${item.verse}`;
+                const preview = item.text ? highlightMatch(item.text, query, 150) : 
+                               item.english ? `English: ${item.english}` :
+                               item.hebrew ? item.hebrew : '';
+                const version = item.version ? ` <span class="source-badge">${item.version}</span>` : '';
+                
+                html += `
+                    <a href="${item.url}" class="result-item">
+                        <div class="result-reference">${ref}${version}</div>
+                        ${preview ? `<div class="result-preview">${preview}</div>` : ''}
+                    </a>
+                `;
+                totalShown++;
+            });
         }
         
-        // Show up to 5 results
-        const results = data.results.slice(0, 5);
-        results.forEach(result => {
-            const preview = highlightMatch(result.text || result.preview || '', query);
-            html += `
-                <a href="${result.url}" class="result-item" target="_blank">
-                    <div class="result-reference">${result.reference || result.title}</div>
-                    <div class="result-preview">${preview}</div>
-                </a>
-            `;
-        });
+        // Add results by category
+        if (results.references && results.references.length > 0) {
+            addCategory(results.references, 'References', 3);
+        }
+        if (results.ot_verses && results.ot_verses.length > 0) {
+            addCategory(results.ot_verses, 'Old Testament', 3);
+        }
+        if (results.ot_hebrew && results.ot_hebrew.length > 0) {
+            addCategory(results.ot_hebrew, 'Hebrew Words', 3);
+        }
+        if (results.nt_verses && results.nt_verses.length > 0) {
+            addCategory(results.nt_verses, 'New Testament', 3);
+        }
+        if (results.nt_greek && results.nt_greek.length > 0) {
+            addCategory(results.nt_greek, 'Greek Words', 3);
+        }
+        if (results.footnotes && results.footnotes.length > 0) {
+            addCategory(results.footnotes, 'Footnotes', 2);
+        }
+        
+        // Add "View All Results" link if there are more results
+        if (totalCount > totalShown) {
+            html += `<a href="https://read.realbible.tech/search/?q=${encodeURIComponent(query)}" class="view-all-results">
+                View All ${totalCount} Results →
+            </a>`;
+        }
         
         resultsContainer.innerHTML = html;
         resultsContainer.classList.add('active');
     }
     
     // Highlight matching text
-    function highlightMatch(text, query) {
+    function highlightMatch(text, query, maxLength = 200) {
         if (!text || !query) return text;
         
         // Escape special regex characters
@@ -292,8 +336,8 @@
         const regex = new RegExp(`(${escaped})`, 'gi');
         
         // Truncate long text
-        let truncated = text.substring(0, 200);
-        if (text.length > 200) truncated += '...';
+        let truncated = text.substring(0, maxLength);
+        if (text.length > maxLength) truncated += '...';
         
         return truncated.replace(regex, '<mark>$1</mark>');
     }
