@@ -12,6 +12,7 @@
     const liveResults = document.getElementById('liveResults');
     const searchForm = document.getElementById('searchForm');
     const scopeInput = document.getElementById('scopeInput');
+    const typeInput = document.getElementById('typeInput');
     const hebrewKeyboard = document.getElementById('hebrewKeyboard');
     const greekKeyboard = document.getElementById('greekKeyboard');
     const hebrewKbdBtn = document.getElementById('hebrewKbdBtn');
@@ -21,6 +22,7 @@
     let debounceTimer = null;
     let currentRequest = null;
     let activeKeyboard = null;
+    let currentSearchType = 'keyword'; // track current tab selection
     
     // Initialize when DOM is ready
     if (document.readyState === 'loading') {
@@ -93,6 +95,22 @@
             }
         });
         
+        // Form submit handler - detect chapter-only references and redirect
+        if (searchForm) {
+            searchForm.addEventListener('submit', (e) => {
+                if (currentSearchType === 'reference') {
+                    const query = searchInput.value.trim();
+                    const chapterMatch = parseChapterReference(query);
+                    if (chapterMatch) {
+                        e.preventDefault();
+                        // Redirect directly to the chapter
+                        window.location.href = `/?book=${encodeURIComponent(chapterMatch.book)}&chapter=${chapterMatch.chapter}`;
+                        return;
+                    }
+                }
+            });
+        }
+        
         // Check if there's a query parameter in URL and trigger search
         const urlParams = new URLSearchParams(window.location.search);
         const queryParam = urlParams.get('q');
@@ -118,6 +136,19 @@
         tab.classList.add('active');
         
         const type = tab.dataset.type;
+        
+        // Update current search type for API calls
+        if (type === 'reference') {
+            currentSearchType = 'reference';
+        } else if (type === 'keyword' || type === 'hebrew' || type === 'greek') {
+            currentSearchType = 'keyword';
+        }
+        
+        // Update hidden type input
+        if (typeInput) {
+            typeInput.value = currentSearchType;
+        }
+        
         if (type === 'hebrew') {
             openKeyboard('hebrew');
             searchInput.placeholder = 'Enter Hebrew text...';
@@ -133,6 +164,11 @@
             searchInput.placeholder = type === 'reference' 
                 ? 'Enter reference (e.g., John 3:16, Gen 1:1-5)...'
                 : 'Enter search term...';
+        }
+        
+        // Re-trigger search if there's content
+        if (searchInput && searchInput.value.length >= 2) {
+            performSearch(searchInput.value);
         }
     }
     
@@ -196,6 +232,7 @@
     // Perform live search
     async function performSearch(query) {
         const scope = scopeInput ? scopeInput.value : 'all';
+        const searchType = currentSearchType || 'keyword';
         
         // Show loading state
         if (searchInputField) {
@@ -211,7 +248,7 @@
         
         try {
             const response = await fetch(
-                `/api/live/?q=${encodeURIComponent(query)}&scope=${scope}&limit=50`,
+                `/api/live/?q=${encodeURIComponent(query)}&scope=${scope}&limit=50&type=${searchType}`,
                 { signal: currentRequest.signal }
             );
             
@@ -364,8 +401,9 @@
         }
         
         // View all link
+        const searchTypeParam = currentSearchType || 'keyword';
         html += `
-            <a href="/search/results/?q=${encodeURIComponent(query)}&scope=${data.scope}&page=1" class="view-all-results">
+            <a href="/search/results/?q=${encodeURIComponent(query)}&scope=${data.scope}&page=1&type=${searchTypeParam}" class="view-all-results">
                 <i class="fas fa-arrow-right"></i> View All ${total.toLocaleString()} Results
             </a>
         `;
@@ -452,6 +490,128 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    // Parse chapter-only reference like "Mark 10", "Genesis 20", "1 Samuel 5"
+    function parseChapterReference(query) {
+        if (!query) return null;
+        
+        // List of valid Bible book names
+        const bookNames = [
+            // Old Testament
+            'genesis', 'gen', 'exodus', 'ex', 'exod', 'leviticus', 'lev', 'numbers', 'num',
+            'deuteronomy', 'deut', 'deu', 'joshua', 'josh', 'judges', 'judg', 'ruth',
+            '1 samuel', '1samuel', '1 sam', '1sam', '2 samuel', '2samuel', '2 sam', '2sam',
+            '1 kings', '1kings', '1 ki', '1ki', '2 kings', '2kings', '2 ki', '2ki',
+            '1 chronicles', '1chronicles', '1 chr', '1chr', '2 chronicles', '2chronicles', '2 chr', '2chr',
+            'ezra', 'nehemiah', 'neh', 'esther', 'est', 'job', 'psalms', 'psalm', 'ps', 'psa',
+            'proverbs', 'prov', 'pro', 'ecclesiastes', 'eccl', 'ecc', 'song of solomon', 'song', 'sos',
+            'isaiah', 'isa', 'jeremiah', 'jer', 'lamentations', 'lam', 'ezekiel', 'ezek', 'eze',
+            'daniel', 'dan', 'hosea', 'hos', 'joel', 'amos', 'obadiah', 'obad', 'oba',
+            'jonah', 'jon', 'micah', 'mic', 'nahum', 'nah', 'habakkuk', 'hab',
+            'zephaniah', 'zeph', 'zep', 'haggai', 'hag', 'zechariah', 'zech', 'zec', 'malachi', 'mal',
+            // New Testament
+            'matthew', 'matt', 'mat', 'mark', 'mar', 'mk', 'luke', 'luk', 'john', 'joh', 'jn',
+            'acts', 'act', 'romans', 'rom', '1 corinthians', '1corinthians', '1 cor', '1cor',
+            '2 corinthians', '2corinthians', '2 cor', '2cor', 'galatians', 'gal',
+            'ephesians', 'eph', 'philippians', 'phil', 'colossians', 'col',
+            '1 thessalonians', '1thessalonians', '1 thess', '1thess', '2 thessalonians', '2thessalonians', '2 thess', '2thess',
+            '1 timothy', '1timothy', '1 tim', '1tim', '2 timothy', '2timothy', '2 tim', '2tim',
+            'titus', 'tit', 'philemon', 'phm', 'hebrews', 'heb', 'james', 'jas', 'jam',
+            '1 peter', '1peter', '1 pet', '1pet', '2 peter', '2peter', '2 pet', '2pet',
+            '1 john', '1john', '1 jn', '1jn', '2 john', '2john', '2 jn', '2jn', '3 john', '3john', '3 jn', '3jn',
+            'jude', 'revelation', 'rev'
+        ];
+        
+        // Book name to canonical name mapping
+        const bookMapping = {
+            'gen': 'Genesis', 'genesis': 'Genesis',
+            'ex': 'Exodus', 'exod': 'Exodus', 'exodus': 'Exodus',
+            'lev': 'Leviticus', 'leviticus': 'Leviticus',
+            'num': 'Numbers', 'numbers': 'Numbers',
+            'deut': 'Deuteronomy', 'deu': 'Deuteronomy', 'deuteronomy': 'Deuteronomy',
+            'josh': 'Joshua', 'joshua': 'Joshua',
+            'judg': 'Judges', 'judges': 'Judges',
+            'ruth': 'Ruth',
+            '1 samuel': '1 Samuel', '1samuel': '1 Samuel', '1 sam': '1 Samuel', '1sam': '1 Samuel',
+            '2 samuel': '2 Samuel', '2samuel': '2 Samuel', '2 sam': '2 Samuel', '2sam': '2 Samuel',
+            '1 kings': '1 Kings', '1kings': '1 Kings', '1 ki': '1 Kings', '1ki': '1 Kings',
+            '2 kings': '2 Kings', '2kings': '2 Kings', '2 ki': '2 Kings', '2ki': '2 Kings',
+            '1 chronicles': '1 Chronicles', '1chronicles': '1 Chronicles', '1 chr': '1 Chronicles', '1chr': '1 Chronicles',
+            '2 chronicles': '2 Chronicles', '2chronicles': '2 Chronicles', '2 chr': '2 Chronicles', '2chr': '2 Chronicles',
+            'ezra': 'Ezra',
+            'neh': 'Nehemiah', 'nehemiah': 'Nehemiah',
+            'est': 'Esther', 'esther': 'Esther',
+            'job': 'Job',
+            'ps': 'Psalms', 'psa': 'Psalms', 'psalm': 'Psalms', 'psalms': 'Psalms',
+            'prov': 'Proverbs', 'pro': 'Proverbs', 'proverbs': 'Proverbs',
+            'eccl': 'Ecclesiastes', 'ecc': 'Ecclesiastes', 'ecclesiastes': 'Ecclesiastes',
+            'song of solomon': 'Song of Solomon', 'song': 'Song of Solomon', 'sos': 'Song of Solomon',
+            'isa': 'Isaiah', 'isaiah': 'Isaiah',
+            'jer': 'Jeremiah', 'jeremiah': 'Jeremiah',
+            'lam': 'Lamentations', 'lamentations': 'Lamentations',
+            'ezek': 'Ezekiel', 'eze': 'Ezekiel', 'ezekiel': 'Ezekiel',
+            'dan': 'Daniel', 'daniel': 'Daniel',
+            'hos': 'Hosea', 'hosea': 'Hosea',
+            'joel': 'Joel',
+            'amos': 'Amos',
+            'obad': 'Obadiah', 'oba': 'Obadiah', 'obadiah': 'Obadiah',
+            'jon': 'Jonah', 'jonah': 'Jonah',
+            'mic': 'Micah', 'micah': 'Micah',
+            'nah': 'Nahum', 'nahum': 'Nahum',
+            'hab': 'Habakkuk', 'habakkuk': 'Habakkuk',
+            'zeph': 'Zephaniah', 'zep': 'Zephaniah', 'zephaniah': 'Zephaniah',
+            'hag': 'Haggai', 'haggai': 'Haggai',
+            'zech': 'Zechariah', 'zec': 'Zechariah', 'zechariah': 'Zechariah',
+            'mal': 'Malachi', 'malachi': 'Malachi',
+            // New Testament
+            'matt': 'Matthew', 'mat': 'Matthew', 'matthew': 'Matthew',
+            'mark': 'Mark', 'mar': 'Mark', 'mk': 'Mark',
+            'luke': 'Luke', 'luk': 'Luke',
+            'john': 'John', 'joh': 'John', 'jn': 'John',
+            'acts': 'Acts', 'act': 'Acts',
+            'rom': 'Romans', 'romans': 'Romans',
+            '1 corinthians': '1 Corinthians', '1corinthians': '1 Corinthians', '1 cor': '1 Corinthians', '1cor': '1 Corinthians',
+            '2 corinthians': '2 Corinthians', '2corinthians': '2 Corinthians', '2 cor': '2 Corinthians', '2cor': '2 Corinthians',
+            'gal': 'Galatians', 'galatians': 'Galatians',
+            'eph': 'Ephesians', 'ephesians': 'Ephesians',
+            'phil': 'Philippians', 'philippians': 'Philippians',
+            'col': 'Colossians', 'colossians': 'Colossians',
+            '1 thessalonians': '1 Thessalonians', '1thessalonians': '1 Thessalonians', '1 thess': '1 Thessalonians', '1thess': '1 Thessalonians',
+            '2 thessalonians': '2 Thessalonians', '2thessalonians': '2 Thessalonians', '2 thess': '2 Thessalonians', '2thess': '2 Thessalonians',
+            '1 timothy': '1 Timothy', '1timothy': '1 Timothy', '1 tim': '1 Timothy', '1tim': '1 Timothy',
+            '2 timothy': '2 Timothy', '2timothy': '2 Timothy', '2 tim': '2 Timothy', '2tim': '2 Timothy',
+            'tit': 'Titus', 'titus': 'Titus',
+            'phm': 'Philemon', 'philemon': 'Philemon',
+            'heb': 'Hebrews', 'hebrews': 'Hebrews',
+            'jas': 'James', 'jam': 'James', 'james': 'James',
+            '1 peter': '1 Peter', '1peter': '1 Peter', '1 pet': '1 Peter', '1pet': '1 Peter',
+            '2 peter': '2 Peter', '2peter': '2 Peter', '2 pet': '2 Peter', '2pet': '2 Peter',
+            '1 john': '1 John', '1john': '1 John', '1 jn': '1 John', '1jn': '1 John',
+            '2 john': '2 John', '2john': '2 John', '2 jn': '2 John', '2jn': '2 John',
+            '3 john': '3 John', '3john': '3 John', '3 jn': '3 John', '3jn': '3 John',
+            'jude': 'Jude',
+            'rev': 'Revelation', 'revelation': 'Revelation'
+        };
+        
+        const q = query.toLowerCase().trim();
+        
+        // Pattern: "Book Chapter" without verse (e.g., "Mark 10", "Genesis 20", "1 Samuel 5")
+        // Must NOT have a colon (which would indicate a verse)
+        if (q.includes(':')) return null;
+        
+        // Match patterns like "mark 10", "genesis 20", "1 samuel 5", "1 cor 13"
+        const match = q.match(/^(\d?\s*[a-z]+(?:\s+of\s+[a-z]+)?)\s+(\d+)$/i);
+        if (!match) return null;
+        
+        const bookPart = match[1].toLowerCase().trim();
+        const chapter = parseInt(match[2], 10);
+        
+        // Check if book is valid
+        const canonicalBook = bookMapping[bookPart];
+        if (!canonicalBook) return null;
+        
+        return { book: canonicalBook, chapter: chapter };
     }
     
     function parseStrongs(strongsData) {
