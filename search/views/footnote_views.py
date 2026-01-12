@@ -82,7 +82,7 @@ def get_footnote(footnote_id, book, chapter_num=None, verse_num=None):
                 table_html = (
                     f'<tr>'
                     f'<td style="border-bottom: 1px solid #d2d2d2;">'
-                    f'<a href="?footnote={chapter_num}-{verse_num}-{footnote_number}&book={full_book}">{footnote_number}</a>'
+                    f'<a href="?footnote={chapter_num}-{verse_num}-{footnote_number}&book={book_abbrev}">{footnote_number}</a>'
                     f'</td>'
                     f'<td style="border-bottom: 1px solid #d2d2d2;">{note_location}{footnote_html}</td>'
                     f'</tr>'

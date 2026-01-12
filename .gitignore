@@ -20,6 +20,13 @@ ENV/
 scripts/
 
 neve-child/
+namecheap_server.txt
+.wordpress_db
+WORDPRESS_DB_README.md
+wordpress_db.py
+example_ai_queries.py
+wordpress_db.py
+find_main_page.py
 
 searchimage.py
 replace_exact_match.py

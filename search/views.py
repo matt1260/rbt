@@ -217,27 +217,33 @@ def get_footnote(footnote_id, book, chapter_num=None, verse_num=None):
 
         return table_html
 
-    elif book in nt_abbrev:
+    elif book in nt_abbrev or book in new_testament_books:
 
-        if book[0].isdigit():
-            table = f"table_{book}_footnotes"
+        # Normalize book abbreviation and full name
+        book_abbrev = book_abbreviations.get(book, book)
+        # In case an abbreviation was passed, resolve full book name for display
+        abbrev_to_book = {abbrev: bk for bk, abbrev in book_abbreviations.items()}
+        full_book = abbrev_to_book.get(book, book) if book not in book_abbreviations else book
+
+        if book_abbrev[0].isdigit():
+            table = f"table_{book_abbrev}_footnotes"
         else:
-            table = f"{book}_footnotes"
-            
+            table = f"{book_abbrev}_footnotes"
+
         table = table.lower()
 
         footnote_parts = footnote_id.split('-')
         footnote_number = footnote_parts[-1]
 
-        footnote_ref = book + '-' + footnote_number
+        footnote_ref = book_abbrev + '-' + footnote_number
 
         chapter_part = footnote_parts[0] if footnote_parts else chapter_num
         verse_part = footnote_parts[1] if len(footnote_parts) > 1 else verse_num
         note_location = ''
         if chapter_part and verse_part:
-            note_location = f'<div class="note-location">{book} {chapter_part}:{verse_part}</div>'
+            note_location = f'<div class="note-location">{full_book} {chapter_part}:{verse_part}</div>'
         elif chapter_part:
-            note_location = f'<div class="note-location">{book} {chapter_part}</div>'
+            note_location = f'<div class="note-location">{full_book} {chapter_part}</div>'
 
         # Construct the SQL query to retrieve HTML
         sql_query = f"SELECT footnote_html FROM new_testament.{table} WHERE footnote_id = %s"
@@ -249,7 +255,7 @@ def get_footnote(footnote_id, book, chapter_num=None, verse_num=None):
             table_html = (
                 f'<tr>'
                 f'<td style="border-bottom: 1px solid #d2d2d2;">'
-                f'<a href="?footnote={chapter_num}-{verse_num}-{footnote_number}&book={book}">{footnote_number}</a>'
+                f'<a href="?footnote={chapter_num}-{verse_num}-{footnote_number}&book={book_abbrev}">{footnote_number}</a>'
                 f'</td>'
                 f'<td style="border-bottom: 1px solid #d2d2d2;">{note_location}{footnote_html}</td>'
                 f'</tr>'
@@ -2380,7 +2386,7 @@ def search(request):
                     footnote_html = "Footnote not found."
 
             # Create an HTML table with two columns
-            table_html = f'<tr><td style="border-bottom: 1px solid #d2d2d2;"><a href="?footnote={chapter}-{verse}-{footnote_ref}&book={book}&lang={language}">{footnote_ref}</a></td><td style="border-bottom: 1px solid #d2d2d2;">{footnote_html}</td></tr>'
+            table_html = f'<tr><td style="border-bottom: 1px solid #d2d2d2;"><a href="?footnote={chapter}-{verse}-{footnote_ref}&book={book_abbrev}&lang={language}">{footnote_ref}</a></td><td style="border-bottom: 1px solid #d2d2d2;">{footnote_html}</td></tr>'
 
             footnote_html = f'<table><tbody>{table_html}</tbody></table>'
             

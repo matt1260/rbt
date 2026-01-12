@@ -688,7 +688,8 @@ def edit_footnote(request):
         verse_num = parts[1]
         footnoteid = parts[2]
 
-        if book in nt_abbrev:
+        if book in nt_abbrev or book in new_testament_books:
+            # Accept both abbreviation (e.g., 'Joh') and full name ('John')
             footnote_id = book + '-' + footnoteid
             footnote_table = book + '_footnotes'
 
@@ -738,17 +739,26 @@ def edit_footnote(request):
             chapter_ref, verse_ref, footnote_ref = footnote_id.split('-')
             results = GenesisFootnotes.objects.filter(footnote_id=footnote_id)
 
-            footnote_edit = results[0].footnote_html
-            footnote_html = results[0].footnote_html
-            
+            if results:
+                footnote_edit = results[0].footnote_html
+                footnote_html = results[0].footnote_html
+            else:
+                footnote_edit = ''
+                footnote_html = ''
+
             # Get results
             verse_results = Genesis.objects.filter(
                 chapter=chapter_ref, verse=verse_ref).values('html')
             hebrew_result = Genesis.objects.filter(
                 chapter=chapter_ref, verse=verse_ref).values('hebrew')
 
-            hebrew = hebrew_result[0]['hebrew']
-            verse_html = verse_results[0]['html']
+            if verse_results and hebrew_result:
+                hebrew = hebrew_result[0].get('hebrew', '')
+                verse_html = verse_results[0].get('html', '')
+            else:
+                hebrew = ''
+                verse_html = ''
+
             footnote_ref = footnote_id.split('-')[2]
 
             context = {
@@ -819,7 +829,7 @@ def edit_footnote(request):
             )
             update_instance.save()
 
-            if book in nt_abbrev:
+            if book in nt_abbrev or book in new_testament_books:
                 
                 if book[0].isdigit():
                     table = f"table_{book}_footnotes"
