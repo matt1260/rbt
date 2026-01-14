@@ -2847,7 +2847,8 @@ def search_api(request):
     """
     query = request.GET.get('q', '').strip()
     scope = request.GET.get('scope', 'all').lower()
-    search_type = request.GET.get('type', 'auto')
+    requested_type = request.GET.get('type', 'auto')
+    search_type = requested_type
     limit = min(int(request.GET.get('limit', 20)), 100)
     page = max(int(request.GET.get('page', 1)), 1)
     offset = (page - 1) * limit
@@ -2923,6 +2924,22 @@ def search_api(request):
                 counts['references'] = 1
         except Exception as e:
             pass  # Not a valid reference, continue with keyword search
+
+    # If the caller explicitly requested reference mode, avoid expensive keyword searches
+    if requested_type == 'reference':
+        total_results = counts['references']
+        return JsonResponse({
+            'query': query,
+            'scope': scope,
+            'type': search_type,
+            'script_detected': script,
+            'results': results,
+            'counts': counts,
+            'total': total_results,
+            'page': page,
+            'limit': limit,
+            'has_more': counts['references'] > len(results['references'])
+        })
     
     # Keyword search
     if search_type == 'keyword' or not results['references']:
