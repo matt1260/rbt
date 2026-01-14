@@ -2863,18 +2863,7 @@ def search_api(request):
     # Detect script type
     script = detect_script(query)
     
-    # Auto-detect search type
-    if search_type == 'auto':
-        # Check if it looks like a reference
-        try:
-            ref = bible.get_references(query)
-            if ref:
-                search_type = 'reference'
-            else:
-                search_type = 'keyword'
-        except:
-            search_type = 'keyword'
-    
+    # Initialize results and counts
     results = {
         'ot_verses': [],
         'ot_hebrew': [],
@@ -2893,10 +2882,26 @@ def search_api(request):
         'references': 0
     }
     
+    # Cache parsed references to avoid duplicate parsing
+    parsed_refs = None
+    
+    # Auto-detect search type
+    if search_type == 'auto':
+        # Check if it looks like a reference
+        try:
+            parsed_refs = bible.get_references(query)
+            if parsed_refs:
+                search_type = 'reference'
+            else:
+                search_type = 'keyword'
+        except:
+            search_type = 'keyword'
+    
     # Reference search
     if search_type == 'reference':
         try:
-            refs = bible.get_references(query)
+            # Use cached refs if available (from auto-detection), otherwise parse
+            refs = parsed_refs if parsed_refs is not None else bible.get_references(query)
             if refs:
                 ref = refs[0]
                 book_name = ref.book.name
