@@ -3330,9 +3330,49 @@ def search_api(request):
             except Exception as e:
                 print(f"Footnote search error: {e}")
     
+    # Deduplicate verse results to avoid duplicate entries (e.g., same reference from multiple sources)
+    def dedupe_by_ref(items):
+        seen = set()
+        out = []
+        for it in items:
+            key = (it.get('book'), str(it.get('chapter')), str(it.get('verse')))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(it)
+        return out
+
+    # Log and sanitize missing book names
+    missing_books = []
+    for cat in ['ot_verses', 'nt_verses', 'footnotes']:
+        cleaned = []
+        for it in results.get(cat, []) or []:
+            if not it.get('book'):
+                missing_books.append((cat, it))
+                it['book'] = ''
+            cleaned.append(it)
+        results[cat] = cleaned
+
+    # Apply deduplication for verses and footnotes
+    results['ot_verses'] = dedupe_by_ref(results.get('ot_verses', []))
+    results['nt_verses'] = dedupe_by_ref(results.get('nt_verses', []))
+    results['footnotes'] = dedupe_by_ref(results.get('footnotes', []))
+
+    # Recompute counts after deduplication
+    counts['ot_verses'] = len(results['ot_verses'])
+    counts['nt_verses'] = len(results['nt_verses'])
+    counts['footnotes'] = len(results['footnotes'])
+
     # Calculate totals
     total_results = sum(counts.values())
-    
+
+    # If there are missing book entries, log a sample for debugging
+    if missing_books:
+        try:
+            print(f"Missing book names in search results for query '{query}': {missing_books[:5]}")
+        except Exception:
+            pass
+
     return JsonResponse({
         'query': query,
         'scope': scope,

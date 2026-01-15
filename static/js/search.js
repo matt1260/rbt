@@ -339,7 +339,7 @@
                     <a href="${r.url || '#'}" class="result-item">
                         <div class="result-reference">
                             <span style="font-family: 'SBL Hebrew', serif; font-size: 18px;">${escapeHtml(r.hebrew_niqqud || r.hebrew || '')}</span>
-                            <span class="source-badge">${r.book} ${r.chapter}:${r.verse}</span>
+                            <span class="source-badge">${escapeHtml(r.book || '')} ${r.chapter}:${r.verse}</span>
                         </div>
                         <div class="result-preview">
                             <strong>English:</strong> ${escapeHtml(r.english || '')}
@@ -370,7 +370,7 @@
                         <div class="result-reference">
                             <span style="font-family: 'SBL Greek', serif; font-size: 18px;">${escapeHtml(r.lemma || r.greek || '')}</span>
                             <span style="font-style: italic; color: #666; margin-left: 8px;">${escapeHtml(r.translit || '')}</span>
-                            <span class="source-badge">${r.book} ${r.chapter}:${r.verse}</span>
+                            <span class="source-badge">${escapeHtml(r.book || '')} ${r.chapter}:${r.verse}</span>
                         </div>
                         <div class="result-preview">
                             <strong>English:</strong> ${escapeHtml(r.english || '')}
