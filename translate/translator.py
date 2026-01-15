@@ -169,12 +169,12 @@ book_abbreviations = {
     'Ezekiel': 'Eze',
     'Daniel': 'Dan',
     'Hosea': 'Hos',
-    'Joel': 'Joe',
+    'Joel': 'Jol',  # Database uses 'Jol' not 'Joe'
     'Amos': 'Amo',
     'Obadiah': 'Oba',
     'Jonah': 'Jon',
     'Micah': 'Mic',
-    'Nahum': 'Nah',
+    'Nahum': 'Nam',  # Database uses 'Nam' not 'Nah'
     'Habakkuk': 'Hab',
     'Zephaniah': 'Zep',
     'Haggai': 'Hag',
@@ -703,7 +703,7 @@ def ot_prev_next_references(ref):
     )
     prev_reference = prev_row[0] if prev_row else ref
     prev_parts = prev_reference.split('.')
-    prev_book = convert_book_name(prev_parts[0])
+    prev_book = convert_book_name(prev_parts[0]) or prev_parts[0]
     prev_ref = f'?book={prev_book}&chapter={prev_parts[1]}&verse={prev_parts[2]}'
 
     # Fetch next reference
@@ -715,7 +715,7 @@ def ot_prev_next_references(ref):
     if next_row:
         next_reference = next_row[0]
         next_parts = next_reference.split('.')
-        next_book = convert_book_name(next_parts[0])
+        next_book = convert_book_name(next_parts[0]) or next_parts[0]
         next_ref = f'?book={next_book}&chapter={next_parts[1]}&verse={next_parts[2]}'
     else:
         # If next reference does not exist (e.g., last verse of Malachi)

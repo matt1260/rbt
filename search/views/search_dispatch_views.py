@@ -153,10 +153,13 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
     try:
         results = get_results(book, chapter_num, verse_num, language)
         
-        if not results['rbt_greek']:
-            if not results['hebrew']:
-                context = {'error': 'Verse is Invalid'}
-                return render(request, 'search_input.html', context)
+        # Validate verse exists - need either Greek (NT) or verse text (OT)
+        has_nt_data = results.get('rbt_greek')
+        has_ot_text = results.get('rbt') or results.get('rbt_text') or results.get('rbt_paraphrase')
+        
+        if not has_nt_data and not has_ot_text:
+            context = {'error': 'Verse is Invalid'}
+            return render(request, 'search_input.html', context)
         
         replacements = load_json('interlinear_english.json')  # NT
         greek = results['rbt_greek']

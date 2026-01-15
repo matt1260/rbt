@@ -355,7 +355,7 @@
         
         // NT Verses
         if (results.nt_verses && results.nt_verses.length > 0) {
-            html += `<div class="results-category"><i class="fas fa-cross"></i> New Testament (${counts.nt_verses})</div>`;
+            html += `<div class="results-category"><i class="fas fa-open-book"></i> New Testament (${counts.nt_verses})</div>`;
             results.nt_verses.slice(0, 5).forEach(r => {
                 html += renderResultItem(r, 'nt_verse');
             });

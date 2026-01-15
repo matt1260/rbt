@@ -232,7 +232,13 @@ def search_api(request):
                 )
                 
                 for row in ot_rows or []:
-                    book_name = convert_book_name(row[0]) if row[0] else row[0]
+                    # Convert book abbreviation to full name, fallback to abbreviation if not found
+                    book_abbrev = row[0] if row[0] else ''
+                    book_name = convert_book_name(book_abbrev)
+                    if not book_name:
+                        # Fallback: use the abbreviation itself if conversion fails
+                        book_name = book_abbrev
+                    
                     # row[3]=html (Paraphrase), row[4]=literal (RBT Interlinear)
                     # Determine which field matched
                     if row[3] and query.lower() in row[3].lower():
@@ -293,6 +299,9 @@ def search_api(request):
                     chapter = ref_parts[1] if len(ref_parts) > 1 else ''
                     verse = ref_parts[2].split('-')[0] if len(ref_parts) > 2 else ''
                     book_name = convert_book_name(book_code) if book_code else ''
+                    if not book_name and book_code:
+                        # Fallback: use abbreviation if conversion fails
+                        book_name = book_code
                     
                     results['ot_hebrew'].append({
                         'type': 'hebrew_word',
@@ -382,7 +391,11 @@ def search_api(request):
                 )
                 
                 for row in nt_rows or []:
-                    book_name = convert_book_name(row[0]) if row[0] else row[0]
+                    book_abbrev = row[0] if row[0] else ''
+                    book_name = convert_book_name(book_abbrev)
+                    if not book_name:
+                        # Fallback: use abbreviation if conversion fails
+                        book_name = book_abbrev
                     text = row[3] or row[4] or ''
                     results['nt_verses'].append({
                         'type': 'nt_verse',
@@ -499,8 +512,37 @@ def search_api(request):
                     book_code = ref_parts[0] if len(ref_parts) > 0 else ''
                     chapter = ref_parts[1] if len(ref_parts) > 1 else ''
                     verse = ref_parts[2].split('-')[0] if len(ref_parts) > 2 else ''
+
+                    # Try to convert abbreviation to full book name
                     book_name = convert_book_name(book_code) if book_code else ''
-                    
+
+                    # If conversion failed, attempt to find the book column from old_testament.ot
+                    if not book_name and book_code:
+                        try:
+                            sample = execute_query(
+                                "SELECT book FROM old_testament.ot WHERE Ref LIKE %s LIMIT 1",
+                                (f'{book_code}.%',),
+                                fetch='one'
+                            )
+                            sample_book = sample[0] if sample else None
+                            if sample_book:
+                                book_name = convert_book_name(sample_book) or sample_book
+                                # Log the prefix mismatch for debugging
+                                try:
+                                    logger.warning(
+                                        'OT footnote ref prefix mismatch: ref prefix %s maps to book column %s',
+                                        book_code, sample_book
+                                    )
+                                except Exception:
+                                    pass
+                        except Exception:
+                            # Ignore DB lookup errors and fall back
+                            pass
+
+                    # Final fallback to abbreviation itself if nothing else worked
+                    if not book_name:
+                        book_name = book_code or ''
+
                     results['footnotes'].append({
                         'type': 'footnote',
                         'source': 'old_testament.hebrewdata',
@@ -523,35 +565,134 @@ def search_api(request):
                 
                 for table_row in footnote_tables or []:
                     table_name = table_row[0]
-                    book_code = table_name.replace('_footnotes', '')
+                    book_code = table_name.replace('_footnotes', '').replace('table_', '')
                     
-                    nt_fn_rows = execute_query(
-                        f"""
-                        SELECT footnote_id, footnote_html 
-                        FROM new_testament.{table_name} 
-                        WHERE footnote_html ILIKE %s
-                        LIMIT %s
-                        """,
-                        (f'%{query}%', limit // 5),  # Limit per table
-                        fetch='all'
-                    )
+                    # Check if vrs column exists in this table
+                    has_vrs = False
+                    try:
+                        col_check = execute_query(
+                            """
+                            SELECT column_name FROM information_schema.columns 
+                            WHERE table_schema = 'new_testament' 
+                            AND table_name = %s 
+                            AND column_name = 'vrs'
+                            """,
+                            (table_name,),
+                            fetch='one'
+                        )
+                        has_vrs = col_check is not None
+                    except Exception:
+                        pass
+                    
+                    # Query with or without vrs column based on what exists
+                    if has_vrs:
+                        nt_fn_rows = execute_query(
+                            f"""
+                            SELECT footnote_id, footnote_html, vrs 
+                            FROM new_testament.{table_name} 
+                            WHERE footnote_html ILIKE %s
+                            LIMIT %s
+                            """,
+                            (f'%{query}%', limit // 5),
+                            fetch='all'
+                        )
+                    else:
+                        nt_fn_rows = execute_query(
+                            f"""
+                            SELECT footnote_id, footnote_html 
+                            FROM new_testament.{table_name} 
+                            WHERE footnote_html ILIKE %s
+                            LIMIT %s
+                            """,
+                            (f'%{query}%', limit // 5),
+                            fetch='all'
+                        )
                     
                     for fn_row in nt_fn_rows or []:
-                        parts = (fn_row[0] or '').split('-')
-                        chapter = parts[0] if len(parts) > 0 else ''
-                        verse = parts[1] if len(parts) > 1 else ''
-                        book_name = convert_book_name(book_code) if book_code else book_code
+                        footnote_id = fn_row[0] or ''
+                        vrs_value = fn_row[2] if len(fn_row) > 2 else None
+                        parts = footnote_id.split('-')
+
+                        # Get book abbreviation from footnote_id (e.g., 'Mat-8b' -> 'Mat')
+                        book_abbrev = parts[0] if parts and any(c.isalpha() for c in parts[0]) else book_code
                         
-                        results['footnotes'].append({
-                            'type': 'footnote',
-                            'source': f'new_testament.{table_name}',
-                            'book': book_name,
-                            'footnote_id': fn_row[0],
-                            'chapter': chapter,
-                            'verse': verse,
-                            'text': highlight_match(fn_row[1], query),
-                            'url': f'/?book={book_name}&chapter={chapter}&verse={verse}'
-                        })
+                        # Try to map to full book name - handle numbered books (1ti, 2jo, 3jo)
+                        # Try multiple variations: as-is, capitalized, title case, uppercase
+                        book_name = None
+                        for variant in [book_abbrev, book_abbrev.capitalize(), book_abbrev.title(), book_abbrev.upper()]:
+                            book_name = convert_book_name(variant)
+                            if book_name:
+                                break
+                        
+                        # If still no match, use the abbreviation with proper capitalization
+                        if not book_name:
+                            # For numbered books like "1ti", capitalize the letters: "1Ti"
+                            if book_abbrev and book_abbrev[0].isdigit():
+                                book_name = book_abbrev[0] + book_abbrev[1:].capitalize()
+                            else:
+                                book_name = book_abbrev.capitalize()
+                        
+                        # For NT footnotes, we need to find which verse references this footnote
+                        # Format is: Mat-8b -> need to find verse with ?footnote=2-11-8b&book=Mat
+                        footnote_number = parts[-1] if len(parts) > 1 else parts[0] if parts else ''
+                        
+                        # First try the vrs column if it exists
+                        chapter = ''
+                        verse = ''
+                        if vrs_value:
+                            # vrs format is typically "chapter:verse" like "2:11"
+                            vrs_parts = str(vrs_value).split(':')
+                            if len(vrs_parts) == 2:
+                                chapter = vrs_parts[0].strip()
+                                verse = vrs_parts[1].strip()
+                        
+                        # If vrs didn't provide the info, search for the footnote reference in NT verses
+                        if not chapter or not verse:
+                            try:
+                                # Try multiple search patterns to find the verse
+                                # Start with specific patterns, then get more general
+                                patterns = [
+                                    f'%footnote=%-{footnote_number}&book={book_abbrev}%',  # Full pattern: ?footnote=2-11-8b&book=Mat
+                                    f'%footnote=%-%{footnote_number}%',  # Relaxed: ?footnote=X-X-8b
+                                    f'%>{footnote_number}</sup>%',  # Superscript: >8b</sup>
+                                    f'%<sup>{footnote_number}</sup>%',  # Full superscript tag
+                                ]
+                                
+                                for pattern in patterns:
+                                    verse_search = execute_query(
+                                        f"""
+                                        SELECT chapter, startverse 
+                                        FROM new_testament.nt 
+                                        WHERE book = %s AND rbt LIKE %s
+                                        LIMIT 1
+                                        """,
+                                        (book_abbrev, pattern),
+                                        fetch='one'
+                                    )
+                                    if verse_search:
+                                        chapter = str(verse_search[0])
+                                        verse = str(verse_search[1])
+                                        break
+                            except Exception:
+                                pass
+                        
+                        # Only include footnotes where we found the chapter and verse
+                        # Skip footnotes with incomplete location information
+                        if chapter and verse:
+                            url = f'/?book={book_name}&chapter={chapter}&verse={verse}'
+                            reference = f'{book_name} {chapter}:{verse}'
+                            
+                            results['footnotes'].append({
+                                'type': 'footnote',
+                                'source': f'new_testament.{table_name}',
+                                'book': book_name,
+                                'footnote_id': footnote_id,
+                                'chapter': chapter,
+                                'verse': verse,
+                                'reference': reference,
+                                'text': highlight_match(fn_row[1], query),
+                                'url': url
+                            })
                 
                 counts['footnotes'] = len(results['footnotes'])
                 

@@ -487,6 +487,35 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
 
                 row_data = execute_query(sql_query_ot, (rbt_heb_ref,), fetch='one')
                 if row_data is None:
+                    # Fallback: some DBs use a different abbreviation prefix in the Ref column
+                    # e.g., book column may be 'Jol' while Ref uses 'Joe'. Try to discover a sample prefix.
+                    sample_ref_row = execute_query(
+                        "SELECT Ref FROM old_testament.ot WHERE book = %s LIMIT 1",
+                        (book_abbrev,),
+                        fetch='one'
+                    )
+                    if sample_ref_row and sample_ref_row[0]:
+                        sample_prefix = (sample_ref_row[0] or '').split('.')[0]
+                        alt_ref = f"{sample_prefix}.{chapter_num}.{verse_num}"
+                        alt_row = execute_query(sql_query_ot, (alt_ref,), fetch='one')
+                        if alt_row:
+                            row_data = alt_row
+                            # Log the mismatch for debugging
+                            try:
+                                import logging
+                                logging.getLogger(__name__).warning(
+                                    'Ref prefix mismatch for book %s: tried %s, used %s',
+                                    book, book_abbrev, sample_prefix
+                                )
+                            except Exception:
+                                pass
+                    # Additional fallback: try using the passed `book` as-is (it may already be an abbreviation)
+                    if row_data is None:
+                        alt_row2 = execute_query(sql_query_ot, (f"{book}.{chapter_num}.{verse_num}",), fetch='one')
+                        if alt_row2:
+                            row_data = alt_row2
+
+                if row_data is None:
                     data = build_empty_result()
                     cache.set(cache_key_base, data)
                     return data
@@ -822,15 +851,16 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
 
         # Get whole chapter
         elif book in old_testament_books:
+            # Primary abbreviation from mapping
             if book in book_abbreviations:
                 book_abbrev = book_abbreviations[book]
-                rbt_heb_ref = f'{book_abbrev}.{chapter_num}.{verse_num}-'
-                rbt_heb_chapter = f'{book_abbrev}.{chapter_num}.'
             else:
-                rbt_heb_ref = f'{book}.{chapter_num}.{verse_num}-'
-                rbt_heb_chapter = f'{book}.{chapter_num}.'
                 book_abbrev = book
 
+            # Build prefix using abbreviation
+            rbt_heb_chapter = f'{book_abbrev}.{chapter_num}.'
+
+            # Try to fetch chapter rows using the expected prefix
             chapter_reader = execute_query(
                 "SELECT Ref, html FROM old_testament.hebrewdata WHERE ref LIKE %s ORDER BY ref;",
                 (f'{rbt_heb_chapter}%',),
@@ -849,6 +879,50 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 (f'{rbt_ref}%',),
                 fetch='all'
             )
+
+            # If we found nothing, attempt to discover the actual Ref prefix used in the OT table
+            if not data:
+                try:
+                    sample = execute_query(
+                        "SELECT Ref FROM old_testament.ot WHERE book = %s LIMIT 1",
+                        (book_abbrev,),
+                        fetch='one'
+                    )
+                    sample_ref = sample[0] if sample else None
+                    if sample_ref:
+                        sample_prefix = sample_ref.split('.')[0]
+                        if sample_prefix and sample_prefix != book_abbrev:
+                            alt_rbt_heb_chapter = f'{sample_prefix}.{chapter_num}.'
+                            alt_chapter_reader = execute_query(
+                                "SELECT Ref, html FROM old_testament.hebrewdata WHERE ref LIKE %s ORDER BY ref;",
+                                (f'{alt_rbt_heb_chapter}%',),
+                                fetch='all'
+                            )
+                            alt_data = execute_query(
+                                "SELECT id, Ref, Eng, html, footnote FROM old_testament.hebrewdata WHERE Ref LIKE %s ORDER BY ref;",
+                                (f'{alt_rbt_heb_chapter}%',),
+                                fetch='all'
+                            )
+                            if alt_data:
+                                # Use the alternative prefix
+                                chapter_reader = alt_chapter_reader
+                                data = alt_data
+                                rbt_ref = alt_rbt_heb_chapter[:4]
+                                chapter_references = execute_query(
+                                    "SELECT Ref FROM old_testament.hebrewdata WHERE Ref LIKE %s;",
+                                    (f'{rbt_ref}%',),
+                                    fetch='all'
+                                )
+                                try:
+                                    logger.warning(
+                                        'Ref prefix mismatch for chapter %s: tried %s, used %s',
+                                        book, book_abbrev, sample_prefix
+                                    )
+                                except Exception:
+                                    pass
+                except Exception:
+                    # Ignore and continue with empty results
+                    pass
 
             commentary = None
 
