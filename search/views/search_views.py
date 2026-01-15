@@ -10,6 +10,7 @@ Supports searching across:
 - Bible references (using pythonbible)
 """
 
+import logging
 import re
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -21,6 +22,8 @@ from search.models import Genesis, GenesisFootnotes
 from search.db_utils import execute_query, get_db_connection
 from search.views.utils import detect_script, strip_hebrew_vowels, highlight_match
 from translate.translator import book_abbreviations, convert_book_name
+
+logger = logging.getLogger(__name__)
 
 
 def search_results_page(request):
@@ -35,6 +38,7 @@ def search_results_page(request):
     """
     query = request.GET.get('q', '').strip()
     scope = request.GET.get('scope', 'all').lower()
+    search_type = request.GET.get('type', 'keyword')
     page = max(int(request.GET.get('page', 1)), 1)
     
     if not query:
@@ -43,6 +47,7 @@ def search_results_page(request):
     context = {
         'query': query,
         'scope': scope,
+        'search_type': search_type,
         'page': page,
     }
     return render(request, 'search_results_full.html', context)
@@ -71,7 +76,8 @@ def search_api(request):
     """
     query = request.GET.get('q', '').strip()
     scope = request.GET.get('scope', 'all').lower()
-    search_type = request.GET.get('type', 'auto')
+    requested_type = request.GET.get('type', 'auto')
+    search_type = requested_type
     limit = min(int(request.GET.get('limit', 20)), 100)
     page = max(int(request.GET.get('page', 1)), 1)
     offset = (page - 1) * limit
@@ -86,12 +92,15 @@ def search_api(request):
     # Detect script type
     script = detect_script(query)
     
+    # Cache parsed references to avoid duplicate parsing
+    parsed_refs = None
+
     # Auto-detect search type
     if search_type == 'auto':
         # Check if it looks like a reference
         try:
-            ref = bible.get_references(query)
-            if ref:
+            parsed_refs = bible.get_references(query)
+            if parsed_refs:
                 search_type = 'reference'
             else:
                 search_type = 'keyword'
@@ -119,7 +128,8 @@ def search_api(request):
     # Reference search
     if search_type == 'reference':
         try:
-            refs = bible.get_references(query)
+            # Use cached refs if available (from auto-detection), otherwise parse
+            refs = parsed_refs if parsed_refs is not None else bible.get_references(query)
             if refs:
                 ref = refs[0]
                 book_name = ref.book.name
@@ -147,6 +157,22 @@ def search_api(request):
                 counts['references'] = 1
         except Exception as e:
             pass  # Not a valid reference, continue with keyword search
+
+    # If the caller explicitly requested reference mode, avoid expensive keyword searches
+    if requested_type == 'reference':
+        total_results = counts['references']
+        return JsonResponse({
+            'query': query,
+            'scope': scope,
+            'type': search_type,
+            'script_detected': script,
+            'results': results,
+            'counts': counts,
+            'total': total_results,
+            'page': page,
+            'limit': limit,
+            'has_more': counts['references'] > len(results['references'])
+        })
     
     # Keyword search
     if search_type == 'keyword' or not results['references']:
@@ -532,9 +558,59 @@ def search_api(request):
             except Exception as e:
                 print(f"Footnote search error: {e}")
     
+    # Deduplicate verse results to avoid duplicate entries (e.g., same reference from multiple sources)
+    def dedupe_by_ref(items):
+        seen = set()
+        out = []
+        for it in items:
+            key = (it.get('book'), str(it.get('chapter')), str(it.get('verse')))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(it)
+        return out
+
+    # Log and sanitize missing book names
+    missing_books = []
+    for cat in ['ot_verses', 'nt_verses', 'footnotes']:
+        cleaned = []
+        for it in results.get(cat, []) or []:
+            if not it.get('book'):
+                missing_books.append((cat, it))
+                it['book'] = ''
+            cleaned.append(it)
+        results[cat] = cleaned
+
+    # Apply deduplication for verses and footnotes
+    results['ot_verses'] = dedupe_by_ref(results.get('ot_verses', []))
+    results['nt_verses'] = dedupe_by_ref(results.get('nt_verses', []))
+    results['footnotes'] = dedupe_by_ref(results.get('footnotes', []))
+
+    # Recompute counts after deduplication
+    counts['ot_verses'] = len(results['ot_verses'])
+    counts['nt_verses'] = len(results['nt_verses'])
+    counts['footnotes'] = len(results['footnotes'])
+
     # Calculate totals
     total_results = sum(counts.values())
-    
+
+    # If there are missing book entries, log a sample for debugging
+    if missing_books:
+        try:
+            client_ip = request.META.get('REMOTE_ADDR', 'unknown') if request is not None else 'unknown'
+            sample = missing_books[:10]
+            logger.warning(
+                "Missing book names in search results",
+                extra={
+                    'query': query,
+                    'client_ip': client_ip,
+                    'sample_missing': sample,
+                    'missing_count': len(missing_books),
+                }
+            )
+        except Exception:
+            logger.exception('Failed to log missing book names')
+
     return JsonResponse({
         'query': query,
         'scope': scope,
