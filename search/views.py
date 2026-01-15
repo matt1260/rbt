@@ -29,6 +29,8 @@ from pythonbible.errors import (
     InvalidVerseError
 )
 from bs4 import BeautifulSoup
+import logging
+logger = logging.getLogger(__name__)
 from collections import OrderedDict, defaultdict
 from django.views.decorators.http import require_http_methods
 import traceback
@@ -3369,9 +3371,19 @@ def search_api(request):
     # If there are missing book entries, log a sample for debugging
     if missing_books:
         try:
-            print(f"Missing book names in search results for query '{query}': {missing_books[:5]}")
+            client_ip = request.META.get('REMOTE_ADDR', 'unknown') if request is not None else 'unknown'
+            sample = missing_books[:10]
+            logger.warning(
+                "Missing book names in search results",
+                extra={
+                    'query': query,
+                    'client_ip': client_ip,
+                    'sample_missing': sample,
+                    'missing_count': len(missing_books),
+                }
+            )
         except Exception:
-            pass
+            logger.exception('Failed to log missing book names')
 
     return JsonResponse({
         'query': query,
