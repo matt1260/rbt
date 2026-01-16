@@ -8,12 +8,16 @@ Handles routing for different types of Bible content requests:
 - Chapter display (Genesis, OT, NT)
 """
 
-from django.shortcuts import render
+import re
+from urllib.parse import urlencode
+
 from django.core.cache import cache
+from django.shortcuts import redirect, render
+from django.urls import reverse
+
 from bs4 import BeautifulSoup
 import pythonbible as bible
 from pythonbible import InvalidBookError, InvalidChapterError, InvalidVerseError
-import re
 
 from search.models import Genesis, VerseTranslation
 from search.views.chapter_views_part1 import get_results
@@ -134,13 +138,16 @@ def handle_reference_search(request, ref_query, language):
 
 
 def handle_keyword_search(request, query):
-    """
-    Handle keyword search - redirects to search API interface.
-    
-    Legacy keyword search has been replaced with the search API.
-    """
-    context = {'query': query, 'scope': request.GET.get('scope', 'all')}
-    return render(request, 'search_input.html', context)
+    """Redirect keyword queries to the dedicated results page."""
+
+    params = {
+        'q': query,
+        'scope': request.GET.get('scope', 'all'),
+        'type': request.GET.get('type', 'keyword'),
+        'page': request.GET.get('page', '1'),
+    }
+    url = f"{reverse('search_results')}?{urlencode(params)}"
+    return redirect(url)
 
 
 def handle_single_verse(request, book, chapter_num, verse_num, language):

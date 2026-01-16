@@ -113,6 +113,7 @@ def search_api(request):
         'nt_verses': [],
         'nt_greek': [],
         'footnotes': [],
+        'storehouse': [],
         'references': []
     }
     
@@ -122,6 +123,7 @@ def search_api(request):
         'nt_verses': 0,
         'nt_greek': 0,
         'footnotes': 0,
+        'storehouse': 0,
         'references': 0
     }
     
@@ -698,6 +700,57 @@ def search_api(request):
                 
             except Exception as e:
                 print(f"Footnote search error: {e}")
+
+        # =================================================================
+        # SEARCH JOSEPH AND ASENETH (joseph_aseneth.aseneth)
+        # =================================================================
+        if scope in ['all', 'storehouse']:
+            try:
+                with get_db_connection() as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("SET search_path TO joseph_aseneth")
+                        cursor.execute(
+                            """
+                            SELECT chapter, verse, english, greek
+                            FROM aseneth
+                            WHERE english ILIKE %s OR greek ILIKE %s
+                            ORDER BY chapter, verse
+                            LIMIT %s OFFSET %s
+                            """,
+                            (f'%{query}%', f'%{query}%', limit, offset)
+                        )
+                        as_rows = cursor.fetchall()
+
+                        for row in as_rows or []:
+                            chapter = str(row[0]) if row[0] is not None else ''
+                            verse = str(row[1]) if row[1] is not None else ''
+                            english = row[2] or ''
+                            greek = row[3] or ''
+
+                            # Prefer English snippet when available, otherwise Greek
+                            text_field = english if query.lower() in (english or '').lower() else greek
+
+                            results['storehouse'].append({
+                                'type': 'storehouse_verse',
+                                'source': 'joseph_aseneth.aseneth',
+                                'book': 'Joseph and Aseneth',
+                                'chapter': chapter,
+                                'verse': verse,
+                                'reference': f'Joseph and Aseneth {chapter}' + (f":{verse}" if verse else ''),
+                                'text': highlight_match(text_field, query),
+                                # Use canonical storehouse URL (no verse arg)
+                                'url': f'/aseneth/?chapter={chapter}'
+                            })
+
+                        cursor.execute(
+                            "SELECT COUNT(*) FROM aseneth WHERE english ILIKE %s OR greek ILIKE %s",
+                            (f'%{query}%', f'%{query}%')
+                        )
+                        cnt = cursor.fetchone()
+                        counts['storehouse'] = cnt[0] if cnt else 0
+
+            except Exception as e:
+                print(f"Storehouse search error: {e}")
     
     # Deduplicate verse results to avoid duplicate entries (e.g., same reference from multiple sources)
     def dedupe_by_ref(items):
@@ -713,7 +766,7 @@ def search_api(request):
 
     # Log and sanitize missing book names
     missing_books = []
-    for cat in ['ot_verses', 'nt_verses', 'footnotes']:
+    for cat in ['ot_verses', 'nt_verses', 'footnotes', 'storehouse']:
         cleaned = []
         for it in results.get(cat, []) or []:
             if not it.get('book'):
@@ -722,15 +775,17 @@ def search_api(request):
             cleaned.append(it)
         results[cat] = cleaned
 
-    # Apply deduplication for verses and footnotes
+    # Apply deduplication for verses, footnotes and storehouse
     results['ot_verses'] = dedupe_by_ref(results.get('ot_verses', []))
     results['nt_verses'] = dedupe_by_ref(results.get('nt_verses', []))
     results['footnotes'] = dedupe_by_ref(results.get('footnotes', []))
+    results['storehouse'] = dedupe_by_ref(results.get('storehouse', []))
 
     # Recompute counts after deduplication
     counts['ot_verses'] = len(results['ot_verses'])
     counts['nt_verses'] = len(results['nt_verses'])
     counts['footnotes'] = len(results['footnotes'])
+    counts['storehouse'] = len(results['storehouse'])
 
     # Calculate totals
     total_results = sum(counts.values())

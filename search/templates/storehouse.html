@@ -3,11 +3,23 @@
 {% load custom_tags %}
 {% load static %}
 {% block content %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css" crossorigin="anonymous">
-<link rel="stylesheet" href="{% static 'chapter-viewer.css' %}">
+<!-- Preload and apply critical storehouse CSS (Firefox-friendly) to avoid FOUC -->
+<link rel="preload" href="{% static 'chapter-viewer.css' %}" as="style">
+<link rel="stylesheet" href="{% static 'chapter-viewer.css' %}" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="{% static 'chapter-viewer.css' %}"></noscript>
+
+<!-- Critical inline CSS (above-the-fold) to prevent flash of unstyled content -->
+<style>
+  /* Critical storehouse styles */
+  #toggleButtonsContainer{display:flex; gap:8px; justify-content:flex-end; background:#fafafa; border:1px solid #e0e0e0; padding:8px; position:sticky; top:0; z-index:50;}
+  .chapter-selector{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
+  .chapter-pill{display:inline-flex;padding:4px 12px;border-radius:999px;border:1px solid #d3c0b2;color:#ba8666;text-decoration:none;font-size:14px;}
+  .storehouse-container{display:flex;}
+  .verse-card{background:#fffaf7;border:1px solid #e4d6cc;border-radius:8px;padding:16px;}
+</style>
 
 <!-- Language Selection Modal -->
-<div id="languageModal" class="language-modal-overlay">
+<div id="languageModal" class="language-modal-overlay" style="display:none;visibility:hidden;opacity:0;">
     <div class="language-modal">
         <button class="language-modal-close" onclick="closeLanguageModal()" aria-label="Close">&times;</button>
         <div class="language-modal-header">
@@ -60,6 +72,8 @@ function openLanguageModal() {
     if (modal) {
         modal.classList.add('active');
         modal.style.display = 'flex';
+        modal.style.visibility = 'visible';
+        modal.style.opacity = '1';
     }
 }
 
@@ -67,8 +81,10 @@ function closeLanguageModal() {
     const modal = document.getElementById('languageModal');
     if (modal) {
         modal.classList.remove('active');
+        modal.style.opacity = '0';
         setTimeout(() => {
             modal.style.display = 'none';
+            modal.style.visibility = 'hidden';
         }, 300);
     }
 }
@@ -314,12 +330,29 @@ document.addEventListener('DOMContentLoaded', function() {
         wrapTextNodes(element);
     }
 
-    wrapParenthesesText(document.getElementById('paraphrase-area'));
-    wrapParenthesesText(document.getElementById('literal-area'));
+    // Defer heavy DOM transformations until styles have been applied to avoid forced layouts / FOUC
+    function runDeferredTransforms() {
+        try {
+            wrapParenthesesText(document.getElementById('paraphrase-area'));
+            wrapParenthesesText(document.getElementById('literal-area'));
+            // Hide the wrapped parentheses spans after they exist
+            requestAnimationFrame(function() {
+                setTimeout(function() {
+                    document.querySelectorAll('.paren-hide').forEach(span => span.style.setProperty('display', 'none', 'important'));
+                }, 0);
+            });
+        } catch (e) {
+            // Fail silently if element not present
+        }
+    }
 
-    setTimeout(() => {
-        document.querySelectorAll('.paren-hide').forEach(span => span.style.setProperty('display', 'none', 'important'));
-    }, 0);
+    if (document.readyState === 'complete') {
+        requestAnimationFrame(runDeferredTransforms);
+    } else {
+        document.addEventListener('DOMContentLoaded', function() {
+            requestAnimationFrame(runDeferredTransforms);
+        });
+    }
 
     const h5ToggleButton = document.getElementById('h5ToggleButton');
     const imageToggleButton = document.getElementById('imageToggleButton');

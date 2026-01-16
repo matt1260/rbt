@@ -611,7 +611,10 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 		}
  </style>
 
-<link rel="stylesheet" id="neve-google-font-poppins-css" href="//fonts.googleapis.com/css?family=Poppins%3A400%2C800%2C900%2C600&amp;display=swap&amp;ver=3.7.2" type="text/css" media="all">
+<!-- Preload Google Fonts to avoid FOIT/FOUC -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" href="//fonts.googleapis.com/css?family=Poppins%3A400%2C800%2C900%2C600&display=swap&ver=3.7.2" as="style" onload="this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="//fonts.googleapis.com/css?family=Poppins%3A400%2C800%2C900%2C600&display=swap&ver=3.7.2"></noscript>
 <script type="text/javascript" src="https://www.realbible.tech/wp-includes/js/jquery/jquery.min.js?ver=3.7.0" id="jquery-core-js"></script>
 <link rel="https://api.w.org/" href="https://www.realbible.tech/wp-json/"><link rel="alternate" type="application/json" href="https://www.realbible.tech/wp-json/wp/v2/pages/9943"><link rel="EditURI" type="application/rsd+xml" title="RSD" href="https://www.realbible.tech/xmlrpc.php?rsd">
 <meta name="generator" content="WordPress 6.3.1">

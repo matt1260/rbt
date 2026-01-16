@@ -3,13 +3,15 @@
 {% load custom_tags %}
 {% load static %}
 {% block content %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css" crossorigin="anonymous">
-<link rel="stylesheet" href="{% static 'chapter-viewer.css' %}">
+<!-- Preload and apply chapter CSS (Firefox-friendly) to avoid FOUC -->
+<link rel="preload" href="{% static 'chapter-viewer.css' %}" as="style">
+<link rel="stylesheet" href="{% static 'chapter-viewer.css' %}" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="{% static 'chapter-viewer.css' %}"></noscript>
 <script src="{% static 'translation-manager.js' %}"></script>
 <script src="{% static 'chapter-viewer.js' %}" defer></script>
 
 <!-- Language Selection Modal -->
-<div id="languageModal" class="language-modal-overlay">
+<div id="languageModal" class="language-modal-overlay" style="display:none;visibility:hidden;opacity:0;">
     <div class="language-modal">
         <button class="language-modal-close" onclick="closeLanguageModal()" aria-label="Close">&times;</button>
         <div class="language-modal-header">

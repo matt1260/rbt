@@ -17,12 +17,24 @@ function changeLanguage(langCode) {
 }
 
 function openLanguageModal() {
-    document.getElementById('languageModal').classList.add('active');
+    const modal = document.getElementById('languageModal');
+    if (!modal) return;
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
     document.body.style.overflow = 'hidden';
 }
 
 function closeLanguageModal() {
-    document.getElementById('languageModal').classList.remove('active');
+    const modal = document.getElementById('languageModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.style.opacity = '0';
+    setTimeout(() => {
+        modal.style.display = 'none';
+        modal.style.visibility = 'hidden';
+    }, 200);
     document.body.style.overflow = '';
 }
 
