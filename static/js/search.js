@@ -12,6 +12,7 @@
     const liveResults = document.getElementById('liveResults');
     const searchForm = document.getElementById('searchForm');
     const scopeInput = document.getElementById('scopeInput');
+    const scopeSelector = document.querySelector('.scope-selector');
     const typeInput = document.getElementById('typeInput');
     const hebrewKeyboard = document.getElementById('hebrewKeyboard');
     const greekKeyboard = document.getElementById('greekKeyboard');
@@ -128,6 +129,8 @@
             // Trigger search automatically
             performSearch(queryParam);
         }
+
+        setScopeVisibilityFromActiveTab();
     }
     
     function handleTabClick(e) {
@@ -143,6 +146,8 @@
         } else if (type === 'keyword' || type === 'hebrew' || type === 'greek') {
             currentSearchType = 'keyword';
         }
+
+        toggleScopeSelector(type === 'keyword');
         
         // Update hidden type input
         if (typeInput) {
@@ -170,6 +175,18 @@
         if (searchInput && searchInput.value.length >= 2) {
             performSearch(searchInput.value);
         }
+    }
+
+    function setScopeVisibilityFromActiveTab() {
+        const activeTab = document.querySelector('.search-tab.active');
+        if (activeTab) {
+            toggleScopeSelector(activeTab.dataset.type === 'keyword');
+        }
+    }
+
+    function toggleScopeSelector(show) {
+        if (!scopeSelector) return;
+        scopeSelector.classList.toggle('hidden', !show);
     }
     
     function handleScopeClick(e) {
