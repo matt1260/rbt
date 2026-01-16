@@ -275,6 +275,7 @@
         <a href="?q={{ query }}&scope=hebrew&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'hebrew' %}active{% endif %}">Hebrew</a>
         <a href="?q={{ query }}&scope=greek&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'greek' %}active{% endif %}">Greek</a>
         <a href="?q={{ query }}&scope=footnotes&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'footnotes' %}active{% endif %}">Footnotes</a>
+        <a href="?q={{ query }}&scope=storehouse&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'storehouse' %}active{% endif %}">Storehouse</a>
     </div>
     
     <div id="resultsContainer">
@@ -331,11 +332,12 @@
         
         // Check if there are any results
         const hasResults = (results.ot_verses?.length || 0) + 
-                          (results.ot_hebrew?.length || 0) + 
-                          (results.nt_verses?.length || 0) + 
-                          (results.nt_greek?.length || 0) + 
-                          (results.footnotes?.length || 0) + 
-                          (results.references?.length || 0) > 0;
+                  (results.ot_hebrew?.length || 0) + 
+                  (results.nt_verses?.length || 0) + 
+                  (results.nt_greek?.length || 0) + 
+                  (results.footnotes?.length || 0) + 
+                  (results.storehouse?.length || 0) + 
+                  (results.references?.length || 0) > 0;
         
         if (!hasResults) {
             html = `
@@ -463,6 +465,28 @@
                                 <i class="fas fa-sticky-note"></i>
                                 ${escapeHtml(r.book)} ${r.chapter}:${r.verse}
                                 <span class="source-badge">footnote</span>
+                            </div>
+                            <div class="result-text">${r.text || ''}</div>
+                        </a>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Storehouse (Joseph and Aseneth)
+        if (results.storehouse && results.storehouse.length > 0) {
+            html += `
+                <div class="results-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-archive"></i> Joseph and Aseneth</h2>
+                        <span class="count">${counts.storehouse.toLocaleString()} total</span>
+                    </div>
+                    ${results.storehouse.map(r => `
+                        <a href="${r.url}" class="result-item">
+                            <div class="result-reference">
+                                <i class="fas fa-archive"></i>
+                                ${escapeHtml(r.reference)}
+                                <span class="source-badge">${escapeHtml(r.book)}</span>
                             </div>
                             <div class="result-text">${r.text || ''}</div>
                         </a>

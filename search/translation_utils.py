@@ -188,7 +188,7 @@ EXAMPLES OF WHAT NEVER TO CHANGE:
 ✗ class="tooltip-container" → NEVER translate to class="contenedor-de-información"
 ✗ style="color: blue;" → NEVER translate to style="color: azul;"
 ✗ href="?footnote=1-1-1" → NEVER modify URLs or parameters
-✗ src="http://www.realbible.tech/wp-content/uploads/2024/04/image.gif" → NEVER change URLs
+✗ src="http://www.realbible.tech/wp-content/uploads/2024/04/image.jpg" → NEVER change URLs
 ✗ width="50%" → NEVER translate measurement units or values
 ✗ <img>, <div>, <span>, <a> → NEVER translate tag names
 
