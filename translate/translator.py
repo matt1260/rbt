@@ -284,6 +284,77 @@ FUERST_IMAGE_BASE_URL = _resolve_fuerst_base_url()
 GESENIUS_IMAGE_BASE_URL = _resolve_gesenius_base_url()
 
 
+@lru_cache(maxsize=4096)
+def get_bdb_definition_for_strong(strong_number: str) -> str:
+    """Fetch BDB HTML definition for a Strong's number, returning raw HTML."""
+    import re
+    match = re.search(r'(\d+)', strong_number)
+    if not match:
+        return ''
+    strong_val = int(match.group(1))
+
+    result = execute_query(
+        """
+        SELECT bdb_html
+        FROM old_testament.bdb_lexicon
+        WHERE strongs_num = %s
+        """,
+        (strong_val,),
+        fetch='one'
+    )
+    if result and result[0]:
+        return result[0]
+    return ''
+
+
+def build_bdb_popup(strong_refs: list[str]) -> str:
+    """Render a BDB lexicon popup trigger combining entries for multiple Strong's numbers."""
+    if not strong_refs:
+        return ''
+
+    entry_blocks: list[str] = []
+    entry_blocks.append("<div class='bdb-title'>Brown-Driver-Briggs Lexicon</div>")
+
+    seen_strongs: set[int] = set()
+    for strong_ref in strong_refs:
+        num = get_strongs_numeric_value(strong_ref)
+        if num is None or num >= 9000:
+            continue
+        if num in seen_strongs:
+            continue
+        seen_strongs.add(num)
+
+        strong_number_h = f'H{num}'
+        bdb_html = get_bdb_definition_for_strong(strong_number_h)
+        if not bdb_html:
+            continue
+
+        # Render the raw HTML directly (it's already HTML from the BDB source)
+        entry_html = f'''
+            <div class="bdb-entry">
+                <div class="bdb-strongs-ref"><strong>{strong_number_h}</strong></div>
+                <div class="bdb-definition" style="max-height: 400px; overflow-y: auto; padding-right: 0.5rem;">
+                    {bdb_html}
+                </div>
+            </div>
+            '''
+        entry_blocks.append(entry_html)
+
+    # Only the title block means no entries found
+    if len(entry_blocks) <= 1:
+        return ''
+
+    popup_html = (
+        '<span class="popup-container bdb-popup">'
+        '<span class="bdb-trigger">BDB</span>'
+        '<div class="popup-content bdb-popup-content" role="tooltip" aria-hidden="true">'
+        + ''.join(entry_blocks) +
+        '</div>'
+        '</span>'
+    )
+    return popup_html
+
+
 def build_gesenius_page_url(source_page: str) -> str:
     """Return a URL to the enhanced lexicon viewer for a Gesenius page."""
     if not source_page:
@@ -1615,12 +1686,17 @@ def build_heb_interlinear(rows_data, show_edit_buttons: bool = False):
         if ges_entries:
             ges_popup = build_gesenius_popup(ges_entries, show_edit_buttons=show_edit_buttons)
         
+        # Build BDB popup for this token
+        bdb_popup = build_bdb_popup(strong_refs)
+        
         # Combine all popups with consistent spacing
         strongs_references = strongs_popup
         if fuerst_popups:
             strongs_references = f"{strongs_references} {''.join(fuerst_popups)}"
         if ges_popup:
             strongs_references = f"{strongs_references} {ges_popup}"
+        if bdb_popup:
+            strongs_references = f"{strongs_references} {bdb_popup}"
 
         # Join parts without injecting extra spaces so prefixes stay attached to the word
         hebrew_parts = [heb1, heb2, heb3, heb4, heb5, heb6]

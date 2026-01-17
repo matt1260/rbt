@@ -1411,6 +1411,66 @@
     .gesenius-link { color:#a4491d; text-decoration:none; font-weight:600; }
     .gesenius-link:hover { text-decoration:underline; }
 
+    /* BDB trigger styling */
+    .bdb-trigger {
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 600;
+        color: #7a2f11;
+        background: linear-gradient(120deg, #fff7f2, #ffe9df);
+        border: 1px solid #f1c7b2;
+        border-radius: 999px;
+        padding: 2px 7px;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .bdb-trigger:hover,
+    .bdb-trigger:focus {
+        background: linear-gradient(120deg, #ffe1d0, #ffd2bb);
+        color: #5c210c;
+        border-color: #e4a583;
+    }
+
+    .bdb-popup-content {
+        width: 400px;
+        left: -200px;
+    }
+
+    /* BDB detailed styling (match Fuerst/Gesenius) */
+    .bdb-popup { display:inline-flex; align-items:center; margin-left:6px; }
+    .bdb-title { font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9a4a26; margin-bottom:8px; }
+    .bdb-entry { padding:8px 0; border-top:1px dashed #f1d7c7; }
+    .bdb-entry:first-of-type { border-top:none; padding-top:0; }
+    .bdb-definition { font-size:13px; color:#2f3a44; line-height:1.5; }
+    .bdb-definition p { margin:6px 0; }
+    .bdb-definition strong, .bdb-definition b { font-weight:600; color:#1f2d3d; }
+    .bdb-definition em, .bdb-definition i { font-style:italic; color:#4b2b1f; }
+    .bdb-definition a { color:#a4491d; text-decoration:none; font-weight:600; }
+    .bdb-definition a:hover { text-decoration:underline; }
+
+    /* BDB headings and list styles */
+    .bdb-definition h3,
+    .bdb-definition h4,
+    .bdb-definition h5,
+    .bdb-definition h6 {
+        color: #1f2d3d;
+        margin-top: 10px;
+        margin-bottom: 6px;
+        line-height: 1.2;
+    }
+    .bdb-definition h3 { font-size: 16px; }
+    .bdb-definition h4 { font-size: 15px; }
+    .bdb-definition h5 { font-size: 14px; letter-spacing: 0.02em; }
+    .bdb-definition h6 { font-size: 13px; }
+
+    .bdb-definition .headword { font-weight:700; font-size:16px; color:#2a1f18; }
+    .bdb-definition .cognates { margin-left:20px; font-size:0.95em; color:#4b2b1f; margin-top:4px; }
+    .bdb-definition ol, .bdb-definition ul { margin-left:18px; margin-bottom:8px; }
+    .bdb-definition li { margin-bottom:6px; }
+    .bdb-strongs-ref { font-size:12px; color:#6b4b3d; margin-bottom:6px; }
+
     .lxx-stats-section {
         margin-top: 6px;
         padding-top: 4px;
