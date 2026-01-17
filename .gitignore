@@ -21,16 +21,14 @@ scripts/
 
 neve-child/
 namecheap_server.txt
-wp-gemini-translator.php
+BDB_extract.py
+bdb_images/
 
 searchimage.py
 replace_exact_match.py
 TODO.md
 post.html
 interlinear_apply.py
-gesenius.pdf
-gesenius/
-fuerst/
 clean_spaces.py
 footnote_wrapper.py
 BDB_extract.py
