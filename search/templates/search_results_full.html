@@ -269,13 +269,14 @@
     </div>
     
     <div class="results-filters">
-        <a href="?q={{ query }}&scope=all&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'all' %}active{% endif %}">All</a>
-        <a href="?q={{ query }}&scope=ot&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'ot' %}active{% endif %}">Old Testament</a>
-        <a href="?q={{ query }}&scope=nt&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'nt' %}active{% endif %}">New Testament</a>
-        <a href="?q={{ query }}&scope=hebrew&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'hebrew' %}active{% endif %}">Hebrew</a>
-        <a href="?q={{ query }}&scope=greek&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'greek' %}active{% endif %}">Greek</a>
-        <a href="?q={{ query }}&scope=footnotes&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'footnotes' %}active{% endif %}">Footnotes</a>
-        <a href="?q={{ query }}&scope=storehouse&page=1&type={{ search_type }}" class="filter-btn {% if scope == 'storehouse' %}active{% endif %}">Storehouse</a>
+        <a href="?q={{ query }}&scope=all&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'all' %}active{% endif %}">All</a>
+        <a href="?q={{ query }}&scope=translations&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'translations' %}active{% endif %}">Translations</a>
+        <a href="?q={{ query }}&scope=ot&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'ot' %}active{% endif %}">Old Testament</a>
+        <a href="?q={{ query }}&scope=nt&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'nt' %}active{% endif %}">New Testament</a>
+        <a href="?q={{ query }}&scope=hebrew&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'hebrew' %}active{% endif %}">Hebrew</a>
+        <a href="?q={{ query }}&scope=greek&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'greek' %}active{% endif %}">Greek</a>
+        <a href="?q={{ query }}&scope=footnotes&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'footnotes' %}active{% endif %}">Footnotes</a>
+        <a href="?q={{ query }}&scope=storehouse&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'storehouse' %}active{% endif %}">Storehouse</a>
     </div>
     
     <div id="resultsContainer">
@@ -294,11 +295,17 @@
     const scope = "{{ scope }}";
     const searchType = "{{ search_type|default:'keyword' }}";
     const page = {{ page }};
+    const langParam = "{{ request.GET.lang|default:''|escapejs }}";
+    const translationsOnlyParam = "{{ request.GET.translations_only|default:''|escapejs }}" === '1';
     const limit = 50;
     
     async function loadResults() {
         try {
-            const response = await fetch(`/api/live/?q=${encodeURIComponent(query)}&scope=${scope}&limit=${limit}&page=${page}&type=${searchType}`);
+            const effectiveScope = translationsOnlyParam ? 'translations' : scope;
+            const response = await fetch(`/api/live/?q=${encodeURIComponent(query)}&scope=${effectiveScope}&limit=${limit}&page=${page}&type=${searchType}` +
+                (langParam ? `&lang=${encodeURIComponent(langParam)}` : '') +
+                (translationsOnlyParam ? '&translations_only=1' : '')
+            );
             const data = await response.json();
             
             if (data.error) {
@@ -331,13 +338,36 @@
         let html = '';
         
         // Check if there are any results
-        const hasResults = (results.ot_verses?.length || 0) + 
+        const hasResults = (results.translations?.length || 0) +
+              (results.ot_verses?.length || 0) + 
                   (results.ot_hebrew?.length || 0) + 
                   (results.nt_verses?.length || 0) + 
                   (results.nt_greek?.length || 0) + 
                   (results.footnotes?.length || 0) + 
                   (results.storehouse?.length || 0) + 
                   (results.references?.length || 0) > 0;
+                // Translations
+                if (results.translations && results.translations.length > 0) {
+                    html += `
+                        <div class="results-section">
+                            <div class="section-header">
+                                <h2><i class="fas fa-language"></i> Translations</h2>
+                                <span class="count">${counts.translations.toLocaleString()} total</span>
+                            </div>
+                            ${results.translations.map(r => `
+                                <a href="${r.url}" class="result-item">
+                                    <div class="result-reference">
+                                        <i class="fas fa-book-open"></i>
+                                        ${escapeHtml(r.book)} ${r.chapter}:${r.verse}
+                                        <span class="source-badge">${escapeHtml((r.language || '').toUpperCase())}</span>
+                                    </div>
+                                    <div class="result-text">${r.text || ''}</div>
+                                </a>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+
         
         if (!hasResults) {
             html = `

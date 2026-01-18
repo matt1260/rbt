@@ -18,6 +18,7 @@
     const greekKeyboard = document.getElementById('greekKeyboard');
     const hebrewKbdBtn = document.getElementById('hebrewKbdBtn');
     const greekKbdBtn = document.getElementById('greekKbdBtn');
+    const translationsOnlyToggle = document.getElementById('translationsOnlyToggle');
     
     // State
     let debounceTimer = null;
@@ -250,6 +251,10 @@
     async function performSearch(query) {
         const scope = scopeInput ? scopeInput.value : 'all';
         const searchType = currentSearchType || 'keyword';
+        const urlParams = new URLSearchParams(window.location.search);
+        const langParam = urlParams.get('lang');
+        const translationsOnly = shouldUseTranslationSearch(query, langParam, searchType, translationsOnlyToggle?.checked);
+        const effectiveScope = translationsOnly ? 'translations' : scope;
         
         // Show loading state
         if (searchInputField) {
@@ -265,7 +270,9 @@
         
         try {
             const response = await fetch(
-                `/api/live/?q=${encodeURIComponent(query)}&scope=${scope}&limit=50&type=${searchType}`,
+                `/api/live/?q=${encodeURIComponent(query)}&scope=${effectiveScope}&limit=50&type=${searchType}` +
+                (langParam ? `&lang=${encodeURIComponent(langParam)}` : '') +
+                (translationsOnly ? '&translations_only=1' : ''),
                 { signal: currentRequest.signal }
             );
             
@@ -340,6 +347,22 @@
             });
         }
         
+        // Translations
+        if (results.translations && results.translations.length > 0) {
+            html += `<div class="results-category"><i class="fas fa-language"></i> Translations (${counts.translations})</div>`;
+            results.translations.slice(0, 5).forEach(r => {
+                html += `
+                    <a href="${r.url || '#'}" class="result-item">
+                        <div class="result-reference">
+                            <i class="fas fa-book-open"></i> ${escapeHtml(r.book)} ${r.chapter}:${r.verse}
+                            <span class="source-badge">${escapeHtml((r.language || '').toUpperCase())}</span>
+                        </div>
+                        <div class="result-preview">${r.text || ''}</div>
+                    </a>
+                `;
+            });
+        }
+
         // OT Verses
         if (results.ot_verses && results.ot_verses.length > 0) {
             html += `<div class="results-category"><i class="fas fa-scroll"></i> Old Testament (${counts.ot_verses})</div>`;
@@ -419,8 +442,11 @@
         
         // View all link
         const searchTypeParam = currentSearchType || 'keyword';
+        const langParam = data.lang ? `&lang=${encodeURIComponent(data.lang)}` : '';
+        const translationsOnly = data.translations_only ? '&translations_only=1' : '';
+        const scopeParam = data.translations_only ? 'translations' : data.scope;
         html += `
-            <a href="/search/results/?q=${encodeURIComponent(query)}&scope=${data.scope}&page=1&type=${searchTypeParam}" class="view-all-results">
+            <a href="/search/results/?q=${encodeURIComponent(query)}&scope=${scopeParam}&page=1&type=${searchTypeParam}${langParam}${translationsOnly}" class="view-all-results">
                 <i class="fas fa-arrow-right"></i> View All ${total.toLocaleString()} Results
             </a>
         `;
@@ -500,6 +526,15 @@
     
     function hasGreek(text) {
         return /[\u0370-\u03FF\u1F00-\u1FFF]/.test(text);
+    }
+
+    function shouldUseTranslationSearch(query, langParam, searchType, toggleChecked) {
+        if (!query) return false;
+        if (toggleChecked) return true;
+        if (searchType === 'reference') return false;
+        if (hasHebrew(query) || hasGreek(query)) return false;
+        if (langParam && langParam.toLowerCase() !== 'en') return true;
+        return /[^\x00-\x7F]/.test(query);
     }
     
     function escapeHtml(text) {

@@ -19,6 +19,7 @@ from translate.translator import (
 from search.rbt_titles import rbt_books
 from search.translation_utils import SUPPORTED_LANGUAGES
 from search.db_utils import execute_query
+from hebrewtool.debug_utils import set_debug_context, should_emit_debug
 
 
 def handle_genesis_chapter(request, book, chapter_num, results, language, source_book):
@@ -28,6 +29,7 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     Genesis uses Django ORM and has its own footnote system.
     Supports multi-language translation.
     """
+    set_debug_context(request)
     rbt = results['rbt']
     cached_hit = results['cached_hit']
     chapter_list = results['chapter_list']
@@ -186,14 +188,17 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     # Determine if translation is needed
     needs_translation = False
     if language != 'en':
-        print(f"[SEARCH VIEW DEBUG Genesis] Checking translation needs for {book} ch{chapter_num} lang={language}")
-        print(f"[SEARCH VIEW DEBUG Genesis] verses_to_translate count: {len(verses_to_translate)}")
-        print(f"[SEARCH VIEW DEBUG Genesis] footnotes_to_translate count: {len(footnotes_to_translate)}")
+        if should_emit_debug(book=book, chapter=chapter_num):
+            print(f"[SEARCH VIEW DEBUG Genesis] Checking translation needs for {book} ch{chapter_num} lang={language}")
+            print(f"[SEARCH VIEW DEBUG Genesis] verses_to_translate count: {len(verses_to_translate)}")
+            print(f"[SEARCH VIEW DEBUG Genesis] footnotes_to_translate count: {len(footnotes_to_translate)}")
         if verses_to_translate or footnotes_to_translate:
             needs_translation = True
-            print(f"[SEARCH VIEW DEBUG Genesis] Setting needs_translation=True")
+            if should_emit_debug(book=book, chapter=chapter_num):
+                print(f"[SEARCH VIEW DEBUG Genesis] Setting needs_translation=True")
         else:
-            print(f"[SEARCH VIEW DEBUG Genesis] All translations exist, needs_translation=False")
+            if should_emit_debug(book=book, chapter=chapter_num):
+                print(f"[SEARCH VIEW DEBUG Genesis] All translations exist, needs_translation=False")
     
     context = {
         'chapters': chapters,
@@ -222,14 +227,16 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     NT books use PostgreSQL new_testament schema.
     Supports multi-language translation.
     """
+    set_debug_context(request)
     chapter_rows = results['chapter_reader']
     html_rows = results['html']
     chapter_list = results['chapter_list']
     cached_hit = results['cached_hit']
     commentary = results['commentary']
     
-    print(f"[RENDER DEBUG] Book: '{book}', Has chapter_rows: {len(chapter_rows) if chapter_rows else 0}")
-    print(f"[RENDER DEBUG] Is NT book: {book in new_testament_books}")
+    if should_emit_debug(book=book, chapter=chapter_num):
+        print(f"[RENDER DEBUG] Book: '{book}', Has chapter_rows: {len(chapter_rows) if chapter_rows else 0}")
+        print(f"[RENDER DEBUG] Is NT book: {book in new_testament_books}")
     
     if commentary is not None:
         commentary = commentary[0]
@@ -301,7 +308,8 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         book_abbrev = book_abbreviations.get(full_book, full_book)
         schema = 'new_testament' if full_book in new_testament_books else 'old_testament'
 
-        print(f"[QUERY_FOOTNOTE DEBUG] book='{book}', full='{full_book}', abbrev='{book_abbrev}', sup_text='{sup_text}', schema={schema}")
+        if should_emit_debug(book=full_book, chapter=chapter_num):
+            print(f"[QUERY_FOOTNOTE DEBUG] book='{book}', full='{full_book}', abbrev='{book_abbrev}', sup_text='{sup_text}', schema={schema}")
 
         abbrev_lower = book_abbrev.lower() # type: ignore
         if schema == 'new_testament' and abbrev_lower[0].isdigit():
@@ -402,18 +410,21 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     
     needs_translation = False
     if language != 'en':
-        print(f"[SEARCH VIEW DEBUG] Checking translation needs for {book} ch{chapter_num} lang={language}")
-        print(f"[SEARCH VIEW DEBUG] verses_to_translate count: {len(verses_to_translate)}")
-        print(f"[SEARCH VIEW DEBUG] footnotes_to_translate count: {len(footnotes_to_translate)}")
-        if verses_to_translate:
-            print(f"[SEARCH VIEW DEBUG] Missing verse numbers: {list(verses_to_translate.keys())[:10]}")
-        if footnotes_to_translate:
-            print(f"[SEARCH VIEW DEBUG] Missing footnote keys: {list(footnotes_to_translate.keys())[:10]}")
+        if should_emit_debug(book=book, chapter=chapter_num):
+            print(f"[SEARCH VIEW DEBUG] Checking translation needs for {book} ch{chapter_num} lang={language}")
+            print(f"[SEARCH VIEW DEBUG] verses_to_translate count: {len(verses_to_translate)}")
+            print(f"[SEARCH VIEW DEBUG] footnotes_to_translate count: {len(footnotes_to_translate)}")
+            if verses_to_translate:
+                print(f"[SEARCH VIEW DEBUG] Missing verse numbers: {list(verses_to_translate.keys())[:10]}")
+            if footnotes_to_translate:
+                print(f"[SEARCH VIEW DEBUG] Missing footnote keys: {list(footnotes_to_translate.keys())[:10]}")
         if verses_to_translate or footnotes_to_translate:
             needs_translation = True
-            print(f"[SEARCH VIEW DEBUG] Setting needs_translation=True")
+            if should_emit_debug(book=book, chapter=chapter_num):
+                print(f"[SEARCH VIEW DEBUG] Setting needs_translation=True")
         else:
-            print(f"[SEARCH VIEW DEBUG] All translations exist, needs_translation=False")
+            if should_emit_debug(book=book, chapter=chapter_num):
+                print(f"[SEARCH VIEW DEBUG] All translations exist, needs_translation=False")
             
     context = {
         'cache_hit': cached_hit,
@@ -441,14 +452,16 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     OT books use PostgreSQL old_testament schema.
     Supports Hebrew literal and paraphrase with multi-language translation.
     """
+    set_debug_context(request)
     chapter_rows = results['chapter_reader']
     html_rows = results['html']
     chapter_list = results['chapter_list']
     cached_hit = results['cached_hit']
     commentary = results['commentary']
     
-    print(f"[RENDER DEBUG] Book: '{book}', Has chapter_rows: {len(chapter_rows) if chapter_rows else 0}")
-    print(f"[RENDER DEBUG] Is OT book: {book in old_testament_books}")
+    if should_emit_debug(book=book, chapter=chapter_num):
+        print(f"[RENDER DEBUG] Book: '{book}', Has chapter_rows: {len(chapter_rows) if chapter_rows else 0}")
+        print(f"[RENDER DEBUG] Is OT book: {book in old_testament_books}")
     
     if commentary is not None:
         commentary = commentary[0]
@@ -628,14 +641,17 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     # Determine if translation is needed
     needs_translation = False
     if language != 'en':
-        print(f"[SEARCH VIEW DEBUG OT] Checking translation needs for {book} ch{chapter_num} lang={language}")
-        print(f"[SEARCH VIEW DEBUG OT] verses_to_translate count: {len(verses_to_translate)}")
-        print(f"[SEARCH VIEW DEBUG OT] footnotes_to_translate count: {len(footnotes_to_translate)}")
+        if should_emit_debug(book=book, chapter=chapter_num):
+            print(f"[SEARCH VIEW DEBUG OT] Checking translation needs for {book} ch{chapter_num} lang={language}")
+            print(f"[SEARCH VIEW DEBUG OT] verses_to_translate count: {len(verses_to_translate)}")
+            print(f"[SEARCH VIEW DEBUG OT] footnotes_to_translate count: {len(footnotes_to_translate)}")
         if verses_to_translate or footnotes_to_translate:
             needs_translation = True
-            print(f"[SEARCH VIEW DEBUG OT] Setting needs_translation=True")
+            if should_emit_debug(book=book, chapter=chapter_num):
+                print(f"[SEARCH VIEW DEBUG OT] Setting needs_translation=True")
         else:
-            print(f"[SEARCH VIEW DEBUG OT] All translations exist, needs_translation=False")
+            if should_emit_debug(book=book, chapter=chapter_num):
+                print(f"[SEARCH VIEW DEBUG OT] All translations exist, needs_translation=False")
     
     context = {
         'chapters': chapters,

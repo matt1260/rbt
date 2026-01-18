@@ -89,6 +89,19 @@
     margin-bottom: 20px;
 }
 
+.translation-toggle {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #666;
+}
+
+.translation-toggle input {
+    transform: scale(1.05);
+}
+
 .search-input-wrapper {
     display: flex;
     gap: 10px;
@@ -585,7 +598,7 @@
     <!-- Hero Section -->
     <div class="search-hero">
         <h1><i class="fas fa-search"></i> Real Bible Search</h1>
-        <p>Search across Hebrew, Greek, English translations, and footnotes</p>
+        <p>Search across Hebrew, Greek, English translations, Non-English translations, and footnotes</p>
     </div>
 
     <!-- Search Container -->
@@ -626,6 +639,11 @@
             <div class="scope-option" data-scope="footnotes">
                 <i class="fas fa-sticky-note"></i> Footnotes
             </div>
+        </div>
+
+        <div class="translation-toggle">
+            <input type="checkbox" id="translationsOnlyToggle" name="translations_only" value="1">
+            <label for="translationsOnlyToggle">Search translations only (non‑English)</label>
         </div>
 
         <!-- Search Input -->

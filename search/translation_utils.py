@@ -8,14 +8,16 @@ from .models import VerseTranslation
 # Format: GEMINI_API_KEYS="key1,key2,key3,..."
 GEMINI_API_KEYS_STR = os.getenv('GEMINI_API_KEYS', '')
 GEMINI_API_KEYS = [k.strip() for k in GEMINI_API_KEYS_STR.split(',') if k.strip()]
+ENABLE_VERBOSE_DEBUG = os.getenv('ENABLE_VERBOSE_DEBUG', 'False') == 'True'
 
 # Debug: Print what we loaded (only first few chars of each key for security)
-print(f"[ENV DEBUG] GEMINI_API_KEYS_STR length: {len(GEMINI_API_KEYS_STR)}")
-print(f"[ENV DEBUG] Number of API keys loaded: {len(GEMINI_API_KEYS)}")
-if GEMINI_API_KEYS:
-    print(f"[ENV DEBUG] First key starts with: {GEMINI_API_KEYS[0][:10]}...")
-else:
-    print(f"[ENV DEBUG] WARNING: No API keys found!")
+if ENABLE_VERBOSE_DEBUG:
+    print(f"[ENV DEBUG] GEMINI_API_KEYS_STR length: {len(GEMINI_API_KEYS_STR)}")
+    print(f"[ENV DEBUG] Number of API keys loaded: {len(GEMINI_API_KEYS)}")
+    if GEMINI_API_KEYS:
+        print(f"[ENV DEBUG] First key starts with: {GEMINI_API_KEYS[0][:10]}...")
+    else:
+        print(f"[ENV DEBUG] WARNING: No API keys found!")
 
 SUPPORTED_LANGUAGES = {
     'es': 'Español',

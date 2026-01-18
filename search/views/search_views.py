@@ -18,7 +18,7 @@ from django.views.decorators.http import require_GET
 from django.db.models import Q
 import pythonbible as bible
 
-from search.models import Genesis, GenesisFootnotes
+from search.models import Genesis, GenesisFootnotes, VerseTranslation
 from search.db_utils import execute_query, get_db_connection
 from search.views.utils import detect_script, strip_hebrew_vowels, highlight_match
 from translate.translator import book_abbreviations, convert_book_name
@@ -78,6 +78,8 @@ def search_api(request):
     scope = request.GET.get('scope', 'all').lower()
     requested_type = request.GET.get('type', 'auto')
     search_type = requested_type
+    language = request.GET.get('lang', '').strip().lower()
+    translations_only = request.GET.get('translations_only') == '1' or scope == 'translations'
     limit = min(int(request.GET.get('limit', 20)), 100)
     page = max(int(request.GET.get('page', 1)), 1)
     offset = (page - 1) * limit
@@ -91,6 +93,9 @@ def search_api(request):
     
     # Detect script type
     script = detect_script(query)
+    has_non_ascii = bool(re.search(r'[^\x00-\x7F]', query))
+    if has_non_ascii and not script['hebrew'] and not script['greek'] and scope == 'all':
+        translations_only = True
     
     # Cache parsed references to avoid duplicate parsing
     parsed_refs = None
@@ -114,7 +119,8 @@ def search_api(request):
         'nt_greek': [],
         'footnotes': [],
         'storehouse': [],
-        'references': []
+        'references': [],
+        'translations': []
     }
     
     counts = {
@@ -124,8 +130,43 @@ def search_api(request):
         'nt_greek': 0,
         'footnotes': 0,
         'storehouse': 0,
-        'references': 0
+        'references': 0,
+        'translations': 0
     }
+
+    def search_translations_only():
+        qs = VerseTranslation.objects.filter(verse_text__icontains=query).exclude(verse_text__isnull=True).exclude(verse_text__exact='')
+        if language and language != 'en':
+            qs = qs.filter(language_code=language)
+
+        counts['translations'] = qs.count()
+        rows = qs.order_by('book', 'chapter', 'verse')[offset:offset + limit]
+        for row in rows:
+            lang_code = row.language_code or language or 'en'
+            results['translations'].append({
+                'type': 'translation',
+                'book': row.book,
+                'chapter': row.chapter,
+                'verse': row.verse,
+                'language': lang_code,
+                'text': highlight_match(row.verse_text or '', query),
+                'url': f'/?book={row.book}&chapter={row.chapter}&verse={row.verse}&lang={lang_code}'
+            })
+
+        return JsonResponse({
+            'query': query,
+            'scope': 'translations',
+            'type': search_type,
+            'script_detected': script,
+            'results': results,
+            'counts': counts,
+            'total': counts['translations'],
+            'page': page,
+            'limit': limit,
+            'lang': language or None,
+            'translations_only': True,
+            'has_more': counts['translations'] > len(results['translations'])
+        })
     
     # Reference search
     if search_type == 'reference':
@@ -173,9 +214,15 @@ def search_api(request):
             'total': total_results,
             'page': page,
             'limit': limit,
+            'lang': language or None,
+            'translations_only': translations_only,
             'has_more': counts['references'] > len(results['references'])
         })
     
+    # Translation-only fast path (non-English query or explicit request)
+    if translations_only:
+        return search_translations_only()
+
     # Keyword search
     if search_type == 'keyword' or not results['references']:
         
@@ -817,6 +864,8 @@ def search_api(request):
         'total': total_results,
         'page': page,
         'limit': limit,
+        'lang': language or None,
+        'translations_only': translations_only,
         'has_more': any(counts[k] > len(results[k]) for k in counts)
     })
 

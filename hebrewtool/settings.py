@@ -39,6 +39,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+ENABLE_VERBOSE_DEBUG = os.environ.get('ENABLE_VERBOSE_DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = ["*"]
 
 CSRF_COOKIE_SECURE = True

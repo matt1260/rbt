@@ -12,6 +12,12 @@ try:
 except Exception:  # pragma: no cover - settings may be unavailable in some scripts
     settings = None
 
+try:
+    from hebrewtool.debug_utils import should_emit_debug
+except Exception:  # pragma: no cover - non-Django scripts
+    def should_emit_debug(*, book=None, chapter=None, verse=None):
+        return False
+
 from .db_utils import get_db_connection, execute_query, table_has_column
 
 DEFAULT_FUERST_IMAGE_BASE_URL = "http://www.realbible.tech/fuerst_lexicon"
@@ -19,8 +25,8 @@ DEFAULT_GESENIUS_IMAGE_BASE_URL = "http://www.realbible.tech/gesenius_lexicon"
 
 logger = logging.getLogger(__name__)
 
-def _debug_filtered_rows(label: str, before_rows: list[tuple], after_rows: list[tuple]) -> None:
-    if not settings or not getattr(settings, 'DEBUG', False):
+def _debug_filtered_rows(label: str, before_rows: list[tuple], after_rows: list[tuple], *, book: Optional[str] = None, chapter: Optional[int] = None, verse: Optional[int] = None) -> None:
+    if not should_emit_debug(book=book, chapter=chapter, verse=verse):
         return
     before_len = len(before_rows)
     after_len = len(after_rows)
@@ -33,8 +39,7 @@ def _debug_filtered_rows(label: str, before_rows: list[tuple], after_rows: list[
         logger.debug("%s filter removed %d rows: %s", label, len(removed), snippet)
         print(f"{label} removed rows: {snippet}")
     logger.debug(info)
-    if settings.DEBUG:
-        print(info)
+    print(info)
 
 
 def get_manual_lexicon_mappings(hebrew_word: str, strong_number: Optional[str] = None,
@@ -124,6 +129,24 @@ def sanitize_allowed_html(raw_html: str) -> str:
     esc = esc.replace('&lt;/a&gt;', '</a>')
 
     return esc
+
+
+def normalize_html_fragment(raw_html: str) -> str:
+    """Normalize an HTML fragment to ensure tags are balanced.
+
+    Uses BeautifulSoup when available; otherwise returns the input unchanged.
+    """
+    if not raw_html:
+        return ''
+    try:
+        from bs4 import BeautifulSoup  # type: ignore
+    except Exception:
+        return raw_html
+
+    soup = BeautifulSoup(raw_html, 'html.parser')
+    if soup.body:
+        return ''.join(str(node) for node in soup.body.contents)
+    return str(soup)
 
 
 book_abbreviations = {
@@ -329,6 +352,8 @@ def build_bdb_popup(strong_refs: list[str]) -> str:
         if not bdb_html:
             continue
 
+        # Normalize the raw HTML to ensure tags are balanced
+        bdb_html = normalize_html_fragment(bdb_html)
         # Render the raw HTML directly (it's already HTML from the BDB source)
         entry_html = f'''
             <div class="bdb-entry">
@@ -1313,12 +1338,14 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
             # Consider root strongs as those < 9000 (function words are in the 9000s)
             token_root_nums = {n for n in token_nums if n < 9000}
             if token_root_nums:
-                print(f"root strongs filter tokens={sorted(token_root_nums)}")
+                if should_emit_debug(book=book, chapter=chapter, verse=verse):
+                    print(f"root strongs filter tokens={sorted(token_root_nums)}")
                 preferred_rows = [r for r in rows if r[0] in manual_row_ids or extract_nums_from_strongs_field(r[9]) & token_root_nums]
                 if preferred_rows:
-                    print("root strongs matched rows:", [f"id={row[0]} strongs={row[9]}" for row in preferred_rows])
+                    if should_emit_debug(book=book, chapter=chapter, verse=verse):
+                        print("root strongs matched rows:", [f"id={row[0]} strongs={row[9]}" for row in preferred_rows])
                     rows = preferred_rows
-            _debug_filtered_rows('root strongs', before_root_filter, rows)
+            _debug_filtered_rows('root strongs', before_root_filter, rows, book=book, chapter=chapter, verse=verse)
     except Exception:
         pass
 
@@ -1340,8 +1367,9 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
             rows = [r for r in rows if r[0] in manual_row_ids or (visible_len(r[1]) >= 2 or visible_len(r[2]) >= 2)]
             filtered_out = [r for r in before_visible if r not in rows]
             if filtered_out:
-                print("visible length filtered rows:", [f"id={r[0]} len_word={visible_len(r[1])} len_consonantal={visible_len(r[2])} strongs={r[9]}" for r in filtered_out])
-        _debug_filtered_rows('visible length', before_visible_filter, rows)
+                if should_emit_debug(book=book, chapter=chapter, verse=verse):
+                    print("visible length filtered rows:", [f"id={r[0]} len_word={visible_len(r[1])} len_consonantal={visible_len(r[2])} strongs={r[9]}" for r in filtered_out])
+        _debug_filtered_rows('visible length', before_visible_filter, rows, book=book, chapter=chapter, verse=verse)
     except Exception:
         # Be conservative if anything goes wrong - don't filter
         pass

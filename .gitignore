@@ -22,6 +22,7 @@ neve-child/
 namecheap_server.txt
 BDB_extract.py
 bdb_images/
+pg_stat_snapshot.py
 
 searchimage.py
 replace_exact_match.py

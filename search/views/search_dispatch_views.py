@@ -157,6 +157,10 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
     Fetches verse data using get_results() and renders verse.html template.
     Includes Hebrew/Greek interlinear, translations, and footnotes.
     """
+    print(
+        f"[REQUEST] verse book={book} chapter={chapter_num} verse={verse_num} "
+        f"lang={language} path={request.get_full_path()}"
+    )
     try:
         results = get_results(book, chapter_num, verse_num, language)
         
@@ -237,6 +241,10 @@ def handle_single_chapter(request, book, chapter_num, language):
     Routes to appropriate chapter handler based on book type.
     Includes translation support and footnote collection.
     """
+    print(
+        f"[REQUEST] chapter book={book} chapter={chapter_num} "
+        f"lang={language} path={request.get_full_path()}"
+    )
     from search.views.chapter_handlers import (
         handle_genesis_chapter,
         handle_nt_chapter,
