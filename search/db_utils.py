@@ -50,12 +50,24 @@ def get_db_config():
 def get_db_connection():
     """Context manager for database connections"""
     config = get_db_config()
+    connect_timeout = int(os.getenv('DB_CONNECT_TIMEOUT', '5'))
+    statement_timeout = int(os.getenv('DB_STATEMENT_TIMEOUT_MS', '12000'))
+    lock_timeout = int(os.getenv('DB_LOCK_TIMEOUT_MS', '5000'))
+    app_name = os.getenv('DB_APP_NAME', 'rbt-web')
+    options = config.get('OPTIONS') or config.get('options') or ''
+    extra_opts = f"-c statement_timeout={statement_timeout} -c lock_timeout={lock_timeout} -c application_name={app_name}"
+    if options:
+        options = f"{options} {extra_opts}"
+    else:
+        options = extra_opts
     conn = psycopg2.connect(
         host=config.get('HOST') or config.get('host'),
         database=config.get('NAME') or config.get('dbname'),
         user=config.get('USER') or config.get('user'),
         password=config.get('PASSWORD') or config.get('password'),
-        port=config.get('PORT', 5432)
+        port=config.get('PORT', 5432),
+        connect_timeout=connect_timeout,
+        options=options
     )
     try:
         yield conn
