@@ -1,1 +1,1 @@
-web: gunicorn hebrewtool.wsgi --log-file -
+web: gunicorn hebrewtool.wsgi --log-file - --bind 0.0.0.0:$PORT

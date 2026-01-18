@@ -24,4 +24,5 @@ COPY . /code
 
 EXPOSE 8000
 
-CMD ["gunicorn","--bind",":8000","--workers","2","hebrewtool.wsgi"]
+ENV PORT=8000
+CMD ["gunicorn","--bind","0.0.0.0:${PORT}","--workers","2","hebrewtool.wsgi"]
