@@ -163,6 +163,11 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
     )
     try:
         results = get_results(book, chapter_num, verse_num, language)
+        # Log cache status for observability
+        try:
+            print(f"[CACHE] verse book={book} chapter={chapter_num} verse={verse_num} cached={results.get('cached_hit', False)}")
+        except Exception:
+            pass
         
         # Validate verse exists - need either Greek (NT) or verse text (OT)
         has_nt_data = results.get('rbt_greek')
@@ -254,6 +259,10 @@ def handle_single_chapter(request, book, chapter_num, language):
     try:
         source_book = book
         results = get_results(book, chapter_num, None, language)
+        try:
+            print(f"[CACHE] chapter book={book} chapter={chapter_num} cached={results.get('cached_hit', False)}")
+        except Exception:
+            pass
         
         # Route to appropriate handler based on book type
         if book == 'Genesis':
