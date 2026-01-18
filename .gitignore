@@ -2,7 +2,6 @@
 .github/
 .gitignore
 *.dump
-*.sh
 *.jsonl
 *.log
 *.ipynb
