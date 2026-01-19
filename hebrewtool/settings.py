@@ -143,7 +143,11 @@ WSGI_APPLICATION = 'hebrewtool.wsgi.application'
 
 
 DATABASES = {
-    'default': dj_database_url.config(default=os.environ.get('DATABASE_URL'))
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL'),
+        conn_max_age=600,  # Keep connections alive for 10 minutes
+        conn_health_checks=True  # Django 4.1+ health checks
+    )
 }
 
 

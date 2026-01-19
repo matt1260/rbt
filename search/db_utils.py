@@ -3,9 +3,8 @@ from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any, List, Optional, Sequence, Tuple, Union, Literal, overload, Mapping
 
-import dj_database_url
-import psycopg2
 from django.conf import settings
+from django.db import connection
 
 
 RowType = Tuple[Any, ...]
@@ -39,43 +38,23 @@ def execute_query(
 ) -> int:
     ...
 
-def get_db_config():
-    """Get database configuration from environment or settings"""
-    if 'DATABASE_URL' in os.environ:
-        return dj_database_url.parse(os.environ['DATABASE_URL'])
-    else:
-        return settings.DATABASES['default']
-
 @contextmanager
 def get_db_connection():
-    """Context manager for database connections"""
-    config = get_db_config()
-    connect_timeout = int(os.getenv('DB_CONNECT_TIMEOUT', '5'))
-    statement_timeout = int(os.getenv('DB_STATEMENT_TIMEOUT_MS', '12000'))
-    lock_timeout = int(os.getenv('DB_LOCK_TIMEOUT_MS', '5000'))
-    app_name = os.getenv('DB_APP_NAME', 'rbt-web')
-    options = config.get('OPTIONS') or config.get('options') or ''
-    extra_opts = f"-c statement_timeout={statement_timeout} -c lock_timeout={lock_timeout} -c application_name={app_name}"
-    if options:
-        options = f"{options} {extra_opts}"
-    else:
-        options = extra_opts
-    conn = psycopg2.connect(
-        host=config.get('HOST') or config.get('host'),
-        database=config.get('NAME') or config.get('dbname'),
-        user=config.get('USER') or config.get('user'),
-        password=config.get('PASSWORD') or config.get('password'),
-        port=config.get('PORT', 5432),
-        connect_timeout=connect_timeout,
-        options=options
-    )
+    """Context manager that yields Django's persistent database connection"""
+    # Use Django's connection pool instead of creating new psycopg2 connections
+    statement_timeout = int(os.getenv('DB_STATEMENT_TIMEOUT_MS', '30000'))
+    lock_timeout = int(os.getenv('DB_LOCK_TIMEOUT_MS', '10000'))
+    
+    # Set timeouts for this query session
+    with connection.cursor() as cursor:
+        cursor.execute(f"SET statement_timeout = {statement_timeout}")
+        cursor.execute(f"SET lock_timeout = {lock_timeout}")
+    
     try:
-        yield conn
+        yield connection
     except Exception as e:
-        conn.rollback()
+        connection.rollback()
         raise e
-    finally:
-        conn.close()
 
 def execute_query(
     query: str,
