@@ -1,4 +1,4 @@
-ARG PYTHON_VERSION=3.12-slim
+ARG PYTHON_VERSION=3.12
 
 FROM python:${PYTHON_VERSION}
 
@@ -25,4 +25,4 @@ COPY . /code
 EXPOSE 8000
 
 ENV PORT=8000
-CMD ["gunicorn","--bind","0.0.0.0:${PORT}","--workers","2","hebrewtool.wsgi"]
+CMD ["/bin/sh","-c","gunicorn --bind 0.0.0.0:${PORT} --workers 2 hebrewtool.wsgi:application"]
