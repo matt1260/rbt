@@ -152,6 +152,18 @@ DATABASES = {
     )
 }
 
+# Cache configuration - use database cache for rate limiting persistence
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'django_cache_table',
+        'OPTIONS': {
+            'MAX_ENTRIES': 10000,
+            'CULL_FREQUENCY': 4,  # When full, delete 1/4 of entries
+        }
+    }
+}
+
 
 
 # Password validation
