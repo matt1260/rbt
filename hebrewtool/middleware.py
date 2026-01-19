@@ -118,7 +118,15 @@ class RateLimitMiddleware:
                 strikes = cache.get(strikes_key, 0) + 1
                 cache.set(strikes_key, strikes, 7200)  # Strikes expire after 2 hours
                 
-                logger.warning(f"[RATE LIMIT] IP {ip} exceeded {endpoint_type} limit (strike {strikes}/{max_strikes})")
+                user_agent = request.META.get('HTTP_USER_AGENT', '')[:200]
+                logger.warning(f"[RATE LIMIT] IP {ip} exceeded {endpoint_type} limit (strike {strikes}/{max_strikes}) UA={user_agent}")
+
+                # Record event to audit log for analysis
+                try:
+                    with open('rate_limit_events.log', 'a') as rf:
+                        rf.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {ip} | {endpoint_type} | count={rate_data['count']} | strikes={strikes} | limit={limit} | ua={user_agent} | path={path}\n")
+                except Exception:
+                    logger.exception('Failed to write rate_limit_events.log')
                 
                 # Ban if too many strikes
                 if strikes >= max_strikes:
@@ -128,11 +136,14 @@ class RateLimitMiddleware:
                         'reason': f'Exceeded {endpoint_type} rate limit {strikes} times',
                         'endpoint': endpoint_type
                     }, ban_duration)
-                    logger.error(f"[BOT BANNED] IP {ip} banned for {ban_duration}s (reason: {strikes} {endpoint_type} violations)")
+                    logger.error(f"[BOT BANNED] IP {ip} banned for {ban_duration}s (reason: {strikes} {endpoint_type} violations) UA={user_agent}")
                     
                     # Log to file for monitoring
-                    with open('blocked_ips.log', 'a') as f:
-                        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {ip} | {endpoint_type} | {strikes} strikes | {ban_duration}s\n")
+                    try:
+                        with open('blocked_ips.log', 'a') as f:
+                            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {ip} | {endpoint_type} | {strikes} strikes | {ban_duration}s | ua={user_agent} | path={path}\n")
+                    except Exception:
+                        logger.exception('Failed to write blocked_ips.log')
                     
                     response = HttpResponse(
                         f'Your IP has been temporarily blocked due to excessive {endpoint_type} requests.\n'
