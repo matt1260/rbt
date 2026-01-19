@@ -4326,7 +4326,7 @@ def update_lexicon_entry(request):
             
             if lexicon_type == 'fuerst':
                 # Update fuerst_lexicon table
-                cursor.execute,
+                cursor.execute(
                     """
                     UPDATE fuerst_lexicon
                     SET hebrew_word = %s,
@@ -4337,7 +4337,7 @@ def update_lexicon_entry(request):
                         source_page = %s
                     WHERE id = %s
                     """,
-                    (hebrew_word, hebrew_consonantal, part_of_speech, 
+                    (hebrew_word, hebrew_consonantal, part_of_speech,
                      definition, root, source_page, lexicon_id)
                 )
                 
