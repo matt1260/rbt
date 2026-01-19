@@ -4178,30 +4178,64 @@ def add_manual_lexicon_mapping(request):
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
-            # Ensure the unique index exists so ON CONFLICT works across environments
             cursor.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS manual_lexicon_mappings_conflict_idx
-                ON old_testament.manual_lexicon_mappings
-                (hebrew_word, strong_number, lexicon_type, book, chapter, verse);
-            """)
-            
-            # Insert or update the mapping
-            cursor.execute("""
-                INSERT INTO old_testament.manual_lexicon_mappings 
-                (hebrew_word, hebrew_consonantal, strong_number, lexicon_type, 
-                 fuerst_id, gesenius_id, book, chapter, verse, notes, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                ON CONFLICT (hebrew_word, strong_number, lexicon_type, book, chapter, verse)
-                DO UPDATE SET
-                    fuerst_id = EXCLUDED.fuerst_id,
-                    gesenius_id = EXCLUDED.gesenius_id,
-                    notes = EXCLUDED.notes,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING mapping_id
-            """, (hebrew_word, hebrew_consonantal, strong_number or None, lexicon_type,
-                  fuerst_id, gesenius_id, book, chapter, verse, notes))
-            
-            mapping_id = cursor.fetchone()[0] # type: ignore
+                SELECT mapping_id
+                FROM old_testament.manual_lexicon_mappings
+                WHERE hebrew_word = %s
+                  AND (strong_number = %s OR (strong_number IS NULL AND %s IS NULL))
+                  AND lexicon_type = %s
+                  AND book IS NOT DISTINCT FROM %s
+                  AND chapter IS NOT DISTINCT FROM %s
+                  AND verse IS NOT DISTINCT FROM %s
+            """, (
+                hebrew_word,
+                strong_number or None,
+                strong_number or None,
+                lexicon_type,
+                book,
+                chapter,
+                verse,
+            ))
+            found = cursor.fetchone()
+
+            if found:
+                cursor.execute("""
+                    UPDATE old_testament.manual_lexicon_mappings
+                    SET hebrew_consonantal = %s,
+                        fuerst_id = %s,
+                        gesenius_id = %s,
+                        notes = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE mapping_id = %s
+                    RETURNING mapping_id
+                """, (
+                    hebrew_consonantal,
+                    fuerst_id,
+                    gesenius_id,
+                    notes,
+                    found[0],
+                ))
+            else:
+                cursor.execute("""
+                    INSERT INTO old_testament.manual_lexicon_mappings 
+                    (hebrew_word, hebrew_consonantal, strong_number, lexicon_type, 
+                     fuerst_id, gesenius_id, book, chapter, verse, notes, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    RETURNING mapping_id
+                """, (
+                    hebrew_word,
+                    hebrew_consonantal,
+                    strong_number or None,
+                    lexicon_type,
+                    fuerst_id,
+                    gesenius_id,
+                    book,
+                    chapter,
+                    verse,
+                    notes,
+                ))
+
+            mapping_id = cursor.fetchone()[0]  # type: ignore
             conn.commit()
         
         return JsonResponse({
