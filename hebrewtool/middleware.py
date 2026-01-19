@@ -120,6 +120,8 @@ class RateLimitMiddleware:
                 
                 user_agent = request.META.get('HTTP_USER_AGENT', '')[:200]
                 logger.warning(f"[RATE LIMIT] IP {ip} exceeded {endpoint_type} limit (strike {strikes}/{max_strikes}) UA={user_agent}")
+                # Also print to stdout so platform logs capture the IP immediately
+                print(f"[RATE_LIMIT] ip={ip} endpoint={endpoint_type} count={rate_data['count']} strikes={strikes} ua={user_agent} path={path}")
 
                 # Record event to audit log for analysis
                 try:
@@ -137,6 +139,8 @@ class RateLimitMiddleware:
                         'endpoint': endpoint_type
                     }, ban_duration)
                     logger.error(f"[BOT BANNED] IP {ip} banned for {ban_duration}s (reason: {strikes} {endpoint_type} violations) UA={user_agent}")
+                    # Print to stdout for immediate log visibility
+                    print(f"[BOT_BANNED] ip={ip} endpoint={endpoint_type} strikes={strikes} ban_duration={ban_duration} ua={user_agent} path={path}")
                     
                     # Log to file for monitoring
                     try:

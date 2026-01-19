@@ -157,9 +157,11 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
     Fetches verse data using get_results() and renders verse.html template.
     Includes Hebrew/Greek interlinear, translations, and footnotes.
     """
+    ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', 'unknown'))
+    ua = request.META.get('HTTP_USER_AGENT', '')[:200]
     print(
         f"[REQUEST] verse book={book} chapter={chapter_num} verse={verse_num} "
-        f"lang={language} path={request.get_full_path()}"
+        f"lang={language} path={request.get_full_path()} ip={ip} ua={ua}"
     )
     try:
         results = get_results(book, chapter_num, verse_num, language)
