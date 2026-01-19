@@ -1,1 +1,1 @@
-web: gunicorn hebrewtool.wsgi --log-file - --bind 0.0.0.0:$PORT
+web: gunicorn hebrewtool.wsgi --log-file - --bind 0.0.0.0:$PORT --max-requests 1000 --max-requests-jitter 100
