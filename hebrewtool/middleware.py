@@ -35,7 +35,7 @@ class RateLimitMiddleware:
     
     def __call__(self, request):
         # Skip rate limiting for authenticated users (editors)
-        if request.user.is_authenticated:
+        if hasattr(request, 'user') and request.user.is_authenticated:
             return self.get_response(request)
         
         # Skip rate limiting in DEBUG mode for local development
@@ -153,7 +153,7 @@ class BotFilterMiddleware:
         
     def __call__(self, request):
         # Skip filtering for authenticated users
-        if request.user.is_authenticated:
+        if hasattr(request, 'user') and request.user.is_authenticated:
             return self.get_response(request)
         
         # Skip in DEBUG mode
