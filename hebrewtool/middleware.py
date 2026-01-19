@@ -48,22 +48,22 @@ class RateLimitMiddleware:
         # Determine rate limit based on endpoint
         if 'verse' in request.GET and 'chapter' in request.GET:
             # Individual verse lookup - most expensive
-            limit = 60
+            limit = 20  # 1 every 3 seconds
             window = 60  # seconds
             endpoint_type = 'verse'
         elif 'chapter' in request.GET and 'book' in request.GET:
             # Chapter view
-            limit = 120
+            limit = 30  # 1 every 2 seconds
             window = 60
             endpoint_type = 'chapter'
         elif path.startswith('/translate/') or path.startswith('/api/'):
             # Translation API
-            limit = 30
+            limit = 10
             window = 60
             endpoint_type = 'api'
         else:
             # General pages
-            limit = 180
+            limit = 60
             window = 60
             endpoint_type = 'general'
         
