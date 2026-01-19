@@ -109,6 +109,8 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'hebrewtool.middleware.BotFilterMiddleware',  # Block bad bots early
+    'hebrewtool.middleware.RateLimitMiddleware',  # Rate limit after bot filtering
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',

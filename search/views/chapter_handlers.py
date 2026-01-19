@@ -18,7 +18,7 @@ from translate.translator import (
 )
 from search.rbt_titles import rbt_books
 from search.translation_utils import SUPPORTED_LANGUAGES
-from search.db_utils import execute_query
+from search.db_utils import execute_query, get_db_connection
 from hebrewtool.debug_utils import set_debug_context, should_emit_debug
 
 
