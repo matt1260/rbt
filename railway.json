@@ -4,6 +4,6 @@
         "builder": "DOCKERFILE"
     },
     "deploy": {
-        "startCommand": "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn hebrewtool.wsgi:application"
+        "startCommand": "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn --bind 0.0.0.0:${PORT} --workers 2 hebrewtool.wsgi:application"
     }
 }
