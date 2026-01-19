@@ -149,3 +149,18 @@ class TranslationJob(models.Model):
         if total == 0:
             return 0
         return int((done / total) * 100)
+
+
+class InterlinearConfig(models.Model):
+    """Singleton-like model to store interlinear English replacements as JSON."""
+
+    id = models.AutoField(primary_key=True)
+    mapping = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.CharField(max_length=100, blank=True, null=True)
+
+    class Meta:
+        db_table = 'interlinear_config'
+
+    def __str__(self):
+        return f"InterlinearConfig (updated: {self.updated_at})"

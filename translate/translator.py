@@ -836,6 +836,16 @@ def load_json(filename):
     # Return a mapping (dict) of replacements; the consumer expects a dict-like object
     replacements = {}
 
+    # Prefer DB-stored mapping if available (persisted via admin)
+    try:
+        from search.models import InterlinearConfig
+        cfg = InterlinearConfig.objects.order_by('-updated_at').first()
+        if cfg and isinstance(cfg.mapping, dict) and cfg.mapping:
+            return cfg.mapping
+    except Exception:
+        # Not running in Django context or model/migration not ready - fall back to file
+        pass
+
     if not os.path.exists(filename):
         print(f"[DEBUG] JSON file not found: {filename}")
         return replacements
