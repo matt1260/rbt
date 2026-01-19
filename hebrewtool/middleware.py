@@ -6,9 +6,12 @@ and User-Agent filtering for suspicious crawlers.
 """
 
 import time
+import logging
 from django.http import HttpResponse
 from django.core.cache import cache
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 class RateLimitMiddleware:
@@ -45,29 +48,56 @@ class RateLimitMiddleware:
         ip = self.get_client_ip(request)
         path = request.path
         
+        # Check if IP is banned
+        ban_key = f'banned:{ip}'
+        ban_data = cache.get(ban_key)
+        if ban_data:
+            ban_until = ban_data.get('until', 0)
+            if time.time() < ban_until:
+                retry_after = int(ban_until - time.time())
+                logger.warning(f"[BOT BLOCKED] IP {ip} is banned until {ban_until} (reason: {ban_data.get('reason', 'unknown')})")
+                response = HttpResponse(
+                    f'Your IP has been temporarily blocked due to excessive requests.\n'
+                    f'Try again in {retry_after} seconds.\n'
+                    f'Contact the site administrator if you believe this is an error.',
+                    status=403,
+                    content_type='text/plain'
+                )
+                response['Retry-After'] = str(retry_after)
+                return response
+        
         # Determine rate limit based on endpoint
         if 'verse' in request.GET and 'chapter' in request.GET:
-            # Individual verse lookup - most expensive
-            limit = 20  # 1 every 3 seconds
-            window = 60  # seconds
+            # Individual verse lookup - VERY AGGRESSIVE (bots abuse this)
+            limit = 10  # Only 10 verse requests per minute
+            window = 60
             endpoint_type = 'verse'
+            max_strikes = 2  # Ban after 2 violations
+            ban_duration = 3600  # 1 hour ban
         elif 'chapter' in request.GET and 'book' in request.GET:
             # Chapter view
-            limit = 30  # 1 every 2 seconds
+            limit = 30
             window = 60
             endpoint_type = 'chapter'
+            max_strikes = 3
+            ban_duration = 1800  # 30 min ban
         elif path.startswith('/translate/') or path.startswith('/api/'):
             # Translation API
             limit = 10
             window = 60
             endpoint_type = 'api'
+            max_strikes = 2
+            ban_duration = 3600
         else:
             # General pages
             limit = 60
             window = 60
             endpoint_type = 'general'
+            max_strikes = 5
+            ban_duration = 600  # 10 min ban
         
         cache_key = f'ratelimit:{endpoint_type}:{ip}'
+        strikes_key = f'strikes:{endpoint_type}:{ip}'
         
         # Get current request count and timestamp
         rate_data = cache.get(cache_key, {'count': 0, 'reset_time': time.time() + window})
@@ -84,10 +114,40 @@ class RateLimitMiddleware:
             
             # Check if limit exceeded
             if rate_data['count'] > limit:
+                # Add a strike
+                strikes = cache.get(strikes_key, 0) + 1
+                cache.set(strikes_key, strikes, 7200)  # Strikes expire after 2 hours
+                
+                logger.warning(f"[RATE LIMIT] IP {ip} exceeded {endpoint_type} limit (strike {strikes}/{max_strikes})")
+                
+                # Ban if too many strikes
+                if strikes >= max_strikes:
+                    ban_until = current_time + ban_duration
+                    cache.set(ban_key, {
+                        'until': ban_until,
+                        'reason': f'Exceeded {endpoint_type} rate limit {strikes} times',
+                        'endpoint': endpoint_type
+                    }, ban_duration)
+                    logger.error(f"[BOT BANNED] IP {ip} banned for {ban_duration}s (reason: {strikes} {endpoint_type} violations)")
+                    
+                    # Log to file for monitoring
+                    with open('blocked_ips.log', 'a') as f:
+                        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {ip} | {endpoint_type} | {strikes} strikes | {ban_duration}s\n")
+                    
+                    response = HttpResponse(
+                        f'Your IP has been temporarily blocked due to excessive {endpoint_type} requests.\n'
+                        f'Ban duration: {ban_duration // 60} minutes.\n'
+                        f'Contact the site administrator if you believe this is an error.',
+                        status=403,
+                        content_type='text/plain'
+                    )
+                    return response
+                
                 retry_after = int(rate_data['reset_time'] - current_time)
                 response = HttpResponse(
                     f'Rate limit exceeded. Try again in {retry_after} seconds.\n'
-                    f'Limit: {limit} requests per {window} seconds for {endpoint_type} endpoints.',
+                    f'Limit: {limit} requests per {window} seconds for {endpoint_type} endpoints.\n'
+                    f'Warning: {strikes}/{max_strikes} strikes. {max_strikes - strikes} more violations will result in a temporary ban.',
                     status=429,
                     content_type='text/plain'
                 )
