@@ -23,6 +23,10 @@ from .db_utils import get_db_connection, execute_query, table_has_column
 DEFAULT_FUERST_IMAGE_BASE_URL = "http://www.realbible.tech/fuerst_lexicon"
 DEFAULT_GESENIUS_IMAGE_BASE_URL = "http://www.realbible.tech/gesenius_lexicon"
 
+ENABLE_FUERST_LEXICON = os.getenv('ENABLE_FUERST_LEXICON', 'true').strip().lower() in {
+    '1', 'true', 'yes', 'y', 'on'
+}
+
 logger = logging.getLogger(__name__)
 
 def _debug_filtered_rows(label: str, before_rows: list[tuple], after_rows: list[tuple], *, book: Optional[str] = None, chapter: Optional[int] = None, verse: Optional[int] = None) -> None:
@@ -1622,58 +1626,59 @@ def build_heb_interlinear(rows_data, show_edit_buttons: bool = False):
         # Track Fuerst IDs we've already shown for this token to avoid duplicate Fuerst popups
         seen_fuerst_ids: set = set()
         fuerst_popups = []
-        for strong_ref in strong_refs:
-            # Skip H9014..H9018 per site policy
-            num = get_strongs_numeric_value(strong_ref)
-            if num is not None and 9014 <= num <= 9018:
-                continue
+        if ENABLE_FUERST_LEXICON:
+            for strong_ref in strong_refs:
+                # Skip H9014..H9018 per site policy
+                num = get_strongs_numeric_value(strong_ref)
+                if num is not None and 9014 <= num <= 9018:
+                    continue
 
-            # Only add a Fuerst popup if it introduces at least one new Fuerst entry
-            try:
-                fuerst_entries = get_fuerst_entries_for_strong(strong_ref) or ()
-            except Exception:
-                fuerst_entries = ()
+                # Only add a Fuerst popup if it introduces at least one new Fuerst entry
+                try:
+                    fuerst_entries = get_fuerst_entries_for_strong(strong_ref) or ()
+                except Exception:
+                    fuerst_entries = ()
 
-            # Collect IDs and see if any are new
-            fuerst_ids_this_ref = set()
-            add_fuerst = False
-            for e in fuerst_entries:
-                fid = e.get('fuerst_id') if isinstance(e, dict) else None
-                if fid is not None:
-                    fuerst_ids_this_ref.add(fid)
-                    if fid not in seen_fuerst_ids:
-                        add_fuerst = True
+                # Collect IDs and see if any are new
+                fuerst_ids_this_ref = set()
+                add_fuerst = False
+                for e in fuerst_entries:
+                    fid = e.get('fuerst_id') if isinstance(e, dict) else None
+                    if fid is not None:
+                        fuerst_ids_this_ref.add(fid)
+                        if fid not in seen_fuerst_ids:
+                            add_fuerst = True
 
-            if add_fuerst:
-                # Parse ref to extract book, chapter, verse for manual mapping lookup
-                book_name = None
-                chapter_num = None
-                verse_num = None
-                if ref:
-                    ref_parts = ref.split(':')
-                    if len(ref_parts) >= 2:
-                        book_name = ref_parts[0].strip()
-                        try:
-                            chapter_num = int(ref_parts[1])
-                        except (ValueError, IndexError):
-                            pass
-                        if len(ref_parts) >= 3:
+                if add_fuerst:
+                    # Parse ref to extract book, chapter, verse for manual mapping lookup
+                    book_name = None
+                    chapter_num = None
+                    verse_num = None
+                    if ref:
+                        ref_parts = ref.split(':')
+                        if len(ref_parts) >= 2:
+                            book_name = ref_parts[0].strip()
                             try:
-                                verse_num = int(ref_parts[2])
+                                chapter_num = int(ref_parts[1])
                             except (ValueError, IndexError):
                                 pass
-                
-                fuerst_popup_html = build_fuerst_popup(
-                    strong_ref, 
-                    hebrew_word=combined_heb_niqqud, 
-                    book=book_name, 
-                    chapter=chapter_num, 
-                    verse=verse_num,
-                    show_edit_buttons=show_edit_buttons
-                )
-                if fuerst_popup_html:
-                    fuerst_popups.append(fuerst_popup_html)
-                    seen_fuerst_ids.update(fuerst_ids_this_ref)
+                            if len(ref_parts) >= 3:
+                                try:
+                                    verse_num = int(ref_parts[2])
+                                except (ValueError, IndexError):
+                                    pass
+                    
+                    fuerst_popup_html = build_fuerst_popup(
+                        strong_ref, 
+                        hebrew_word=combined_heb_niqqud, 
+                        book=book_name, 
+                        chapter=chapter_num, 
+                        verse=verse_num,
+                        show_edit_buttons=show_edit_buttons
+                    )
+                    if fuerst_popup_html:
+                        fuerst_popups.append(fuerst_popup_html)
+                        seen_fuerst_ids.update(fuerst_ids_this_ref)
 
         # Add Gesenius popup for the token
         # Parse ref for manual mapping lookup if not already parsed
