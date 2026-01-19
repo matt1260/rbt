@@ -103,12 +103,16 @@ def get_footnote(footnote_id, book, chapter_num=None, verse_num=None):
                 rbt_heb_ref = f'{footnote_parts2[0]}.{footnote_parts2[1]}.{footnote_parts2[2]}-{footnote_parts[1]}'
                 foot_ref = f'{footnote_parts2[0]}. {footnote_parts2[1]}:{footnote_parts2[2]}'
                 
-            # Ensure the correct schema is used
-            execute_query("SET search_path TO old_testament;")
-
-            # Construct the SQL query to retrieve the footnote
-            sql_query = "SELECT footnote FROM old_testament.hebrewdata WHERE Ref = %s"
-            result = execute_query(sql_query, (rbt_heb_ref,), fetch='one')
+            # Use a transaction-local search_path and read from the old_testament schema
+            with get_db_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("BEGIN")
+                    cursor.execute("SET LOCAL search_path TO old_testament")
+                    # Construct the SQL query to retrieve the footnote
+                    sql_query = "SELECT footnote FROM old_testament.hebrewdata WHERE Ref = %s"
+                    cursor.execute(sql_query, (rbt_heb_ref,))
+                    result = cursor.fetchone()
+            
 
             if result:
                 footnote_html = result[0]

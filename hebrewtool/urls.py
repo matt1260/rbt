@@ -16,11 +16,16 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.auth import views as auth_views
+from django.http import HttpResponse
 
 from translate import views
 from search.views import update_count
 
+def health_check(request):
+    return HttpResponse("OK", content_type="text/plain")
+
 urlpatterns = [
+    path('health', health_check, name='health_check'),
     path('admin/', admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),
     path('api/', include('search.urls')),

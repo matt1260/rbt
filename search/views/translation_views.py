@@ -188,13 +188,16 @@ def _translate_nt_chapter(book, chapter_num, language, results):
         else:
             table_name = f"{book.lower()}_footnotes"
         
-        execute_query("SET search_path TO new_testament;")
-        result = execute_query(
-            f"SELECT footnote_html FROM new_testament.{table_name} WHERE footnote_id = %s",
-            (footnote_id,),
-            fetch='one'
-        )
-        return result[0] if result else None
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("BEGIN")
+                cursor.execute("SET LOCAL search_path TO new_testament")
+                cursor.execute(
+                    f"SELECT footnote_html FROM new_testament.{table_name} WHERE footnote_id = %s",
+                    (footnote_id,)
+                )
+                row = cursor.fetchone()
+                return row[0] if row else None
 
     for row in chapter_rows:
         bk, ch_num, vrs, html_verse = row

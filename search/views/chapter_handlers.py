@@ -317,16 +317,18 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         else:
             table_name = f"{abbrev_lower}_footnotes"
 
-        execute_query(f"SET search_path TO {schema};")
         db_footnote_id = f"{book_abbrev}-{sup_text}"
-        
         try:
-            result = execute_query(
-                f"SELECT footnote_html FROM {schema}.{table_name} WHERE footnote_id = %s",
-                (db_footnote_id,),
-                fetch='one'
-            )
-            return result[0] if result else None
+            with get_db_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("BEGIN")
+                    cursor.execute(f"SET LOCAL search_path TO {schema}")
+                    cursor.execute(
+                        f"SELECT footnote_html FROM {schema}.{table_name} WHERE footnote_id = %s",
+                        (db_footnote_id,)
+                    )
+                    row = cursor.fetchone()
+                    return row[0] if row else None
         except Exception as e:
             print(f"[FOOTNOTE QUERY ERROR] Schema: {schema}, Table: {table_name}, ID: {db_footnote_id}, Error: {e}")
             return None

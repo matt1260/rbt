@@ -75,7 +75,8 @@ def storehouse_view(request):
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("SET search_path TO joseph_aseneth")
+                cursor.execute("BEGIN")
+                cursor.execute("SET LOCAL search_path TO joseph_aseneth")
                 cursor.execute(
                     """
                     SELECT DISTINCT chapter

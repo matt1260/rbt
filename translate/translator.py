@@ -1105,7 +1105,8 @@ def build_fuerst_popup(strong_ref: str, hebrew_word: str = '', book: Optional[st
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SET search_path TO old_testament")
+                cursor.execute("BEGIN")
+                cursor.execute("SET LOCAL search_path TO old_testament")
                 # Fürst IDs in database have "F" prefix (e.g., "F14745")
                 # but manual_lexicon_mappings stores integers (e.g., 14745)
                 fuerst_id_strings = [f'F{id}' for id in manual_mappings['fuerst_ids']]
@@ -1263,7 +1264,8 @@ def get_gesenius_entries_for_token(token_id: int, strongs_list: list[str] | None
                 try:
                     with get_db_connection() as conn:
                         cursor = conn.cursor()
-                        cursor.execute("SET search_path TO old_testament")
+                        cursor.execute("BEGIN")
+                        cursor.execute("SET LOCAL search_path TO old_testament")
                         # Gesenius IDs in database have "G" prefix (e.g., "G7059")
                         # but manual_lexicon_mappings stores integers (e.g., 7059)
                         gesenius_id_strings = [f'G{id}' for id in manual_mappings['gesenius_ids']]

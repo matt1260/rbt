@@ -1033,7 +1033,8 @@ def edit(request):
             try:
                 with get_db_connection() as conn:
                     cursor = conn.cursor()
-                    cursor.execute("SET search_path TO new_testament")
+                    cursor.execute("BEGIN")
+                    cursor.execute("SET LOCAL search_path TO new_testament")
                     
                     # 1Jo_footnotes
                     book = book_abbrev + '_footnotes'
@@ -1073,7 +1074,8 @@ def edit(request):
                 existing_ids = []
                 with get_db_connection() as conn:
                     cursor = conn.cursor()
-                    cursor.execute("SET search_path TO new_testament")
+                    cursor.execute("BEGIN")
+                    cursor.execute("SET LOCAL search_path TO new_testament")
                     cursor.execute(f"SELECT footnote_id FROM {book}")
                     existing_ids = [row[0] for row in cursor.fetchall()]
                 
@@ -2911,19 +2913,21 @@ def find_and_replace_ot(request):
                 elif source == 'footnote':
                     if new_footnote is None:
                         continue
-                    execute_query("SET search_path TO old_testament;")
-                    
-                    # Get the ref for this hebrewdata row to clear cache
-                    ref_row = execute_query(
-                        "SELECT Ref FROM old_testament.hebrewdata WHERE id = %s;",
-                        (int(record_id),),
-                        fetch='one'
-                    )
-                    
-                    execute_query(
-                        "UPDATE old_testament.hebrewdata SET footnote = %s WHERE id = %s;",
-                        (new_footnote, int(record_id))
-                    )
+                    # Use a single transaction-local search_path so the SELECT and UPDATE run in the same transaction
+                    with get_db_connection() as conn:
+                        with conn.cursor() as cursor:
+                            cursor.execute("BEGIN")
+                            cursor.execute("SET LOCAL search_path TO old_testament")
+                            cursor.execute(
+                                "SELECT Ref FROM old_testament.hebrewdata WHERE id = %s;",
+                                (int(record_id),)
+                            )
+                            ref_row = cursor.fetchone()
+                            cursor.execute(
+                                "UPDATE old_testament.hebrewdata SET footnote = %s WHERE id = %s;",
+                                (new_footnote, int(record_id))
+                            )
+                            conn.commit()
                     
                     # Clear cache for this verse
                     if ref_row:
@@ -2958,11 +2962,15 @@ def find_and_replace_ot(request):
                 else:
                     if new_text is None:
                         continue
-                    execute_query("SET search_path TO old_testament;")
-                    execute_query(
-                        "UPDATE old_testament.ot SET html = %s WHERE id = %s;",
-                        (new_text, int(record_id))
-                    )
+                    with get_db_connection() as conn:
+                        with conn.cursor() as cursor:
+                            cursor.execute("BEGIN")
+                            cursor.execute("SET LOCAL search_path TO old_testament")
+                            cursor.execute(
+                                "UPDATE old_testament.ot SET html = %s WHERE id = %s;",
+                                (new_text, int(record_id))
+                            )
+                            conn.commit()
                     successful_replacements += 1
 
             if replacements_key:
@@ -3056,18 +3064,20 @@ def find_and_replace_ot(request):
 
             display_replace_pattern = re.compile(re.escape(replace_text)) if replace_text else None
 
-            execute_query("SET search_path TO old_testament;")
-            
             replacements = []
             genesis_replacements = []
             
             # If targeting footnotes, query hebrewdata footnote column instead
             if target_footnotes:
-                footnote_rows = execute_query(
-                    "SELECT id, Ref, footnote FROM old_testament.hebrewdata WHERE footnote IS NOT NULL AND footnote LIKE %s;",
-                    (f'%{find_text}%',),
-                    fetch='all'
-                )
+                with get_db_connection() as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("BEGIN")
+                        cursor.execute("SET LOCAL search_path TO old_testament")
+                        cursor.execute(
+                            "SELECT id, Ref, footnote FROM old_testament.hebrewdata WHERE footnote IS NOT NULL AND footnote LIKE %s;",
+                            (f'%{find_text}%',)
+                        )
+                        footnote_rows = cursor.fetchall()
                 
                 logger.debug("Hebrewdata footnote candidates returned: %d", len(footnote_rows))
                 logger.debug("Search pattern: %s", search_pattern.pattern if search_pattern else 'None')
@@ -3408,7 +3418,8 @@ def get_aseneth_story():
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SET search_path TO joseph_aseneth")
+            cursor.execute("BEGIN")
+            cursor.execute("SET LOCAL search_path TO joseph_aseneth")
             cursor.execute(
                 """
                 SELECT id, book, chapter, verse, english
@@ -3635,7 +3646,8 @@ def edit_aseneth(request):
                 try:
                     with get_db_connection() as conn:
                         cursor = conn.cursor()
-                        cursor.execute("SET search_path TO joseph_aseneth")
+                        cursor.execute("BEGIN")
+                        cursor.execute("SET LOCAL search_path TO joseph_aseneth")
                         for item in updates:
                             cursor.execute(
                                 "UPDATE aseneth SET english = %s WHERE id = %s",
@@ -3718,7 +3730,8 @@ def edit_aseneth(request):
             try:
                 with get_db_connection() as conn:
                     cursor = conn.cursor()
-                    cursor.execute("SET search_path TO joseph_aseneth")
+                    cursor.execute("BEGIN")
+                    cursor.execute("SET LOCAL search_path TO joseph_aseneth")
 
                     if edited_greek is not None:
                         cursor.execute("UPDATE aseneth SET greek = %s WHERE id = %s", (edited_greek.strip(), record_id))
@@ -3899,7 +3912,8 @@ def get_aseneth_context(chapter_num, verse_num):
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SET search_path TO joseph_aseneth")
+            cursor.execute("BEGIN")
+            cursor.execute("SET LOCAL search_path TO joseph_aseneth")
             
             # Get the specific verse
             sql_query = """
@@ -3974,7 +3988,8 @@ def get_aseneth_chapter(chapter_num):
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SET search_path TO joseph_aseneth")
+            cursor.execute("BEGIN")
+            cursor.execute("SET LOCAL search_path TO joseph_aseneth")
             
             # Get all verses in the chapter
             sql_query = """
@@ -4219,7 +4234,8 @@ def get_lexicon_strongs(request):
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SET search_path TO old_testament")
+            cursor.execute("BEGIN")
+            cursor.execute("SET LOCAL search_path TO old_testament")
             
             if lexicon_type == 'fuerst':
                 # Get Strong's numbers for Fürst entry via lexeme_fuerst join
@@ -4305,11 +4321,12 @@ def update_lexicon_entry(request):
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SET search_path TO old_testament")
+            cursor.execute("BEGIN")
+            cursor.execute("SET LOCAL search_path TO old_testament")
             
             if lexicon_type == 'fuerst':
                 # Update fuerst_lexicon table
-                cursor.execute(
+                cursor.execute,
                     """
                     UPDATE fuerst_lexicon
                     SET hebrew_word = %s,
@@ -4584,7 +4601,8 @@ def search_consonantal(request):
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SET search_path TO old_testament")
+            cursor.execute("BEGIN")
+            cursor.execute("SET LOCAL search_path TO old_testament")
             
             # Search for the term in the hebrew column (case-insensitive with ILIKE)
             query = """

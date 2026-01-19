@@ -386,7 +386,8 @@ def search_api(request):
             try:
                 with get_db_connection() as conn:
                     cursor = conn.cursor()
-                    cursor.execute("SET search_path TO old_testament")
+                    cursor.execute("BEGIN")
+                    cursor.execute("SET LOCAL search_path TO old_testament")
                     cursor.execute(
                         """
                         SELECT ref, hebrew 
@@ -755,7 +756,8 @@ def search_api(request):
             try:
                 with get_db_connection() as conn:
                     with conn.cursor() as cursor:
-                        cursor.execute("SET search_path TO joseph_aseneth")
+                        cursor.execute("BEGIN")
+                        cursor.execute("SET LOCAL search_path TO joseph_aseneth")
                         cursor.execute(
                             """
                             SELECT chapter, verse, english, greek

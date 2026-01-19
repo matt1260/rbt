@@ -260,7 +260,8 @@ class TranslationWorker:
             # Query joseph_aseneth database for this chapter
             with get_db_connection() as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("SET search_path TO joseph_aseneth")
+                    cursor.execute("BEGIN")
+                    cursor.execute("SET LOCAL search_path TO joseph_aseneth")
                     cursor.execute(
                         """
                         SELECT verse, english

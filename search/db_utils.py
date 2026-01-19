@@ -40,21 +40,39 @@ def execute_query(
 
 @contextmanager
 def get_db_connection():
-    """Context manager that yields Django's persistent database connection"""
+    """Context manager that yields Django's persistent database connection
+
+    Ensures a safe default `search_path` is set when the connection is handed
+    to callers and restores it when the context exits. This prevents
+    session-level `SET search_path` calls from leaking into subsequent
+    requests when Django's DB connections are pooled.
+    """
     # Use Django's connection pool instead of creating new psycopg2 connections
     statement_timeout = int(os.getenv('DB_STATEMENT_TIMEOUT_MS', '30000'))
     lock_timeout = int(os.getenv('DB_LOCK_TIMEOUT_MS', '10000'))
-    
-    # Set timeouts for this query session
+
+    # Set timeouts and ensure default search_path for this session
     with connection.cursor() as cursor:
         cursor.execute(f"SET statement_timeout = {statement_timeout}")
         cursor.execute(f"SET lock_timeout = {lock_timeout}")
-    
+        # Ensure default schema resolution order (user, public) on checkout
+        cursor.execute("SET search_path TO \"$user\", public")
+
     try:
         yield connection
-    except Exception as e:
-        connection.rollback()
-        raise e
+    finally:
+        # Reset ephemeral session settings (especially search_path) so that
+        # one request's schema changes do not affect other requests.
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SET search_path TO \"$user\", public")
+        except Exception:
+            # If reset fails, rollback to keep connection usable
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+
 
 def execute_query(
     query: str,
