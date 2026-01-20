@@ -687,7 +687,7 @@ Cached: {{ cached_hit }}
                 resetButton.addEventListener('click', resetPrompt);
 
                 if (saveButton && saveEndpoint) {
-                    saveButton.addEventListener('click', async () => {
+                            saveButton.addEventListener('click', async () => {
                         statusEl.textContent = 'Saving prompt…';
                         saveButton.disabled = true;
                         try {
@@ -696,6 +696,7 @@ Cached: {{ cached_hit }}
                                 headers: {
                                     'Content-Type': 'application/json',
                                     'X-CSRFToken': getCsrfToken(),
+                                    'X-Requested-With': 'XMLHttpRequest',
                                 },
                                 body: JSON.stringify({
                                     translation_type: config.dataset.translationType,
@@ -703,10 +704,21 @@ Cached: {{ cached_hit }}
                                     model: modelInput ? modelInput.value : undefined,
                                 }),
                             });
-                            const data = await response.json();
+
+                            const contentType = response.headers.get('Content-Type') || '';
+                            let data;
+                            if (contentType.includes('application/json')) {
+                                data = await response.json();
+                            } else {
+                                // fallback to text for non-JSON error pages (e.g., CSRF HTML)
+                                const text = await response.text();
+                                throw new Error(text || 'Non-JSON response from server');
+                            }
+
                             if (!response.ok || data.error) {
                                 throw new Error(data.error || 'Unable to save prompt.');
                             }
+
                             currentPrompt = promptInput.value;
                             currentModel = modelInput ? modelInput.value : currentModel;
                             statusEl.textContent = 'Prompt saved.';
@@ -729,6 +741,7 @@ Cached: {{ cached_hit }}
                             headers: {
                                 'Content-Type': 'application/json',
                                 'X-CSRFToken': getCsrfToken(),
+                                'X-Requested-With': 'XMLHttpRequest',
                             },
                             body: JSON.stringify({
                                 translation_type: config.dataset.translationType,
@@ -740,7 +753,15 @@ Cached: {{ cached_hit }}
                             }),
                         });
 
-                        const data = await response.json();
+                        const contentType = response.headers.get('Content-Type') || '';
+                        let data;
+                        if (contentType.includes('application/json')) {
+                            data = await response.json();
+                        } else {
+                            const text = await response.text();
+                            throw new Error(text || 'Non-JSON response from server');
+                        }
+
                         if (!response.ok || data.error) {
                             throw new Error(data.error || 'Unable to fetch Gemini suggestion.');
                         }

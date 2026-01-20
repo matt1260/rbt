@@ -423,13 +423,19 @@ def _request_gemini_response(prompt: str, model_name: str | None = None) -> str:
 
     try:
         logger.debug('Requesting Gemini API with model=%s', model_to_use)
+        import concurrent.futures
+        # Execute the API call in a thread with a timeout to avoid long hangs
+        def _call_api():
+            return client.models.generate_content(model=model_to_use, contents=prompt)
+
         try:
-            response = client.models.generate_content(
-                model=model_to_use,
-                contents=prompt
-            )
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_call_api)
+                response = future.result(timeout=10)
+        except concurrent.futures.TimeoutError:
+            logger.exception('Gemini API request timed out')
+            return 'Error: Gemini API request timed out.'
         except Exception as api_exc:
-            # Log the full exception and return a clear error
             logger.exception('Gemini API call failed: %s', api_exc)
             return f"Error: Gemini API call failed: {api_exc}"
 
