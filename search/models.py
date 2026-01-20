@@ -164,3 +164,23 @@ class InterlinearConfig(models.Model):
 
     def __str__(self):
         return f"InterlinearConfig (updated: {self.updated_at})"
+
+
+class InterlinearApplyLog(models.Model):
+    """Audit log for interlinear apply operations."""
+
+    id = models.AutoField(primary_key=True)
+    applied_at = models.DateTimeField(auto_now_add=True)
+    user = models.CharField(max_length=150, blank=True, null=True)
+    committed = models.BooleanField(default=False)
+    total_candidates = models.IntegerField(default=0)
+    applied_count = models.IntegerField(default=0)
+    sample = models.TextField(blank=True, null=True)
+    backup_file = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'interlinear_apply_log'
+        ordering = ['-applied_at']
+
+    def __str__(self):
+        return f"InterlinearApplyLog {self.applied_at} user={self.user} applied={self.applied_count}"

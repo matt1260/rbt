@@ -3,16 +3,18 @@
 {% block content %}
 <p><a href="./">Back to Edit Search</a></p>
 
-<!-- Font Awesome already loaded in base; removed duplicate to avoid extra render delay -->
 <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
 
 <style>
     .highlight {
         background-color: yellow;
     }
-</style>
 
-<style>
+    .greek {
+        font-size: 18px;
+        line-height: 1.4;
+    }
+
     .gemini-trigger {
         margin-top: 8px;
         background: #17324f;
@@ -109,7 +111,36 @@
         padding: 6px 8px;
         font-size: 14px;
     }
+
+    /* Style for the green notice bar */
+    .notice-bar {
+        background-color: #7BD77F;
+        color: white;
+        font-size: 14px;
+        text-align: left;
+        padding: 4px;
+        border-radius: 5px;
+        font-family: sans-serif;
+        float: left;
+        width: 100%;
+
+    }
+
+    /* Style for the checkmark icon */
+    .icon {
+        margin-right: 10px;
+        /* Add space between the icon and text */
+        margin-left: 5px;
+    }
+
+    textarea#replacements {
+        height: 285px;
+        font-family: Courier, monospace;
+        font-size: 12px;
+        width: 100%;
+    }
 </style>
+
 
 <script>
     function applyHayahStyle(style) {
@@ -214,36 +245,6 @@
     }
 </script>
 
-
-<style>
-    /* Style for the green notice bar */
-    .notice-bar {
-        background-color: #7BD77F;
-        color: white;
-        font-size: 14px;
-        text-align: left;
-        padding: 4px;
-        border-radius: 5px;
-        font-family: sans-serif;
-        float: left;
-        width: 100%;
-
-    }
-
-    /* Style for the checkmark icon */
-    .icon {
-        margin-right: 10px;
-        /* Add space between the icon and text */
-        margin-left: 5px;
-    }
-
-    textarea#replacements {
-        height: 285px;
-        font-family: Courier, monospace;
-        font-size: 12px;
-        width: 100%;
-    }
-</style>
 
 
 

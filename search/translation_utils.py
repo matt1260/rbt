@@ -175,7 +175,11 @@ CRITICAL INSTRUCTIONS - READ CAREFULLY:
 7. Image URLs must remain EXACTLY as provided - do not translate or modify them
 8. CSS class names, style values, and color codes must remain in English/original form
 9. HTML entities and special characters must be preserved exactly
-10. SPECIAL: If the English text uses the word 'dual' (e.g., "dual hands"), translate it to the closest equivalent conveying 'pair' or 'twofold' in the target language (preserve the paired/twofold nuance; avoid casual "double" translations if the intent is grammatical or lexical).
+10. SPECIAL: If the English text uses the word 'dual' (e.g., "dual hands"), translate it to the closest equivalent conveying 'pair' or 'twofold' in the target language 
+(preserve the paired/twofold nuance; avoid casual "double" translations if the intent is grammatical or lexical).
+11. SPECIAL: Try to maintain articular infinitives where possible in the target language, preserving their grammatical function, e.g. 'the Afflicting of Himself.'
+12. SPECIAL: Try to maintain substantive clauses where possible in the target language, preserving their grammatical function, e.g. 'the One who is Coming' or 'from the Eyes of Themselves'.
+13. SPECIAL: Avoid combining emphatic clauses like 'within the Days, these ones,' into simpler forms; retain the emphasis and structure of the original English.
 
 EXAMPLES OF WHAT TO TRANSLATE:
 ✓ <h5><span style="color: blue;">The Twins</span></h5>
