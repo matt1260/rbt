@@ -1014,9 +1014,28 @@ def edit(request):
 
         if replacements:
             
+            # Persist to file for backward compatibility
             with open('interlinear_english.json', 'w', encoding='utf-8') as file:
                 json.dump(replacements, file, indent=4, ensure_ascii=False)
-            
+
+            # Also persist to DB-backed InterlinearConfig if available
+            try:
+                from search.models import InterlinearConfig
+                user = getattr(request, 'user', None)
+                username = getattr(user, 'username', None) or 'web-edit'
+                cfg = InterlinearConfig.objects.order_by('-updated_at').first()
+                if cfg:
+                    cfg.mapping = replacements
+                    cfg.updated_by = username
+                    cfg.save()
+                else:
+                    InterlinearConfig.objects.create(mapping=replacements, updated_by=username)
+                print('[INTERLINEAR] persisted mapping to InterlinearConfig')
+            except Exception as e:
+                # Log but don't fail the edit flow
+                import logging
+                logging.exception('Failed to persist InterlinearConfig: %s', e)
+
             context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
             context['edit_result'] = '<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Updated replacements successfully!</p></div>'
 
