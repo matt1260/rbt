@@ -416,13 +416,24 @@ def _request_gemini_response(prompt: str, model_name: str | None = None) -> str:
     except ValueError as exc:
         return f"Error: {exc}"
 
+    # Guard against missing API key
+    if not GEMINI_API_KEY:
+        logger.error('Gemini API key is not configured (GEMINI_API_KEY missing)')
+        return 'Error: Gemini API key is not configured.'
+
     try:
-        print("Requesting Gemini API...")
-        response = client.models.generate_content(
-            model=model_to_use,
-            contents=prompt
-        )
-        print("Received response from Gemini API.")
+        logger.debug('Requesting Gemini API with model=%s', model_to_use)
+        try:
+            response = client.models.generate_content(
+                model=model_to_use,
+                contents=prompt
+            )
+        except Exception as api_exc:
+            # Log the full exception and return a clear error
+            logger.exception('Gemini API call failed: %s', api_exc)
+            return f"Error: Gemini API call failed: {api_exc}"
+
+        logger.debug('Received response from Gemini API: type=%s', type(response))
 
         # Extract text portions robustly: response.text preferred, then candidates.content.parts
         def _extract_text(resp):
@@ -604,34 +615,46 @@ def request_gemini_translation(request):
         return JsonResponse({'error': 'Missing required parameters.'}, status=400)
 
     try:
-        context = _apply_gemini_preferences(request, get_context(book, chapter, verse))
-    except Exception as exc:  # pragma: no cover - safety net for DB errors
-        return JsonResponse({'error': f'Unable to load verse context: {exc}'}, status=500)
+        # Wrap the main processing in a top-level try/except so any unexpected errors
+        # return a JSON-friendly response instead of an HTML error page (which
+        # causes JSON.parse errors client-side).
+        try:
+            context = _apply_gemini_preferences(request, get_context(book, chapter, verse))
+        except Exception as exc:  # pragma: no cover - safety net for DB errors
+            return JsonResponse({'error': f'Unable to load verse context: {exc}'}, status=500)
 
-    if translation_type == 'greek':
-        entries = context.get('entries') or []
-        if not entries:
-            return JsonResponse({'error': 'Interlinear entries unavailable for this verse.'}, status=404)
-        suggestion = gemini_translate(entries, prompt_override, resolved_model)
-    elif translation_type == 'hebrew':
-        hebrew_text = context.get('hebrew')
-        linear_english = context.get('linear_english')
-        suggestion = gemini_translate_hebrew(hebrew_text, linear_english, prompt_override, resolved_model)
-    else:
-        return JsonResponse({'error': 'Invalid translation type.'}, status=400)
+        if translation_type == 'greek':
+            entries = context.get('entries') or []
+            if not entries:
+                return JsonResponse({'error': 'Interlinear entries unavailable for this verse.'}, status=404)
+            suggestion = gemini_translate(entries, prompt_override, resolved_model)
+        elif translation_type == 'hebrew':
+            hebrew_text = context.get('hebrew')
+            linear_english = context.get('linear_english')
+            suggestion = gemini_translate_hebrew(hebrew_text, linear_english, prompt_override, resolved_model)
+        else:
+            return JsonResponse({'error': 'Invalid translation type.'}, status=400)
 
-    if isinstance(suggestion, str) and suggestion.startswith('Error:'):
-        return JsonResponse({'error': suggestion}, status=502)
+        if isinstance(suggestion, str) and suggestion.startswith('Error:'):
+            return JsonResponse({'error': suggestion}, status=502)
 
-    session = getattr(request, 'session', None)
-    if session is not None:
-        if prompt_override:
-            pref_key = f'gemini_prompt_{translation_type}'
-            session[pref_key] = prompt_override
-        session['gemini_model'] = resolved_model
-        session.modified = True
+        session = getattr(request, 'session', None)
+        if session is not None:
+            if prompt_override:
+                pref_key = f'gemini_prompt_{translation_type}'
+                session[pref_key] = prompt_override
+            session['gemini_model'] = resolved_model
+            session.modified = True
 
-    return JsonResponse({'suggestion': suggestion})
+        return JsonResponse({'suggestion': suggestion})
+    except Exception as exc:  # pragma: no cover - catch-all to ensure JSON response
+        import traceback
+        tb = traceback.format_exc()
+        logger.exception('Unhandled exception in request_gemini_translation: %s', exc)
+        # Include the traceback in the JSON response in debug mode only
+        if settings.DEBUG:
+            return JsonResponse({'error': 'Internal server error', 'detail': str(exc), 'traceback': tb}, status=500)
+        return JsonResponse({'error': 'Internal server error'}, status=500)
 
 
 @require_POST

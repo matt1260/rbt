@@ -20,6 +20,7 @@ from django.http import HttpResponse
 
 from translate import views
 from search.views import update_count
+from .human_verification import human_challenge, human_verify
 
 def health_check(request):
     return HttpResponse("OK", content_type="text/plain")
@@ -51,6 +52,9 @@ urlpatterns = [
     path('RBT/', include('search.urls')),
     path('', include('search.urls')),
     path('chapter_editor/', views.chapter_editor, name='chapter_editor'),
+    # Human verification endpoints used for lightweight bot challenge flow
+    path('__human_challenge/', human_challenge, name='human_challenge'),
+    path('__human_verify/', human_verify, name='human_verify'),
     path('edit_aseneth/', views.edit_aseneth, name='edit_aseneth'),
     path('edit_aseneth/accounts/', include('django.contrib.auth.urls')),
 

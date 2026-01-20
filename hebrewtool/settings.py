@@ -107,6 +107,7 @@ REST_FRAMEWORK = {
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'hebrewtool.middleware.AjaxExceptionMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'hebrewtool.middleware.BotFilterMiddleware',  # Block bad bots early

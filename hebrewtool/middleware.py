@@ -7,9 +7,11 @@ and User-Agent filtering for suspicious crawlers.
 
 import time
 import logging
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.core import signing
 from django.core.cache import cache
 from django.conf import settings
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,16 @@ class RateLimitMiddleware:
         if getattr(settings, 'DEBUG', False):
             return self.get_response(request)
         
+        # If the client has a valid human verification cookie, treat as human and skip rate limits
+        human_cookie = request.COOKIES.get('human_verified')
+        if human_cookie:
+            try:
+                signing.loads(human_cookie, max_age=24 * 3600)
+                return self.get_response(request)
+            except Exception:
+                # Invalid or expired cookie; fall through to normal rate checks
+                pass
+
         ip = self.get_client_ip(request)
         path = request.path
         
@@ -123,6 +135,21 @@ class RateLimitMiddleware:
                 # Also print to stdout so platform logs capture the IP immediately
                 print(f"[RATE_LIMIT] ip={ip} endpoint={endpoint_type} count={rate_data['count']} strikes={strikes} ua={user_agent} path={path}")
 
+                # If we have not yet reached the strike threshold for banning, challenge the client
+                # with a simple human verification flow rather than immediately banning. This avoids
+                # penalizing mistaken clients while stopping automated scrapers that don't run JS.
+                try:
+                    from urllib.parse import quote
+                    from django.http import HttpResponseRedirect
+                    if strikes < max_strikes:
+                        query = request.META.get('QUERY_STRING', '')
+                        next_url = path + (('?' + query) if query else '')
+                        redirect_to = f"/__human_challenge/?next={quote(next_url)}"
+                        return HttpResponseRedirect(redirect_to)
+                except Exception:
+                    # If redirect fails for any reason, continue with normal rate-limit response
+                    logger.exception('Failed to redirect to human challenge page')
+
                 # Record event to audit log for analysis
                 try:
                     with open('rate_limit_events.log', 'a') as rf:
@@ -182,6 +209,38 @@ class RateLimitMiddleware:
         response['X-RateLimit-Reset'] = str(int(rate_data['reset_time']))
         
         return response
+
+
+class AjaxExceptionMiddleware:
+    """
+    Catch unhandled exceptions and return JSON responses for AJAX or Gemini requests.
+    This prevents HTML 500 pages from being returned to fetch() callers that expect JSON.
+    """
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        try:
+            return self.get_response(request)
+        except Exception as exc:
+            # Log full traceback
+            logger.exception('Unhandled exception processing request %s', request.path)
+
+            # Determine if client expects JSON: AJAX header, Accept JSON, or gemini route
+            accept = (request.META.get('HTTP_ACCEPT') or '')
+            is_ajax = request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest'
+            is_json_accept = 'application/json' in accept
+            is_gemini_route = request.path.startswith('/translate/gemini/') or request.path.startswith('/gemini/')
+
+            if is_ajax or is_json_accept or is_gemini_route:
+                resp = {'error': 'Internal server error'}
+                if settings.DEBUG:
+                    resp['detail'] = str(exc)
+                    resp['traceback'] = traceback.format_exc()
+                return JsonResponse(resp, status=500)
+
+            # Not an AJAX/json request — re-raise to let standard handlers take over
+            raise
 
 
 class BotFilterMiddleware:
