@@ -15,6 +15,26 @@
         line-height: 1.4;
     }
 
+    .hdr-icon {
+        display: inline-block;
+        font-weight: 700;
+        line-height: 1;
+        font-size: 22px;
+        margin: 0 6px;
+        vertical-align: middle;
+    }
+
+    .hdr-icon.hebrew {
+        font-family: 'Times New Roman', serif;
+        color: #6b1e1e;
+    }
+
+    .hdr-icon.greek {
+        font-family: 'Palatino Linotype', 'Georgia', serif;
+        font-style: italic;
+        color: #1a3a66;
+    }
+
     .gemini-trigger {
         margin-top: 8px;
         background: #17324f;
@@ -304,9 +324,11 @@ Cached: {{ cached_hit }}
             onclick="applyh5Style(); updateReader(document.getElementById('editor-texto').value)">h5</button>
         <button type="button"
             onclick="applyBoldStyle(); updateReader(document.getElementById('editor-texto').value)"><b>B</b></button>
+        <button type="button" title="Hebrew header" aria-label="Hebrew header" onclick="applyHebrewHeaderStyle(); updateReader(document.getElementById('editor-texto').value)"><span class="hdr-icon hebrew">א</span></button>
+        <button type="button" title="Greek header" aria-label="Greek header" onclick="applyGreekHeaderStyle(); updateReader(document.getElementById('editor-texto').value)"><span class="hdr-icon greek">Ω</span></button>
         <button type="button" style="background-color: #ff00aa;"
             onclick="applyFontColor('#ff00aa'); updateReader(document.getElementById('editor-texto').value)"><i
-                class="fas fa-circle" style="font-size: 18px; color: pink;"></i></button>
+                class="fas fa-circle" style="font-size: 18px; color: pink;"></i></button> 
         <button type="button" style="background-color: blue;"
             onclick="applyFontColor('blue'); updateReader(document.getElementById('editor-texto').value)"><i
                 class="fas fa-circle" style="font-size: 18px; color: rgb(58, 147, 198);"></i></button>
@@ -431,6 +453,28 @@ Cached: {{ cached_hit }}
 
             if (selectedText) {
                 var styledText = `<strong>${selectedText}</strong>`;
+                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+                textArea.value = newText;
+            }
+        }
+
+        function applyHebrewHeaderStyle(style) {
+            var textArea = document.getElementById('editor-texto');
+            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+            if (selectedText) {
+                var styledText = `<span class="hebrew-header">${selectedText}</span>`;
+                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
+                textArea.value = newText;
+            }
+        }
+
+        function applyGreekHeaderStyle(style) {
+            var textArea = document.getElementById('editor-texto');
+            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
+
+            if (selectedText) {
+                var styledText = `<span class="greek-header">${selectedText}</span>`;
                 var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
                 textArea.value = newText;
             }

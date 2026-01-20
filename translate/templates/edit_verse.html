@@ -86,6 +86,20 @@
         margin-right: 10px; /* Add space between the icon and text */
         margin-left: 5px;
     }
+
+    .hdr-icon {
+        display: inline-block;
+        font-weight: 700;
+        line-height: 1;
+        font-size: 20px;
+        margin: 0 6px;
+        vertical-align: middle;
+    }
+
+    .hdr-icon.hebrew {
+        font-family: 'Times New Roman', serif;
+        color: #6b1e1e;
+    }
 </style>
 
 <style>
@@ -1193,6 +1207,7 @@
     <input type="hidden" name="chapter" value="{{ chapter_num }}">
     <input type="hidden" name="verse" value="{{ verse_num }}"><br>
     <button type="submit" id="save-button">Save</button>
+    <button type="button" id="hebrew-hdr-editor" title="Hebrew header" aria-label="Hebrew header"><span class="hdr-icon hebrew">א</span></button>
 </form>
 
 <div id="hebrew-gemini-config"
@@ -1242,6 +1257,7 @@
     <input type="text" id="videoUrlInput" placeholder="Enter Video URL">
     <button type="button" id="generate-video-button">Insert Video URL</button>
     <button type="button" id="h5-button">h5</button>
+    <button type="button" id="hebrew-hdr-paraphrase" title="Hebrew header" aria-label="Hebrew header"><span class="hdr-icon hebrew">א</span></button>
     <button type="button" onclick="applyHayahStyle('hayah');"><i>היה</i></button>
     <button type="button" onclick="applyCenterStyle('center');">
         <i class="fas fa-align-center" style="font-size: 18px;"></i>
@@ -1695,6 +1711,26 @@
         var textarea = document.getElementById("edited_paraphrase");
         var selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
         var newText = '<h5>' + selectedText + '</h5>';
+        var beforeSelection = textarea.value.substring(0, textarea.selectionStart);
+        var afterSelection = textarea.value.substring(textarea.selectionEnd, textarea.value.length);
+        textarea.value = beforeSelection + newText + afterSelection;
+    });
+
+    // Hebrew header for paraphrase textarea
+    document.getElementById("hebrew-hdr-paraphrase").addEventListener("click", function() {
+        var textarea = document.getElementById("edited_paraphrase");
+        var selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
+        var newText = '<span class="hebrew-header">' + selectedText + '</span>';
+        var beforeSelection = textarea.value.substring(0, textarea.selectionStart);
+        var afterSelection = textarea.value.substring(textarea.selectionEnd, textarea.value.length);
+        textarea.value = beforeSelection + newText + afterSelection;
+    });
+
+    // Hebrew header for editor-texto (literal form)
+    document.getElementById("hebrew-hdr-editor").addEventListener("click", function() {
+        var textarea = document.getElementById("editor-texto");
+        var selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
+        var newText = '<span class="hebrew-header">' + selectedText + '</span>';
         var beforeSelection = textarea.value.substring(0, textarea.selectionStart);
         var afterSelection = textarea.value.substring(textarea.selectionEnd, textarea.value.length);
         textarea.value = beforeSelection + newText + afterSelection;
