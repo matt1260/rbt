@@ -22,7 +22,12 @@ RUN set -ex && \
     rm -rf /root/.cache/
 COPY . /code
 
+# Add entrypoint to run DB migrations / cache table creation on startup
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 8000
 
 ENV PORT=8000
-CMD ["/bin/sh","-c","gunicorn --bind 0.0.0.0:${PORT} --workers 2 hebrewtool.wsgi:application"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["gunicorn","--bind","0.0.0.0:${PORT}","--workers","2","--log-file","-","hebrewtool.wsgi:application"]
