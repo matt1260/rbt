@@ -30,4 +30,4 @@ EXPOSE 8000
 
 ENV PORT=8000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["gunicorn","--bind","0.0.0.0:${PORT}","--workers","2","--log-file","-","hebrewtool.wsgi:application"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers 2 --log-file - hebrewtool.wsgi:application"]
