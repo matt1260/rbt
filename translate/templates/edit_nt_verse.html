@@ -371,7 +371,12 @@ Cached: {{ cached_hit }}
             </div>
             <div class="gemini-modal__field">
                 <label for="greekGeminiModel">Model</label>
-                <input type="text" id="greekGeminiModel" autocomplete="off">
+                <select id="greekGeminiModel" autocomplete="off">
+                    <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+                    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                    <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                </select>
             </div>
             <textarea id="greekGeminiPrompt" spellcheck="false"></textarea>
             <div class="gemini-modal__actions">
@@ -670,6 +675,14 @@ Cached: {{ cached_hit }}
                 function resetPrompt() {
                     promptInput.value = currentPrompt;
                     if (modelInput) {
+                        // If the current model isn't in the select options, add it so it can be selected
+                        const found = Array.from(modelInput.options).some(o => o.value === currentModel);
+                        if (!found && currentModel) {
+                            const opt = document.createElement('option');
+                            opt.value = currentModel;
+                            opt.text = currentModel;
+                            modelInput.appendChild(opt);
+                        }
                         modelInput.value = currentModel;
                     }
                     statusEl.textContent = '';

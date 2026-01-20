@@ -32,7 +32,7 @@ from django.views.decorators.http import require_POST
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash-preview')
+DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
 MODEL_NAME_PATTERN = re.compile(r'^[\w\-.:+]+$')
 
 logger = logging.getLogger(__name__)
@@ -431,9 +431,9 @@ def _request_gemini_response(prompt: str, model_name: str | None = None) -> str:
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(_call_api)
-                response = future.result(timeout=10)
+                response = future.result(timeout=30)
         except concurrent.futures.TimeoutError:
-            logger.exception('Gemini API request timed out')
+            logger.exception('Gemini API request timed out after 30s')
             return 'Error: Gemini API request timed out.'
         except Exception as api_exc:
             logger.exception('Gemini API call failed: %s', api_exc)
