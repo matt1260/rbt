@@ -130,16 +130,7 @@ def _invalidate_reader_cache(book: str | None, chapter: str | int | None, verse:
     chapter_str = str(chapter)
 
     # Delete translation records so they get re-translated with new English text
-    # Ensure Django's connection is in a clean state before ORM operations
     try:
-        # Close any existing connection in failed state
-        if connection.connection and connection.connection.closed == 0:
-            # Check if connection is in a failed transaction
-            if hasattr(connection.connection, 'get_transaction_status'):
-                from psycopg2.extensions import TRANSACTION_STATUS_INERROR
-                if connection.connection.get_transaction_status() == TRANSACTION_STATUS_INERROR:
-                    connection.close()
-        
         if verse not in (None, '', 'None'):
             # Specific verse edited - delete only that verse's translations
             verse_int = int(verse)
@@ -161,31 +152,8 @@ def _invalidate_reader_cache(book: str | None, chapter: str | int | None, verse:
             if deleted_count > 0:
                 print(f"[CACHE DEBUG] Deleted {deleted_count} verse translation(s) for {book} chapter {chapter}")
     except Exception as e:
-        # If deletion fails due to transaction error, rollback and retry
+        # If deletion fails, log but continue - cache will still be cleared below
         logger.error(f"Error deleting verse translations: {e}")
-        connection.close()
-        try:
-            if verse not in (None, '', 'None'):
-                verse_int = int(verse)
-                deleted_count = VerseTranslation.objects.filter(
-                    book=book,
-                    chapter=int(chapter),
-                    verse=verse_int,
-                    footnote_id__isnull=True
-                ).delete()[0]
-                if deleted_count > 0:
-                    print(f"[CACHE DEBUG] Deleted {deleted_count} verse translation(s) for {book} {chapter}:{verse} (retry)")
-            else:
-                deleted_count = VerseTranslation.objects.filter(
-                    book=book,
-                    chapter=int(chapter),
-                    footnote_id__isnull=True
-                ).delete()[0]
-                if deleted_count > 0:
-                    print(f"[CACHE DEBUG] Deleted {deleted_count} verse translation(s) for {book} chapter {chapter} (retry)")
-        except Exception as retry_error:
-            logger.error(f"Failed to delete verse translations on retry: {retry_error}")
-            # Continue anyway - cache will be cleared below
 
     # Clear cache for each language
     for lang in all_languages:
