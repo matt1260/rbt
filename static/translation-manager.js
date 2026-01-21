@@ -67,9 +67,17 @@ function pollJobStatus(jobId, book, chapter, lang, progressText) {
     const poll = () => {
         pollCount++;
         
-        fetch(`/api/translation/status/?job_id=${jobId}`)
-            .then(response => response.json())
-            .then(data => {
+                fetch(`/api/translation/status/?job_id=${jobId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            if (response.status === 403) {
+                                throw new Error('rate_limited');
+                            }
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
                 console.log("Job status:", data);
                 
                 if (data.status === 'completed') {
@@ -142,12 +150,19 @@ function pollJobStatus(jobId, book, chapter, lang, progressText) {
                     }
                 }
             })
-            .catch(err => {
-                console.error('Poll error:', err);
-                if (pollCount < maxPolls) {
-                    setTimeout(poll, pollInterval * 2);
-                }
-            });
+                    .catch(err => {
+                        if (err && err.message === 'rate_limited') {
+                            if (progressText) {
+                                progressText.innerHTML = '<span style="color: #d32f2f;">⚠️ Rate limit reached</span><br><span style="font-size: 11px; color: #666;">Polling paused. Please wait a minute and reload.</span>';
+                            }
+                            if (typeof hideTranslationLoading === 'function') hideTranslationLoading();
+                            return;
+                        }
+                        console.error('Poll error:', err);
+                        if (pollCount < maxPolls) {
+                            setTimeout(poll, pollInterval * 2);
+                        }
+                    });
     };
     
     poll();

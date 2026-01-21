@@ -52,6 +52,10 @@ class RateLimitMiddleware:
         static_prefix = getattr(settings, 'STATIC_URL', '/static/')
         if path.startswith(static_prefix) or path.startswith('/media/') or path in ('/favicon.ico', '/robots.txt', '/healthz'):
             return self.get_response(request)
+
+        # Skip rate limiting for translation polling endpoints to avoid accidental bans
+        if path.startswith('/api/translation/status') or path.startswith('/api/translation/start') or path.startswith('/api/translation/clear-cache'):
+            return self.get_response(request)
         
         # If the client has a valid human verification cookie, treat as human and skip rate limits
         human_cookie = request.COOKIES.get('human_verified')

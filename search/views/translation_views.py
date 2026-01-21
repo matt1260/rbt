@@ -529,6 +529,53 @@ def start_translation_job(request):
         
         if not has_source:
             return JsonResponse({'status': 'error', 'message': 'No source content found for this chapter'})
+
+        # If translations already exist for all verses, don't start a new job
+        from search.models import VerseTranslation
+
+        verses: list[int] = []
+        if book == 'Genesis':
+            for row in results.get('rbt') or []:
+                try:
+                    verses.append(int(row.verse))
+                except Exception:
+                    continue
+        elif book in old_testament_books:
+            html = results.get('html') or {}
+            if isinstance(html, dict):
+                for key in html.keys():
+                    try:
+                        verses.append(int(key))
+                    except Exception:
+                        continue
+        elif book in new_testament_books:
+            for row in results.get('chapter_reader') or []:
+                try:
+                    verses.append(int(row[2]))
+                except Exception:
+                    continue
+        else:
+            for row in results.get('chapter_reader') or []:
+                try:
+                    verses.append(int(row[2]))
+                except Exception:
+                    continue
+
+        if verses:
+            existing = set(VerseTranslation.objects.filter(
+                book=book,
+                chapter=chapter_num,
+                language_code=language,
+                status__in=['completed', 'processing'],
+                footnote_id__isnull=True
+            ).values_list('verse', flat=True))
+
+            missing = [v for v in verses if v not in existing]
+            if not missing:
+                return JsonResponse({
+                    'status': 'cached',
+                    'message': 'Translations already exist for this chapter.'
+                })
         
         from search.translation_worker import create_translation_job
         

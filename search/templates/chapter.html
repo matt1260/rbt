@@ -867,6 +867,11 @@ function hideTranslationLoading() {
                 fetch(`/api/translation/start/?book=${encodeURIComponent(book)}&chapter=${chapter}&lang=${lang}`)
                     .then(response => response.json())
                     .then(data => {
+                        if (data.status === 'cached') {
+                            if (progressText) progressText.textContent = 'Translations already cached.';
+                            if (typeof hideTranslationLoading === 'function') hideTranslationLoading();
+                            return;
+                        }
                         if (data.status === 'ok' && data.job_id) {
                             console.log("Translation job started:", data.job_id);
                             if (progressText) progressText.textContent = 'Translation job started. Processing...';
