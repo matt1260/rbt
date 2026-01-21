@@ -351,6 +351,9 @@ Cached: {{ cached_hit }}
         <button type="button" class="gemini-trigger" id="greekGeminiOpen">
             Gemini Suggestion
         </button>
+        <button type="button" class="gemini-trigger" id="greekGeminiManualOpen" title="Show full LLM request for manual copy/paste">
+            Manual LLM Request
+        </button>
     </form>
 
     <div id="gemini-config"
@@ -391,6 +394,29 @@ Cached: {{ cached_hit }}
                 <button type="button" class="primary" id="greekGeminiRun">Run &amp; Load</button>
             </div>
             <div class="gemini-modal__status" id="greekGeminiStatus"></div>
+        </div>
+    </div>
+
+    <!-- Manual LLM Request Modal -->
+    <div class="gemini-modal" id="greekGeminiManualModal" aria-hidden="true">
+        <div class="gemini-modal__content">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin:0;">Full LLM Request</h3>
+                <button type="button" class="secondary" data-action="close-manual">&times;</button>
+            </div>
+            <div class="gemini-modal__field">
+                <label for="greekGeminiManualModel">Model</label>
+                <input id="greekGeminiManualModel" type="text" readonly>
+            </div>
+            <div class="gemini-modal__field">
+                <label for="greekGeminiManualMeta">Meta (book/chapter/verse)</label>
+                <input id="greekGeminiManualMeta" type="text" readonly>
+            </div>
+            <textarea id="greekGeminiManualPayload" spellcheck="false"></textarea>
+            <div class="gemini-modal__actions">
+                <button type="button" class="secondary" data-action="close-manual">Close</button>
+                <button type="button" class="secondary" id="greekGeminiManualCopy">Copy to Clipboard</button>
+            </div>
         </div>
     </div>
 
@@ -811,6 +837,91 @@ Cached: {{ cached_hit }}
                         openButton.disabled = false;
                     }
                 });
+
+                // Manual LLM Request modal logic
+                const manualOpen = document.getElementById('greekGeminiManualOpen');
+                const manualModal = document.getElementById('greekGeminiManualModal');
+                const manualPayload = document.getElementById('greekGeminiManualPayload');
+                const manualModelInput = document.getElementById('greekGeminiManualModel');
+                const manualMetaInput = document.getElementById('greekGeminiManualMeta');
+                const manualCopyBtn = document.getElementById('greekGeminiManualCopy');
+
+                function toggleManualModal(show) {
+                    if (!manualModal) return;
+                    manualModal.classList.toggle('is-visible', !!show);
+                    manualModal.setAttribute('aria-hidden', String(!show));
+                }
+
+                if (manualOpen) {
+                    manualOpen.addEventListener('click', async () => {
+                        const modelVal = modelInput ? (modelInput.value || '') : '';
+                        const meta = `${config.dataset.book || ''} ${config.dataset.chapter || ''}:${config.dataset.verse || ''}`.trim();
+
+                        manualModelInput.value = modelVal;
+                        manualMetaInput.value = meta;
+
+                        // Request the assembled Gemini prompt from server so 'Content' matches what the live request would send
+                        try {
+                            manualPayload.value = 'Loading assembled request...';
+                            const resp = await fetch(endpoint, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': getCsrfToken(),
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                                body: JSON.stringify({
+                                    translation_type: config.dataset.translationType,
+                                    book: config.dataset.book,
+                                    chapter: config.dataset.chapter,
+                                    verse: config.dataset.verse,
+                                    prompt: promptInput ? (promptInput.value || '') : undefined,
+                                    model: modelInput ? modelInput.value : undefined,
+                                    assemble_only: true,
+                                }),
+                            });
+
+                            const ct = resp.headers.get('Content-Type') || '';
+                            let data;
+                            if (ct.includes('application/json')) {
+                                data = await resp.json();
+                            } else {
+                                const text = await resp.text();
+                                throw new Error(text || 'Non-JSON response');
+                            }
+
+                            if (!resp.ok || data.error) {
+                                throw new Error(data.error || 'Unable to assemble request');
+                            }
+
+                            manualPayload.value = data.assembled || '';
+                            manualModelInput.value = data.model || modelVal;
+
+                        } catch (err) {
+                            manualPayload.value = `Error loading assembled request: ${err.message}`;
+                        }
+
+                        toggleManualModal(true);
+                    });
+                }
+
+                // Close manual modal buttons
+                manualModal && manualModal.querySelectorAll('[data-action="close-manual"]').forEach((btn) => {
+                    btn.addEventListener('click', () => toggleManualModal(false));
+                });
+
+                if (manualCopyBtn) {
+                    manualCopyBtn.addEventListener('click', () => {
+                        if (!manualPayload) return;
+                        manualPayload.select();
+                        try {
+                            document.execCommand('copy');
+                            alert('LLM request copied to clipboard');
+                        } catch (err) {
+                            alert('Unable to copy to clipboard');
+                        }
+                    });
+                }
             })();
         </script>
 

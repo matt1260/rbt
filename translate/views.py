@@ -635,16 +635,54 @@ def request_gemini_translation(request):
         except Exception as exc:  # pragma: no cover - safety net for DB errors
             return JsonResponse({'error': f'Unable to load verse context: {exc}'}, status=500)
 
+        assemble_only = payload.get('assemble_only')
+
         if translation_type == 'greek':
             entries = context.get('entries') or []
             if not entries:
                 return JsonResponse({'error': 'Interlinear entries unavailable for this verse.'}, status=404)
+
+            # If caller only wants the assembled prompt (no external API call), return it
+            if assemble_only:
+                instructions = _resolve_prompt_text(prompt_override, DEFAULT_GREEK_GEMINI_PROMPT)
+                greek_words = ' '.join([e.get('lemma', '') for e in entries])
+                interlinear_english = ' '.join([e.get('english', '') for e in entries])
+                morphology = ' | '.join([f"{e.get('morph_description','')} ({e.get('morph','Unknown')})" for e in entries])
+                assembled = (
+                    f"{instructions}\n\n"
+                    f"GREEK TEXT: {greek_words}\n"
+                    f"ENGLISH WORDS: {interlinear_english}\n"
+                    f"MORPHOLOGY: {morphology}\n"
+                )
+                return JsonResponse({
+                    'assembled': assembled,
+                    'model': resolved_model,
+                    'meta': {'book': book, 'chapter': chapter, 'verse': verse}
+                })
+
             suggestion = gemini_translate(entries, prompt_override, resolved_model, api_key)
         elif translation_type == 'hebrew':
             hebrew_text = context.get('hebrew')
             linear_english = context.get('linear_english')
+
+            if assemble_only:
+                instructions = _resolve_prompt_text(prompt_override, DEFAULT_HEBREW_GEMINI_PROMPT)
+                hebrew_plain = _strip_html_text(hebrew_text)
+                english_plain = (linear_english or '').strip() or 'Not provided'
+                assembled = (
+                    f"{instructions}\n\n"
+                    f"HEBREW TEXT: {hebrew_plain}\n"
+                    f"LINEAR ENGLISH: {english_plain}\n"
+                )
+                return JsonResponse({
+                    'assembled': assembled,
+                    'model': resolved_model,
+                    'meta': {'book': book, 'chapter': chapter, 'verse': verse}
+                })
+
             suggestion = gemini_translate_hebrew(hebrew_text, linear_english, prompt_override, resolved_model, api_key)
-            return JsonResponse({'error': suggestion}, status=502)
+            if suggestion and suggestion.startswith('Error:'):
+                return JsonResponse({'error': suggestion}, status=502)
 
         session = getattr(request, 'session', None)
         if session is not None:
