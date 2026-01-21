@@ -43,6 +43,7 @@ from .translation_views import (
     start_translation_job,
     translation_job_status,
     clear_translation_cache,
+    retry_failed_translations,
 )
 
 # Chapter views (PARTIAL - core functions only)
@@ -110,6 +111,7 @@ __all__ = [
     'start_translation_job',
     'translation_job_status',
     'clear_translation_cache',
+    'retry_failed_translations',
     
     # Chapter views (PARTIAL)
     'home',
