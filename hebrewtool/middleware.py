@@ -46,6 +46,12 @@ class RateLimitMiddleware:
         # Skip rate limiting in DEBUG mode for local development
         if getattr(settings, 'DEBUG', False):
             return self.get_response(request)
+
+        # Skip rate limiting for static/media and common benign endpoints (assets, health checks)
+        path = request.path or ''
+        static_prefix = getattr(settings, 'STATIC_URL', '/static/')
+        if path.startswith(static_prefix) or path.startswith('/media/') or path in ('/favicon.ico', '/robots.txt', '/healthz'):
+            return self.get_response(request)
         
         # If the client has a valid human verification cookie, treat as human and skip rate limits
         human_cookie = request.COOKIES.get('human_verified')
@@ -80,33 +86,33 @@ class RateLimitMiddleware:
         
         # Determine rate limit based on endpoint
         if 'verse' in request.GET and 'chapter' in request.GET:
-            # Individual verse lookup - VERY AGGRESSIVE (bots abuse this)
-            limit = 10  # Only 10 verse requests per minute
-            window = 60
+            # Individual verse lookup - configurable and less aggressive by default
+            limit = getattr(settings, 'RATE_LIMIT_VERSE_LIMIT', 30)
+            window = getattr(settings, 'RATE_LIMIT_VERSE_WINDOW', 60)
             endpoint_type = 'verse'
-            max_strikes = 2  # Ban after 2 violations
-            ban_duration = 3600  # 1 hour ban
+            max_strikes = getattr(settings, 'RATE_LIMIT_VERSE_MAX_STRIKES', 3)
+            ban_duration = getattr(settings, 'RATE_LIMIT_VERSE_BAN_DURATION', 1800)
         elif 'chapter' in request.GET and 'book' in request.GET:
             # Chapter view
-            limit = 30
-            window = 60
+            limit = getattr(settings, 'RATE_LIMIT_CHAPTER_LIMIT', 60)
+            window = getattr(settings, 'RATE_LIMIT_CHAPTER_WINDOW', 60)
             endpoint_type = 'chapter'
-            max_strikes = 3
-            ban_duration = 1800  # 30 min ban
+            max_strikes = getattr(settings, 'RATE_LIMIT_CHAPTER_MAX_STRIKES', 4)
+            ban_duration = getattr(settings, 'RATE_LIMIT_CHAPTER_BAN_DURATION', 1800)
         elif path.startswith('/translate/') or path.startswith('/api/'):
             # Translation API
-            limit = 10
-            window = 60
+            limit = getattr(settings, 'RATE_LIMIT_API_LIMIT', 20)
+            window = getattr(settings, 'RATE_LIMIT_API_WINDOW', 60)
             endpoint_type = 'api'
-            max_strikes = 2
-            ban_duration = 3600
+            max_strikes = getattr(settings, 'RATE_LIMIT_API_MAX_STRIKES', 3)
+            ban_duration = getattr(settings, 'RATE_LIMIT_API_BAN_DURATION', 3600)
         else:
             # General pages
-            limit = 60
-            window = 60
+            limit = getattr(settings, 'RATE_LIMIT_GENERAL_LIMIT', 120)
+            window = getattr(settings, 'RATE_LIMIT_GENERAL_WINDOW', 60)
             endpoint_type = 'general'
-            max_strikes = 5
-            ban_duration = 600  # 10 min ban
+            max_strikes = getattr(settings, 'RATE_LIMIT_GENERAL_MAX_STRIKES', 6)
+            ban_duration = getattr(settings, 'RATE_LIMIT_GENERAL_BAN_DURATION', 300)
         
         cache_key = f'ratelimit:{endpoint_type}:{ip}'
         strikes_key = f'strikes:{endpoint_type}:{ip}'

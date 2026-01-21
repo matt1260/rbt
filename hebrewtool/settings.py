@@ -165,6 +165,28 @@ CACHES = {
     }
 }
 
+# Rate limiting configuration (override with env vars if needed)
+# Defaults chosen to be more permissive than previous hardcoded values
+RATE_LIMIT_VERSE_LIMIT = int(os.getenv('RATE_LIMIT_VERSE_LIMIT', '30'))
+RATE_LIMIT_VERSE_WINDOW = int(os.getenv('RATE_LIMIT_VERSE_WINDOW', '60'))
+RATE_LIMIT_VERSE_MAX_STRIKES = int(os.getenv('RATE_LIMIT_VERSE_MAX_STRIKES', '3'))
+RATE_LIMIT_VERSE_BAN_DURATION = int(os.getenv('RATE_LIMIT_VERSE_BAN_DURATION', '1800'))  # seconds (30m)
+
+RATE_LIMIT_CHAPTER_LIMIT = int(os.getenv('RATE_LIMIT_CHAPTER_LIMIT', '60'))
+RATE_LIMIT_CHAPTER_WINDOW = int(os.getenv('RATE_LIMIT_CHAPTER_WINDOW', '60'))
+RATE_LIMIT_CHAPTER_MAX_STRIKES = int(os.getenv('RATE_LIMIT_CHAPTER_MAX_STRIKES', '4'))
+RATE_LIMIT_CHAPTER_BAN_DURATION = int(os.getenv('RATE_LIMIT_CHAPTER_BAN_DURATION', '1800'))  # seconds (30m)
+
+RATE_LIMIT_API_LIMIT = int(os.getenv('RATE_LIMIT_API_LIMIT', '20'))
+RATE_LIMIT_API_WINDOW = int(os.getenv('RATE_LIMIT_API_WINDOW', '60'))
+RATE_LIMIT_API_MAX_STRIKES = int(os.getenv('RATE_LIMIT_API_MAX_STRIKES', '3'))
+RATE_LIMIT_API_BAN_DURATION = int(os.getenv('RATE_LIMIT_API_BAN_DURATION', '3600'))  # seconds (1h)
+
+RATE_LIMIT_GENERAL_LIMIT = int(os.getenv('RATE_LIMIT_GENERAL_LIMIT', '120'))
+RATE_LIMIT_GENERAL_WINDOW = int(os.getenv('RATE_LIMIT_GENERAL_WINDOW', '60'))
+RATE_LIMIT_GENERAL_MAX_STRIKES = int(os.getenv('RATE_LIMIT_GENERAL_MAX_STRIKES', '6'))
+RATE_LIMIT_GENERAL_BAN_DURATION = int(os.getenv('RATE_LIMIT_GENERAL_BAN_DURATION', '300'))  # seconds (5m)
+
 
 
 # Password validation

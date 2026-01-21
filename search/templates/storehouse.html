@@ -726,6 +726,13 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Check server-side flag whether translation is needed
+        const needsTranslation = {{ needs_translation|yesno:'true,false'|default:'false' }};
+        if (!needsTranslation) {
+            console.log('No translations required (cached). Skipping translation trigger.');
+            return; // Do not show the modal or start a translation job
+        }
+        
         console.log("Translations needed, triggering API...");
         
         // Use original book name from context (for translation database lookup)
@@ -736,6 +743,17 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log(`Triggering translation for: ${book} ch${chapter} (${lang})`);
 
         if (book && chapter && lang && lang !== 'en') {
+            // Prevent rapid re-triggers from reload or quick refreshes
+            try {
+                const triggerKey = `trans_trigger:${book}:${chapter}:${lang}`;
+                const last = sessionStorage.getItem(triggerKey);
+                if (last && (Date.now() - parseInt(last, 10) < 30000)) { // 30s guard
+                    console.log('Translation recently triggered; skipping re-trigger.');
+                    return;
+                }
+                sessionStorage.setItem(triggerKey, String(Date.now()));
+            } catch (e) { /* sessionStorage may be unavailable */ }
+
             // Small delay to ensure page content is rendered before showing modal
             setTimeout(function() {
                 // Show the loading modal

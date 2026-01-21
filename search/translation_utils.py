@@ -180,6 +180,7 @@ CRITICAL INSTRUCTIONS - READ CAREFULLY:
 11. SPECIAL: Try to maintain articular infinitives where possible in the target language, preserving their grammatical function, e.g. 'the Afflicting of Himself.'
 12. SPECIAL: Try to maintain substantive clauses where possible in the target language, preserving their grammatical function, e.g. 'the One who is Coming' or 'from the Eyes of Themselves'.
 13. SPECIAL: Avoid combining emphatic clauses like 'within the Days, these ones,' into simpler forms; retain the emphasis and structure of the original English.
+14. SPECIAL: Preserve reflexive pronoun emphasis in clauses, e.g., 'they, themselves,' 'you, yourself,' 'he, himself,' to maintain the original emphasis in translation.
 
 EXAMPLES OF WHAT TO TRANSLATE:
 ✓ <h5><span style="color: blue;">The Twins</span></h5>

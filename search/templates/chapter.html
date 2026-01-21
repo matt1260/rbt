@@ -71,7 +71,7 @@
             <div style="height: 100%; background: linear-gradient(90deg, #ba8666, #d4a574, #ba8666); animation: loading 2s ease-in-out infinite;"></div>
         </div>
         <p style="color: #aaa; margin: 0; font-size: 11px; font-style: italic;">
-            Translating with Google Gemini. This can take 1-3 minutes.<br>You can leave this page and return later.
+            Translating with Google Gemini. This can take 1-3 minutes. Model may be overloaded and not work; we can only use Google's free API keys with limited quota because there is no funding.<br>You can leave this page and return later.
         </p>
     </div>
 </div>
@@ -822,6 +822,13 @@ function hideTranslationLoading() {
             return; // Don't trigger translation again
         }
         
+        // Check server-side flag whether translation is needed
+        const needsTranslation = {{ needs_translation|yesno:'true,false'|default:'false' }};
+        if (!needsTranslation) {
+            console.log('No translations required (cached). Skipping translation trigger.');
+            return; // Do not show the modal or start a translation job
+        }
+
         console.log("Translations needed, triggering API...");
         
         // Use original book name from context (not display name)
@@ -832,6 +839,17 @@ function hideTranslationLoading() {
         console.log(`Triggering translation for: ${book} ch${chapter} (${lang})`);
 
         if (book && chapter && lang && lang !== 'en') {
+            // Prevent rapid re-triggers from reload or quick refreshes
+            try {
+                const triggerKey = `trans_trigger:${book}:${chapter}:${lang}`;
+                const last = sessionStorage.getItem(triggerKey);
+                if (last && (Date.now() - parseInt(last, 10) < 30000)) { // 30s guard
+                    console.log('Translation recently triggered; skipping re-trigger.');
+                    return;
+                }
+                sessionStorage.setItem(triggerKey, String(Date.now()));
+            } catch (e) { /* sessionStorage may be unavailable */ }
+
             // Small delay to ensure page content is rendered before showing modal
             setTimeout(function() {
                 // Show the loading modal
