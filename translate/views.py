@@ -350,39 +350,7 @@ def generate_html_table(csv_data):
         else:
             return None
         
-        # # Fixed header row
-        # headers = ['ID', 'Time', 'Verse ID', 'Old Text', 'New Text', 'Find Text', 'Replace Text']
-        
-        # table_html = '<table border="1">'
-        # # Add header row
-        # table_html += '<tr>'
-        # for header in headers:
-        #     table_html += f'<th>{header}</th>'
-        # table_html += '</tr>'
-        # # Add data rows
-        # for row in csv_data:
-        #     table_html += '<tr>'
-        #     for i, cell in enumerate(row):
-        #         # Highlight find_text in old_text and replace_text in new_text
-        #         if i in [3, 4, 5, 6]:  # Indices for old_text, new_text, find_text, and replace_text
-        #             find_replace = row[5], row[6]  # Extract find_text and replace_text
-        #             cell = cell.replace(find_replace[0], f'<span class="highlight">{find_replace[0]}</span>')
-        #             cell = cell.replace(find_replace[1], f'<span class="highlight">{find_replace[1]}</span>')
-        #         if i == 2:
-        #             # Fetch book, chapter, and startVerse based on verseID
-        #             verse_info = get_verse_info(cell)
-        #             if verse_info:
-        #                 book, chapter, startVerse = verse_info
-        #                 book = convert_book_name(book)
 
-        #                 link = f'<a href="../edit/?book={book}&chapter={chapter}&verse={startVerse}">{cell}</a>'
-        #                 cell = link
-
-        #         table_html += f'<td>{cell}</td>'
-
-        #     table_html += '</tr>'
-        # table_html += '</table>'
-        # return table_html
 
 def _resolve_prompt_text(custom_text: str | None, default_text: str) -> str:
     if custom_text:
