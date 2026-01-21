@@ -1105,7 +1105,8 @@ def edit(request):
             return render(request, 'edit_nt_verse.html', context)
 
         # add new footnote for NT
-        if nt_book is not None:
+        if nt_book is not None and footnote_html is not None and footnote_html.strip():
+            print(f"[DEBUG] Adding NT footnote: nt_book={nt_book}, footnote_id={footnote_id}, header={footnote_header}")
             book_abbrev = book_abbreviations.get(nt_book)
             if book_abbrev is None:
                 book_abbrev = nt_book
@@ -1125,9 +1126,11 @@ def edit(request):
                         book = 'table_' + book
                     
                     book = book.lower()
+                    print(f"[DEBUG] Using footnote table: {book}")
 
                     # Compute the final footnote identifier we will insert
                     new_footnote_id = book_abbrev + '-' + footnote_id
+                    print(f"[DEBUG] New footnote ID: {new_footnote_id}")
 
                     # Check if this footnote id already exists to avoid IntegrityError
                     cursor.execute(f"SELECT 1 FROM {book} WHERE footnote_id = %s", (new_footnote_id,))
@@ -1147,8 +1150,10 @@ def edit(request):
                     # Wrap the footnote content in rbt_footnote span
                     footnote_html = f'<p><span class="footnote_header">{footnote_header}</span></p> <p class="rbt_footnote">{footnote_html}</p>'
                     sql_query = f"INSERT INTO {book} (footnote_id, footnote_html) VALUES (%s, %s)"
+                    print(f"[DEBUG] Executing SQL: {sql_query}")
                     cursor.execute(sql_query, (new_footnote_id, footnote_html))
                     conn.commit()
+                    print(f"[DEBUG] Footnote inserted and committed successfully")
 
                     update_text = re.sub(r'<a\s+.*?>(.*?)</a>', r'\1', footnote_html)
                     update_version = "New Testament Footnote"
