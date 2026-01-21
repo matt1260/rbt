@@ -6,6 +6,7 @@ the appropriate template.
 """
 
 from django.shortcuts import render
+from django.db.models import Q
 import re
 
 from search.models import Genesis, VerseTranslation
@@ -187,18 +188,30 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     
     # Determine if translation is needed
     needs_translation = False
+    has_failed_translations = False
+    failed_translation_count = 0
     if language != 'en':
         if should_emit_debug(book=book, chapter=chapter_num):
             print(f"[SEARCH VIEW DEBUG Genesis] Checking translation needs for {book} ch{chapter_num} lang={language}")
             print(f"[SEARCH VIEW DEBUG Genesis] verses_to_translate count: {len(verses_to_translate)}")
             print(f"[SEARCH VIEW DEBUG Genesis] footnotes_to_translate count: {len(footnotes_to_translate)}")
-        if verses_to_translate or footnotes_to_translate:
+        verses_missing = {v for v in verses_to_translate.keys() if v != 0}
+        if verses_missing:
             needs_translation = True
             if should_emit_debug(book=book, chapter=chapter_num):
                 print(f"[SEARCH VIEW DEBUG Genesis] Setting needs_translation=True")
         else:
             if should_emit_debug(book=book, chapter=chapter_num):
                 print(f"[SEARCH VIEW DEBUG Genesis] All translations exist, needs_translation=False")
+
+        failed_q = Q(verse_text__startswith='[Translation error') | Q(verse_text__startswith='[Translation parsing error')
+        failed_translation_count = VerseTranslation.objects.filter(
+            book=book,
+            chapter=chapter_num,
+            language_code=language,
+            footnote_id__isnull=True
+        ).filter(failed_q).count()
+        has_failed_translations = failed_translation_count > 0
     
     context = {
         'chapters': chapters,
@@ -216,6 +229,8 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
         'current_language': language,
         'translation_quota_exceeded': translation_quota_exceeded,
         'needs_translation': needs_translation,
+        'has_failed_translations': has_failed_translations,
+        'failed_translation_count': failed_translation_count,
     }
     return render(request, 'chapter.html', {'page_title': page_title, **context})
 
@@ -411,6 +426,8 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     page_title = f'{display_book} {chapter_num}'
     
     needs_translation = False
+    has_failed_translations = False
+    failed_translation_count = 0
     if language != 'en':
         if should_emit_debug(book=book, chapter=chapter_num):
             print(f"[SEARCH VIEW DEBUG] Checking translation needs for {book} ch{chapter_num} lang={language}")
@@ -420,17 +437,25 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
                 print(f"[SEARCH VIEW DEBUG] Missing verse numbers: {list(verses_to_translate.keys())[:10]}")
             if footnotes_to_translate:
                 print(f"[SEARCH VIEW DEBUG] Missing footnote keys: {list(footnotes_to_translate.keys())[:10]}")
-        # Do not auto-translate if the only missing item is the book name (verse=0)
-        verses_missing = set(verses_to_translate.keys())
-        only_book_name_missing = verses_missing == {0} and not footnotes_to_translate
+        # Only auto-translate when actual verse translations are missing (ignore book-name-only and footnotes)
+        verses_missing = {v for v in verses_to_translate.keys() if v != 0}
 
-        if (verses_to_translate or footnotes_to_translate) and not only_book_name_missing:
+        if verses_missing:
             needs_translation = True
             if should_emit_debug(book=book, chapter=chapter_num):
                 print(f"[SEARCH VIEW DEBUG] Setting needs_translation=True")
         else:
             if should_emit_debug(book=book, chapter=chapter_num):
                 print(f"[SEARCH VIEW DEBUG] All translations exist, needs_translation=False")
+
+        failed_q = Q(verse_text__startswith='[Translation error') | Q(verse_text__startswith='[Translation parsing error')
+        failed_translation_count = VerseTranslation.objects.filter(
+            book=book,
+            chapter=chapter_num,
+            language_code=language,
+            footnote_id__isnull=True
+        ).filter(failed_q).count()
+        has_failed_translations = failed_translation_count > 0
             
     context = {
         'cache_hit': cached_hit,
@@ -445,7 +470,9 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         'current_language': language,
         'supported_languages': SUPPORTED_LANGUAGES,
         'translation_quota_exceeded': translation_quota_exceeded,
-        'needs_translation': needs_translation
+        'needs_translation': needs_translation,
+        'has_failed_translations': has_failed_translations,
+        'failed_translation_count': failed_translation_count
     }
     
     return render(request, 'nt_chapter.html', {'page_title': page_title, **context})
@@ -646,22 +673,32 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     
     # Determine if translation is needed
     needs_translation = False
+    has_failed_translations = False
+    failed_translation_count = 0
     if language != 'en':
         if should_emit_debug(book=book, chapter=chapter_num):
             print(f"[SEARCH VIEW DEBUG OT] Checking translation needs for {book} ch{chapter_num} lang={language}")
             print(f"[SEARCH VIEW DEBUG OT] verses_to_translate count: {len(verses_to_translate)}")
             print(f"[SEARCH VIEW DEBUG OT] footnotes_to_translate count: {len(footnotes_to_translate)}")
-        # Do not auto-translate if the only missing item is the book name (verse=0)
-        verses_missing = set(verses_to_translate.keys())
-        only_book_name_missing = verses_missing == {0} and not footnotes_to_translate
+        # Only auto-translate when actual verse translations are missing (ignore book-name-only and footnotes)
+        verses_missing = {v for v in verses_to_translate.keys() if v != 0}
 
-        if (verses_to_translate or footnotes_to_translate) and not only_book_name_missing:
+        if verses_missing:
             needs_translation = True
             if should_emit_debug(book=book, chapter=chapter_num):
                 print(f"[SEARCH VIEW DEBUG OT] Setting needs_translation=True")
         else:
             if should_emit_debug(book=book, chapter=chapter_num):
                 print(f"[SEARCH VIEW DEBUG OT] All translations exist, needs_translation=False")
+
+        failed_q = Q(verse_text__startswith='[Translation error') | Q(verse_text__startswith='[Translation parsing error')
+        failed_translation_count = VerseTranslation.objects.filter(
+            book=book,
+            chapter=chapter_num,
+            language_code=language,
+            footnote_id__isnull=True
+        ).filter(failed_q).count()
+        has_failed_translations = failed_translation_count > 0
     
     context = {
         'chapters': chapters,
@@ -678,6 +715,8 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
         'current_language': language,
         'translation_quota_exceeded': translation_quota_exceeded,
         'needs_translation': needs_translation,
+        'has_failed_translations': has_failed_translations,
+        'failed_translation_count': failed_translation_count,
         'cache_hit': cached_hit,
     }
     

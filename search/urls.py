@@ -25,4 +25,5 @@ urlpatterns = [
     path('translation/start/', views.start_translation_job, name='start_translation_job'),
     path('translation/status/', views.translation_job_status, name='translation_job_status'),
     path('translation/clear-cache/', views.clear_translation_cache, name='clear_translation_cache'),
+    path('translation/retry-failed/', views.retry_failed_translations, name='retry_failed_translations'),
 ]

@@ -54,7 +54,7 @@ class RateLimitMiddleware:
             return self.get_response(request)
 
         # Skip rate limiting for translation polling endpoints to avoid accidental bans
-        if path.startswith('/api/translation/status') or path.startswith('/api/translation/start') or path.startswith('/api/translation/clear-cache'):
+        if path.startswith('/api/translation/status') or path.startswith('/api/translation/start') or path.startswith('/api/translation/clear-cache') or path.startswith('/api/translation/retry-failed'):
             return self.get_response(request)
         
         # If the client has a valid human verification cookie, treat as human and skip rate limits

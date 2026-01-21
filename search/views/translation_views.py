@@ -2,6 +2,7 @@
 Translation API endpoints and cache management.
 """
 import re
+from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.cache import cache
@@ -643,3 +644,49 @@ def clear_translation_cache(request):
         
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
+
+
+@csrf_exempt
+def retry_failed_translations(request):
+    """Retry only failed verse translations for a chapter/language."""
+    from .chapter_views_part1 import get_results  # Late import
+    from search.translation_worker import create_translation_job
+
+    book = request.GET.get('book')
+    chapter_num = request.GET.get('chapter')
+    language = request.GET.get('lang')
+
+    if not book or not chapter_num or not language or language == 'en':
+        return JsonResponse({'status': 'error', 'message': 'Invalid parameters or English language'})
+
+    try:
+        chapter_num = int(chapter_num)
+    except ValueError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'})
+
+    # Remove failed translations (so worker will re-translate them)
+    failed_q = Q(verse_text__startswith='[Translation error') | Q(verse_text__startswith='[Translation parsing error')
+    failed_rows = VerseTranslation.objects.filter(
+        book=book,
+        chapter=chapter_num,
+        language_code=language,
+        footnote_id__isnull=True,
+    ).filter(failed_q)
+
+    failed_count = failed_rows.count()
+    if failed_count == 0:
+        return JsonResponse({'status': 'cached', 'message': 'No failed translations found.'})
+
+    failed_rows.delete()
+
+    # Validate source exists before creating job
+    results = get_results(book, chapter_num, None, 'en')
+    if not results:
+        return JsonResponse({'status': 'error', 'message': 'No source content found for this chapter'})
+
+    job = create_translation_job(book, chapter_num, language)
+    return JsonResponse({
+        'status': 'ok',
+        'job_id': job.job_id,
+        'message': f'Retry started for {failed_count} failed verses.'
+    })

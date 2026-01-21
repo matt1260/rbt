@@ -71,7 +71,7 @@
             <div style="height: 100%; background: linear-gradient(90deg, #ba8666, #d4a574, #ba8666); animation: loading 2s ease-in-out infinite;"></div>
         </div>
         <p style="color: #aaa; margin: 0; font-size: 11px; font-style: italic;">
-            Translating with Google Gemini. This can take 1-3 minutes. Model may be overloaded and not work; we can only use Google's free API keys with limited quota because there is no funding.<br>You can leave this page and return later.
+            Translating with Google Gemini. This can take 1-3 minutes for a full chapter. Updating one or two verses should be quick. Model may be overloaded and not work; we can only use Google's free tier with limited quota because there is no funding. <br>You can leave this page and return later.
         </p>
     </div>
 </div>
@@ -112,6 +112,49 @@ function hideTranslationLoading() {
 {% endif %}
 
 <p><a href="/">Back to Search</a></p>
+
+{% if has_failed_translations %}
+<div style="margin: 10px 0; padding: 10px 12px; border: 1px solid #f0c36d; background: #fff8e1; border-radius: 6px; display: inline-flex; gap: 10px; align-items: center;">
+    <strong>Some verses failed to translate.</strong>
+    <button type="button" id="retryFailedBtn" style="background: #ba8666; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer;">Retry failed verses ({{ failed_translation_count }})</button>
+</div>
+{% endif %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const retryBtn = document.getElementById('retryFailedBtn');
+        if (!retryBtn) return;
+        retryBtn.addEventListener('click', function() {
+            const book = '{{ original_book|default:book }}';
+            const chapter = '{{ chapter_num }}';
+            const lang = '{{ current_language }}';
+            const progressText = document.getElementById('translationProgressText');
+            if (typeof showTranslationLoading === 'function') showTranslationLoading();
+            if (progressText) progressText.textContent = 'Retrying failed translations...';
+
+            fetch(`/api/translation/retry-failed/?book=${encodeURIComponent(book)}&chapter=${chapter}&lang=${lang}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'cached') {
+                        if (progressText) progressText.textContent = 'No failed translations found.';
+                        if (typeof hideTranslationLoading === 'function') hideTranslationLoading();
+                        return;
+                    }
+                    if (data.status === 'ok' && data.job_id) {
+                        if (progressText) progressText.textContent = 'Retry job started. Processing...';
+                        pollJobStatus(data.job_id, book, chapter, lang, progressText);
+                        return;
+                    }
+                    if (progressText) progressText.textContent = data.message || 'Retry failed.';
+                    if (typeof hideTranslationLoading === 'function') hideTranslationLoading();
+                })
+                .catch(() => {
+                    if (progressText) progressText.textContent = 'Retry failed.';
+                    if (typeof hideTranslationLoading === 'function') hideTranslationLoading();
+                });
+        });
+    });
+</script>
 
 <!-- make this a python generated variable depending on book i.e. 'Genesis Chapters: '-->
 <div style="padding-bottom: 20px;">

@@ -141,7 +141,7 @@ Return ONLY the translated phrase, no explanation or extra text."""
                     model='models/gemini-3-flash-preview',
                     contents=book_prompt
                 )
-                translated_book = response.text.strip() # type: ignore
+                translated_book = (response.text or '').strip() # type: ignore
                 results[0] = translated_book
                 print(f"[TRANSLATION DEBUG] Book name translated: {translated_book}")
                 break  # Success, exit key loop
@@ -218,7 +218,7 @@ Return ONLY the translated verses with all HTML tags and <<<VERSE_N>>> markers p
                 model='models/gemini-3-flash-preview',
                 contents=prompt
             )
-            translated_text = response.text.strip() # type: ignore
+            translated_text = (response.text or '').strip() # type: ignore
             print(f"[TRANSLATION DEBUG] API Response received. Length: {len(translated_text)}")
             # print(f"[TRANSLATION DEBUG] Response preview: {translated_text[:100]}...")
             
@@ -328,7 +328,7 @@ Return the translated footnotes with <<<FOOTNOTE_X>>> markers and ALL HTML prese
                 model='models/gemini-3-flash-preview',
                 contents=prompt
             )
-            translated_text = response.text.strip() # type: ignore
+            translated_text = (response.text or '').strip() # type: ignore
             print(f"[TRANSLATION DEBUG] Footnotes API response received. Length: {len(translated_text)}")
             
             # Parse back into footnote dictionary
@@ -411,7 +411,7 @@ Return only the translated text with HTML tags preserved."""
             model='models/gemini-3-flash-preview',
             contents=prompt
         )
-        return response.text.strip() # type: ignore
+        return (response.text or '').strip() # type: ignore
     except Exception as e:
         return f"[Translation error: {str(e)}]"
 
@@ -445,7 +445,7 @@ Return only the translated text with HTML tags preserved."""
             model='models/gemini-3-flash-preview',
             contents=prompt
         )
-        return response.text.strip() # type: ignore
+        return (response.text or '').strip() # type: ignore
     except Exception as e:
         return f"[Translation error: {str(e)}]"
 
