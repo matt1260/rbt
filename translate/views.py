@@ -165,6 +165,17 @@ def _invalidate_reader_cache(book: str | None, chapter: str | int | None, verse:
     return deleted_keys
 
 
+def _safe_save_update(instance: 'TranslationUpdates') -> None:
+    """Attempt to save a TranslationUpdates instance and log on failure without raising."""
+    try:
+        instance.save()
+    except Exception as exc:  # pragma: no cover - defensive logging
+        try:
+            logger.exception('Failed to save TranslationUpdates instance: %s', exc)
+        except Exception:
+            print(f"Failed to save TranslationUpdates: {exc}")
+
+
 FOOTNOTE_LINK_RE = re.compile(r'\?footnote=([^&"\n]+)')
 
 
@@ -842,7 +853,7 @@ def edit_footnote(request):
                 reference=f"{bookref} {chapter_num}:{verse_num} - {footnote_id}", 
                 update_text=update_text
             )
-            update_instance.save()
+            _safe_save_update(update_instance)
 
             if book in nt_abbrev or book in new_testament_books:
                 
@@ -900,7 +911,7 @@ def edit_footnote(request):
                 reference=f"Genesis {chapter_ref}:{verse_ref} - {footnote_ref}", 
                 update_text=update_text
             )
-            update_instance.save()
+            _safe_save_update(update_instance)
             book = 'Genesis'
 
             context = {
@@ -1009,7 +1020,7 @@ def edit(request):
                     reference=f"{reference_book} {chapter_num}:{verse_num}",
                     update_text='; '.join(updated_rows)
                 )
-                update_instance.save()
+                _safe_save_update(update_instance)
 
                 cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
                 cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
@@ -1106,7 +1117,7 @@ def edit(request):
                     update_version = "New Testament Footnote"
                     update_date = datetime.now()
                     update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num} - {new_footnote_id}", update_text=update_text)
-                    update_instance.save()
+                    _safe_save_update(update_instance)
                     
                     cleared_keys = _invalidate_reader_cache(nt_book, chapter_num, verse_num)
                     cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
@@ -1153,7 +1164,7 @@ def edit(request):
             update_version = version
             update_date = datetime.now()
             update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {record.chapter}:{record.verse}", update_text=update_text)
-            update_instance.save()
+            _safe_save_update(update_instance)
 
             cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
             cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
@@ -1175,7 +1186,7 @@ def edit(request):
             update_date = datetime.now()
             update_version = "Hebrew Footnote"
             update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num} - {footnote_id}", update_text=update_text)
-            update_instance.save()
+            _safe_save_update(update_instance)
 
             cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
             cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
@@ -1196,7 +1207,7 @@ def edit(request):
             update_version = "New Testament"
             update_date = datetime.now()
             update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num}", update_text=update_text)
-            update_instance.save()
+            _safe_save_update(update_instance)
 
             cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
             cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
@@ -1412,7 +1423,7 @@ def translate(request):
         update_version = "Hebrew Footnote"
         update_date = datetime.now()
         update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{verse_id} - {key}", update_text=update_text)
-        update_instance.save()
+        _safe_save_update(update_instance)
 
         book_parts = verse_id.split('.')
         if len(book_parts) >= 3:
@@ -1612,7 +1623,7 @@ def translate(request):
                         update_version = 'Hebrew Literal'
                         update_date = datetime.now()
                         update_instance = TranslationUpdates(date=update_date, version=update_version, reference=reference, update_text=update_text)
-                        update_instance.save()
+                        _safe_save_update(update_instance)
 
                     elif eng_data in eng_change:
                         save_edit_to_database(use_niqqud, heb, 'Eng', eng_data)
@@ -1628,7 +1639,7 @@ def translate(request):
                         update_version = 'Hebrew Literal'
                         update_date = datetime.now()
                         update_instance = TranslationUpdates(date=update_date, version=update_version, reference=reference, update_text=update_text)
-                        update_instance.save()
+                        _safe_save_update(update_instance)
                 
                 save_english_literal(english_literal, verse_id)
             
@@ -1657,7 +1668,7 @@ def translate(request):
                         update_date = datetime.now()
                         update_version = 'Hebrew Literal'
                         update_instance = TranslationUpdates(date=update_date, version=update_version, reference=reference, update_text=update_text)
-                        update_instance.save()
+                        _safe_save_update(update_instance)
                 
                 save_english_literal(english_literal, verse_id)
        
@@ -1678,7 +1689,7 @@ def translate(request):
             update_date = datetime.now()
             update_version = 'Paraphrase'
             update_instance = TranslationUpdates(date=update_date, version=update_version, reference=reference, update_text=update_text)
-            update_instance.save()
+            _safe_save_update(update_instance)
 
         if replace_text:
             find_replace(find_text, replace_text)
@@ -3743,7 +3754,7 @@ def edit_aseneth(request):
                         reference=book_name,
                         update_text=f"Replaced '{find_text}' with '{replace_text}' in {len(updates)} verses ({total_matches} occurrences)."
                     )
-                    update_instance.save()
+                    _safe_save_update(update_instance)
                 except Exception:
                     pass
 
@@ -3802,7 +3813,7 @@ def edit_aseneth(request):
                         reference=f"{book_name} {chapter_num}:{verse_num}",
                         update_text=update_text
                     )
-                    update_instance.save()
+                    _safe_save_update(update_instance)
 
                     cache_key_base_verse = f'aseneth_{chapter_num}_{verse_num}'
                     cache_key_base_chapter = f'aseneth_{chapter_num}_None'
