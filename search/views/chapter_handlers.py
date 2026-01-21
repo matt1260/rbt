@@ -420,7 +420,11 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
                 print(f"[SEARCH VIEW DEBUG] Missing verse numbers: {list(verses_to_translate.keys())[:10]}")
             if footnotes_to_translate:
                 print(f"[SEARCH VIEW DEBUG] Missing footnote keys: {list(footnotes_to_translate.keys())[:10]}")
-        if verses_to_translate or footnotes_to_translate:
+        # Do not auto-translate if the only missing item is the book name (verse=0)
+        verses_missing = set(verses_to_translate.keys())
+        only_book_name_missing = verses_missing == {0} and not footnotes_to_translate
+
+        if (verses_to_translate or footnotes_to_translate) and not only_book_name_missing:
             needs_translation = True
             if should_emit_debug(book=book, chapter=chapter_num):
                 print(f"[SEARCH VIEW DEBUG] Setting needs_translation=True")
@@ -647,7 +651,11 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
             print(f"[SEARCH VIEW DEBUG OT] Checking translation needs for {book} ch{chapter_num} lang={language}")
             print(f"[SEARCH VIEW DEBUG OT] verses_to_translate count: {len(verses_to_translate)}")
             print(f"[SEARCH VIEW DEBUG OT] footnotes_to_translate count: {len(footnotes_to_translate)}")
-        if verses_to_translate or footnotes_to_translate:
+        # Do not auto-translate if the only missing item is the book name (verse=0)
+        verses_missing = set(verses_to_translate.keys())
+        only_book_name_missing = verses_missing == {0} and not footnotes_to_translate
+
+        if (verses_to_translate or footnotes_to_translate) and not only_book_name_missing:
             needs_translation = True
             if should_emit_debug(book=book, chapter=chapter_num):
                 print(f"[SEARCH VIEW DEBUG OT] Setting needs_translation=True")
