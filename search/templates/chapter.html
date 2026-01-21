@@ -873,6 +873,15 @@ function hideTranslationLoading() {
                             
                             // Poll for job status
                             pollJobStatus(data.job_id, book, chapter, lang, progressText);
+                        } else if (data.status === 'ok' && !data.job_id) {
+                            // No translation needed (cached)
+                            console.log('No translation required; cached.');
+                            if (progressText) {
+                                progressText.innerHTML = '<span style="color: #2e7d32;">✅ Translation already available in cache.</span>';
+                            }
+                            setTimeout(() => {
+                                if (typeof hideTranslationLoading === 'function') hideTranslationLoading();
+                            }, 1500);
                         } else {
                             console.error('Failed to start translation job:', data.message);
                             if (progressText) {
