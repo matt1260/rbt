@@ -45,6 +45,10 @@ function showTranslationLoading() {
         modal.style.display = 'flex';
         modal.style.opacity = '1';
     }
+    document.querySelectorAll('.translation-loading-overlay').forEach((el) => {
+        el.classList.add('active');
+    });
+    document.body.style.overflow = 'hidden';
 }
 
 function hideTranslationLoading() {
@@ -56,6 +60,10 @@ function hideTranslationLoading() {
             modal.style.display = 'none';
         }, 500);
     }
+    document.querySelectorAll('.translation-loading-overlay').forEach((el) => {
+        el.classList.remove('active');
+    });
+    document.body.style.overflow = '';
 }
 
 // Poll for translation job status

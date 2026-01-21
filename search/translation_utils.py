@@ -206,6 +206,25 @@ Chapter text:
 
 Return ONLY the translated verses with all HTML tags and <<<VERSE_N>>> markers preserved exactly."""
     
+    # Helpers
+    def _parse_verse_results(translated_text: str):
+        import re
+        verse_results = {}
+        verse_pattern = r'<<<VERSE_(\d+)>>>\s*(.*?)(?=<<<VERSE_\d+>>>|$)'
+        matches = re.findall(verse_pattern, translated_text, re.DOTALL)
+        print(f"[TRANSLATION DEBUG] Regex found {len(matches)} verse segments")
+        for verse_num_str, verse_text in matches:
+            verse_num = int(verse_num_str)
+            verse_results[verse_num] = verse_text.strip()
+        return verse_results
+
+    def _call_model(client, model_name: str, prompt_text: str) -> str:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt_text
+        )
+        return (response.text or '').strip()  # type: ignore
+
     # Try each API key in sequence until one works
     api_keys = GEMINI_API_KEYS
     last_error = None
@@ -214,29 +233,23 @@ Return ONLY the translated verses with all HTML tags and <<<VERSE_N>>> markers p
         try:
             print(f"[TRANSLATION DEBUG] Calling Gemini API with key ending in ...{api_key[-4:] if api_key else 'None'}")
             client = genai.Client(api_key=api_key)
-            response = client.models.generate_content(
-                model='models/gemini-3-flash-preview',
-                contents=prompt
-            )
-            translated_text = (response.text or '').strip() # type: ignore
+            translated_text = _call_model(client, 'models/gemini-3-flash-preview', prompt)
             print(f"[TRANSLATION DEBUG] API Response received. Length: {len(translated_text)}")
             # print(f"[TRANSLATION DEBUG] Response preview: {translated_text[:100]}...")
             
-            # Parse back into verse dictionary using the distinctive markers
-            import re
-            verse_results = {}
-            verse_pattern = r'<<<VERSE_(\d+)>>>\s*(.*?)(?=<<<VERSE_\d+>>>|$)'
-            matches = re.findall(verse_pattern, translated_text, re.DOTALL)
-            print(f"[TRANSLATION DEBUG] Regex found {len(matches)} verse segments")
-            
-            for verse_num_str, verse_text in matches:
-                verse_num = int(verse_num_str)
-                verse_results[verse_num] = verse_text.strip()
-            
-            # Fallback: if parsing failed, return original with error
+            verse_results = _parse_verse_results(translated_text) if translated_text else {}
+
+            # Fallback: retry with gemini-2.5-flash if parsing failed or empty
             if not verse_results:
-                print(f"[TRANSLATION DEBUG] ERROR: Verse parsing failed!")
-                print(f"[TRANSLATION DEBUG] First 500 chars of response: {translated_text[:500]}")
+                print(f"[TRANSLATION DEBUG] Primary model parsing failed or empty. Retrying with gemini-2.5-flash...")
+                translated_text = _call_model(client, 'models/gemini-2.5-flash', prompt)
+                print(f"[TRANSLATION DEBUG] Fallback response received. Length: {len(translated_text)}")
+                verse_results = _parse_verse_results(translated_text) if translated_text else {}
+
+            if not verse_results:
+                print(f"[TRANSLATION DEBUG] ERROR: Verse parsing failed after fallback!")
+                if translated_text:
+                    print(f"[TRANSLATION DEBUG] First 500 chars of response: {translated_text[:500]}")
                 # Merge with book name result if we have it
                 if results:
                     return {**results, **{v: f"[Translation parsing error]" for v in verse_dict_only}}
@@ -355,6 +368,23 @@ Return the translated footnotes with <<<FOOTNOTE_X>>> markers and ALL HTML prese
                 print(f"[TRANSLATION DEBUG] WARNING: Expected {len(footnotes_dict)} footnotes, got {len(result)}")
                 print(f"[TRANSLATION DEBUG] Found IDs: {list(result.keys())[:10]}...")
             
+            # Fallback: retry with gemini-2.5-flash if parsing failed or empty
+            if not result:
+                print(f"[TRANSLATION DEBUG] Footnotes parsing failed or empty. Retrying with gemini-2.5-flash...")
+                response = client.models.generate_content(
+                    model='models/gemini-2.5-flash',
+                    contents=prompt
+                )
+                translated_text = (response.text or '').strip() # type: ignore
+                print(f"[TRANSLATION DEBUG] Footnotes fallback response length: {len(translated_text)}")
+                parts = re.split(r'<<<FOOTNOTE_([^>]+)>>>', translated_text)
+                if len(parts) > 1:
+                    for i in range(1, len(parts) - 1, 2):
+                        footnote_id = parts[i].strip()
+                        footnote_content = parts[i + 1].strip() if i + 1 < len(parts) else ''
+                        if footnote_id and footnote_content:
+                            result[footnote_id] = footnote_content
+
             # Fallback: if parsing failed, return error
             if not result:
                 print(f"[TRANSLATION DEBUG] ERROR: Parsing failed, no footnotes extracted!")

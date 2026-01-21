@@ -13,6 +13,7 @@ from translate.translator import (
 )
 from search.rbt_titles import rbt_books
 from search.translation_utils import translate_chapter_batch, translate_footnotes_batch
+from search.translation_utils import SUPPORTED_LANGUAGES
 from .footnote_views import get_footnote
 
 # Import get_results from chapter_views when needed (to avoid circular import)
@@ -484,6 +485,12 @@ def start_translation_job(request):
         return JsonResponse({
             'status': 'error',
             'message': 'Invalid parameters or English language'
+        })
+
+    if language not in SUPPORTED_LANGUAGES:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Unsupported language: {language}'
         })
     
     try:

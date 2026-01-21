@@ -212,6 +212,9 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
             footnote_id__isnull=True
         ).filter(failed_q).count()
         has_failed_translations = failed_translation_count > 0
+
+    if language != 'en' and language not in SUPPORTED_LANGUAGES:
+        needs_translation = False
     
     context = {
         'chapters': chapters,
@@ -456,6 +459,9 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
             footnote_id__isnull=True
         ).filter(failed_q).count()
         has_failed_translations = failed_translation_count > 0
+
+    if language != 'en' and language not in SUPPORTED_LANGUAGES:
+        needs_translation = False
             
     context = {
         'cache_hit': cached_hit,
@@ -699,6 +705,9 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
             footnote_id__isnull=True
         ).filter(failed_q).count()
         has_failed_translations = failed_translation_count > 0
+
+    if language != 'en' and language not in SUPPORTED_LANGUAGES:
+        needs_translation = False
     
     context = {
         'chapters': chapters,
