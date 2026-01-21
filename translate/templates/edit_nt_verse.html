@@ -378,6 +378,11 @@ Cached: {{ cached_hit }}
                     <option value="gemini-2.0-flash">gemini-2.0-flash</option>
                 </select>
             </div>
+            <div class="gemini-modal__field">
+                <label for="greekGeminiApiKey">Gemini API Key (optional)</label>
+                <input id="greekGeminiApiKey" type="password" placeholder="Insert Gemini API key for this request" autocomplete="off">
+                <small style="color:#666;">This key will be used only for this request and will not be saved to the server.</small>
+            </div>
             <textarea id="greekGeminiPrompt" spellcheck="false"></textarea>
             <div class="gemini-modal__actions">
                 <button type="button" class="secondary" id="greekGeminiReset">Reset</button>
@@ -641,6 +646,7 @@ Cached: {{ cached_hit }}
                 const resetButton = document.getElementById('greekGeminiReset');
                 const saveButton = document.getElementById('greekGeminiSave');
                 const modelInput = document.getElementById('greekGeminiModel');
+                const apiKeyInput = document.getElementById('greekGeminiApiKey');
                 const defaultPromptScript = document.getElementById('defaultGreekGeminiPrompt');
                 const defaultPrompt = defaultPromptScript ? JSON.parse(defaultPromptScript.textContent) : '';
                 const defaultModel = config ? (config.dataset.defaultModel || '') : '';
@@ -648,6 +654,14 @@ Cached: {{ cached_hit }}
                 let currentModel = defaultModel;
                 const saveEndpoint = config ? config.dataset.saveEndpoint : '';
                 const targetTextarea = document.getElementById('editor-texto');
+
+                // Clear sensitive API key when modal is closed for security
+                modal.querySelectorAll('[data-action="close"]').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        if (apiKeyInput) apiKeyInput.value = '';
+                    });
+                });
+
 
                 if (!config || !openButton || !modal || !promptInput) {
                     return;
@@ -749,6 +763,7 @@ Cached: {{ cached_hit }}
                     openButton.disabled = true;
 
                     try {
+                        const apiKeyValue = apiKeyInput ? (apiKeyInput.value || undefined) : undefined;
                         const response = await fetch(endpoint, {
                             method: 'POST',
                             headers: {
@@ -763,6 +778,7 @@ Cached: {{ cached_hit }}
                                 verse: config.dataset.verse,
                                 prompt: promptInput.value,
                                 model: modelInput ? modelInput.value : undefined,
+                                api_key: apiKeyValue,
                             }),
                         });
 

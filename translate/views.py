@@ -410,23 +410,36 @@ def _strip_html_text(value: str | None) -> str:
         return value
 
 
-def _request_gemini_response(prompt: str, model_name: str | None = None) -> str:
+def _request_gemini_response(prompt: str, model_name: str | None = None, api_key: str | None = None) -> str:
     try:
         model_to_use = _resolve_model_name(model_name)
     except ValueError as exc:
         return f"Error: {exc}"
 
-    # Guard against missing API key
-    if not GEMINI_API_KEY:
-        logger.error('Gemini API key is not configured (GEMINI_API_KEY missing)')
-        return 'Error: Gemini API key is not configured.'
+    # If an API key is provided for this request, validate and use a temporary client
+    use_client = None
+    if api_key:
+        # Lightweight validation (no spaces, reasonable length)
+        if not isinstance(api_key, str) or ' ' in api_key or len(api_key) < 10 or len(api_key) > 1024:
+            return 'Error: Invalid API key format.'
+        # Do not log the API key
+        try:
+            use_client = genai.Client(api_key=api_key)
+        except Exception as exc:
+            logger.exception('Failed to initialize Gemini client with provided API key')
+            return 'Error: Provided API key is invalid or client initialization failed.'
+    else:
+        if not GEMINI_API_KEY:
+            logger.error('Gemini API key is not configured (GEMINI_API_KEY missing)')
+            return 'Error: Gemini API key is not configured.'
+        use_client = client
 
     try:
         logger.debug('Requesting Gemini API with model=%s', model_to_use)
         import concurrent.futures
         # Execute the API call in a thread with a timeout to avoid long hangs
         def _call_api():
-            return client.models.generate_content(model=model_to_use, contents=prompt)
+            return use_client.models.generate_content(model=model_to_use, contents=prompt)
 
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -537,7 +550,7 @@ def _request_gemini_response(prompt: str, model_name: str | None = None) -> str:
         return f"Error: Gemini API failed: {exc}"
 
 
-def gemini_translate(entries, prompt_instructions: str | None = None, model_name: str | None = None):
+def gemini_translate(entries, prompt_instructions: str | None = None, model_name: str | None = None, api_key: str | None = None):
     """Translate Greek entries into a formatted English sentence via Gemini."""
     if not isinstance(entries, list) or not entries:
         return "Error: Invalid entries data"
@@ -567,7 +580,8 @@ def gemini_translate(entries, prompt_instructions: str | None = None, model_name
         f"MORPHOLOGY: {morphology_info}\n"
     )
 
-    return _request_gemini_response(prompt, model_name)
+    return _request_gemini_response(prompt, model_name, api_key)
+
 
 
 def gemini_translate_hebrew(
@@ -575,6 +589,7 @@ def gemini_translate_hebrew(
     linear_english: str | None,
     prompt_instructions: str | None = None,
     model_name: str | None = None,
+    api_key: str | None = None,
 ) -> str:
     """Translate Hebrew content using Gemini with editable prompt instructions."""
     if not hebrew_text and not linear_english:
@@ -590,7 +605,8 @@ def gemini_translate_hebrew(
         f"LINEAR ENGLISH: {english_plain}\n"
     )
 
-    return _request_gemini_response(prompt, model_name)
+    return _request_gemini_response(prompt, model_name, api_key)
+
 
 
 @require_POST
@@ -611,6 +627,12 @@ def request_gemini_translation(request):
     verse = payload.get('verse')
     prompt_override = payload.get('prompt')
     model_override = payload.get('model')
+    api_key = payload.get('api_key')  # optional one-time API key for this request (not stored)
+
+    # Validate api_key format early (short check)
+    if api_key:
+        if not isinstance(api_key, str) or ' ' in api_key or len(api_key) < 10 or len(api_key) > 1024:
+            return JsonResponse({'error': 'Invalid API key format.'}, status=400)
 
     try:
         resolved_model = _resolve_model_name(model_override)
@@ -633,15 +655,11 @@ def request_gemini_translation(request):
             entries = context.get('entries') or []
             if not entries:
                 return JsonResponse({'error': 'Interlinear entries unavailable for this verse.'}, status=404)
-            suggestion = gemini_translate(entries, prompt_override, resolved_model)
+            suggestion = gemini_translate(entries, prompt_override, resolved_model, api_key)
         elif translation_type == 'hebrew':
             hebrew_text = context.get('hebrew')
             linear_english = context.get('linear_english')
-            suggestion = gemini_translate_hebrew(hebrew_text, linear_english, prompt_override, resolved_model)
-        else:
-            return JsonResponse({'error': 'Invalid translation type.'}, status=400)
-
-        if isinstance(suggestion, str) and suggestion.startswith('Error:'):
+            suggestion = gemini_translate_hebrew(hebrew_text, linear_english, prompt_override, resolved_model, api_key)
             return JsonResponse({'error': suggestion}, status=502)
 
         session = getattr(request, 'session', None)

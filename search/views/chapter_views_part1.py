@@ -314,7 +314,9 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
 
         return serialized
 
-    # Cache key setup
+    # Normalize book name and cache key setup
+    # Strip whitespace to avoid mismatches when request parameters include extra spaces
+    book = book.strip()
     sanitized_book = book.replace(':', '_').replace(' ', '')
     cache_key_base = f'{sanitized_book}_{chapter_num}_{verse_num}_{language}_{INTERLINEAR_CACHE_VERSION}'
     cached_data = cache.get(cache_key_base)
@@ -978,8 +980,8 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
            
         elif book in new_testament_books:
             
-            if book in book_abbreviations:
-                book_abbrev = book_abbreviations[book]
+            # Use mapping when available, otherwise fall back to the passed book value
+            book_abbrev = book_abbreviations.get(book, book)
 
             data = execute_query(
                 """

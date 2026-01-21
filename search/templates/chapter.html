@@ -130,7 +130,9 @@ function hideTranslationLoading() {
     <div id="fontDecreaseButton"><i class="fas fa-minus"></i></div>
     <div id="fontIncreaseButton"><i class="fas fa-plus"></i></div>
     {% if paraphrase %}
-    <div id="languageSelector" onclick="openLanguageModal()"><i class="fas fa-language"></i> {{ supported_languages|get_item:current_language|default:'English' }}</div>
+    <div id="languageSelector" class="language-selector" onclick="openLanguageModal()" aria-haspopup="dialog" role="button" title="Select language">
+        <i class="fas fa-language"></i> <span class="language-label">{{ supported_languages|get_item:current_language|default:'English' }}</span>
+    </div>
     {% endif %}
 </div>
 

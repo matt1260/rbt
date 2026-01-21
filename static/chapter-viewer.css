@@ -210,6 +210,42 @@
     font-size: 14px;
 }
 
+/* Language selector accent styling — makes the selector stand out visually */
+#languageSelector.language-selector {
+    font-size: 15px;
+    padding: 8px 14px;
+    text-align: right;
+    color: #7a3b10;
+    background: linear-gradient(180deg, #fff8f4, #fff);
+    border: 1px solid rgba(186,134,102,0.35);
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(186,134,102,0.12);
+    cursor: pointer;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+#languageSelector.language-selector:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(186,134,102,0.18);
+}
+
+#languageSelector.language-selector .language-label {
+    display: inline-block;
+    max-width: 110px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 480px) {
+    #languageSelector.language-selector { font-size: 13px; padding: 6px 10px; }
+    #languageSelector.language-selector .language-label { max-width: 70px; }
+}
+
 /* Footnote Styles */
 .notes-empty {
     margin: 0;
