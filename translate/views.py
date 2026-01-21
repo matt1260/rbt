@@ -1114,73 +1114,69 @@ def edit(request):
                 return HttpResponse("Invalid book selection.", status=400)
 
             try:
-                with get_db_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("BEGIN")
-                    cursor.execute("SET LOCAL search_path TO new_testament")
-                    
-                    # 1Jo_footnotes
-                    book = book_abbrev + '_footnotes'
+                with transaction.atomic():
+                    with connection.cursor() as cursor:
+                        cursor.execute("SET LOCAL search_path TO new_testament")
+                        
+                        # 1Jo_footnotes
+                        footnote_table = book_abbrev + '_footnotes'
 
-                    if book in ['1Co_footnotes', '1Jo_footnotes', '1Pe_footnotes', '1Th_footnotes', '1Ti_footnotes', '2Co_footnotes', '2Jo_footnotes', '2Pe_footnotes', '2Th_footnotes', '2Ti_footnotes', '3Jo_footnotes']:
-                        book = 'table_' + book
-                    
-                    book = book.lower()
-                    print(f"[DEBUG] Using footnote table: {book}")
+                        if footnote_table in ['1Co_footnotes', '1Jo_footnotes', '1Pe_footnotes', '1Th_footnotes', '1Ti_footnotes', '2Co_footnotes', '2Jo_footnotes', '2Pe_footnotes', '2Th_footnotes', '2Ti_footnotes', '3Jo_footnotes']:
+                            footnote_table = 'table_' + footnote_table
+                        
+                        footnote_table = footnote_table.lower()
+                        print(f"[DEBUG] Using footnote table: {footnote_table}")
 
-                    # Compute the final footnote identifier we will insert
-                    new_footnote_id = book_abbrev + '-' + footnote_id
-                    print(f"[DEBUG] New footnote ID: {new_footnote_id}")
+                        # Compute the final footnote identifier we will insert
+                        new_footnote_id = book_abbrev + '-' + footnote_id
+                        print(f"[DEBUG] New footnote ID: {new_footnote_id}")
 
-                    # Check if this footnote id already exists to avoid IntegrityError
-                    cursor.execute(f"SELECT 1 FROM {book} WHERE footnote_id = %s", (new_footnote_id,))
-                    exists = cursor.fetchone() is not None
+                        # Check if this footnote id already exists to avoid IntegrityError
+                        cursor.execute(f"SELECT 1 FROM {footnote_table} WHERE footnote_id = %s", (new_footnote_id,))
+                        exists = cursor.fetchone() is not None
 
-                    if exists:
-                        # Gather existing ids for display and return a helpful message
-                        cursor.execute(f"SELECT footnote_id FROM {book} ORDER BY footnote_id")
-                        existing_ids = [row[0] for row in cursor.fetchall()]
+                        if exists:
+                            # Gather existing ids for display and return a helpful message
+                            cursor.execute(f"SELECT footnote_id FROM {footnote_table} ORDER BY footnote_id")
+                            existing_ids = [row[0] for row in cursor.fetchall()]
 
-                        context = {
-                            'error_message': f'Footnote id {new_footnote_id} already exists. Choose a different id or edit the existing footnote.',
-                            'existing_ids': existing_ids,
-                        }
-                        return render(request, 'insert_footnote_error.html', context)
+                            context = {
+                                'error_message': f'Footnote id {new_footnote_id} already exists. Choose a different id or edit the existing footnote.',
+                                'existing_ids': existing_ids,
+                            }
+                            return render(request, 'insert_footnote_error.html', context)
 
-                    # Wrap the footnote content in rbt_footnote span
-                    footnote_html = f'<p><span class="footnote_header">{footnote_header}</span></p> <p class="rbt_footnote">{footnote_html}</p>'
-                    sql_query = f"INSERT INTO {book} (footnote_id, footnote_html) VALUES (%s, %s)"
-                    print(f"[DEBUG] Executing SQL: {sql_query}")
-                    cursor.execute(sql_query, (new_footnote_id, footnote_html))
-                    conn.commit()
-                    print(f"[DEBUG] Footnote inserted and committed successfully")
+                        # Wrap the footnote content in rbt_footnote span
+                        wrapped_footnote_html = f'<p><span class="footnote_header">{footnote_header}</span></p> <p class="rbt_footnote">{footnote_html}</p>'
+                        sql_query = f"INSERT INTO {footnote_table} (footnote_id, footnote_html) VALUES (%s, %s)"
+                        print(f"[DEBUG] Executing SQL: {sql_query}")
+                        cursor.execute(sql_query, (new_footnote_id, wrapped_footnote_html))
+                        print(f"[DEBUG] Footnote inserted successfully, transaction will commit")
 
-                    update_text = re.sub(r'<a\s+.*?>(.*?)</a>', r'\1', footnote_html)
-                    update_version = "New Testament Footnote"
-                    update_date = datetime.now()
-                    update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num} - {new_footnote_id}", update_text=update_text)
-                    _safe_save_update(update_instance)
-                    
-                    cleared_keys = _invalidate_reader_cache(nt_book, chapter_num, verse_num)
-                    cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
+                        update_text = re.sub(r'<a\s+.*?>(.*?)</a>', r'\1', wrapped_footnote_html)
+                        update_version = "New Testament Footnote"
+                        update_date = datetime.now()
+                        update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num} - {new_footnote_id}", update_text=update_text)
+                        _safe_save_update(update_instance)
+                        
+                        cleared_keys = _invalidate_reader_cache(nt_book, chapter_num, verse_num)
+                        cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
-                    context = _apply_gemini_preferences(request, get_context(nt_book, chapter_num, verse_num))
-                    context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Added footnote successfully! {cache_string}</p></div>'
+                        context = _apply_gemini_preferences(request, get_context(nt_book, chapter_num, verse_num))
+                        context['edit_result'] = f'<div class="notice-bar"><p><span class="icon"><i class="fas fa-check-circle"></i></span>Added footnote successfully! {cache_string}</p></div>'
 
-                    return render(request, 'edit_nt_verse.html', context)
+                        return render(request, 'edit_nt_verse.html', context)
             
             except psycopg2.IntegrityError as e:
                 # Handle the unique constraint violation as a fallback
                 error_message = f"Error: Unique constraint violation occurred - {e}"
-                # Note: conn.rollback() is automatically handled by the context manager
+                print(f"[ERROR] IntegrityError: {e}")
                 
                 # Get a list of existing footnote_ids
                 existing_ids = []
-                with get_db_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("BEGIN")
+                with connection.cursor() as cursor:
                     cursor.execute("SET LOCAL search_path TO new_testament")
-                    cursor.execute(f"SELECT footnote_id FROM {book}")
+                    cursor.execute(f"SELECT footnote_id FROM {footnote_table} ORDER BY footnote_id")
                     existing_ids = [row[0] for row in cursor.fetchall()]
                 
                 context = {
@@ -1189,6 +1185,16 @@ def edit(request):
                 }
                 
                 return render(request, 'insert_footnote_error.html', context)
+            
+            except Exception as e:
+                # Handle any other exceptions
+                error_message = f"Error adding footnote: {e}"
+                print(f"[ERROR] Exception adding footnote: {e}")
+                logger.exception("Failed to add footnote")
+                
+                context = _apply_gemini_preferences(request, get_context(nt_book, chapter_num, verse_num))
+                context['edit_result'] = f'<div class="notice-bar error"><p><span class="icon"><i class="fas fa-exclamation-circle"></i></span>{error_message}</p></div>'
+                return render(request, 'edit_nt_verse.html', context)
 
         elif record_id is not None:
             record = Genesis.objects.get(id=record_id)
