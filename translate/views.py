@@ -1110,17 +1110,34 @@ def edit(request):
                     
                     book = book.lower()
 
-                    footnote_id = book_abbrev + '-' + footnote_id
+                    # Compute the final footnote identifier we will insert
+                    new_footnote_id = book_abbrev + '-' + footnote_id
+
+                    # Check if this footnote id already exists to avoid IntegrityError
+                    cursor.execute(f"SELECT 1 FROM {book} WHERE footnote_id = %s", (new_footnote_id,))
+                    exists = cursor.fetchone() is not None
+
+                    if exists:
+                        # Gather existing ids for display and return a helpful message
+                        cursor.execute(f"SELECT footnote_id FROM {book} ORDER BY footnote_id")
+                        existing_ids = [row[0] for row in cursor.fetchall()]
+
+                        context = {
+                            'error_message': f'Footnote id {new_footnote_id} already exists. Choose a different id or edit the existing footnote.',
+                            'existing_ids': existing_ids,
+                        }
+                        return render(request, 'insert_footnote_error.html', context)
+
                     # Wrap the footnote content in rbt_footnote span
                     footnote_html = f'<p><span class="footnote_header">{footnote_header}</span></p> <p class="rbt_footnote">{footnote_html}</p>'
                     sql_query = f"INSERT INTO {book} (footnote_id, footnote_html) VALUES (%s, %s)"
-                    cursor.execute(sql_query, (footnote_id, footnote_html))
+                    cursor.execute(sql_query, (new_footnote_id, footnote_html))
                     conn.commit()
 
                     update_text = re.sub(r'<a\s+.*?>(.*?)</a>', r'\1', footnote_html)
                     update_version = "New Testament Footnote"
                     update_date = datetime.now()
-                    update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num} - {footnote_id}", update_text=update_text)
+                    update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num} - {new_footnote_id}", update_text=update_text)
                     update_instance.save()
                     
                     cleared_keys = _invalidate_reader_cache(nt_book, chapter_num, verse_num)
@@ -1132,7 +1149,7 @@ def edit(request):
                     return render(request, 'edit_nt_verse.html', context)
             
             except psycopg2.IntegrityError as e:
-                # Handle the unique constraint violation
+                # Handle the unique constraint violation as a fallback
                 error_message = f"Error: Unique constraint violation occurred - {e}"
                 # Note: conn.rollback() is automatically handled by the context manager
                 
