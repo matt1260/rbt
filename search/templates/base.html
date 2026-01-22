@@ -2304,20 +2304,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script>
     function showTranslationLoading() {
-        const modal = document.getElementById('translationLoadingModal');
-        if (modal) {
+        const modals = document.querySelectorAll('#translationLoadingModal, .translation-loading-overlay');
+        modals.forEach((modal) => {
+            modal.style.display = 'flex';
+            modal.style.opacity = '1';
             modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        }
+        });
+        document.body.style.overflow = 'hidden';
     }
 
     function hideTranslationLoading() {
-        const modal = document.getElementById('translationLoadingModal');
-        if (modal) {
+        const modals = document.querySelectorAll('#translationLoadingModal, .translation-loading-overlay');
+        modals.forEach((modal) => {
             modal.classList.remove('active');
-            document.body.style.overflow = '';
-        }
+            modal.style.opacity = '0';
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        });
+        document.body.style.overflow = '';
     }
+
+    // Clear any stuck translation overlays when returning via back/forward cache
+    window.addEventListener('pageshow', function(event) {
+        if (!event.persisted) return;
+        const modals = document.querySelectorAll('#translationLoadingModal, .translation-loading-overlay');
+        modals.forEach((modal) => {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+            modal.style.opacity = '';
+        });
+        document.body.style.overflow = '';
+    });
 </script>
 
 </body></html>
