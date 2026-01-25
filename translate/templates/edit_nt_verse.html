@@ -416,6 +416,7 @@ Cached: {{ cached_hit }}
             <div class="gemini-modal__actions">
                 <button type="button" class="secondary" data-action="close-manual">Close</button>
                 <button type="button" class="secondary" id="greekGeminiManualCopy">Copy to Clipboard</button>
+                <span id="greekGeminiManualStatus" class="gemini-manual-status" aria-live="polite" style="margin-left:12px; color: #228B22; display: none; font-weight: 600;">Copied</span>
             </div>
         </div>
     </div>
@@ -911,14 +912,38 @@ Cached: {{ cached_hit }}
                 });
 
                 if (manualCopyBtn) {
-                    manualCopyBtn.addEventListener('click', () => {
+                    manualCopyBtn.addEventListener('click', async () => {
                         if (!manualPayload) return;
-                        manualPayload.select();
+                        const text = manualPayload.value || '';
+
                         try {
-                            document.execCommand('copy');
-                            alert('LLM request copied to clipboard');
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                                await navigator.clipboard.writeText(text);
+                            } else {
+                                // Fallback for older browsers
+                                manualPayload.select();
+                                document.execCommand('copy');
+                                manualPayload.selectionEnd = manualPayload.selectionStart;
+                                manualPayload.blur();
+                            }
+
+                            const statusEl = document.getElementById('greekGeminiManualStatus');
+                            if (statusEl) {
+                                statusEl.textContent = 'Copied';
+                                statusEl.style.color = '#228B22';
+                                statusEl.style.display = 'inline';
+                                setTimeout(() => { statusEl.style.display = 'none'; }, 1200);
+                            }
                         } catch (err) {
-                            alert('Unable to copy to clipboard');
+                            const statusEl = document.getElementById('greekGeminiManualStatus');
+                            if (statusEl) {
+                                statusEl.textContent = 'Copy failed';
+                                statusEl.style.color = 'red';
+                                statusEl.style.display = 'inline';
+                                setTimeout(() => { statusEl.style.display = 'none'; statusEl.style.color = '#228B22'; }, 2200);
+                            } else {
+                                console.warn('Unable to copy to clipboard', err);
+                            }
                         }
                     });
                 }

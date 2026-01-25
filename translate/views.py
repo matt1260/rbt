@@ -61,6 +61,10 @@ nt_abbrev = [
 DEFAULT_GREEK_GEMINI_PROMPT = """
 You are formatting the sentence from these english words and morphology. Using the provided data, create the English sentence following these rules:
 
+IMPORTANT: A MAPPING table will be provided where each line has the format:
+GREEK_WORD | ENGLISH_WORD | MORPHOLOGY
+Use that alignment to determine which morphology belongs to which Greek word (i.e., the morphology on the same line applies to that word). Prefer the morphology on the same line when choosing tense, voice, mood, case, number, and agreement.
+
 1. Link definite articles to their respective nouns
 2. For imperfect indicative verbs, use "kept" instead of "were" if appropriate for the verb sense
 3. Capitalize words that have definite articles (but not "the" itself)
@@ -74,6 +78,11 @@ You are formatting the sentence from these english words and morphology. Using t
 11. If there are articular infinitives or substantive clauses, capitalize and substantivize (e.g., "the Journeying of Himself", "the Fearing of the Water")
 12. Render any intensive pronouns with verbs as "You, yourselves are" or "I, myself am"
 13. Return ONLY the HTML sentence with proper span tags for colors
+
+Example mapping (one per line):
+ἄνθρωπος | man | noun, nominative, singular
+καί | and | conjunction
+ἔλεγον | said | verb, imperfect, indicative, active, 3rd person plural
 
 Example 1: he asked close beside <span style="color: blue;">himself</span> for epistles into <span style="color: #ff00aa;">Fertile Land</span> ("<span style="color: #ff00aa;">Damascus</span>") toward <span style="color: #ff00aa;">the Congregations</span> in such a manner that if he found <span style="color: blue;">anyone</span> who are being of <span style="color: #ff00aa;">the Road</span>, both men and women, he might lead those who have been bound into <span style="color: #ff00aa;">Foundation of Peace</span>. And <span style="color: blue;">a certain man</span>, he who is presently existing as <span style="color: blue;">a limping one</span> from out of <span style="color: #ff00aa;">a belly</span> of <span style="color: #ff00aa;">a mother</span> of <span style="color: blue;">himself</span>, kept being carried, him whom they were placing according to <span style="color: #ff00aa;">a day</span> toward <span style="color: #ff00aa;">the Doorway</span> of the Sacred Place, <span style="color: #ff00aa;">the one who is being called</span> '<span style="color: #ff00aa;">Seasonable</span>,' of the Begging for Mercy close beside the ones who were leading into the Sacred Place.
 
@@ -557,8 +566,12 @@ def gemini_translate(entries, prompt_instructions: str | None = None, model_name
     morphology_info = ' | '.join(morphology_data)
 
     instructions = _resolve_prompt_text(prompt_instructions, DEFAULT_GREEK_GEMINI_PROMPT)
+    # Provide an explicit per-word mapping so morphology is aligned with each lemma
+    mapping_lines = [f"{e.get('lemma','')} | {e.get('english','')} | {e.get('morph_description','')} ({e.get('morph','Unknown')})" for e in entries]
     prompt = (
         f"{instructions}\n\n"
+        "MAPPING (one per line: GREEK | ENGLISH | MORPHOLOGY):\n"
+        + "\n".join(mapping_lines) + "\n\n"
         f"GREEK TEXT: {greek_text}\n"
         f"ENGLISH WORDS: {interlinear_english}\n"
         f"MORPHOLOGY: {morphology_info}\n"
@@ -645,11 +658,15 @@ def request_gemini_translation(request):
             # If caller only wants the assembled prompt (no external API call), return it
             if assemble_only:
                 instructions = _resolve_prompt_text(prompt_override, DEFAULT_GREEK_GEMINI_PROMPT)
+                # Build a per-word mapping so the LLM can align morphology to each lemma
+                mapping_lines = [f"{e.get('lemma','')} | {e.get('english','')} | {e.get('morph_description','')} ({e.get('morph','Unknown')})" for e in entries]
                 greek_words = ' '.join([e.get('lemma', '') for e in entries])
                 interlinear_english = ' '.join([e.get('english', '') for e in entries])
                 morphology = ' | '.join([f"{e.get('morph_description','')} ({e.get('morph','Unknown')})" for e in entries])
                 assembled = (
                     f"{instructions}\n\n"
+                    "MAPPING (one per line: GREEK | ENGLISH | MORPHOLOGY):\n"
+                    + "\n".join(mapping_lines) + "\n\n"
                     f"GREEK TEXT: {greek_words}\n"
                     f"ENGLISH WORDS: {interlinear_english}\n"
                     f"MORPHOLOGY: {morphology}\n"

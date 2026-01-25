@@ -33,7 +33,7 @@ rbt_books: dict[str, str] = {
     'Ezekiel': 'God Holds Strongly',
     'Daniel': 'God Has Judged',
     'Hosea': 'Salvation',
-    'Joel': 'Being is God',
+    'Joel': 'Being God',
     'Amos': 'Heavy Burdened',
     'Obadiah': 'Slave of He Is',
     'Jonah': 'Dove',
