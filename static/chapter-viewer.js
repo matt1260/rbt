@@ -5,7 +5,9 @@ document.addEventListener("DOMContentLoaded", function() {
         if (!element) return;
         function wrapTextNodes(node) {
             if (node.nodeType === Node.TEXT_NODE) {
-                let replaced = node.textContent.replace(/\s\(\s*\"([^\"]+)\"\s*\)/g, function(match) {
+                // Match parentheses containing quoted names in many international quote styles
+                // Examples: ("Name"), („Name”), (“Name”), («Name»), (‘Name’)
+                let replaced = node.textContent.replace(/\(\s*["“”„«»‹›'‘’]?[^)]+?["“”„«»‹›'‘’]?\s*\)/g, function(match) {
                     return '<span class="paren-hide">' + match + '</span>';
                 });
                 if (replaced !== node.textContent) {
