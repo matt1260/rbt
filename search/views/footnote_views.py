@@ -5,7 +5,7 @@ import re
 from django.http import JsonResponse
 from search.models import GenesisFootnotes, VerseTranslation
 from translate.translator import book_abbreviations, new_testament_books, nt_abbrev, old_testament_books
-from search.db_utils import execute_query
+from search.db_utils import execute_query, get_db_connection
 
 
 FOOTNOTE_LINK_PATTERN = re.compile(r'\?footnote=([^&"\s]+)')

@@ -23,9 +23,13 @@ document.addEventListener("DOMContentLoaded", function() {
         wrapTextNodes(element);
     }
 
-    wrapParenthesesText(document.getElementById('paraphraseContainer'));
-    wrapParenthesesText(document.getElementById('literal-pane'));
-    
+    // Prefer commonly used IDs but fall back to alternate IDs present in other templates
+    const paraphraseEl = document.getElementById('paraphraseContainer') || document.getElementById('paraphrase-area') || document.getElementById('paraphrase');
+    const literalEl = document.getElementById('literal-pane') || document.getElementById('literal-area') || document.getElementById('literal');
+
+    wrapParenthesesText(paraphraseEl);
+    wrapParenthesesText(literalEl);
+
     setTimeout(() => {
         document.querySelectorAll('.paren-hide').forEach(span => {
             span.style.setProperty('display', 'none', 'important');
@@ -39,10 +43,11 @@ document.addEventListener("DOMContentLoaded", function() {
     const parenthesesToggleButton = document.getElementById("parenthesesToggleButton");
     const notesToggleButton = document.getElementById("notesToggleButton");
     const toggleDivContainer = document.getElementById("toggleDivContainer");
-    const paraphraseContainer = document.getElementById("paraphraseContainer");
+    // Accept multiple possible IDs used across templates for the paraphrase/literal panes
+    const paraphraseContainer = document.getElementById("paraphraseContainer") || document.getElementById("paraphrase-area") || document.getElementById("paraphrase");
     const container = document.getElementById("container") || document.getElementById("mainTextArea");
     const verseRefs = document.querySelectorAll(".verse_ref");
-    const literalPane = document.getElementById("literal-pane");
+    const literalPane = document.getElementById("literal-pane") || document.getElementById("literal-area") || document.getElementById("literal");
     const notesPane = document.getElementById("notes-pane");
     const fontDecreaseButton = document.getElementById("fontDecreaseButton");
     const fontIncreaseButton = document.getElementById("fontIncreaseButton");
