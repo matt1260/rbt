@@ -84,6 +84,54 @@ document.addEventListener("DOMContentLoaded", function() {
     
     // Font size management
     let currentFontSize = 100;
+
+    // Scalable <h5> headings: remember original computed sizes so scaling is consistent
+    const scalableH5s = [];
+    function collectH5Sizes() {
+        const root = document.getElementById('container') || document.getElementById('mainTextArea') || document.body;
+        const nodes = root.querySelectorAll('h5');
+        nodes.forEach(node => {
+            if (!node.dataset.origFontSize) {
+                const fs = window.getComputedStyle(node).fontSize;
+                node.dataset.origFontSize = parseFloat(fs) || '';
+                scalableH5s.push(node);
+            }
+        });
+    }
+
+    // Initial collection
+    collectH5Sizes();
+
+    // Watch for dynamically inserted h5 elements (e.g., via AJAX or template replacements)
+    if (window.MutationObserver) {
+        const h5Observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(m) {
+                m.addedNodes && m.addedNodes.forEach(function(n) {
+                    if (n.nodeType !== 1) return;
+                    if (n.matches && n.matches('h5')) {
+                        if (!n.dataset.origFontSize) {
+                            const fs = window.getComputedStyle(n).fontSize;
+                            n.dataset.origFontSize = parseFloat(fs) || '';
+                            scalableH5s.push(n);
+                            n.style.fontSize = (parseFloat(n.dataset.origFontSize) * currentFontSize / 100) + 'px';
+                        }
+                    }
+                    const nested = n.querySelectorAll && n.querySelectorAll('h5');
+                    if (nested && nested.length) {
+                        nested.forEach(h5 => {
+                            if (!h5.dataset.origFontSize) {
+                                const fs = window.getComputedStyle(h5).fontSize;
+                                h5.dataset.origFontSize = parseFloat(fs) || '';
+                                scalableH5s.push(h5);
+                                h5.style.fontSize = (parseFloat(h5.dataset.origFontSize) * currentFontSize / 100) + 'px';
+                            }
+                        });
+                    }
+                });
+            });
+        });
+        h5Observer.observe(document.body, { childList: true, subtree: true });
+    }
     const MIN_FONT_SIZE = 80;
     const MAX_FONT_SIZE = 150;
     const FONT_STEP = 10;
@@ -94,6 +142,14 @@ document.addEventListener("DOMContentLoaded", function() {
             targetContainer.style.fontSize = currentFontSize + '%';
             localStorage.setItem('chapterFontSize', currentFontSize);
         }
+
+        // Also scale any collected <h5> headings proportionally to preserve layout
+        scalableH5s.forEach(h5 => {
+            const orig = parseFloat(h5.dataset.origFontSize || '');
+            if (orig && !isNaN(orig)) {
+                h5.style.fontSize = (orig * currentFontSize / 100) + 'px';
+            }
+        });
     }
     
     const savedFontSize = localStorage.getItem('chapterFontSize');
