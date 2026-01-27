@@ -351,9 +351,10 @@ Cached: {{ cached_hit }}
         <button type="button" class="gemini-trigger" id="greekGeminiOpen">
             Gemini Suggestion
         </button>
-        <button type="button" class="gemini-trigger" id="greekGeminiManualOpen" title="Show full LLM request for manual copy/paste">
+        <button type="button" class="gemini-trigger" id="greekGeminiManualOpen" title="Copy full LLM request to clipboard">
             Manual LLM Request
         </button>
+        <span id="greekGeminiManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
     </form>
 
     <div id="gemini-config"
@@ -397,29 +398,7 @@ Cached: {{ cached_hit }}
         </div>
     </div>
 
-    <!-- Manual LLM Request Modal -->
-    <div class="gemini-modal" id="greekGeminiManualModal" aria-hidden="true">
-        <div class="gemini-modal__content">
-            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h3 style="margin:0;">Full LLM Request</h3>
-                <button type="button" class="secondary" data-action="close-manual">&times;</button>
-            </div>
-            <div class="gemini-modal__field">
-                <label for="greekGeminiManualModel">Model</label>
-                <input id="greekGeminiManualModel" type="text" readonly>
-            </div>
-            <div class="gemini-modal__field">
-                <label for="greekGeminiManualMeta">Meta (book/chapter/verse)</label>
-                <input id="greekGeminiManualMeta" type="text" readonly>
-            </div>
-            <textarea id="greekGeminiManualPayload" spellcheck="false"></textarea>
-            <div class="gemini-modal__actions">
-                <button type="button" class="secondary" data-action="close-manual">Close</button>
-                <button type="button" class="secondary" id="greekGeminiManualCopy">Copy to Clipboard</button>
-                <span id="greekGeminiManualStatus" class="gemini-manual-status" aria-live="polite" style="margin-left:12px; color: #228B22; display: none; font-weight: 600;">Copied</span>
-            </div>
-        </div>
-    </div>
+
 
     <script>
         // Image insertion
@@ -839,31 +818,16 @@ Cached: {{ cached_hit }}
                     }
                 });
 
-                // Manual LLM Request modal logic
+                // Manual LLM Request: fetch assembled request and copy directly to clipboard
                 const manualOpen = document.getElementById('greekGeminiManualOpen');
-                const manualModal = document.getElementById('greekGeminiManualModal');
-                const manualPayload = document.getElementById('greekGeminiManualPayload');
-                const manualModelInput = document.getElementById('greekGeminiManualModel');
-                const manualMetaInput = document.getElementById('greekGeminiManualMeta');
-                const manualCopyBtn = document.getElementById('greekGeminiManualCopy');
-
-                function toggleManualModal(show) {
-                    if (!manualModal) return;
-                    manualModal.classList.toggle('is-visible', !!show);
-                    manualModal.setAttribute('aria-hidden', String(!show));
-                }
+                const manualInlineStatus = document.getElementById('greekGeminiManualStatusInline');
 
                 if (manualOpen) {
                     manualOpen.addEventListener('click', async () => {
                         const modelVal = modelInput ? (modelInput.value || '') : '';
-                        const meta = `${config.dataset.book || ''} ${config.dataset.chapter || ''}:${config.dataset.verse || ''}`.trim();
-
-                        manualModelInput.value = modelVal;
-                        manualMetaInput.value = meta;
 
                         // Request the assembled Gemini prompt from server so 'Content' matches what the live request would send
                         try {
-                            manualPayload.value = 'Loading assembled request...';
                             const resp = await fetch(endpoint, {
                                 method: 'POST',
                                 headers: {
@@ -895,55 +859,45 @@ Cached: {{ cached_hit }}
                                 throw new Error(data.error || 'Unable to assemble request');
                             }
 
-                            manualPayload.value = data.assembled || '';
-                            manualModelInput.value = data.model || modelVal;
+                            const assembled = data.assembled || '';
 
-                        } catch (err) {
-                            manualPayload.value = `Error loading assembled request: ${err.message}`;
-                        }
+                            try {
+                                if (navigator.clipboard && navigator.clipboard.writeText) {
+                                    await navigator.clipboard.writeText(assembled);
+                                } else {
+                                    // Fallback for older browsers
+                                    const ta = document.createElement('textarea');
+                                    ta.value = assembled;
+                                    document.body.appendChild(ta);
+                                    ta.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(ta);
+                                }
 
-                        toggleManualModal(true);
-                    });
-                }
-
-                // Close manual modal buttons
-                manualModal && manualModal.querySelectorAll('[data-action="close-manual"]').forEach((btn) => {
-                    btn.addEventListener('click', () => toggleManualModal(false));
-                });
-
-                if (manualCopyBtn) {
-                    manualCopyBtn.addEventListener('click', async () => {
-                        if (!manualPayload) return;
-                        const text = manualPayload.value || '';
-
-                        try {
-                            if (navigator.clipboard && navigator.clipboard.writeText) {
-                                await navigator.clipboard.writeText(text);
-                            } else {
-                                // Fallback for older browsers
-                                manualPayload.select();
-                                document.execCommand('copy');
-                                manualPayload.selectionEnd = manualPayload.selectionStart;
-                                manualPayload.blur();
-                            }
-
-                            const statusEl = document.getElementById('greekGeminiManualStatus');
-                            if (statusEl) {
-                                statusEl.textContent = 'Copied';
-                                statusEl.style.color = '#228B22';
-                                statusEl.style.display = 'inline';
-                                setTimeout(() => { statusEl.style.display = 'none'; }, 1200);
-                            }
-                        } catch (err) {
-                            const statusEl = document.getElementById('greekGeminiManualStatus');
-                            if (statusEl) {
-                                statusEl.textContent = 'Copy failed';
-                                statusEl.style.color = 'red';
-                                statusEl.style.display = 'inline';
-                                setTimeout(() => { statusEl.style.display = 'none'; statusEl.style.color = '#228B22'; }, 2200);
-                            } else {
+                                if (manualInlineStatus) {
+                                    manualInlineStatus.textContent = 'Copied';
+                                    manualInlineStatus.style.color = '#228B22';
+                                    manualInlineStatus.style.display = 'inline';
+                                    setTimeout(() => { manualInlineStatus.style.display = 'none'; }, 1500);
+                                }
+                            } catch (err) {
+                                if (manualInlineStatus) {
+                                    manualInlineStatus.textContent = 'Copy failed';
+                                    manualInlineStatus.style.color = 'red';
+                                    manualInlineStatus.style.display = 'inline';
+                                    setTimeout(() => { manualInlineStatus.style.display = 'none'; manualInlineStatus.style.color = '#228B22'; }, 2200);
+                                }
                                 console.warn('Unable to copy to clipboard', err);
                             }
+
+                        } catch (err) {
+                            if (manualInlineStatus) {
+                                manualInlineStatus.textContent = 'Error';
+                                manualInlineStatus.style.color = 'red';
+                                manualInlineStatus.style.display = 'inline';
+                                setTimeout(() => { manualInlineStatus.style.display = 'none'; manualInlineStatus.style.color = '#228B22'; }, 2200);
+                            }
+                            console.error(err);
                         }
                     });
                 }
