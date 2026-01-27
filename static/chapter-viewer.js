@@ -5,9 +5,35 @@ document.addEventListener("DOMContentLoaded", function() {
         if (!element) return;
         function wrapTextNodes(node) {
             if (node.nodeType === Node.TEXT_NODE) {
+                // Skip any text node contained inside an <h5> heading — do not wrap those
+                if (node.parentElement && node.parentElement.closest && node.parentElement.closest('h5')) {
+                    return;
+                }
+
                 // Match parentheses containing quoted names in many international quote styles
                 // Examples: ("Name"), („Name”), (“Name”), («Name»), (‘Name’)
+                // Skip wrapping if the inner content is exactly aiōn / aion (any diacritics or case)
                 let replaced = node.textContent.replace(/\(\s*["“”„«»‹›'‘’]?[^)]+?["“”„«»‹›'‘’]?\s*\)/g, function(match) {
+                    // Extract inner text without surrounding parentheses
+                    let inner = match.slice(1, -1).trim();
+                    // Strip surrounding quotes if present
+                    inner = inner.replace(/^["“”„«»‹›'‘’]+|["“”„«»‹›'‘’]+$/g, '').trim();
+
+                    // Normalize: remove diacritics and non-letter characters, lower-case
+                    try {
+                        inner = inner.normalize && inner.normalize('NFD') ? inner.normalize('NFD') : inner;
+                        inner = inner.replace(/\p{M}/gu, ''); // remove diacritic marks
+                    } catch (e) {
+                        // If Unicode property escapes are not supported, fall back to simple removal
+                        inner = inner.replace(/[\u0300-\u036f]/g, '');
+                    }
+                    inner = inner.toLowerCase().replace(/[^a-z]+/g, '');
+
+                    if (inner === 'aion') {
+                        // Leave '(aiōn)' visible — do not wrap it
+                        return match;
+                    }
+
                     return '<span class="paren-hide">' + match + '</span>';
                 });
                 if (replaced !== node.textContent) {

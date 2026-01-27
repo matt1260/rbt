@@ -39,7 +39,7 @@ rbt_books: dict[str, str] = {
     'Jonah': 'Dove',
     'Micah': 'Who is Like Her?',
     'Nahum': 'Consolation',
-    'Habakkuk': 'Embrace Himself',
+    'Habakkuk': 'Embrace-Embrace',
     'Zephaniah': 'He Is Concealed',
     'Haggai': 'Festival',
     'Zechariah': 'He Is Remembered',
