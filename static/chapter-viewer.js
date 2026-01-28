@@ -58,9 +58,46 @@ document.addEventListener("DOMContentLoaded", function() {
     wrapParenthesesText(paraphraseEl);
     wrapParenthesesText(literalEl);
 
+    function getAdjacentTextNode(node, side) {
+        let n = side === 'prev' ? node.previousSibling : node.nextSibling;
+        if (!n) return null;
+        if (n.nodeType === Node.TEXT_NODE) return n;
+        if (side === 'prev') {
+            let last = n;
+            while (last && last.nodeType !== Node.TEXT_NODE) {
+                if (last.lastChild) last = last.lastChild;
+                else return null;
+            }
+            return last && last.nodeType === Node.TEXT_NODE ? last : null;
+        } else {
+            let first = n;
+            while (first && first.nodeType !== Node.TEXT_NODE) {
+                if (first.firstChild) first = first.firstChild;
+                else return null;
+            }
+            return first && first.nodeType === Node.TEXT_NODE ? first : null;
+        }
+    }
+
+    function hideParenSpan(span) {
+        const prevText = getAdjacentTextNode(span, 'prev');
+        const nextText = getAdjacentTextNode(span, 'next');
+        if (prevText) {
+            const m = prevText.textContent.match(/(\s+)$/);
+            if (m && nextText && nextText.textContent.match(/^[,\.\;:\!\?\)\%]/)) {
+                span.dataset.prevTrailingSpaces = m[1];
+                prevText.textContent = prevText.textContent.slice(0, -m[1].length);
+            } else if (!m && prevText.textContent && nextText && /^[A-Za-z0-9]/.test(nextText.textContent)) {
+                prevText.textContent = prevText.textContent + ' ';
+                span.dataset.addedSpace = '1';
+            }
+        }
+        span.style.setProperty('display', 'none', 'important');
+    }
+
     setTimeout(() => {
         document.querySelectorAll('.paren-hide').forEach(span => {
-            span.style.setProperty('display', 'none', 'important');
+            hideParenSpan(span);
         });
     }, 0);
 
@@ -256,10 +293,46 @@ document.addEventListener("DOMContentLoaded", function() {
     }
     
     function toggleParentheses() {
+        const willShow = !isParenthesesVisible;
+
+
         document.querySelectorAll('.paren-hide').forEach(span => {
-            span.style.setProperty('display', isParenthesesVisible ? 'none' : 'inline', 'important');
+            const prevText = getAdjacentTextNode(span, 'prev');
+            const nextText = getAdjacentTextNode(span, 'next');
+
+            if (willShow) {
+                // Restore any previously-modified whitespace
+                if (prevText && span.dataset.prevTrailingSpaces) {
+                    prevText.textContent = prevText.textContent + span.dataset.prevTrailingSpaces;
+                    delete span.dataset.prevTrailingSpaces;
+                }
+                if (prevText && span.dataset.addedSpace) {
+                    // remove the single space we added when hiding
+                    prevText.textContent = prevText.textContent.replace(/\s$/,'');
+                    delete span.dataset.addedSpace;
+                }
+                span.style.setProperty('display', 'inline', 'important');
+            } else {
+                // Before hiding, adjust surrounding whitespace to avoid stray spaces before punctuation
+                // If prevText ends with whitespace and nextText starts with punctuation, remove that trailing space
+                if (prevText) {
+                    const m = prevText.textContent.match(/(\s+)$/);
+                    if (m && nextText && nextText.textContent.match(/^[,\.\;:\!\?\)\%]/)) {
+                        // save the exact spaces so we can restore later
+                        span.dataset.prevTrailingSpaces = m[1];
+                        prevText.textContent = prevText.textContent.slice(0, -m[1].length);
+                    } else if (!m && prevText.textContent && nextText && /^[A-Za-z0-9]/.test(nextText.textContent)) {
+                        // no space between prev and next word; ensure a single space remains so words don't join
+                        prevText.textContent = prevText.textContent + ' ';
+                        span.dataset.addedSpace = '1';
+                    }
+                }
+
+                span.style.setProperty('display', 'none', 'important');
+            }
         });
-        isParenthesesVisible = !isParenthesesVisible;
+
+        isParenthesesVisible = willShow;
         if (parenthesesToggleButton) {
             parenthesesToggleButton.innerHTML = isParenthesesVisible 
                 ? '<i class="fas fa-eye-slash"></i> Names (P)' 
