@@ -130,3 +130,53 @@ def table_has_column(schema: str, table: str, column: str) -> bool:
         fetch='one'
     )
     return bool(result and result[0])
+
+
+# --- Safe cache helpers -------------------------------------------------
+from django.core.cache import cache
+from django.db import DatabaseError, ProgrammingError
+import logging
+
+logger_verbose = logging.getLogger("search.db_utils.verbose")
+
+def safe_cache_get(key, default=None):
+    """Safely get value from Django cache, handling DB cache failures gracefully."""
+    try:
+        return cache.get(key, default)
+    except (DatabaseError, ProgrammingError, Exception) as e:
+        logger_verbose.exception('safe_cache_get failed for key=%s: %s', key, e)
+        try:
+            connection.rollback()
+            logger_verbose.debug('safe_cache_get: connection.rollback() executed')
+        except Exception:
+            logger_verbose.exception('safe_cache_get: rollback failed')
+        return default
+
+
+def safe_cache_set(key, value, timeout=None):
+    """Safely set value in Django cache, handling DB cache failures gracefully."""
+    try:
+        cache.set(key, value, timeout)
+        return True
+    except (DatabaseError, ProgrammingError, Exception) as e:
+        logger_verbose.exception('safe_cache_set failed for key=%s: %s', key, e)
+        try:
+            connection.rollback()
+            logger_verbose.debug('safe_cache_set: connection.rollback() executed')
+        except Exception:
+            logger_verbose.exception('safe_cache_set: rollback failed')
+        return False
+
+
+def safe_cache_delete(key):
+    try:
+        cache.delete(key)
+        return True
+    except (DatabaseError, ProgrammingError, Exception) as e:
+        logger_verbose.exception('safe_cache_delete failed for key=%s: %s', key, e)
+        try:
+            connection.rollback()
+            logger_verbose.debug('safe_cache_delete: connection.rollback() executed')
+        except Exception:
+            logger_verbose.exception('safe_cache_delete: rollback failed')
+        return False

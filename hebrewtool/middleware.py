@@ -72,7 +72,22 @@ class RateLimitMiddleware:
         
         # Check if IP is banned
         ban_key = f'banned:{ip}'
-        ban_data = cache.get(ban_key)
+        try:
+            from search.db_utils import safe_cache_get
+            ban_data = safe_cache_get(ban_key, None)
+        except Exception:
+            # Fallback to direct cache access if helper import fails
+            try:
+                ban_data = cache.get(ban_key)
+            except Exception as e:
+                logger.exception('Cache get failed for ban_key: %s', e)
+                try:
+                    from django.db import connection
+                    connection.rollback()
+                except Exception:
+                    pass
+                ban_data = None
+
         if ban_data:
             ban_until = ban_data.get('until', 0)
             if time.time() < ban_until:
@@ -122,14 +137,37 @@ class RateLimitMiddleware:
         strikes_key = f'strikes:{endpoint_type}:{ip}'
         
         # Get current request count and timestamp
-        rate_data = cache.get(cache_key, {'count': 0, 'reset_time': time.time() + window})
+        try:
+            from search.db_utils import safe_cache_get, safe_cache_set
+            rate_data = safe_cache_get(cache_key)
+        except Exception:
+            try:
+                rate_data = cache.get(cache_key)
+            except Exception:
+                logger.exception('Cache get failed for rate_data')
+                try:
+                    from django.db import connection
+                    connection.rollback()
+                except Exception:
+                    pass
+                rate_data = None
+
+        if rate_data is None:
+            rate_data = {'count': 0, 'reset_time': time.time() + window}
         
         current_time = time.time()
         
         # Reset counter if window has passed
         if current_time >= rate_data['reset_time']:
             rate_data = {'count': 1, 'reset_time': current_time + window}
-            cache.set(cache_key, rate_data, window)
+            try:
+                from search.db_utils import safe_cache_set
+                safe_cache_set(cache_key, rate_data, window)
+            except Exception:
+                try:
+                    cache.set(cache_key, rate_data, window)
+                except Exception:
+                    logger.exception('Failed to set rate_data cache for key %s', cache_key)
         else:
             # Increment counter
             rate_data['count'] += 1
@@ -137,8 +175,18 @@ class RateLimitMiddleware:
             # Check if limit exceeded
             if rate_data['count'] > limit:
                 # Add a strike
-                strikes = cache.get(strikes_key, 0) + 1
-                cache.set(strikes_key, strikes, 7200)  # Strikes expire after 2 hours
+                try:
+                    from search.db_utils import safe_cache_get, safe_cache_set
+                    strikes = safe_cache_get(strikes_key, 0) or 0
+                    strikes = strikes + 1
+                    safe_cache_set(strikes_key, strikes, 7200)
+                except Exception:
+                    try:
+                        strikes = cache.get(strikes_key, 0) + 1
+                        cache.set(strikes_key, strikes, 7200)
+                    except Exception:
+                        logger.exception('Failed to update strikes key in cache')
+                        strikes = 1
                 
                 user_agent = request.META.get('HTTP_USER_AGENT', '')[:200]
                 logger.warning(f"[RATE LIMIT] IP {ip} exceeded {endpoint_type} limit (strike {strikes}/{max_strikes}) UA={user_agent}")
@@ -170,13 +218,23 @@ class RateLimitMiddleware:
                 # Ban if too many strikes
                 if strikes >= max_strikes:
                     ban_until = current_time + ban_duration
-                    cache.set(ban_key, {
-                        'until': ban_until,
-                        'reason': f'Exceeded {endpoint_type} rate limit {strikes} times',
-                        'endpoint': endpoint_type
-                    }, ban_duration)
-                    logger.error(f"[BOT BANNED] IP {ip} banned for {ban_duration}s (reason: {strikes} {endpoint_type} violations) UA={user_agent}")
-                    # Print to stdout for immediate log visibility
+                    try:
+                        from search.db_utils import safe_cache_set
+                        safe_cache_set(ban_key, {
+                            'until': ban_until,
+                            'reason': f'Exceeded {endpoint_type} rate limit {strikes} times',
+                            'endpoint': endpoint_type
+                        }, ban_duration)
+                    except Exception:
+                        try:
+                            cache.set(ban_key, {
+                                'until': ban_until,
+                                'reason': f'Exceeded {endpoint_type} rate limit {strikes} times',
+                                'endpoint': endpoint_type
+                            }, ban_duration)
+                        except Exception:
+                            logger.exception('Failed to set ban_key in cache')
+
                     print(f"[BOT_BANNED] ip={ip} endpoint={endpoint_type} strikes={strikes} ban_duration={ban_duration} ua={user_agent} path={path}")
                     
                     # Log to file for monitoring
@@ -209,7 +267,14 @@ class RateLimitMiddleware:
                 response['X-RateLimit-Reset'] = str(int(rate_data['reset_time']))
                 return response
             
-            cache.set(cache_key, rate_data, window)
+            try:
+                from search.db_utils import safe_cache_set
+                safe_cache_set(cache_key, rate_data, window)
+            except Exception:
+                try:
+                    cache.set(cache_key, rate_data, window)
+                except Exception:
+                    logger.exception('Failed to set rate_data cache for key %s', cache_key)
         
         response = self.get_response(request)
         

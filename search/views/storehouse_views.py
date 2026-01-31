@@ -53,7 +53,20 @@ def storehouse_view(request):
     # Disable cache for non-English or debug to avoid stale translations
     cached_data = None
     if language == 'en' and not debug_mode:
-        cached_data = cache.get(cache_key)
+        try:
+            from search.db_utils import safe_cache_get
+            cached_data = safe_cache_get(cache_key)
+        except Exception:
+            try:
+                cached_data = cache.get(cache_key)
+            except Exception:
+                logging.exception('Storehouse: cache.get failed for key %s', cache_key)
+                try:
+                    from django.db import connection
+                    connection.rollback()
+                except Exception:
+                    pass
+                cached_data = None
 
     if cached_data:
         context = {
@@ -243,7 +256,14 @@ def storehouse_view(request):
 
     # Only cache English, non-debug responses to avoid stale translations
     if not error_message and language == 'en' and not debug_mode:
-        cache.set(cache_key, {**context})
+        try:
+            from search.db_utils import safe_cache_set
+            safe_cache_set(cache_key, {**context})
+        except Exception:
+            try:
+                cache.set(cache_key, {**context})
+            except Exception:
+                logging.exception('Failed to set storehouse cache key: %s', cache_key)
 
     response = render(request, 'storehouse.html', context)
     

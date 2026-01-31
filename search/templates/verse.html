@@ -1040,7 +1040,12 @@
         var hebText = document.getElementById("hebText");
         var niqqudSwitch = document.getElementById("niqqudSwitch");
 
-        if (niqqudSwitch.checked) {
+        if (!hebText) {
+            // Element not present on this page (e.g., NT verse) or script ran early; do nothing
+            return;
+        }
+
+        if (niqqudSwitch && niqqudSwitch.checked) {
             hebText.innerHTML = rbt_heb;
             toggleCardNiqqud(true);
         } else {
@@ -1059,11 +1064,12 @@
         if (niqSwitch) {
             niqSwitch.checked = niqqudDefault;
             // Ensure the display matches the stored preference
+            var hebTextEl = document.getElementById('hebText');
             if (niqSwitch.checked) {
-                document.getElementById('hebText').innerHTML = rbt_heb;
+                if (hebTextEl) hebTextEl.innerHTML = rbt_heb;
                 toggleCardNiqqud(true);
             } else {
-                document.getElementById('hebText').innerHTML = removeNiqqud(rbt_heb);
+                if (hebTextEl) hebTextEl.innerHTML = removeNiqqud(rbt_heb);
                 toggleCardNiqqud(false);
             }
 
@@ -1074,7 +1080,8 @@
             });
         } else {
             // fallback behavior
-            document.getElementById('hebText').innerHTML = removeNiqqud(rbt_heb);
+            var hebTextEl2 = document.getElementById('hebText');
+            if (hebTextEl2) hebTextEl2.innerHTML = removeNiqqud(rbt_heb);
             toggleCardNiqqud(false);
         }
     })();

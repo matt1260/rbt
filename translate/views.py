@@ -2976,7 +2976,18 @@ def find_and_replace_ot(request):
                 return render(request, 'find_replace_ot.html', context)
 
             replacements_key = request.POST.get('replacements_key')
-            payload = cache.get(replacements_key) if replacements_key else None
+            if replacements_key:
+                try:
+                    from search.db_utils import safe_cache_get
+                    payload = safe_cache_get(replacements_key)
+                except Exception:
+                    try:
+                        payload = cache.get(replacements_key)
+                    except Exception:
+                        logging.exception('Failed to fetch replacements payload from cache: %s', replacements_key)
+                        payload = None
+            else:
+                payload = None
 
             if not payload:
                 context['edit_result'] = '<div class="notice-bar"><p>Review has expired. Please re-run the search.</p></div>'
@@ -3152,7 +3163,14 @@ def find_and_replace_ot(request):
                 return render(request, 'find_replace_ot.html', context)
 
             review_key = f"find_replace_ot_{request.user.id or 'anon'}_{uuid.uuid4().hex}"
-            cache.set(review_key, {'replacements': replacements}, timeout=600)
+            try:
+                from search.db_utils import safe_cache_set
+                safe_cache_set(review_key, {'replacements': replacements}, timeout=600)
+            except Exception:
+                try:
+                    cache.set(review_key, {'replacements': replacements}, timeout=600)
+                except Exception:
+                    logging.exception('Failed to set review_key in cache: %s', review_key)
 
             context['replacements'] = replacements
             context['form_type'] = 'genesis_footnotes'
@@ -3426,7 +3444,14 @@ def find_and_replace_ot(request):
                 return render(request, 'find_replace_ot.html', context)
 
             review_key = f"find_replace_ot_{request.user.id or 'anon'}_{uuid.uuid4().hex}"
-            cache.set(review_key, {'replacements': replacements}, timeout=600)
+            try:
+                from search.db_utils import safe_cache_set
+                safe_cache_set(review_key, {'replacements': replacements}, timeout=600)
+            except Exception:
+                try:
+                    cache.set(review_key, {'replacements': replacements}, timeout=600)
+                except Exception:
+                    logging.exception('Failed to set review_key in cache: %s', review_key)
 
             context['replacements'] = replacements
             context['form_type'] = 'ot'
@@ -4139,7 +4164,14 @@ def get_aseneth_chapter(chapter_num):
             }
             
             # Cache the result
-            cache.set(cache_key, context, 60 * 60 * 24)  # Cache for 24 hours
+            try:
+                from search.db_utils import safe_cache_set
+                safe_cache_set(cache_key, context, 60 * 60 * 24)
+            except Exception:
+                try:
+                    cache.set(cache_key, context, 60 * 60 * 24)
+                except Exception:
+                    logging.exception('Failed to set cache for context key %s', cache_key)
             
             return context
             

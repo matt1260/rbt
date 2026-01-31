@@ -320,7 +320,19 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
     sanitized_book = book.replace(':', '_').replace(' ', '')
     cache_key_base = f'{sanitized_book}_{chapter_num}_{verse_num}_{language}_{INTERLINEAR_CACHE_VERSION}'
     print(f"[CACHE] Looking for key: {cache_key_base}")
-    cached_data = cache.get(cache_key_base)
+    try:
+        from search.db_utils import safe_cache_get
+        cached_data = safe_cache_get(cache_key_base)
+    except Exception:
+        try:
+            cached_data = cache.get(cache_key_base)
+        except Exception as e:
+            logging.exception('Cache get failed for key %s: %s', cache_key_base, e)
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+            cached_data = None
     print(f"[CACHE] Cache hit: {bool(cached_data)}")
 
     if not cached_data:
@@ -340,7 +352,14 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                     'cached_hit': cached_hit,
                     'html': rbt_html
                 }
-                cache.set(cache_key_base, data)
+                try:
+                    from search.db_utils import safe_cache_set
+                    safe_cache_set(cache_key_base, data)
+                except Exception:
+                    try:
+                        cache.set(cache_key_base, data)
+                    except Exception:
+                        logging.exception('Failed to set cache for key %s', cache_key_base)
                 return data
 
             rbt = rbt_table.objects.filter(chapter=chapter_num).order_by("verse")
@@ -353,7 +372,14 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 'html': rbt_html
             }
             
-            cache.set(cache_key_base, data)
+            try:
+                from search.db_utils import safe_cache_set
+                safe_cache_set(cache_key_base, data)
+            except Exception:
+                try:
+                    cache.set(cache_key_base, data)
+                except Exception:
+                    logging.exception('Failed to set cache for key %s', cache_key_base)
             return data
 
         if verse_num is not None:
@@ -518,7 +544,14 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
 
                 if row_data is None:
                     data = build_empty_result()
-                    cache.set(cache_key_base, data)
+                    try:
+                        from search.db_utils import safe_cache_set
+                        safe_cache_set(cache_key_base, data)
+                    except Exception:
+                        try:
+                            cache.set(cache_key_base, data)
+                        except Exception:
+                            logging.exception('Failed to set cache for key %s', cache_key_base)
                     return data
 
                 has_lxx_column = table_has_column('old_testament', 'hebrewdata', 'lxx')
@@ -847,7 +880,14 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 "hebrewdata_rows": hebrewdata_rows,
             }
 
-            cache.set(cache_key_base, data)
+            try:
+                from search.db_utils import safe_cache_set
+                safe_cache_set(cache_key_base, data)
+            except Exception:
+                try:
+                    cache.set(cache_key_base, data)
+                except Exception:
+                    logging.exception('Failed to set cache for key %s', cache_key_base)
             return data
 
         # Get whole chapter
@@ -974,7 +1014,14 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 'cached_hit': cached_hit
             }
 
-            cache.set(cache_key_base, data)
+            try:
+                from search.db_utils import safe_cache_set
+                safe_cache_set(cache_key_base, data)
+            except Exception:
+                try:
+                    cache.set(cache_key_base, data)
+                except Exception:
+                    logging.exception('Failed to set cache for key %s', cache_key_base)
             return data
            
         elif book in new_testament_books:
@@ -1015,7 +1062,14 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 'commentary': None
             }
             
-            cache.set(cache_key_base, data)
+            try:
+                from search.db_utils import safe_cache_set
+                safe_cache_set(cache_key_base, data)
+            except Exception:
+                try:
+                    cache.set(cache_key_base, data)
+                except Exception:
+                    logging.exception('Failed to set cache for key %s', cache_key_base)
             return data   
 
         else:
