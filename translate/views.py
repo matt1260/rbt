@@ -1893,7 +1893,6 @@ def translate(request):
         return render(request, 'edit_chapter.html', {'page_title': page_title, **context})
 
 
-
     # Get Hebrew verse from hebrewdata table
     else:
         #print(f'book: {book}, chapter: {chapter_num}, verse: {verse_num}')
