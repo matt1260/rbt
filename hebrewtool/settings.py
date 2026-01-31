@@ -20,14 +20,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load .env file explicitly from BASE_DIR and OVERRIDE existing environment variables
 env_path = BASE_DIR / '.env'
-print(f"[SETTINGS DEBUG] Loading .env from: {env_path}")
-print(f"[SETTINGS DEBUG] .env exists: {env_path.exists()}")
+# Optional debug prints for environment loading — only output when explicitly enabled
+if os.getenv('SETTINGS_PRINT', 'False') == 'True':
+    print(f"[SETTINGS DEBUG] Loading .env from: {env_path}")
+    print(f"[SETTINGS DEBUG] .env exists: {env_path.exists()}")
+
 load_dotenv(dotenv_path=env_path, override=True)  # Force override shell env vars
 
 # Verify GEMINI_API_KEYS loaded
 gemini_keys = os.getenv('GEMINI_API_KEYS', '')
-print(f"[SETTINGS DEBUG] GEMINI_API_KEYS length: {len(gemini_keys)}")
-print(f"[SETTINGS DEBUG] Number of keys: {len([k for k in gemini_keys.split(',') if k.strip()])}")
+if os.getenv('SETTINGS_PRINT', 'False') == 'True':
+    print(f"[SETTINGS DEBUG] GEMINI_API_KEYS length: {len(gemini_keys)}")
+    print(f"[SETTINGS DEBUG] Number of keys: {len([k for k in gemini_keys.split(',') if k.strip()])}")
 
 DEFAULT_CHARSET = 'utf-8'
 
@@ -38,10 +42,8 @@ DEFAULT_CHARSET = 'utf-8'
 SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# DEBUG = os.environ.get('DEBUG', 'False') == 'True'
-# ENABLE_VERBOSE_DEBUG = os.environ.get('ENABLE_VERBOSE_DEBUG', 'False') == 'True'
-DEBUG = True
-ENABLE_VERBOSE_DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+ENABLE_VERBOSE_DEBUG = os.environ.get('ENABLE_VERBOSE_DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = ["*"]
 
