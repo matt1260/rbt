@@ -456,22 +456,22 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 prev_ref = f'?book={book}&chapter={chapter_num}&verse={verse_num}'
                 next_ref = prev_ref
 
-                if current_row_id is not None:
-                    prev_row_id = rbt_table.objects.filter(id__lt=current_row_id).aggregate(max_id=Max('id'))['max_id']
-                    if prev_row_id is not None:
-                        prev_ref_qs = rbt_table.objects.filter(id=prev_row_id)
-                        prev_chapter = prev_ref_qs.values_list('chapter', flat=True).first()
-                        prev_verse = prev_ref_qs.values_list('verse', flat=True).first()
-                        if prev_chapter is not None and prev_verse is not None:
-                            prev_ref = f'?book={book}&chapter={prev_chapter}&verse={prev_verse}'
+                # if current_row_id is not None:
+                #     prev_row_id = rbt_table.objects.filter(id__lt=current_row_id).aggregate(max_id=Max('id'))['max_id']
+                #     if prev_row_id is not None:
+                #         prev_ref_qs = rbt_table.objects.filter(id=prev_row_id)
+                #         prev_chapter = prev_ref_qs.values_list('chapter', flat=True).first()
+                #         prev_verse = prev_ref_qs.values_list('verse', flat=True).first()
+                #         if prev_chapter is not None and prev_verse is not None:
+                #             prev_ref = f'?book={book}&chapter={prev_chapter}&verse={prev_verse}'
 
-                    next_row_id = rbt_table.objects.filter(id__gt=current_row_id).aggregate(min_id=Min('id'))['min_id']
-                    if next_row_id is not None:
-                        next_ref_qs = rbt_table.objects.filter(id=next_row_id)
-                        next_chapter = next_ref_qs.values_list('chapter', flat=True).first()
-                        next_verse = next_ref_qs.values_list('verse', flat=True).first()
-                        if next_chapter is not None and next_verse is not None:
-                            next_ref = f'?book={book}&chapter={next_chapter}&verse={next_verse}'
+                #     next_row_id = rbt_table.objects.filter(id__gt=current_row_id).aggregate(min_id=Min('id'))['min_id']
+                #     if next_row_id is not None:
+                #         next_ref_qs = rbt_table.objects.filter(id=next_row_id)
+                #         next_chapter = next_ref_qs.values_list('chapter', flat=True).first()
+                #         next_verse = next_ref_qs.values_list('verse', flat=True).first()
+                #         if next_chapter is not None and next_verse is not None:
+                #             next_ref = f'?book={book}&chapter={next_chapter}&verse={next_verse}'
                 
             # Old Testament books
             elif book in old_testament_books:
