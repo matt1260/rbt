@@ -319,11 +319,12 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
     book = book.strip()
     sanitized_book = book.replace(':', '_').replace(' ', '')
     cache_key_base = f'{sanitized_book}_{chapter_num}_{verse_num}_{language}_{INTERLINEAR_CACHE_VERSION}'
+    print(f"[CACHE] Looking for key: {cache_key_base}")
     cached_data = cache.get(cache_key_base)
+    print(f"[CACHE] Cache hit: {bool(cached_data)}")
 
-    cached_data = ""  # Disable caching temporarily for testing
     if not cached_data:
-        print("[CACHE MISS] Key:", cache_key_base)
+
         ## Get Genesis from django database ##
         if book == 'Genesis' and verse_num is None:
             
@@ -356,7 +357,6 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
             return data
 
         if verse_num is not None:
-            print("[FETCH VERSE] Book:", book, "Chapter:", chapter_num, "Verse:", verse_num)
             ## FETCH COMPLETED RBT VERSE IF AVAILABLE ##
             if book == 'Genesis':
                 print("[QUERY] Fetching Genesis RBT verse")
@@ -367,7 +367,6 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 
                 if rbt_table is None:
                     return build_empty_result()
-                print("[QUERY] Fetching Genesis RBT verse")
                 rbt = rbt_table.objects.filter(chapter=chapter_num, verse=verse_num)
                 rbt_text = rbt.values_list('text', flat=True).first()
                 rbt_html = rbt.values_list('html', flat=True).first() or ''
@@ -375,7 +374,6 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 rbt_heb = rbt.values_list('hebrew', flat=True).first()
                 record_id_tuple = rbt.values_list('id').first()
                 record_id = record_id_tuple[0] if record_id_tuple else None
-                print("[RESULT] RBT verse fetched:", rbt_text)
                 rbt_html = rbt_html.replace('</p><p>', '')
                 
                 footnote_references = re.findall(r'\?footnote=(\d+-\d+-\d+[a-zA-Z]?)', rbt_html) if rbt_html else []
@@ -385,7 +383,6 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 for footnote_id in footnote_list:
                     footnote_content = get_footnote(footnote_id, book)
                     footnote_contents.append(footnote_content)
-                print("[FOOTNOTES] Retrieved footnotes")
                 # Get previous and next verse references
                 prev_ref = f'?book={book}&chapter={chapter_num}&verse={verse_num}'
                 next_ref = prev_ref
@@ -406,7 +403,6 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                         next_verse = next_ref_qs.values_list('verse', flat=True).first()
                         if next_chapter is not None and next_verse is not None:
                             next_ref = f'?book={book}&chapter={next_chapter}&verse={next_verse}'
-                print(f"[NAVIGATION] Prev ref: {prev_ref}, Next ref: {next_ref}")
                 
                 # Fetch Hebrew interlinear data
                 book_abbrev = book_abbreviations.get(book, book)
@@ -418,7 +414,6 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                     "heb1_n, heb2_n, heb3_n, heb4_n, heb5_n, heb6_n, combined_heb, combined_heb_niqqud, footnote, morphology"
                 )
                 select_columns = base_columns + ", lxx" if has_lxx_column else base_columns
-                print("[QUERY] Fetching Hebrew interlinear data")
                 sql_query_hebrew = f"""
                     SELECT {select_columns}
                     FROM old_testament.hebrewdata
@@ -427,12 +422,10 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 """
                 rows_data = execute_query(sql_query_hebrew, (f'{rbt_heb_ref2}%',), fetch='all') or []
                 hebrewdata_rows = _serialize_hebrew_rows(rows_data)
-                print(f"[RESULT] Retrieved {len(rows_data)} Hebrew interlinear rows")
                 
                 if rows_data:
                     strong_row, english_row, hebrew_row, morph_row, hebrew_clean, hebrew_cards = build_heb_interlinear(rows_data, show_edit_buttons=False)
                     hebrewdata_rows = _serialize_hebrew_rows(rows_data)
-                    print(f"[RESULT] Built Hebrew interlinear rows")
                     strong_row.reverse()
                     english_row.reverse()
                     hebrew_row.reverse()
