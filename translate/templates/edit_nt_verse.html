@@ -1,9 +1,11 @@
 {% extends 'base.html' %}
 {% load custom_tags %}
+{% load static %}
 {% block content %}
 <p><a href="./">Back to Edit Search</a></p>
 
 <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+<script src="{% static 'interlinear-editor.js' %}" defer></script>
 
 <style>
     .highlight {
@@ -144,6 +146,67 @@
         float: left;
         width: 100%;
 
+    }
+
+    /* Style for the checkmark icon */
+    .icon {
+        font-size: 16px;
+        margin-right: 8px;
+    }
+
+    /* Interlinear inline editing styles */
+    .eng {
+        cursor: pointer;
+        transition: background-color 0.2s;
+        padding: 2px 4px;
+        border-radius: 3px;
+        position: relative;
+    }
+
+    .eng:hover {
+        background-color: #fffbcc;
+        outline: 1px dashed #ffcc00;
+    }
+
+    .eng[contenteditable="true"] {
+        background-color: #fff3cd;
+        outline: 2px solid #ff9800;
+        cursor: text;
+        min-width: 50px;
+        display: inline-block;
+    }
+
+    .eng-save-indicator {
+        position: absolute;
+        top: -20px;
+        left: 0;
+        background: #4caf50;
+        color: white;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 11px;
+        white-space: nowrap;
+        z-index: 1000;
+        animation: fadeOut 2s forwards;
+    }
+
+    .eng-error-indicator {
+        position: absolute;
+        top: -20px;
+        left: 0;
+        background: #f44336;
+        color: white;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 11px;
+        white-space: nowrap;
+        z-index: 1000;
+    }
+
+    @keyframes fadeOut {
+        0% { opacity: 1; }
+        70% { opacity: 1; }
+        100% { opacity: 0; }
     }
 
     /* Style for the checkmark icon */
@@ -529,53 +592,58 @@ Cached: {{ cached_hit }}
     {{ slt|safe }}
     {{ eng_lxx|safe }}
 
-    <h4>NT Linear Replacements</h4>
-    <form method="post">
-        {% csrf_token %}
-        <pre><textarea name="replacements" id="replacements" rows="10" cols="50">{{ replacements }}</textarea></pre>
-        <input type="hidden" name="book" id="book" value="{{ book }}">
-        <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
-        <input type="hidden" name="verse" id="verse" value="{{ verse_num }}"><br>
-        <input type="hidden" name="nt_book" id="nt_book" value="{{ book }}">
-        <button type="submit">Save Changes</button>
-    </form>
-    <script>
-        var textarea = document.getElementById("replacements");
-
-        // Get the content of the textarea
-        var content = textarea.value;
-
-        // Replace single quotes with double quotes
-        content = content.replace(/'/g, '"');
-
-        // Set the modified content back to the textarea
-        textarea.value = content;
-
-        const replacementsTextarea = document.getElementById('replacements');
-
-        replacementsTextarea.addEventListener('input', function () {
-            const jsonString = this.value;
-            try {
-                JSON.parse(jsonString);
-                this.style.borderColor = 'green'; // JSON is valid, set border color to green
-            } catch (error) {
-                this.style.borderColor = 'red'; // JSON is invalid, set border color to red
-            }
-        });
-
-
-    </script>
-
-
-
     <h4>Footnotes</h4>
     <div>
         {{ footnotes|safe }}
     </div>
 
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #0066cc;">
+        <strong>📝 Footnotes in This Verse</strong>
+        
+        {% if current_verse_footnotes %}
+            <div style="margin: 10px 0;">
+                <strong>Current verse contains:</strong>
+                <ul style="margin: 5px 0 0 20px; padding: 0;">
+                    {% for fn_id in current_verse_footnotes %}
+                        <li style="margin: 3px 0;">
+                            <a href="?footnote={{ fn_id }}&book={{ book }}" target="_blank" 
+                               style="font-family: monospace; color: #0066cc; text-decoration: none;">{{ fn_id }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% else %}
+            <p style="color: #666; margin: 8px 0;">No footnotes in this verse</p>
+        {% endif %}
+        
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;">
+            <strong>Footnote Sequence:</strong><br>
+            <div style="margin-top: 6px;">
+                {% if previous_footnote %}
+                    <span style="margin-right: 20px;">
+                        ← Previous: 
+                        <a href="?footnote={{ previous_footnote }}&book={{ book }}" target="_blank"
+                           style="font-family: monospace; color: #0066cc; text-decoration: none;">{{ previous_footnote }}</a>
+                    </span>
+                {% else %}
+                    <span style="margin-right: 20px; color: #999;">← No previous footnote</span>
+                {% endif %}
+                
+                {% if next_footnote %}
+                    <span>
+                        Next: 
+                        <a href="?footnote={{ next_footnote }}&book={{ book }}" target="_blank"
+                           style="font-family: monospace; color: #0066cc; text-decoration: none;">{{ next_footnote }}</a>
+                        →
+                    </span>
+                {% else %}
+                    <span style="color: #999;">No next footnote →</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
     <strong>Add Footnote:</strong><br>
-    Previous footnote: {{ previous_footnote }}<br>
-    Next footnote: {{ next_footnote }}<br>
     <div id="textToCopy">
         &lt;a class=&quot;sdfootnoteanc&quot; href=&quot;?footnote=<span
             id="dynamic_content"></span>&quot;&gt;&lt;sup&gt;<span id="dynamic_content2"></span>&lt;/sup&gt;&lt;/a&gt;

@@ -69,6 +69,6 @@ rbt_books: dict[str, str] = {
     '1 John': 'First Favored',
     '2 John': 'Second Favored',
     '3 John': 'Third Favored',
-    'Jude': 'Praised One',
+    'Jude': 'Confessor',
     'Revelation': 'The Unveiling',
 }

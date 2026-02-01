@@ -255,6 +255,7 @@ def get_context(book, chapter_num, verse_num):
         replacements = results['replacements']
         previous_footnote = results['previous_footnote']
         next_footnote = results['next_footnote']
+        current_verse_footnotes = results.get('current_verse_footnotes', [])
         cached_hit = results['cached_hit']
 
         footnotes_content = ''
@@ -305,6 +306,7 @@ def get_context(book, chapter_num, verse_num):
             'footnotes': footnotes_content,
             'previous_footnote': previous_footnote,
             'next_footnote': next_footnote,
+            'current_verse_footnotes': current_verse_footnotes,
             'book': book,
             'chapter_num': chapter_num,
             'verse_num': verse_num,
@@ -4829,3 +4831,164 @@ def search_consonantal(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@login_required
+@require_POST
+def update_interlinear_word(request):
+    """
+    Real-time interlinear word update endpoint.
+    Updates the Greek lexicon (strongs_greek) with new English translation
+    and persists to InterlinearConfig.
+    
+    POST params:
+    - strongs: Strong's number (e.g., 'G932')
+    - lemma: Greek lemma
+    - new_english: New English translation
+    """
+    try:
+        data = json.loads(request.body)
+        strongs = data.get('strongs', '').strip()
+        lemma = data.get('lemma', '').strip()
+        new_english = data.get('new_english', '').strip()
+        
+        if not strongs or not lemma or not new_english:
+            return JsonResponse({
+                'success': False,
+                'error': 'Missing required parameters: strongs, lemma, new_english'
+            }, status=400)
+        
+        # Load current mappings from InterlinearConfig
+        from search.models import InterlinearConfig
+        
+        try:
+            config = InterlinearConfig.objects.order_by('-updated_at').first()
+            if config and config.mapping:
+                # Ensure mapping is a dict, not a string
+                if isinstance(config.mapping, str):
+                    try:
+                        replacements = json.loads(config.mapping)
+                    except json.JSONDecodeError:
+                        replacements = {}
+                elif isinstance(config.mapping, dict):
+                    replacements = dict(config.mapping)  # Create a copy
+                else:
+                    replacements = {}
+            else:
+                replacements = {}
+        except Exception as e:
+            logger.warning(f"[INTERLINEAR] Could not load from InterlinearConfig: {e}")
+            # Fall back to file if model doesn't exist
+            try:
+                with open('interlinear_english.json', 'r', encoding='utf-8') as f:
+                    replacements = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                replacements = {}
+        
+        # Ensure replacements is a dict
+        if not isinstance(replacements, dict):
+            logger.error(f"[INTERLINEAR] replacements is not a dict: {type(replacements)}")
+            replacements = {}
+        
+        # Update the mapping - store by both strongs and lemma for flexibility
+        # This matches the logic in interlinear_apply.py where it checks both
+        replacements[strongs] = new_english
+        replacements[lemma] = new_english
+        
+        # Apply update to database immediately (following interlinear_apply.py logic)
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get current value for logging
+            cursor.execute(
+                "SELECT english FROM rbt_greek.strongs_greek WHERE strongs = %s AND lemma = %s",
+                (strongs, lemma)
+            )
+            result = cursor.fetchone()
+            old_english = result[0] if result else None
+            
+            if not old_english:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'No entry found for strongs={strongs}, lemma={lemma}'
+                }, status=404)
+            
+            # Update the database
+            cursor.execute(
+                "UPDATE rbt_greek.strongs_greek SET english = %s WHERE strongs = %s AND lemma = %s",
+                (new_english, strongs, lemma)
+            )
+            conn.commit()
+            
+            logger.info(f"[INTERLINEAR] Updated {strongs}/{lemma}: '{old_english}' -> '{new_english}'")
+        
+        # Persist to InterlinearConfig
+        try:
+            user = getattr(request, 'user', None)
+            username = getattr(user, 'username', None) or 'web-edit'
+            
+            if config:
+                config.mapping = replacements
+                config.updated_by = username
+                config.save()
+            else:
+                InterlinearConfig.objects.create(
+                    mapping=replacements,
+                    updated_by=username
+                )
+        except Exception as e:
+            logger.warning(f"[INTERLINEAR] Could not save to InterlinearConfig: {e}")
+        
+        # Also save to file for backward compatibility
+        try:
+            with open('interlinear_english.json', 'w', encoding='utf-8') as f:
+                json.dump(replacements, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"[INTERLINEAR] Could not save to JSON file: {e}")
+        
+        # Clear all verse caches since we updated a word that could appear anywhere
+        # The cache keys use patterns like: book_chapter_verse_language_v2
+        logger.info(f"[INTERLINEAR] Clearing all verse caches for updated word: {strongs}/{lemma}")
+        
+        try:
+            # Try to use cache.delete_pattern if available (Redis)
+            from search.views.chapter_views_part1 import INTERLINEAR_CACHE_VERSION
+            cache_pattern = f'*_{INTERLINEAR_CACHE_VERSION}'
+            
+            if hasattr(cache, 'delete_pattern'):
+                deleted_count = cache.delete_pattern(cache_pattern)
+                logger.info(f"[INTERLINEAR] Cleared {deleted_count} cache keys with pattern: {cache_pattern}")
+            else:
+                # Fallback: clear entire cache (aggressive but ensures consistency)
+                logger.warning("[INTERLINEAR] Cache backend doesn't support pattern deletion, clearing all cache")
+                cache.clear()
+                logger.info("[INTERLINEAR] Cleared entire cache")
+                
+        except Exception as e:
+            logger.error(f"[INTERLINEAR] Error clearing cache: {e}")
+            # Try one more time with clear()
+            try:
+                cache.clear()
+                logger.info("[INTERLINEAR] Cleared entire cache as fallback")
+            except Exception as e2:
+                logger.error(f"[INTERLINEAR] Failed to clear cache: {e2}")
+        
+        return JsonResponse({
+            'success': True,
+            'old_english': old_english,
+            'new_english': new_english,
+            'strongs': strongs,
+            'lemma': lemma,
+            'cache_cleared': True,
+            'message': f"Updated '{old_english}' → '{new_english}'"
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"[INTERLINEAR] Error updating word: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

@@ -620,6 +620,14 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
 
                 footnote_list = re.findall(r'\?footnote=([^&"]+)', rbt_paraphrase)
 
+                # Get all footnotes in current verse (same as footnote_list for OT)
+                current_verse_footnotes = footnote_list.copy() if footnote_list else []
+                
+                # For OT, previous/next footnotes are not currently tracked
+                # Set them to None for consistency
+                previous_footnote = None
+                next_footnote = None
+
                 footnote_contents = []
                 for footnote_id in footnote_list:
                     footnote_content = get_footnote(footnote_id, book)
@@ -656,28 +664,50 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                     """
                     prev_record = execute_query(sql_prev, (result[3],), fetch='one')
 
+                    # Get all footnotes in current verse - extract from result[1] which is the rbt column
+                    current_verse_footnotes = []
+                    if result and len(result) > 1 and result[1]:
+                        # Extract footnote IDs from ?footnote= links in the rbt HTML
+                        current_footnote_matches = re.findall(r'\?footnote=(\d+-\d+-\d+[a-zA-Z]?)', result[1])
+                        current_verse_footnotes = current_footnote_matches
+                    
+                    # Get previous footnotes (search backwards across chapters using nt_id)
                     sql_footnotes = """
                         SELECT rbt
                         FROM new_testament.nt
-                        WHERE book = %s AND chapter = %s AND CAST(startVerse AS INTEGER) <= %s
+                        WHERE nt_id < %s
+                        ORDER BY nt_id DESC
+                        LIMIT 100
                     """
-                    verses = execute_query(sql_footnotes, (book_abbrev, chapter_num, verse_num), fetch='all')
+                    prev_verses = execute_query(sql_footnotes, (result[3],), fetch='all')
+                    
+                    previous_footnote = None
+                    for prev_verse in prev_verses:
+                        if prev_verse and prev_verse[0]:
+                            prev_footnote_matches = re.findall(r'\?footnote=(\d+-\d+-\d+[a-zA-Z]?)', prev_verse[0])
+                            if prev_footnote_matches:
+                                # Take the LAST footnote from this verse (most recent in the verse)
+                                previous_footnote = prev_footnote_matches[-1]
+                                break
 
-                    footnote_references = extract_footnote_references(verses)
-                    previous_footnote = footnote_references[-1] if footnote_references else 'No footnote in this chapter or previous chapter found.'
-
-                    next_footnotes = """
+                    # Get next footnotes (search forwards across chapters using nt_id)
+                    next_footnotes_sql = """
                         SELECT rbt
                         FROM new_testament.nt
-                        WHERE book = %s AND (
-                            (chapter = %s AND CAST(startVerse AS INTEGER) > %s) OR
-                            (chapter = %s AND CAST(startVerse AS INTEGER) >= 1)
-                        )
+                        WHERE nt_id > %s
+                        ORDER BY nt_id ASC
+                        LIMIT 100
                     """
-                    next_verses = execute_query(next_footnotes, (book_abbrev, chapter_num, verse_num, str(int(chapter_num) + 1)), fetch='all')
-
-                    next_footnote_references = extract_footnote_references(next_verses)
-                    next_footnote = next_footnote_references[0] if next_footnote_references else "No more footnotes in this or next chapter."
+                    next_verses = execute_query(next_footnotes_sql, (result[3],), fetch='all')
+                    
+                    next_footnote = None
+                    for next_verse in next_verses:
+                        if next_verse and next_verse[0]:
+                            next_footnote_matches = re.findall(r'\?footnote=(\d+-\d+-\d+[a-zA-Z]?)', next_verse[0])
+                            if next_footnote_matches:
+                                # Take the FIRST footnote from this verse (earliest in the verse)
+                                next_footnote = next_footnote_matches[0]
+                                break
 
                 if result:
                     rbt_greek = result[0]
@@ -769,7 +799,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                         interlinear += f'<span class="strongsnt2"> <a href="https://www.perseus.tufts.edu/hopper/morph?l={greek_lemma}" target="_blank">Perseus</a></span><br>\n'
                         interlinear += f'<span class="translit">{translit}</span><br>\n'
                         interlinear += f'<span class="greek">{lemma}</span><br>\n'
-                        interlinear += f'<span class="eng">{english}</span><br>\n'
+                        interlinear += f'<span class="eng" data-strongs="{strongs}" data-lemma="{lemma}" contenteditable="false">{english}</span><br>\n'
 
                         color = "#000"
                         if "Feminine" in morph_desc:
@@ -862,6 +892,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 "footnote_content": footnote_contents,
                 "previous_footnote": previous_footnote,
                 "next_footnote": next_footnote,
+                "current_verse_footnotes": current_verse_footnotes,
                 "next_ref": next_ref,
                 "prev_ref": prev_ref,
                 "record_id": record_id,
