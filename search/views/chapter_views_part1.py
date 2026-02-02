@@ -216,6 +216,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
     previous_footnote = None
     next_footnote = None
     chapter_footnotes = None
+    current_verse_footnotes = []
     record_id = None
     verse_id = None
     chapter_list = None
@@ -246,6 +247,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
             "rbt_paraphrase": None,
             "hebrew": None,
             "footnote_content": [],
+            "current_verse_footnotes": [],
             "previous_footnote": None,
             "next_footnote": None,
             "next_ref": None,
@@ -404,6 +406,9 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 
                 footnote_references = re.findall(r'\?footnote=(\d+-\d+-\d+[a-zA-Z]?)', rbt_html) if rbt_html else []
                 footnote_list = footnote_references
+
+                # Track footnotes present in the current verse
+                current_verse_footnotes = footnote_list.copy() if footnote_list else []
 
                 footnote_contents = []
                 for footnote_id in footnote_list:
