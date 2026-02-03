@@ -4888,9 +4888,9 @@ def update_interlinear_word(request):
             logger.error(f"[INTERLINEAR] replacements is not a dict: {type(replacements)}")
             replacements = {}
         
-        # Update the mapping - store by both strongs and lemma for flexibility
-        # This matches the logic in interlinear_apply.py where it checks both
-        replacements[strongs] = new_english
+        # Update the mapping - ONLY store by lemma (exact Greek form)
+        # Do NOT store by strongs because that would affect all inflected forms
+        # (e.g., πονηρίαι and πονηρίαν both have strongs=4189 but are different words)
         replacements[lemma] = new_english
         
         # Apply update to database immediately (following interlinear_apply.py logic)
