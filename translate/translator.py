@@ -774,6 +774,21 @@ def convert_book_name(input_str):
         # Return None for unknown input
         return None
 
+
+def normalize_book_name(input_str: str) -> str:
+    """Normalize book display name by inserting a space after leading numeral when missing.
+
+    Examples:
+    - '1John' -> '1 John'
+    - '2John' -> '2 John'
+    - Leaves other names unchanged.
+    """
+    if not input_str:
+        return input_str
+    # Insert a space after leading 1/2/3 when directly followed by a letter
+    normalized = re.sub(r'^(?P<num>[1-3])(?=[A-Za-z])', r'\g<num> ', input_str)
+    return normalized
+
 # Get the previous and next row verse reference for OT
 def ot_prev_next_references(ref):
     """

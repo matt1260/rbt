@@ -25,6 +25,7 @@ from search.views.footnote_views import get_footnote
 from translate.translator import (
     book_abbreviations,
     convert_book_name,
+    normalize_book_name,
     old_testament_books,
     new_testament_books,
     load_json,
@@ -164,6 +165,8 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
         f"lang={language} path={request.get_full_path()} ip={ip} ua={ua}"
     )
     try:
+        # Normalize book display (e.g., '3John' -> '3 John') while keeping lookup compatible
+        book = normalize_book_name(book) or book
         results = get_results(book, chapter_num, verse_num, language)
         # Log cache status for observability
         try:
@@ -260,6 +263,8 @@ def handle_single_chapter(request, book, chapter_num, language):
     
     try:
         source_book = book
+        # Normalize book display (e.g., '3John' -> '3 John') for consistent rendering
+        book = normalize_book_name(book) or book
         results = get_results(book, chapter_num, None, language)
         try:
             print(f"[CACHE] chapter book={book} chapter={chapter_num} cached={results.get('cached_hit', False)}")
