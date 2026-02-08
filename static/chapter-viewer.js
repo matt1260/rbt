@@ -12,8 +12,9 @@ document.addEventListener("DOMContentLoaded", function() {
 
                 // Match parentheses containing quoted names in many international quote styles
                 // Examples: ("Name"), („Name”), (“Name”), («Name»), (‘Name’)
+                // Only wrap when the inner content is quoted (requires both opening and closing quote)
                 // Skip wrapping if the inner content is exactly aiōn / aion (any diacritics or case)
-                let replaced = node.textContent.replace(/\(\s*["“”„«»‹›'‘’]?[^)]+?["“”„«»‹›'‘’]?\s*\)/g, function(match) {
+                let replaced = node.textContent.replace(/\(\s*["“”„«»‹›'‘’][^)]*?["“”„«»‹›'‘’]\s*\)/g, function(match) {
                     // Extract inner text without surrounding parentheses
                     let inner = match.slice(1, -1).trim();
                     // Strip surrounding quotes if present

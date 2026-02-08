@@ -359,7 +359,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!element) return;
         function wrapTextNodes(node) {
             if (node.nodeType === Node.TEXT_NODE) {
-                const replaced = node.textContent.replace(/\s\([^()]*\)/g, match => '<span class="paren-hide">' + match + '</span>');
+                const replaced = node.textContent.replace(/\s\(\s*["“”„«»‹›'‘’][^()]*?["“”„«»‹›'‘’]\s*\)/g, match => '<span class="paren-hide">' + match + '</span>');
                 if (replaced !== node.textContent) {
                     const temp = document.createElement('span');
                     temp.innerHTML = replaced;
@@ -426,13 +426,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    if (document.readyState === 'complete') {
-        requestAnimationFrame(runDeferredTransforms);
-    } else {
-        document.addEventListener('DOMContentLoaded', function() {
-            requestAnimationFrame(runDeferredTransforms);
-        });
-    }
+    requestAnimationFrame(runDeferredTransforms);
 
     const h5ToggleButton = document.getElementById('h5ToggleButton');
     const imageToggleButton = document.getElementById('imageToggleButton');
