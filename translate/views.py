@@ -4862,6 +4862,9 @@ def update_interlinear_word(request):
     - new_english: New English translation
     """
     try:
+        request_id = uuid.uuid4().hex[:10]
+        total_start = time.monotonic()
+        logger.info("[INTERLINEAR] (%s) update_interlinear_word start", request_id)
         data = json.loads(request.body)
         strongs = data.get('strongs', '').strip()
         lemma = data.get('lemma', '').strip()
@@ -4875,6 +4878,8 @@ def update_interlinear_word(request):
         
         # Load current mappings from InterlinearConfig
         from search.models import InterlinearConfig
+
+        mapping_start = time.monotonic()
         
         try:
             config = InterlinearConfig.objects.order_by('-updated_at').first()
@@ -4899,6 +4904,12 @@ def update_interlinear_word(request):
                     replacements = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 replacements = {}
+
+        logger.info(
+            "[INTERLINEAR] (%s) mapping load took %.3fs",
+            request_id,
+            time.monotonic() - mapping_start
+        )
         
         # Ensure replacements is a dict
         if not isinstance(replacements, dict):
@@ -4911,6 +4922,7 @@ def update_interlinear_word(request):
         replacements[lemma] = new_english
         
         # Apply update to database immediately (following interlinear_apply.py logic)
+        db_start = time.monotonic()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             
@@ -4936,8 +4948,15 @@ def update_interlinear_word(request):
             conn.commit()
             
             logger.info(f"[INTERLINEAR] Updated {strongs}/{lemma}: '{old_english}' -> '{new_english}'")
+
+        logger.info(
+            "[INTERLINEAR] (%s) db update took %.3fs",
+            request_id,
+            time.monotonic() - db_start
+        )
         
         # Persist to InterlinearConfig
+        config_start = time.monotonic()
         try:
             user = getattr(request, 'user', None)
             username = getattr(user, 'username', None) or 'web-edit'
@@ -4953,18 +4972,32 @@ def update_interlinear_word(request):
                 )
         except Exception as e:
             logger.warning(f"[INTERLINEAR] Could not save to InterlinearConfig: {e}")
+
+        logger.info(
+            "[INTERLINEAR] (%s) config save took %.3fs",
+            request_id,
+            time.monotonic() - config_start
+        )
         
         # Also save to file for backward compatibility
+        file_start = time.monotonic()
         try:
             with open('interlinear_english.json', 'w', encoding='utf-8') as f:
                 json.dump(replacements, f, indent=4, ensure_ascii=False)
         except Exception as e:
             logger.warning(f"[INTERLINEAR] Could not save to JSON file: {e}")
+
+        logger.info(
+            "[INTERLINEAR] (%s) json save took %.3fs",
+            request_id,
+            time.monotonic() - file_start
+        )
         
         # Clear all verse caches since we updated a word that could appear anywhere
         # The cache keys use patterns like: book_chapter_verse_language_v2
         logger.info(f"[INTERLINEAR] Clearing all verse caches for updated word: {strongs}/{lemma}")
         
+        cache_start = time.monotonic()
         try:
             # Try to use cache.delete_pattern if available (Redis)
             from search.views.chapter_views_part1 import INTERLINEAR_CACHE_VERSION
@@ -4987,6 +5020,18 @@ def update_interlinear_word(request):
                 logger.info("[INTERLINEAR] Cleared entire cache as fallback")
             except Exception as e2:
                 logger.error(f"[INTERLINEAR] Failed to clear cache: {e2}")
+
+        logger.info(
+            "[INTERLINEAR] (%s) cache clear took %.3fs",
+            request_id,
+            time.monotonic() - cache_start
+        )
+
+        logger.info(
+            "[INTERLINEAR] (%s) total took %.3fs",
+            request_id,
+            time.monotonic() - total_start
+        )
         
         return JsonResponse({
             'success': True,

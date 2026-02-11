@@ -95,6 +95,11 @@
     }
 
     async function saveAndDeactivate(span) {
+        if (span.dataset.saving === '1') {
+            console.log('[INTERLINEAR] Save already in progress, skipping');
+            return;
+        }
+
         const newText = span.textContent.trim();
         const originalText = span.dataset.originalText;
 
@@ -127,6 +132,9 @@
         }
 
         // Show saving indicator
+        span.dataset.saving = '1';
+        span.dataset.pendingText = newText;
+        span.setAttribute('contenteditable', 'false');
         showSaving(span);
 
         try {
@@ -143,7 +151,7 @@
                 body: JSON.stringify({
                     strongs: strongs,
                     lemma: lemma,
-                    new_english: newText
+                    new_english: span.dataset.pendingText || newText
                 })
             });
 
@@ -163,6 +171,8 @@
                 const statusMessage = `Server error ${response.status}`;
                 const errorMessage = (data && data.error) ? data.error : statusMessage;
                 showError(span, errorMessage);
+                delete span.dataset.saving;
+                delete span.dataset.pendingText;
                 deactivateEditing(span);
                 return;
             }
@@ -171,11 +181,13 @@
 
             if (data && data.success) {
                 // Update successful
-                showSuccess(span, `Updated: ${data.old_english} → ${newText}`);
+                showSuccess(span, `Updated: ${data.old_english} → ${span.dataset.pendingText || newText}`);
                 delete span.dataset.originalText;
+                delete span.dataset.saving;
+                delete span.dataset.pendingText;
                 
                 // Update all other instances of this word on the page
-                updateAllInstances(strongs, lemma, newText);
+                updateAllInstances(strongs, lemma, span.dataset.pendingText || newText);
                 
                 // Show cache clear notification
                 if (data.cache_cleared) {
@@ -188,11 +200,15 @@
                 const errorMessage = (data && data.error) ? data.error : 'Update failed';
                 console.error('[INTERLINEAR] Update failed:', errorMessage);
                 showError(span, errorMessage);
+                delete span.dataset.saving;
+                delete span.dataset.pendingText;
                 deactivateEditing(span);
             }
         } catch (error) {
             console.error('[INTERLINEAR] Network error:', error);
             showError(span, 'Network error: ' + error.message);
+            delete span.dataset.saving;
+            delete span.dataset.pendingText;
             deactivateEditing(span);
         }
 
@@ -213,21 +229,12 @@
 
     function showSaving(span) {
         removeFeedback(span);
-        const indicator = document.createElement('div');
-        indicator.className = 'eng-save-indicator';
-        indicator.textContent = 'Saving...';
-        indicator.style.background = '#2196F3';
-        span.style.position = 'relative';
-        span.appendChild(indicator);
+        appendFeedback(span, 'eng-save-indicator', 'Saving...', '#2196F3');
     }
 
     function showSuccess(span, message) {
         removeFeedback(span);
-        const indicator = document.createElement('div');
-        indicator.className = 'eng-save-indicator';
-        indicator.textContent = '✓ Saved';
-        span.style.position = 'relative';
-        span.appendChild(indicator);
+        appendFeedback(span, 'eng-save-indicator', '✓ Saved', '#2E7D32');
 
         setTimeout(function() {
             removeFeedback(span);
@@ -236,11 +243,7 @@
 
     function showError(span, message) {
         removeFeedback(span);
-        const indicator = document.createElement('div');
-        indicator.className = 'eng-error-indicator';
-        indicator.textContent = '✗ ' + message;
-        span.style.position = 'relative';
-        span.appendChild(indicator);
+        appendFeedback(span, 'eng-error-indicator', '✗ ' + message, '#B71C1C');
 
         setTimeout(function() {
             removeFeedback(span);
@@ -248,10 +251,39 @@
     }
 
     function removeFeedback(span) {
-        const existing = span.querySelector('.eng-save-indicator, .eng-error-indicator');
+        const feedbackId = span.dataset.feedbackId;
+        if (!feedbackId || !span.parentElement) {
+            return;
+        }
+
+        const existing = span.parentElement.querySelector('[data-owner="' + feedbackId + '"]');
         if (existing) {
             existing.remove();
         }
+    }
+
+    function appendFeedback(span, className, text, background) {
+        if (!span.parentElement) {
+            return;
+        }
+
+        if (!span.dataset.feedbackId) {
+            span.dataset.feedbackId = 'eng-feedback-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+        }
+
+        const indicator = document.createElement('span');
+        indicator.className = className;
+        indicator.textContent = text;
+        indicator.dataset.owner = span.dataset.feedbackId;
+        indicator.style.marginLeft = '6px';
+        indicator.style.padding = '2px 6px';
+        indicator.style.borderRadius = '4px';
+        indicator.style.background = background;
+        indicator.style.color = '#fff';
+        indicator.style.fontSize = '12px';
+        indicator.style.verticalAlign = 'middle';
+
+        span.parentElement.insertBefore(indicator, span.nextSibling);
     }
 
     console.log('[INTERLINEAR] Real-time editing initialized');

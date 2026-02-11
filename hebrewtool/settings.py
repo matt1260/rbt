@@ -147,6 +147,15 @@ WSGI_APPLICATION = 'hebrewtool.wsgi.application'
 
 
 # Database
+            'file_info': {
+                'level': 'INFO',
+                'class': 'logging.handlers.TimedRotatingFileHandler',
+                'filename': 'RBT_info.log',
+                'when': 'D',
+                'interval': 1,
+                'backupCount': 7,
+                'formatter': 'standard',
+            },
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
 
@@ -154,6 +163,11 @@ DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL'),
         conn_max_age=600,  # Keep connections alive for 10 minutes
+            'translate': {
+                'handlers': ['file_info', 'file'],
+                'level': 'INFO',
+                'propagate': False,
+            },
         conn_health_checks=True  # Django 4.1+ health checks
     )
 }
@@ -259,6 +273,11 @@ LOGGING = {
             'level': 'ERROR',
             'class': 'django.utils.log.AdminEmailHandler',
         },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+        },
         'file': {
             'level': 'ERROR',
             'class': 'logging.handlers.TimedRotatingFileHandler',
@@ -268,12 +287,26 @@ LOGGING = {
             'backupCount': 7,  # Keep up to 7 days of logs
             'formatter': 'standard',  # Use the 'standard' formatter
         },
+        'file_info': {
+            'level': 'INFO',
+            'class': 'logging.handlers.TimedRotatingFileHandler',
+            'filename': 'RBT_info.log',
+            'when': 'D',
+            'interval': 1,
+            'backupCount': 7,
+            'formatter': 'standard',
+        },
     },
     'loggers': {
         'django': {
             'handlers': ['file'],
             'level': 'ERROR',
             'propagate': True,
+        },
+        'translate': {
+            'handlers': ['file_info', 'file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
         },
     },
 }
