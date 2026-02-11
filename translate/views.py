@@ -2819,14 +2819,34 @@ def chapter_editor(request):
         # Fallback GET/other method
         return render(request, 'edit_chapter.html', {'unique_books': unique_books})
     
+def _build_nt_search_pattern(find_text: str, exact: bool = False, allow_html: bool = False) -> str:
+    """Return a literal regex pattern (escaped) for the given find_text.
+
+    If exact is True and allow_html is False, wrap with word boundaries so that
+    exact word matches are enforced. If allow_html is True, we treat the find
+    text as a literal substring (do not apply word boundaries).
+    """
+    if not find_text:
+        return ''
+
+    escaped = re.escape(find_text)
+    if exact and not allow_html:
+        return r'\b' + escaped + r'\b'
+    return escaped
+
+
 @login_required
 def find_and_replace_nt(request):
     context = {}
 
     if request.method == 'POST':
-        find_text = request.POST.get('find_text')
-        replace_text = request.POST.get('replace_text')
-        exact_match = request.POST.get('exact_match')  # Get checkbox value
+        find_text = (request.POST.get('find_text') or '').strip()
+        replace_text = (request.POST.get('replace_text') or '').strip()
+        exact_match = request.POST.get('exact_match') == '1' or request.POST.get('exact_match') == 'on'
+        allow_html = request.POST.get('allow_html') == '1' or request.POST.get('allow_html') == 'on'
+
+        # Preserve form values
+        context.update({'find_text': find_text, 'replace_text': replace_text, 'exact_match': exact_match, 'allow_html': allow_html})
 
         # Handle approved replacements
         if 'approve_replacements' in request.POST:
@@ -2863,39 +2883,37 @@ def find_and_replace_nt(request):
             )
 
             replacements: list[dict[str, str | int]] = []
-            genesis_replacements: list[dict[str, str | int]] = []
 
-            # Create regex pattern based on exact_match checkbox
-            if exact_match:
-                # Use word boundaries for exact matching
-                search_pattern = r'\b' + re.escape(find_text) + r'\b'
-            else:
-                # Use simple text matching (case-sensitive)
-                search_pattern = re.escape(find_text)
+            # Build regex pattern respecting HTML mode and exact match
+            search_pattern = _build_nt_search_pattern(find_text, exact=exact_match, allow_html=allow_html)
+            compiled = re.compile(search_pattern)
 
             for verse_id, book, chapter, startVerse, old_text in rows:
+                if old_text is None:
+                    old_text = ''
+
                 # Check if pattern matches in the text
-                if not re.search(search_pattern, old_text):
+                if not compiled.search(old_text):
                     continue
 
                 book_name = _safe_book_name(book)
-                
+
                 # Create the new text without replacement (for database)
-                new_text_raw = re.sub(search_pattern, replace_text, old_text)
-                
+                # Use a lambda replacement to ensure literal replacement (no backrefs)
+                new_text_raw = compiled.sub(lambda m: replace_text, old_text)
+
                 # Create display version with highlighting
-                # Use a function to highlight all matches properly
                 def highlight_matches(match):
                     return f'<span class="highlight-find">{match.group(0)}</span>'
-                
-                display_old = re.sub(search_pattern, highlight_matches, old_text)
-                
+
+                display_old = compiled.sub(highlight_matches, old_text)
+
                 # For the "after" preview, show old text with replace highlighted
                 def highlight_replacement(match):
                     return f'<span class="highlight-replace">{replace_text}</span>'
-                
-                display_new = re.sub(search_pattern, highlight_replacement, old_text)
-                
+
+                display_new = compiled.sub(highlight_replacement, old_text)
+
                 verse_link = f'../edit/?book={book_name}&chapter={chapter}&verse={startVerse}'
 
                 # This condition should always be true if we found a match above
@@ -2916,7 +2934,6 @@ def find_and_replace_nt(request):
             return render(request, 'find_replace_review.html', context)
 
     return render(request, 'find_replace.html', context)
-
 @login_required
 def find_and_replace_ot(request):
     context = {}

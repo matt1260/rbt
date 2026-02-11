@@ -84,6 +84,16 @@
         }
     }
 
+    function getCsrfToken() {
+        const inputToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (inputToken && inputToken.value) {
+            return inputToken.value;
+        }
+
+        const cookieMatch = document.cookie.match(/(^|;\s*)csrftoken=([^;]+)/);
+        return cookieMatch ? decodeURIComponent(cookieMatch[2]) : '';
+    }
+
     async function saveAndDeactivate(span) {
         const newText = span.textContent.trim();
         const originalText = span.dataset.originalText;
@@ -120,7 +130,7 @@
         showSaving(span);
 
         try {
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const csrfToken = getCsrfToken();
             
             console.log('[INTERLINEAR] Making API call to /translate/api/update-interlinear-word/');
             
@@ -139,11 +149,27 @@
 
             console.log('[INTERLINEAR] Response status:', response.status);
 
-            const data = await response.json();
-            
+            const responseText = await response.text();
+            let data = null;
+            if (responseText) {
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('[INTERLINEAR] Response is not JSON:', responseText);
+                }
+            }
+
+            if (!response.ok) {
+                const statusMessage = `Server error ${response.status}`;
+                const errorMessage = (data && data.error) ? data.error : statusMessage;
+                showError(span, errorMessage);
+                deactivateEditing(span);
+                return;
+            }
+
             console.log('[INTERLINEAR] Response data:', data);
 
-            if (data.success) {
+            if (data && data.success) {
                 // Update successful
                 showSuccess(span, `Updated: ${data.old_english} → ${newText}`);
                 delete span.dataset.originalText;
@@ -159,8 +185,9 @@
                 console.log('[INTERLINEAR] Update successful!');
             } else {
                 // Update failed
-                console.error('[INTERLINEAR] Update failed:', data.error);
-                showError(span, data.error || 'Update failed');
+                const errorMessage = (data && data.error) ? data.error : 'Update failed';
+                console.error('[INTERLINEAR] Update failed:', errorMessage);
+                showError(span, errorMessage);
                 deactivateEditing(span);
             }
         } catch (error) {

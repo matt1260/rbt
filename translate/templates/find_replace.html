@@ -42,16 +42,24 @@ height: 16px;
 <h4>Find and Update NT words:</h4>
 <form method="POST">
  {% csrf_token %}
-<label for="find_text">Word:</label>
-<input type="text" name="find_text" id="find_text">
+<label for="find_text">Word (you may include HTML):</label>
 <br>
-<label for="replace_text">Replacement:</label>
-<input type="text" name="replace_text" id="replace_text">
+<textarea name="find_text" id="find_text" rows="3" cols="80">{{ find_text|default_if_none:'' }}</textarea>
+<br>
+<label for="replace_text">Replacement (you may include HTML):</label>
+<br>
+<textarea name="replace_text" id="replace_text" rows="3" cols="80">{{ replace_text|default_if_none:'' }}</textarea>
 <br>
 <div class="checkbox-container">
 <label>
-<input type="checkbox" name="exact_match" id="exact_match" value="1">
+<input type="checkbox" name="exact_match" id="exact_match" value="1" {% if exact_match %}checked{% endif %}>
 Search exact matches only
+</label>
+</div>
+<div class="checkbox-container">
+<label>
+<input type="checkbox" name="allow_html" id="allow_html" value="1" {% if allow_html %}checked{% endif %}>
+Treat inputs as literal HTML (match tags/attributes exactly)
 </label>
 </div>
 <input type="submit" value="Find and Update">
