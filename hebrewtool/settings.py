@@ -147,15 +147,6 @@ WSGI_APPLICATION = 'hebrewtool.wsgi.application'
 
 
 # Database
-            'file_info': {
-                'level': 'INFO',
-                'class': 'logging.handlers.TimedRotatingFileHandler',
-                'filename': 'RBT_info.log',
-                'when': 'D',
-                'interval': 1,
-                'backupCount': 7,
-                'formatter': 'standard',
-            },
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
 
@@ -163,11 +154,6 @@ DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL'),
         conn_max_age=600,  # Keep connections alive for 10 minutes
-            'translate': {
-                'handlers': ['file_info', 'file'],
-                'level': 'INFO',
-                'propagate': False,
-            },
         conn_health_checks=True  # Django 4.1+ health checks
     )
 }
