@@ -28,6 +28,7 @@ import psycopg2
 import requests
 from urllib.parse import quote, unquote
 from django.views.decorators.http import require_POST
+from django.conf import settings
 from django.db import connection, transaction
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -5002,8 +5003,20 @@ def update_interlinear_word(request):
             # Try to use cache.delete_pattern if available (Redis)
             from search.views.chapter_views_part1 import INTERLINEAR_CACHE_VERSION
             cache_pattern = f'*_{INTERLINEAR_CACHE_VERSION}'
-            
-            if hasattr(cache, 'delete_pattern'):
+            backend = settings.CACHES.get('default', {}).get('BACKEND', '')
+
+            if backend.endswith('DatabaseCache'):
+                table_name = settings.CACHES.get('default', {}).get('LOCATION', 'django_cache_table')
+                if not re.match(r'^[A-Za-z0-9_]+$', table_name):
+                    raise ValueError('Invalid cache table name')
+
+                # Use TRUNCATE inside a local transaction to avoid long DELETE scans
+                with transaction.atomic():
+                    with connection.cursor() as cursor:
+                        cursor.execute("SET LOCAL statement_timeout TO 0")
+                        cursor.execute(f"TRUNCATE TABLE {table_name}")
+                logger.info("[INTERLINEAR] Cleared cache table via TRUNCATE: %s", table_name)
+            elif hasattr(cache, 'delete_pattern'):
                 deleted_count = cache.delete_pattern(cache_pattern)
                 logger.info(f"[INTERLINEAR] Cleared {deleted_count} cache keys with pattern: {cache_pattern}")
             else:
@@ -5011,15 +5024,9 @@ def update_interlinear_word(request):
                 logger.warning("[INTERLINEAR] Cache backend doesn't support pattern deletion, clearing all cache")
                 cache.clear()
                 logger.info("[INTERLINEAR] Cleared entire cache")
-                
+
         except Exception as e:
             logger.error(f"[INTERLINEAR] Error clearing cache: {e}")
-            # Try one more time with clear()
-            try:
-                cache.clear()
-                logger.info("[INTERLINEAR] Cleared entire cache as fallback")
-            except Exception as e2:
-                logger.error(f"[INTERLINEAR] Failed to clear cache: {e2}")
 
         logger.info(
             "[INTERLINEAR] (%s) cache clear took %.3fs",
