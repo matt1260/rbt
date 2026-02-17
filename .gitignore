@@ -17,6 +17,7 @@ ENV/
 .venv/
 .DS_Store
 scripts/
+reports/
 
 neve-child/
 namecheap_server.txt
@@ -51,6 +52,7 @@ KEYS.md
 *.sqlite3
 /staticfiles/
 media/
+
 
 # VS Code
 .vscode/
