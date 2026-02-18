@@ -2836,35 +2836,66 @@ def _build_nt_search_pattern(find_text: str, exact: bool = False, allow_html: bo
     return escaped
 
 
+def _build_nt_greek_lemma_sql_regex(greek_lemma: str) -> str:
+    """Return a Postgres regex that matches the lemma as a whole word.
+
+    Uses non-letter boundaries so that e.g. αὐτή does not match αὐτήν.
+    """
+    escaped = re.escape(greek_lemma)
+    return rf'(^|[^[:alpha:]]){escaped}([^[:alpha:]]|$)'
+
+
+def _build_nt_greek_lemma_highlight_regex(greek_lemma: str) -> re.Pattern:
+    """Return a Python regex that matches the lemma as a whole word.
+
+    We treat “word characters” as Unicode letters only (exclude digits and
+    underscore) so matches behave sensibly for Greek text.
+    """
+    escaped = re.escape(greek_lemma)
+    # [^\W\d_] == Unicode letters
+    return re.compile(rf'(?<![^\W\d_]){escaped}(?![^\W\d_])')
+
+
 @login_required
 def find_and_replace_nt(request):
     context = {}
 
     if request.method == 'POST':
         find_text = (request.POST.get('find_text') or '').strip()
+        greek_lemma = (request.POST.get('greek_lemma') or '').strip()
         replace_text = (request.POST.get('replace_text') or '').strip()
         exact_match = request.POST.get('exact_match') == '1' or request.POST.get('exact_match') == 'on'
         allow_html = request.POST.get('allow_html') == '1' or request.POST.get('allow_html') == 'on'
 
         # Preserve form values
-        context.update({'find_text': find_text, 'replace_text': replace_text, 'exact_match': exact_match, 'allow_html': allow_html})
+        context.update({'find_text': find_text, 'greek_lemma': greek_lemma, 'replace_text': replace_text, 'exact_match': exact_match, 'allow_html': allow_html})
 
         # Handle approved replacements
         if 'approve_replacements' in request.POST:
             approved_replacements = request.POST.getlist('approve_replacements')
             successful_replacements = 0
 
+            lemma_sql_regex = None
+            if greek_lemma:
+                lemma_sql_regex = _build_nt_greek_lemma_sql_regex(greek_lemma)
+
             for verse_id in approved_replacements:
                 new_text = request.POST.get(f'new_text_{verse_id}')
                 if new_text is None:
                     continue
 
-                execute_query(
-                    "UPDATE new_testament.nt SET rbt = %s WHERE verseID = %s;",
-                    (new_text, verse_id)
-                )
+                if greek_lemma:
+                    updated_rows = execute_query(
+                        "UPDATE new_testament.nt SET rbt = %s WHERE verseID = %s AND versetext ~ %s;",
+                        (new_text, verse_id, lemma_sql_regex)
+                    )
+                else:
+                    updated_rows = execute_query(
+                        "UPDATE new_testament.nt SET rbt = %s WHERE verseID = %s;",
+                        (new_text, verse_id)
+                    )
 
-                successful_replacements += 1
+                successful_replacements += int(updated_rows or 0)
 
             context['edit_result'] = (
                 f'<div class="notice-bar">'
@@ -2877,11 +2908,14 @@ def find_and_replace_nt(request):
         # Find text and display for approval
         elif find_text and replace_text:
 
-            rows = execute_query(
-                "SELECT verseID, book, chapter, startVerse, rbt FROM new_testament.nt WHERE rbt LIKE %s;",
-                (f'%{find_text}%',),
-                fetch='all'
-            )
+            query = "SELECT verseID, book, chapter, startVerse, rbt, versetext FROM new_testament.nt WHERE rbt LIKE %s"
+            params: list[str] = [f'%{find_text}%']
+            if greek_lemma:
+                query += " AND versetext ~ %s"
+                params.append(_build_nt_greek_lemma_sql_regex(greek_lemma))
+            query += ";"
+
+            rows = execute_query(query, tuple(params), fetch='all')
 
             replacements: list[dict[str, str | int]] = []
 
@@ -2889,9 +2923,16 @@ def find_and_replace_nt(request):
             search_pattern = _build_nt_search_pattern(find_text, exact=exact_match, allow_html=allow_html)
             compiled = re.compile(search_pattern)
 
-            for verse_id, book, chapter, startVerse, old_text in rows:
+            lemma_compiled = None
+            if greek_lemma:
+                lemma_compiled = _build_nt_greek_lemma_highlight_regex(greek_lemma)
+
+            for verse_id, book, chapter, startVerse, old_text, greek_text in rows:
                 if old_text is None:
                     old_text = ''
+
+                if greek_text is None:
+                    greek_text = ''
 
                 # Check if pattern matches in the text
                 if not compiled.search(old_text):
@@ -2915,6 +2956,15 @@ def find_and_replace_nt(request):
 
                 display_new = compiled.sub(highlight_replacement, old_text)
 
+                greek_text_display = ''
+                if lemma_compiled is not None and greek_text:
+                    greek_text_display = lemma_compiled.sub(
+                        lambda m: f'<span class="highlight-find">{m.group(0)}</span>',
+                        greek_text,
+                    )
+                elif greek_lemma:
+                    greek_text_display = greek_text
+
                 verse_link = f'../edit/?book={book_name}&chapter={chapter}&verse={startVerse}'
 
                 # This condition should always be true if we found a match above
@@ -2924,6 +2974,7 @@ def find_and_replace_nt(request):
                         'old_text': display_old,
                         'new_text': display_new,
                         'new_text_raw': new_text_raw,
+                        'greek_text': greek_text_display,
                         'verse_link': verse_link
                     })
 

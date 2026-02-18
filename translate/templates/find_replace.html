@@ -46,6 +46,10 @@ height: 16px;
 <br>
 <textarea name="find_text" id="find_text" rows="3" cols="80">{{ find_text|default_if_none:'' }}</textarea>
 <br>
+<label for="greek_lemma">Greek lemma filter (optional, exact match in Greek verse text):</label>
+<br>
+<textarea name="greek_lemma" id="greek_lemma" rows="1" cols="80">{{ greek_lemma|default_if_none:'' }}</textarea>
+<br>
 <label for="replace_text">Replacement (you may include HTML):</label>
 <br>
 <textarea name="replace_text" id="replace_text" rows="3" cols="80">{{ replace_text|default_if_none:'' }}</textarea>
