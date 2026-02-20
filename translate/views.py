@@ -1903,6 +1903,11 @@ def translate(request):
     # Get Hebrew verse from hebrewdata table
     else:
         #print(f'book: {book}, chapter: {chapter_num}, verse: {verse_num}')
+
+        # Defaults to prevent UnboundLocalError when lookups return no rows.
+        prev_ref = '#'
+        next_ref = '#'
+        verse_id = None
         
         ##### Fetch Smith Literal Translation Verse ##############
         slt_book = book
@@ -1934,6 +1939,29 @@ def translate(request):
         )
         select_columns = base_columns + ", lxx" if has_lxx_column else base_columns
 
+        # Defensive: `old_testament.hebrewdata.Ref` may not match `book/chapter/verse`.
+        # Example: Joel is stored as book='Jol' chapter='4' verse='6' but Ref='Joe.3.6'.
+        # Resolve the canonical full Ref via old_testament.ot and use it for hebrewdata lookups.
+        try:
+            if book and chapter_num and verse_num and book != "Genesis":
+                ref_lookup = execute_query(
+                    "SELECT Ref FROM old_testament.ot WHERE book = %s AND chapter = %s AND verse = %s LIMIT 1;",
+                    (book_abbrev, chapter_num, verse_num),
+                    fetch='one',
+                )
+                if ref_lookup and ref_lookup[0]:
+                    resolved_ref = str(ref_lookup[0]).strip()
+                    parts = resolved_ref.split('.')
+                    if len(parts) >= 3:
+                        resolved_prefix, resolved_chapter, resolved_verse = parts[0], parts[1], parts[2]
+                        if resolved_prefix and resolved_chapter and resolved_verse:
+                            # Use the full resolved Ref for hebrewdata (includes correct versification).
+                            rbt_heb_ref = f'{resolved_prefix}.{resolved_chapter}.{resolved_verse}-'
+                            rbt_heb_chapter = f'{resolved_prefix}.{resolved_chapter}.'
+        except Exception:
+            # If the lookup fails, fall back to the existing prefix.
+            pass
+
         rows_data = execute_query(
             f"""
             SELECT {select_columns}
@@ -1944,6 +1972,32 @@ def translate(request):
             (f'{rbt_heb_ref}%',),
             fetch='all'
         )
+
+        # If the verse does not exist, render a safe "No Rows Found" page.
+        if not rows_data:
+            verse = convert_to_book_chapter_verse(rbt_heb_ref)
+            context = {
+                'verse': verse,
+                'prev_ref': prev_ref,
+                'next_ref': next_ref,
+                'rbt': rbt,
+                'english_reader': '',
+                'english_verse': '',
+                'strong_row': '',
+                'english_row': None,
+                'hebrew_row': '',
+                'edit_table_data': [],
+                'updates': updates,
+                'verse_id': '',
+                'chapter_reader': '',
+                'invalid_verse': invalid_verse,
+                'hebrew': '',
+                'smith': smith,
+                'notes_html': '',
+                'hebrew_interlinear_cards': [],
+                'rbt_heb_ref': rbt_heb_ref,
+            }
+            return render(request, 'hebrew.html', {'page_title': page_title, **context})
 
         # Fetch html rows - sort by verse number numerically
         html_rows = execute_query(
@@ -2405,6 +2459,7 @@ def translate(request):
                 'smith': smith,
                 'notes_html': notes_html,
                 'hebrew_interlinear_cards': hebrew_cards,
+            'rbt_heb_ref': rbt_heb_ref,
                 }
         
         return render(request, 'hebrew.html', {'page_title': page_title, **context})
