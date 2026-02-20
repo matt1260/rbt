@@ -139,11 +139,34 @@ import logging
 
 logger_verbose = logging.getLogger("search.db_utils.verbose")
 
+# If the DB cache table is missing in a given environment, repeated cache calls
+# will raise ProgrammingError and can leave the DB connection in an aborted
+# transaction state until rollback. Detect once and short-circuit subsequent
+# cache operations for this process.
+_db_cache_disabled_reason: str | None = None
+
+
+def _maybe_disable_db_cache_from_exception(exc: Exception) -> bool:
+    global _db_cache_disabled_reason
+    if _db_cache_disabled_reason:
+        return True
+
+    msg = str(exc)
+    if 'django_cache_table' in msg and ('does not exist' in msg or 'UndefinedTable' in msg):
+        _db_cache_disabled_reason = msg
+        logger_verbose.warning('DB cache disabled (missing table): %s', msg)
+        return True
+
+    return False
+
 def safe_cache_get(key, default=None):
     """Safely get value from Django cache, handling DB cache failures gracefully."""
+    if _db_cache_disabled_reason:
+        return default
     try:
         return cache.get(key, default)
     except (DatabaseError, ProgrammingError, Exception) as e:
+        _maybe_disable_db_cache_from_exception(e)
         logger_verbose.exception('safe_cache_get failed for key=%s: %s', key, e)
         try:
             connection.rollback()
@@ -155,10 +178,13 @@ def safe_cache_get(key, default=None):
 
 def safe_cache_set(key, value, timeout=None):
     """Safely set value in Django cache, handling DB cache failures gracefully."""
+    if _db_cache_disabled_reason:
+        return False
     try:
         cache.set(key, value, timeout)
         return True
     except (DatabaseError, ProgrammingError, Exception) as e:
+        _maybe_disable_db_cache_from_exception(e)
         logger_verbose.exception('safe_cache_set failed for key=%s: %s', key, e)
         try:
             connection.rollback()
@@ -169,10 +195,13 @@ def safe_cache_set(key, value, timeout=None):
 
 
 def safe_cache_delete(key):
+    if _db_cache_disabled_reason:
+        return False
     try:
         cache.delete(key)
         return True
     except (DatabaseError, ProgrammingError, Exception) as e:
+        _maybe_disable_db_cache_from_exception(e)
         logger_verbose.exception('safe_cache_delete failed for key=%s: %s', key, e)
         try:
             connection.rollback()

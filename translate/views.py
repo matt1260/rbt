@@ -3164,7 +3164,17 @@ def find_and_replace_ot(request):
                     successful_replacements += 1
 
             if replacements_key:
-                cache.delete(replacements_key)
+                # Cache cleanup should never break the request. In some envs the
+                # DB-backed cache table may be missing or the connection may be
+                # in an aborted transaction state.
+                try:
+                    from search.db_utils import safe_cache_delete
+                    safe_cache_delete(replacements_key)
+                except Exception:
+                    try:
+                        cache.delete(replacements_key)
+                    except Exception:
+                        logger.exception('Failed to delete replacements_key from cache: %s', replacements_key)
 
             context['edit_result'] = (
                 f'<div class="notice-bar">'
