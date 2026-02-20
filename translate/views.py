@@ -1388,6 +1388,10 @@ def edit(request):
 @login_required
 def translate(request):
 
+    # Some downstream rendering paths reference `html` regardless of method.
+    # Ensure it is always defined (e.g., GET requests after redirects).
+    html = None
+
     # Function to return count of lexemes found
     def lexeme_search(num, lex):
         where_clause = f"{num} = %s"

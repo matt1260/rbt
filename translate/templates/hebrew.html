@@ -2056,13 +2056,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 <script>
-  window.onload = function () {
-    var popupDiv = document.getElementById('popupDiv');
-    if (popupDiv) {
-      popupDiv.style.display = 'block';
-    }
-  }
-
   function closePopup() {
     document.getElementById('popupDiv').style.display = 'none';
   }
@@ -2474,12 +2467,6 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
   // Initialize morph parsing after DOM is ready and handle missing elements safely
   document.addEventListener('DOMContentLoaded', function () {
-    // If there is a popupDiv (updates list), ensure it's visible
-    var popupDiv = document.getElementById('popupDiv');
-    if (popupDiv) {
-      popupDiv.style.display = 'block';
-    }
-
     // Call the parseClick() function for each element with class "morph-cell"
     var morphCells = document.querySelectorAll('.morph-cell');
     morphCells.forEach(function (cell) {
