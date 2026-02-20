@@ -1778,9 +1778,30 @@ def translate(request):
     ############### END POST EDIT
 
     query = request.GET.get('q')
+    ref_param = request.GET.get('ref')
     book = request.GET.get('book')
     chapter_num = request.GET.get('chapter')
     verse_num = request.GET.get('verse')
+
+    ref_override: tuple[str, str, str] | None = None  # (book_code, chapter, verse)
+
+    # Allow direct OT lookups by canonical Ref (e.g., Joe.3.6), which may not
+    # match book/chapter/verse columns (e.g., Jol 4:6).
+    if ref_param:
+        cleaned = str(ref_param).strip()
+        cleaned = cleaned.split('-')[0]  # drop -01 etc
+        parts = cleaned.split('.')
+        if len(parts) >= 3:
+            ref_book_code, ref_chapter, ref_verse = parts[0], parts[1], parts[2]
+            resolved_book = convert_book_name(ref_book_code) or ref_book_code
+            book = resolved_book
+            chapter_num = ref_chapter
+            verse_num = ref_verse
+            # Force lookups to use the canonical Ref code/prefix.
+            rbt_heb_ref = f'{ref_book_code}.{ref_chapter}.{ref_verse}-'
+            rbt_heb_chapter = f'{ref_book_code}.{ref_chapter}.'
+            ref_override = (ref_book_code, ref_chapter, ref_verse)
+
     page_title = f'{book} {chapter_num}:{verse_num}'
     slt_flag = False
     rbt = None
@@ -1795,13 +1816,15 @@ def translate(request):
         footnote_contents = results.get('footnote_content', [])  # footnote html rows
 
         # Convert references to 'Gen.1.1-' format
-        book_abbrev = book_abbreviations.get(book, book)
-        rbt_heb_ref = f'{book_abbrev}.{chapter_num}.{verse_num}-'
-        rbt_heb_chapter = f'{book_abbrev}.{chapter_num}.'
+        if not ref_override:
+            book_abbrev = book_abbreviations.get(book, book)
+            rbt_heb_ref = f'{book_abbrev}.{chapter_num}.{verse_num}-'
+            rbt_heb_chapter = f'{book_abbrev}.{chapter_num}.'
     else:
-        book_abbrev = book_abbreviations.get(book, book)
-        rbt_heb_ref = f'{book_abbrev}.{chapter_num}.{verse_num}-'
-        rbt_heb_chapter = f'{book_abbrev}.{chapter_num}.'
+        if not ref_override:
+            book_abbrev = book_abbreviations.get(book, book)
+            rbt_heb_ref = f'{book_abbrev}.{chapter_num}.{verse_num}-'
+            rbt_heb_chapter = f'{book_abbrev}.{chapter_num}.'
         
 
     invalid_verse = ''
@@ -3110,6 +3133,8 @@ def find_and_replace_ot(request):
                 try:
                     from search.db_utils import safe_cache_get
                     payload = safe_cache_get(replacements_key)
+                    if not payload:
+                        payload = cache.get(replacements_key)
                 except Exception:
                     try:
                         payload = cache.get(replacements_key)
@@ -3158,21 +3183,17 @@ def find_and_replace_ot(request):
                 elif source == 'footnote':
                     if new_footnote is None:
                         continue
-                    # Use a single transaction-local search_path so the SELECT and UPDATE run in the same transaction
-                    with get_db_connection() as conn:
-                        with conn.cursor() as cursor:
-                            cursor.execute("BEGIN")
-                            cursor.execute("SET LOCAL search_path TO old_testament")
-                            cursor.execute(
-                                "SELECT Ref FROM old_testament.hebrewdata WHERE id = %s;",
-                                (int(record_id),)
-                            )
-                            ref_row = cursor.fetchone()
-                            cursor.execute(
-                                "UPDATE old_testament.hebrewdata SET footnote = %s WHERE id = %s;",
-                                (new_footnote, int(record_id))
-                            )
-                            conn.commit()
+                    record_id_int = int(record_id)
+                    ref_row = execute_query(
+                        "SELECT Ref FROM old_testament.hebrewdata WHERE id = %s;",
+                        (record_id_int,),
+                        fetch='one',
+                    )
+                    updated = execute_query(
+                        "UPDATE old_testament.hebrewdata SET footnote = %s WHERE id = %s;",
+                        (new_footnote, record_id_int),
+                        fetch=None,
+                    )
                     
                     # Clear cache for this verse
                     if ref_row:
@@ -3187,7 +3208,7 @@ def find_and_replace_ot(request):
                                 book_name = convert_book_name(book_code) or book_code
                                 _invalidate_reader_cache(book_name, chapter_value, verse_value)
                     
-                    successful_replacements += 1
+                    successful_replacements += int(updated or 0)
                 elif source == 'genesisfootnote':
                     if new_footnote is None:
                         continue
@@ -3207,16 +3228,33 @@ def find_and_replace_ot(request):
                 else:
                     if new_text is None:
                         continue
-                    with get_db_connection() as conn:
-                        with conn.cursor() as cursor:
-                            cursor.execute("BEGIN")
-                            cursor.execute("SET LOCAL search_path TO old_testament")
-                            cursor.execute(
-                                "UPDATE old_testament.ot SET html = %s WHERE id = %s;",
-                                (new_text, int(record_id))
-                            )
-                            conn.commit()
-                    successful_replacements += 1
+                    ot_ref = record_data.get('ot_ref')
+                    record_id_int = int(record_id)
+                    updated_ot = execute_query(
+                        "UPDATE old_testament.ot SET html = %s WHERE id = %s;",
+                        (new_text, record_id_int),
+                        fetch=None,
+                    )
+
+                    # Keep hebrew editor/paraphrase in sync (hebrewdata stores per-lexeme rows).
+                    if ot_ref:
+                        execute_query(
+                            "UPDATE old_testament.hebrewdata SET html = %s WHERE Ref LIKE %s;",
+                            (new_text, f"{ot_ref}-%"),
+                            fetch=None,
+                        )
+
+                    # Clear reader/editor cache for this verse so changes show immediately.
+                    if ot_ref:
+                        try:
+                            ref_parts = str(ot_ref).split('.')
+                            if len(ref_parts) >= 3:
+                                book_code, chapter_value, verse_value = ref_parts[0], ref_parts[1], ref_parts[2]
+                                book_name = convert_book_name(book_code) or book_code
+                                _invalidate_reader_cache(book_name, chapter_value, verse_value)
+                        except Exception:
+                            pass
+                    successful_replacements += int(updated_ot or 0)
 
             if replacements_key:
                 # Cache cleanup should never break the request. In some envs the
@@ -3305,7 +3343,9 @@ def find_and_replace_ot(request):
             review_key = f"find_replace_ot_{request.user.id or 'anon'}_{uuid.uuid4().hex}"
             try:
                 from search.db_utils import safe_cache_set
-                safe_cache_set(review_key, {'replacements': replacements}, timeout=600)
+                ok = safe_cache_set(review_key, {'replacements': replacements}, timeout=600)
+                if not ok:
+                    cache.set(review_key, {'replacements': replacements}, timeout=600)
             except Exception:
                 try:
                     cache.set(review_key, {'replacements': replacements}, timeout=600)
@@ -3385,9 +3425,10 @@ def find_and_replace_ot(request):
                         chapter_ref = parts[1]
                         verse_ref = parts[2].split('-')[0]
                         book_display = convert_book_name(book_code) or book_code
-                        
-                        verse_link = f'../translate/?book={book_display}&chapter={chapter_ref}&verse={verse_ref}'
-                        reference_label = f'{book_display} {chapter_ref}:{verse_ref} (footnote)'
+
+                        canonical_ref = f'{book_code}.{chapter_ref}.{verse_ref}'
+                        verse_link = f'../translate/?ref={canonical_ref}'
+                        reference_label = f'{canonical_ref} (footnote)'
                         record_key = f'footnote-{row_id}'
                         
                         replacements.append({
@@ -3453,11 +3494,8 @@ def find_and_replace_ot(request):
                     else:
                         highlighted_new = new_text_raw
 
-                    verse_link = (
-                        f'../edit/?book=Genesis&chapter={chapter_ref}&verse={verse_ref}'
-                        if source == 'genesis'
-                        else f'../translate/?book={book}&chapter={chapter_ref}&verse={verse_ref}'
-                    )
+                    # Use canonical Ref for linking (handles Ref vs book/chapter/verse mismatches).
+                    verse_link = f'../translate/?ref={ref}' if ref else f'../translate/?book={book}&chapter={chapter_ref}&verse={verse_ref}'
 
                     reference_label = ref or f'{book_display} {chapter_ref}:{verse_ref}'
 
@@ -3471,6 +3509,7 @@ def find_and_replace_ot(request):
                         'old_paraphrase_raw': '',
                         'new_paraphrase_raw': '',
                         'verse_link': verse_link
+                        ,'ot_ref': ref
                     })
 
                 genesis_rows = list(
@@ -3586,7 +3625,9 @@ def find_and_replace_ot(request):
             review_key = f"find_replace_ot_{request.user.id or 'anon'}_{uuid.uuid4().hex}"
             try:
                 from search.db_utils import safe_cache_set
-                safe_cache_set(review_key, {'replacements': replacements}, timeout=600)
+                ok = safe_cache_set(review_key, {'replacements': replacements}, timeout=600)
+                if not ok:
+                    cache.set(review_key, {'replacements': replacements}, timeout=600)
             except Exception:
                 try:
                     cache.set(review_key, {'replacements': replacements}, timeout=600)
