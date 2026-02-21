@@ -117,6 +117,7 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'hebrewtool.middleware.BotFilterMiddleware',  # Block bad bots early
     'hebrewtool.middleware.RateLimitMiddleware',  # Rate limit after bot filtering
+    'hebrewtool.middleware.VisitorTrackingMiddleware', # Track visitor locations
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',

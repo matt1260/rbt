@@ -184,3 +184,24 @@ class InterlinearApplyLog(models.Model):
 
     def __str__(self):
         return f"InterlinearApplyLog {self.applied_at} user={self.user} applied={self.applied_count}"
+class VisitorLocation(models.Model):
+    """Tracks visitor locations for the heatmap analytics."""
+    
+    ip_address = models.GenericIPAddressField(db_index=True, blank=True, null=True) # Hashed IP or null
+    user_agent = models.TextField(blank=True, null=True)
+    path = models.CharField(max_length=255)
+    country = models.CharField(max_length=100, blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    latitude = models.FloatField(blank=True, null=True)
+    longitude = models.FloatField(blank=True, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    is_bot = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        db_table = 'visitor_locations'
+        indexes = [
+            models.Index(fields=['timestamp', 'is_bot']),
+        ]
+
+    def __str__(self):
+        return f"{self.country} - {self.city} ({self.timestamp})"

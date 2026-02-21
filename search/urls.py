@@ -12,6 +12,7 @@ urlpatterns = [
     path('update_count/', views.update_count, name='update_count_api'),
     path('statistics/', views.update_statistics_view, name='update_statistics'),
     path('stats/', views.update_statistics_api, name='update_statistics_api'),
+    path('visitor_locations/', views.visitor_locations_api, name='visitor_locations_api'),
     
     # Footnote JSON API for popup display
     path('footnote/<str:footnote_id>/json/', views.footnote_json, name='footnote_json'),

@@ -273,3 +273,31 @@ def update_statistics_api(request):
             'error': str(e),
             'traceback': traceback.format_exc()
         }, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def visitor_locations_api(request):
+    """
+    API endpoint for fetching visitor locations for the heatmap.
+    """
+    try:
+        from search.models import VisitorLocation
+        
+        # Get locations from the last 30 days
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        
+        locations = VisitorLocation.objects.filter(
+            timestamp__gte=thirty_days_ago,
+            is_bot=False,
+            latitude__isnull=False,
+            longitude__isnull=False
+        ).values('latitude', 'longitude').annotate(count=Count('id'))
+        
+        data = [
+            [loc['latitude'], loc['longitude'], loc['count']]
+            for loc in locations
+        ]
+        
+        return JsonResponse({'locations': data})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

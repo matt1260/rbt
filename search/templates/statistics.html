@@ -42,6 +42,9 @@
 <h1 style="text-align: center;">RBT Translation Statistics</h1>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 <style>
 
 
@@ -284,6 +287,11 @@ button.active {
         
         <div class="charts-grid">
             <div class="chart-container">
+                <h3 class="chart-title">Visitor Locations (Last 30 Days)</h3>
+                <div id="visitorMap" style="height: 400px; border-radius: 8px; z-index: 1;"></div>
+            </div>
+            
+            <div class="chart-container">
                 <h3 class="chart-title">Daily Updates Over Time</h3>
                 <div class="chart-wrapper">
                     <canvas id="dailyChart"></canvas>
@@ -405,6 +413,11 @@ function updateDashboard(data) {
     updateWeekdayChart(data.weekday_pattern);
     updateMonthlyChart(data.monthly_updates);
     updateReferenceList(data.top_references);
+    
+    // Ensure map is updated after the dashboard is visible
+    setTimeout(() => {
+        updateVisitorMap();
+    }, 100);
 }
 
 function updateDailyChart(data) {
@@ -625,6 +638,43 @@ function updateReferenceList(data) {
         `;
         container.appendChild(item);
     });
+}
+
+let visitorMap = null;
+let heatLayer = null;
+
+async function updateVisitorMap() {
+    try {
+        const response = await fetch('/visitor_locations/');
+        const data = await response.json();
+        
+        if (data.locations && data.locations.length > 0) {
+            if (!visitorMap) {
+                visitorMap = L.map('visitorMap').setView([20, 0], 2);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(visitorMap);
+                
+                // Fix for Leaflet map not rendering correctly when initially hidden
+                setTimeout(() => {
+                    visitorMap.invalidateSize();
+                }, 100);
+            }
+            
+            if (heatLayer) {
+                visitorMap.removeLayer(heatLayer);
+            }
+            
+            heatLayer = L.heatLayer(data.locations, {radius: 25, blur: 15, maxZoom: 10}).addTo(visitorMap);
+            
+            // Ensure map size is correct after adding layer
+            setTimeout(() => {
+                visitorMap.invalidateSize();
+            }, 100);
+        }
+    } catch (err) {
+        console.error('Error loading visitor map:', err);
+    }
 }
 
 // Event listeners

@@ -391,3 +391,114 @@ class BotFilterMiddleware:
             )
         
         return self.get_response(request)
+
+import threading
+import requests
+
+class VisitorTrackingMiddleware:
+    """
+    Tracks visitor locations for the heatmap analytics.
+    Filters out bots and uses ip-api.com for geolocation.
+    """
+    
+    def __init__(self, get_response):
+        self.get_response = get_response
+        
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
+        
+    def __call__(self, request):
+        response = self.get_response(request)
+        
+        # Skip tracking for static files, media, and admin/edit paths
+        path = request.path
+        if path.startswith('/static/') or path.startswith('/media/') or path.startswith('/edit') or path.startswith('/admin') or path.startswith('/visitor_locations/'):
+            return response
+            
+        ip = self.get_client_ip(request)
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+            
+        # Skip tracking in DEBUG mode for local development to avoid spamming the API
+        if getattr(settings, 'DEBUG', False) and ip in ('127.0.0.1', 'localhost'):
+            # For local testing, we can mock a location or just skip
+            # Let's mock a location for local testing so the map works
+            threading.Thread(target=self.log_visitor_mock, args=(ip, user_agent, path)).start()
+            return response
+            
+        # Basic bot detection
+        bot_keywords = ['bot', 'spider', 'crawler', 'scraper', 'google', 'bing', 'yandex', 'baidu', 'curl', 'wget', 'python-requests']
+        is_bot = any(keyword in user_agent.lower() for keyword in bot_keywords)
+        
+        if is_bot:
+            return response # Don't log bots to save DB space and API calls
+            
+        # Run geolocation and logging in a background thread to avoid blocking the response
+        threading.Thread(target=self.log_visitor, args=(ip, user_agent, path)).start()
+        
+        return response
+        
+    def log_visitor_mock(self, ip, user_agent, path):
+        """Mock visitor logging for local development."""
+        from search.models import VisitorLocation
+        import random
+        
+        try:
+            VisitorLocation.objects.create(
+                ip_address=None,
+                user_agent=user_agent,
+                path=path,
+                country='Localhost',
+                city='Local City',
+                # Random coordinates for testing the heatmap
+                latitude=random.uniform(-90, 90),
+                longitude=random.uniform(-180, 180),
+                is_bot=False
+            )
+        except Exception as e:
+            logger.error(f"Error saving mock visitor log: {e}")
+            
+    def log_visitor(self, ip, user_agent, path):
+        from search.models import VisitorLocation
+        from django.core.cache import cache
+        
+        # Check if we already have this IP's location cached
+        cache_key = f'geoip_{ip}'
+        geo_data = cache.get(cache_key)
+        
+        if not geo_data:
+            try:
+                # Use ip-api.com (free, no key required, 45 requests/minute limit)
+                res = requests.get(f'http://ip-api.com/json/{ip}?fields=status,country,city,lat,lon', timeout=5)
+                if res.status_code == 200:
+                    data = res.json()
+                    if data.get('status') == 'success':
+                        geo_data = {
+                            'country': data.get('country'),
+                            'city': data.get('city'),
+                            'latitude': data.get('lat'),
+                            'longitude': data.get('lon')
+                        }
+                        # Cache for 24 hours
+                        cache.set(cache_key, geo_data, 60 * 60 * 24)
+            except Exception as e:
+                logger.error(f"Error fetching geoip for {ip}: {e}")
+                
+        if geo_data:
+            try:
+                VisitorLocation.objects.create(
+                    ip_address=None, # Privacy: don't store raw IP
+                    user_agent=user_agent,
+                    path=path,
+                    country=geo_data.get('country'),
+                    city=geo_data.get('city'),
+                    latitude=geo_data.get('latitude'),
+                    longitude=geo_data.get('longitude'),
+                    is_bot=False
+                )
+            except Exception as e:
+                logger.error(f"Error saving visitor log: {e}")

@@ -86,6 +86,7 @@ from .search_views import (
 from .statistics_views import (
     update_statistics_view,
     update_statistics_api,
+    visitor_locations_api,
 )
 
 __all__ = [
@@ -142,6 +143,5 @@ __all__ = [
     # Statistics views
     'update_statistics_view',
     'update_statistics_api',
-    # 'update_statistics_view',
-    # 'update_statistics_api',
+    'visitor_locations_api',
 ]
