@@ -29,7 +29,7 @@ def storehouse_view(request):
     Returns:
     - Rendered storehouse.html template with chapter content
     """
-    book_name = "He Adds and Storehouse"
+    book_name = "He Adds and Granary Storehouse"
     # Internal book name used for translation database lookups
     internal_book_name = "Joseph and Aseneth"
     
