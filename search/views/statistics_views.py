@@ -298,6 +298,16 @@ def visitor_locations_api(request):
             for loc in locations
         ]
         
-        return JsonResponse({'locations': data})
+        # Get top countries
+        top_countries = list(VisitorLocation.objects.filter(
+            timestamp__gte=thirty_days_ago,
+            is_bot=False,
+            country__isnull=False
+        ).values('country').annotate(count=Count('id')).order_by('-count')[:10])
+        
+        return JsonResponse({
+            'locations': data,
+            'top_countries': top_countries
+        })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
