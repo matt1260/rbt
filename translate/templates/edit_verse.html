@@ -1933,16 +1933,44 @@
                             verse: config.dataset.verse,
                             prompt: promptInput.value,
                             model: modelInput ? modelInput.value : undefined,
+                            stream: true
                         }),
                     });
 
-                    const data = await response.json();
-                    if (!response.ok || data.error) {
-                        throw new Error(data.error || 'Unable to fetch Gemini suggestion.');
+                    const contentType = response.headers.get('Content-Type') || '';
+                        
+                    if (!response.ok) {
+                        if (contentType.includes('application/json')) {
+                            const errData = await response.json();
+                            throw new Error(errData.error || 'Unable to fetch Gemini suggestion.');
+                        } else {
+                            const errText = await response.text();
+                            throw new Error(errText || 'Unable to fetch Gemini suggestion.');
+                        }
                     }
 
-                    if (targetTextarea) {
-                        targetTextarea.value = data.suggestion || '';
+                    if (contentType.includes('application/json')) {
+                        const data = await response.json();
+                        if (data.error) throw new Error(data.error);
+                        if (targetTextarea) {
+                            targetTextarea.value = data.suggestion || '';
+                        }
+                    } else {
+                        if (targetTextarea) targetTextarea.value = '';
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder('utf-8');
+                        let done = false;
+
+                        while (!done) {
+                            const { value, done: readerDone } = await reader.read();
+                            done = readerDone;
+                            if (value) {
+                                const chunk = decoder.decode(value, { stream: true });
+                                if (targetTextarea) {
+                                    targetTextarea.value += chunk;
+                                }
+                            }
+                        }
                     }
 
                     statusEl.textContent = 'Suggestion loaded into editor.';

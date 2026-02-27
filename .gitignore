@@ -18,6 +18,7 @@ ENV/
 .DS_Store
 scripts/
 reports/
+.playwright-mcp/
 
 neve-child/
 namecheap_server.txt
@@ -47,6 +48,7 @@ clean_spaces_.py
 MULTILINGUAL_README.md
 PATCHING_FILES.md
 KEYS.md
+AEON_Chatbot.md
 
 # Django
 *.sqlite3

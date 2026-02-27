@@ -34,7 +34,7 @@ from django.db import connection, transaction
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-2.5-flash')
+DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash-preview')
 MODEL_NAME_PATTERN = re.compile(r'^[\w\-.:+]+$')
 
 logger = logging.getLogger(__name__)
@@ -546,6 +546,40 @@ def _request_gemini_response(prompt: str, model_name: str | None = None, api_key
         return f"Error: Gemini API failed: {exc}"
 
 
+def _stream_gemini_response(prompt: str, model_name: str | None = None, api_key: str | None = None):
+    """Generator that yields raw text chunks from Gemini's streaming API."""
+    try:
+        model_to_use = _resolve_model_name(model_name)
+    except ValueError as exc:
+        yield f'Error: {exc}'
+        return
+
+    use_client = None
+    if api_key:
+        if not isinstance(api_key, str) or ' ' in api_key or len(api_key) < 10 or len(api_key) > 1024:
+            yield 'Error: Invalid API key format.'
+            return
+        try:
+            use_client = genai.Client(api_key=api_key)
+        except Exception:
+            logger.exception('Failed to initialise Gemini client with provided API key (streaming)')
+            yield 'Error: Provided API key is invalid or client initialisation failed.'
+            return
+    else:
+        if not GEMINI_API_KEY:
+            yield 'Error: Gemini API key is not configured.'
+            return
+        use_client = client
+
+    try:
+        for chunk in use_client.models.generate_content_stream(model=model_to_use, contents=prompt):
+            if hasattr(chunk, 'text') and chunk.text:
+                yield chunk.text
+    except Exception as exc:
+        logger.exception('Gemini streaming API call failed: %s', exc)
+        yield f'\nError: {exc}'
+
+
 def gemini_translate(entries, prompt_instructions: str | None = None, model_name: str | None = None, api_key: str | None = None):
     """Translate Greek entries into a formatted English sentence via Gemini."""
     if not isinstance(entries, list) or not entries:
@@ -608,6 +642,16 @@ def gemini_translate_hebrew(
     return _request_gemini_response(prompt, model_name, api_key)
 
 
+def _save_gemini_prefs(request, model_name: str, prompt_override: str | None, translation_type: str) -> None:
+    """Persist Gemini model and prompt preference to the session."""
+    session = getattr(request, 'session', None)
+    if session is None:
+        return
+    if prompt_override:
+        session[f'gemini_prompt_{translation_type}'] = prompt_override
+    session['gemini_model'] = model_name
+    session.modified = True
+
 
 @require_POST
 def request_gemini_translation(request):
@@ -652,6 +696,7 @@ def request_gemini_translation(request):
             return JsonResponse({'error': f'Unable to load verse context: {exc}'}, status=500)
 
         assemble_only = payload.get('assemble_only')
+        use_stream = bool(payload.get('stream')) and not assemble_only
 
         if translation_type == 'greek':
             entries = context.get('entries') or []
@@ -680,6 +725,23 @@ def request_gemini_translation(request):
                     'meta': {'book': book, 'chapter': chapter, 'verse': verse}
                 })
 
+            if use_stream:
+                instructions = _resolve_prompt_text(prompt_override, DEFAULT_GREEK_GEMINI_PROMPT)
+                mapping_lines = [f"{e.get('lemma','')} | {e.get('english','')} | {e.get('morph_description','')} ({e.get('morph','Unknown')})" for e in entries]
+                greek_words = ' '.join([e.get('lemma', '') for e in entries])
+                interlinear_english = ' '.join([e.get('english', '') for e in entries])
+                morphology = ' | '.join([f"{e.get('morph_description','')} ({e.get('morph','Unknown')})" for e in entries])
+                stream_prompt = (
+                    f"{instructions}\n\n"
+                    "MAPPING (one per line: GREEK | ENGLISH | MORPHOLOGY):\n"
+                    + "\n".join(mapping_lines) + "\n\n"
+                    f"GREEK TEXT: {greek_words}\n"
+                    f"ENGLISH WORDS: {interlinear_english}\n"
+                    f"MORPHOLOGY: {morphology}\n"
+                )
+                _save_gemini_prefs(request, resolved_model, prompt_override, translation_type)
+                return StreamingHttpResponse(_stream_gemini_response(stream_prompt, resolved_model, api_key), content_type='text/plain; charset=utf-8')
+
             suggestion = gemini_translate(entries, prompt_override, resolved_model, api_key)
         elif translation_type == 'hebrew':
             hebrew_text = context.get('hebrew')
@@ -700,18 +762,23 @@ def request_gemini_translation(request):
                     'meta': {'book': book, 'chapter': chapter, 'verse': verse}
                 })
 
+            if use_stream:
+                instructions = _resolve_prompt_text(prompt_override, DEFAULT_HEBREW_GEMINI_PROMPT)
+                hebrew_plain = _strip_html_text(hebrew_text)
+                english_plain = (linear_english or '').strip() or 'Not provided'
+                stream_prompt = (
+                    f"{instructions}\n\n"
+                    f"HEBREW TEXT: {hebrew_plain}\n"
+                    f"LINEAR ENGLISH: {english_plain}\n"
+                )
+                _save_gemini_prefs(request, resolved_model, prompt_override, translation_type)
+                return StreamingHttpResponse(_stream_gemini_response(stream_prompt, resolved_model, api_key), content_type='text/plain; charset=utf-8')
+
             suggestion = gemini_translate_hebrew(hebrew_text, linear_english, prompt_override, resolved_model, api_key)
             if suggestion and suggestion.startswith('Error:'):
                 return JsonResponse({'error': suggestion}, status=502)
 
-        session = getattr(request, 'session', None)
-        if session is not None:
-            if prompt_override:
-                pref_key = f'gemini_prompt_{translation_type}'
-                session[pref_key] = prompt_override
-            session['gemini_model'] = resolved_model
-            session.modified = True
-
+        _save_gemini_prefs(request, resolved_model, prompt_override, translation_type)
         return JsonResponse({'suggestion': suggestion})
     except Exception as exc:  # pragma: no cover - catch-all to ensure JSON response
         import traceback
@@ -5222,3 +5289,248 @@ def update_interlinear_word(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+@login_required
+def scrape_lexicon(request):
+    """
+    Scrapes content from Biblehub, Logeion, or Perseus URLs.
+    Caches the result for 24 hours to avoid repeated external requests.
+    """
+    url = request.GET.get('url')
+    if not url:
+        return JsonResponse({'error': 'No URL provided'}, status=400)
+
+    # Check cache first
+    cache_key = f"lexicon_scrape_{url}"
+    cached_content = cache.get(cache_key)
+    if cached_content:
+        return JsonResponse({'content': cached_content, 'cached': True})
+
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+
+        # --- Logeion: use its JSON API directly (it's an AngularJS SPA, static scraping returns nothing) ---
+        if 'logeion.uchicago.edu' in url:
+            from urllib.parse import urlparse, unquote
+            LOGEION_KEY = 'AIzaSyCT5aVzk3Yx-m8FH8rmTpEgfVyVA3pYbqg'
+            BASE = 'https://anastrophe.uchicago.edu/logeion-api'
+
+            # Step 1: resolve inflected form → lemma + morphological parse
+            raw_word = unquote(urlparse(url).path.lstrip('/'))
+            find_resp = requests.get(
+                f"{BASE}/find?key={LOGEION_KEY}&w={requests.utils.quote(raw_word)}",
+                headers=headers, timeout=10
+            )
+            find_resp.raise_for_status()
+            find_data = find_resp.json()
+
+            lemma = find_data.get('word', raw_word)          # normalised lemma
+            parses = find_data.get('parses', [])
+
+            # Step 2: fetch full lexicon detail for the lemma
+            detail_resp = requests.get(
+                f"{BASE}/detail?key={LOGEION_KEY}&type=normal&w={requests.utils.quote(lemma)}",
+                headers=headers, timeout=10
+            )
+            detail_resp.raise_for_status()
+            detail = detail_resp.json().get('detail', {})
+
+            # Priority order of dictionaries to display
+            priority = ['Abbott-Smith NT', 'LSJ', 'Middle Liddell', 'Brill-Montanari']
+            dicos = {d['dname']: d for d in detail.get('dicos', [])}
+            shortdef = detail.get('shortdef', '')
+
+            html_parts = []
+
+            # Word heading + morph info
+            if raw_word.lower() != lemma.lower():
+                html_parts.append(
+                    f'<h2 style="margin:0 0 4px;font-size:1.2em;">{raw_word}'
+                    f' <span style="font-size:0.75em;color:#888;">→ {lemma}</span></h2>'
+                )
+            else:
+                html_parts.append(f'<h2 style="margin:0 0 4px;font-size:1.2em;">{lemma}</h2>')
+
+            if parses:
+                morph = parses[0].get('parse', '').strip(' -')
+                html_parts.append(
+                    f'<p style="font-size:0.8em;color:#666;margin:0 0 10px;font-style:italic;">{morph}</p>'
+                )
+
+            if shortdef:
+                html_parts.append(
+                    f'<p style="background:#fffbe6;border-left:3px solid #e6a800;padding:8px 10px;margin:0 0 12px;font-style:italic;">'
+                    f'{shortdef}</p>'
+                )
+
+            shown = False
+            for name in priority:
+                if name in dicos:
+                    entries = dicos[name].get('es', [])
+                    if entries:
+                        open_attr = ' open' if name == 'LSJ' else ''
+                        html_parts.append(
+                            f'<details{open_attr} style="margin-bottom:10px;">'
+                            f'<summary style="font-weight:bold;cursor:pointer;padding:4px 0;">{name}</summary>'
+                            f'<div style="padding:8px 4px;font-size:0.9em;line-height:1.5;">'
+                            + ''.join(entries) +
+                            f'</div></details>'
+                        )
+                        shown = True
+
+            # Add any remaining lexicons collapsed
+            for dico in detail.get('dicos', []):
+                if dico['dname'] not in priority and dico.get('es'):
+                    html_parts.append(
+                        f'<details style="margin-bottom:10px;">'
+                        f'<summary style="font-weight:bold;cursor:pointer;padding:4px 0;">{dico["dname"]}</summary>'
+                        f'<div style="padding:8px 4px;font-size:0.9em;line-height:1.5;">'
+                        + ''.join(dico['es']) +
+                        f'</div></details>'
+                    )
+
+            if not shown and not shortdef:
+                html_parts.append(f'<p style="color:#888;">No lexicon entries found for <strong>{lemma}</strong>.</p>')
+
+            html_parts.append(
+                f'<p style="margin-top:12px;text-align:center;">'
+                f'<a href="{url}" target="_blank" style="font-size:0.85em;color:#0056b3;">Open full Logeion entry ↗</a></p>'
+            )
+
+            content = '\n'.join(html_parts)
+            cache.set(cache_key, content, 60 * 60 * 24)
+            return JsonResponse({'content': content})
+
+        # --- All other URLs: fetch and parse HTML ---
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        content = ""
+
+        if 'biblehub.com' in url:
+            # Extract main content area from Biblehub
+            main_content = soup.find('div', id='leftbox') or soup.find('div', class_='main')
+            if main_content:
+                # Remove unwanted elements like ads or navigation
+                for unwanted in main_content.find_all(['script', 'style', 'nav', 'iframe']):
+                    unwanted.decompose()
+                content = str(main_content)
+            else:
+                content = "Could not locate main content on Biblehub page."
+
+        elif 'perseus.tufts.edu' in url:
+            # Perseus dictionary entries
+            main_content = soup.find('div', class_='text_container') or soup.find('div', id='main_col')
+            if main_content:
+                content = str(main_content)
+            else:
+                content = "Could not locate main content on Perseus page."
+        else:
+            # Generic fallback: try to get the body text
+            content = str(soup.body) if soup.body else "No body content found."
+
+        # Basic sanitization: remove scripts and styles
+        clean_soup = BeautifulSoup(content, 'html.parser')
+        for tag in clean_soup(['script', 'style', 'link', 'meta', 'iframe']):
+            tag.decompose()
+        
+        # Convert relative links to absolute (optional, but helpful)
+        from urllib.parse import urljoin
+        for a in clean_soup.find_all('a', href=True):
+            a['href'] = urljoin(url, a['href'])
+            a['target'] = '_blank' # Open links in new tab
+
+        final_content = str(clean_soup)
+        
+        # Cache for 24 hours
+        cache.set(cache_key, final_content, 60 * 60 * 24)
+        
+        return JsonResponse({'content': final_content, 'cached': False})
+
+    except requests.RequestException as e:
+        logger.error(f"Error scraping {url}: {e}")
+        return JsonResponse({'error': f"Failed to fetch URL: {str(e)}"}, status=500)
+    except Exception as e:
+        logger.error(f"Unexpected error scraping {url}: {e}")
+        return JsonResponse({'error': "An unexpected error occurred"}, status=500)
+
+@login_required
+@require_POST
+def chat_with_lexicon(request):
+    """
+    Handles chat messages with Gemini, providing the scraped lexicon text as context.
+    """
+    try:
+        data = json.loads(request.body)
+        message = data.get('message')
+        context_text = data.get('context', '')
+        history = data.get('history', []) # Optional: pass previous messages
+        requested_model = data.get('model', '')
+
+        # Whitelist allowed models; fall back to default
+        ALLOWED_CHAT_MODELS = {
+            'gemini-3-flash-preview': 'gemini-3-flash-preview',
+            'gemini-3.1-pro-preview': 'gemini-3.1-pro-preview',
+        }
+        chat_model = ALLOWED_CHAT_MODELS.get(requested_model, DEFAULT_GEMINI_MODEL)
+
+        if not message:
+            return JsonResponse({'error': 'Message is required'}, status=400)
+
+        # Construct the prompt
+        system_prompt = (
+            "You are a careful philologist and lexicographer specializing in ancient Greek, "
+            "with a particular interest in how translation choices can reflect doctrinal "
+            "assumptions rather than the full range of a word's attested meaning.\n\n"
+            "Your core operating principles:\n"
+            "- Classical, Hellenistic, LXX, papyri, and patristic evidence represent the broader "
+            "documented semantic range of a word. When NT usage is narrower, note that narrowing "
+            "explicitly rather than treating it as the word's only meaning.\n"
+            "- Where traditional English glosses (e.g. 'righteousness', 'grace', 'faith', 'repent', "
+            "'lord', 'church', 'eternal') may flatten or theologise a word's semantic range, "
+            "point this out clearly and present the fuller range from the lexicon first.\n"
+            "- When a user proposes a rendering that appears to carry unexamined theological assumptions, "
+            "note the concern and suggest alternatives better grounded in the lexical evidence.\n"
+            "- Where lexical evidence supports a reading different from a standard English translation, "
+            "give that evidence clearly and let the user weigh it.\n"
+            "- Maintain a scholarly, analytical tone. Avoid devotional framing, but also avoid "
+            "unnecessary rhetorical hostility. The goal is clarity about what the Greek words "
+            "communicated to educated Greek speakers — not polemic.\n"
+            "- Your training-data glosses may reflect the same traditional biases you are analysing. "
+            "Always defer to the lexicon context provided below over anything you recall from training.\n\n"
+            "You have access to the following lexicon/dictionary entry:\n\n"
+            f"--- LEXICON CONTEXT ---\n{context_text}\n--- END CONTEXT ---\n\n"
+            "Ground every claim in this evidence. If the context is empty, say so rather than "
+            "supplying glosses from memory. When drafting footnotes, write in terse scholarly prose: "
+            "cite the lexicon, note where the received tradition may have narrowed or skewed the "
+            "meaning, and state the better-attested rendering."
+        )
+
+        # Initialize Gemini client (using the one already defined in views.py)
+        # We use generate_content for a single turn, or we could use a chat session if we manage history
+        
+        # For simplicity, we'll construct a single prompt with history included
+        full_prompt = system_prompt + "\n\n"
+        for msg in history:
+            role = "User" if msg.get('role') == 'user' else "Assistant"
+            full_prompt += f"{role}: {msg.get('content')}\n"
+        
+        full_prompt += f"User: {message}\nAssistant:"
+
+        response = client.models.generate_content(
+            model=chat_model,
+            contents=full_prompt,
+        )
+
+        return JsonResponse({
+            'reply': response.text,
+            'model_used': chat_model,
+        })
+
+    except Exception as e:
+        logger.error(f"Error in chat_with_lexicon: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
