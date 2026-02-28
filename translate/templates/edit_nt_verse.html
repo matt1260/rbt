@@ -1167,6 +1167,9 @@ Cached: {{ cached_hit }}
                     <option value="gemini-3-flash-preview" selected>Flash (fast)</option>
                     <option value="gemini-3.1-pro-preview">Pro (best)</option>
                 </select>
+                <button id="chat-clear-btn" title="Clear chat history for this word"
+                    style="margin-left:auto;font-size:11px;padding:3px 8px;background:none;border:1px solid #b0bec5;
+                           border-radius:4px;cursor:pointer;color:#555;">Clear</button>
             </div>
             <div id="chat-messages"></div>
             <div id="chat-input-row">
@@ -1188,6 +1191,7 @@ Cached: {{ cached_hit }}
         const panelTitle   = document.getElementById('lexicon-panel-title');
         const resizeHandle  = document.getElementById('chat-resize-handle');
         const chatSection   = document.getElementById('chat-section');
+        const clearBtn      = document.getElementById('chat-clear-btn');
 
         // ── Drag-to-resize chat section ──────────────────────────────
         resizeHandle.addEventListener('mousedown', (e) => {
@@ -1217,13 +1221,34 @@ Cached: {{ cached_hit }}
 
         let lexiconLoadedOk = false;   // true only after a successful fetch
 
+        const CHAT_WINDOW    = 20;                      // rolling max messages to persist
+        const LS_CHAT_KEY    = 'logeion_chat_global';   // single key for all words
+
+        function saveChatToStorage() {
+            try {
+                const trimmed = chatHistory.slice(-CHAT_WINDOW);
+                // Trim rendered HTML to match the kept messages (keep last N message divs)
+                const allDivs = chatMsgs.querySelectorAll('.chat-msg');
+                const keep    = Math.min(CHAT_WINDOW, allDivs.length);
+                let html = '';
+                for (let i = allDivs.length - keep; i < allDivs.length; i++) html += allDivs[i].outerHTML;
+                localStorage.setItem(LS_CHAT_KEY, JSON.stringify({ chatHistory: trimmed, chatHtml: html }));
+            } catch (e) { /* localStorage full or unavailable */ }
+        }
+
+        function loadChatFromStorage() {
+            try {
+                const raw = localStorage.getItem(LS_CHAT_KEY);
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) { return null; }
+        }
+
+        // wordCache: url → { lexiconHtml, lexiconContext } — lexicon content only, chat is global
         function saveCurrentState() {
-            if (!currentUrl || !lexiconLoadedOk) return;   // never cache error states
+            if (!currentUrl || !lexiconLoadedOk) return;
             wordCache.set(currentUrl, {
                 lexiconHtml:    lexContent.innerHTML,
                 lexiconContext: lexiconContext,
-                chatHistory:    chatHistory.slice(),
-                chatHtml:       chatMsgs.innerHTML,
             });
         }
 
@@ -1258,32 +1283,27 @@ Cached: {{ cached_hit }}
         }
 
         async function loadLexicon(url, wordLabel) {
-            // Save current word's state before switching
+            // Save current lexicon state before switching
             saveCurrentState();
 
             panelTitle.textContent = wordLabel || 'Lexicon';
             openPanel();
 
-            // Restore cached state for this word if available
+            // Restore cached lexicon for this word if available
             if (wordCache.has(url)) {
                 const cached = wordCache.get(url);
-                lexContent.innerHTML    = cached.lexiconHtml;
-                lexiconContext          = cached.lexiconContext;
-                chatHistory             = cached.chatHistory.slice();
-                chatMsgs.innerHTML      = cached.chatHtml;
-                currentUrl              = url;
-                lexiconLoadedOk         = true;
-                chatMsgs.scrollTop      = chatMsgs.scrollHeight;
+                lexContent.innerHTML = cached.lexiconHtml;
+                lexiconContext       = cached.lexiconContext;
+                currentUrl           = url;
+                lexiconLoadedOk      = true;
                 return;
             }
 
-            // New word — clear and fetch
-            currentUrl              = url;
-            lexiconLoadedOk         = false;
-            lexContent.innerHTML    = '<p style="color:#888;">Loading…</p>';
-            chatMsgs.innerHTML      = '';
-            chatHistory             = [];
-            lexiconContext          = '';
+            // New word — fetch lexicon only, leave chat untouched
+            currentUrl          = url;
+            lexiconLoadedOk     = false;
+            lexContent.innerHTML = '<p style="color:#888;">Loading…</p>';
+            lexiconContext       = '';
 
             try {
                 const resp = await fetch('{% url "scrape_lexicon" %}?url=' + encodeURIComponent(url));
@@ -1295,6 +1315,7 @@ Cached: {{ cached_hit }}
                 const tmp = document.createElement('div');
                 tmp.innerHTML = data.content;
                 lexiconContext = tmp.innerText.replace(/\s+/g, ' ').trim();
+                wordCache.set(url, { lexiconHtml: lexContent.innerHTML, lexiconContext });
             } catch (err) {
                 lexiconLoadedOk = false;
                 const retryBtn = `<button onclick="loadLexicon(${JSON.stringify(url)}, ${JSON.stringify(wordLabel || '')})" `
@@ -1330,7 +1351,7 @@ Cached: {{ cached_hit }}
                 if (data.error) throw new Error(data.error);
                 addMessage('ai', data.reply);
                 chatHistory.push({ role: 'assistant', content: data.reply });
-                saveCurrentState();
+                saveChatToStorage();
             } catch (err) {
                 addMessage('ai', 'Error: ' + err.message);
             } finally {
@@ -1343,6 +1364,22 @@ Cached: {{ cached_hit }}
         chatInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
         });
+
+        clearBtn.addEventListener('click', () => {
+            chatHistory        = [];
+            chatMsgs.innerHTML = '';
+            localStorage.removeItem(LS_CHAT_KEY);
+        });
+
+        // Restore global chat history on page load
+        (function restoreChat() {
+            const saved = loadChatFromStorage();
+            if (saved && saved.chatHistory && saved.chatHistory.length) {
+                chatHistory        = saved.chatHistory;
+                chatMsgs.innerHTML = saved.chatHtml;
+                chatMsgs.scrollTop = chatMsgs.scrollHeight;
+            }
+        })();
         // Auto-resize textarea
         chatInput.addEventListener('input', () => {
             chatInput.style.height = 'auto';
