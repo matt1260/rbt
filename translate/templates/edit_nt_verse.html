@@ -1215,8 +1215,10 @@ Cached: {{ cached_hit }}
         let lexiconContext = '';
         let chatHistory    = [];
 
+        let lexiconLoadedOk = false;   // true only after a successful fetch
+
         function saveCurrentState() {
-            if (!currentUrl) return;
+            if (!currentUrl || !lexiconLoadedOk) return;   // never cache error states
             wordCache.set(currentUrl, {
                 lexiconHtml:    lexContent.innerHTML,
                 lexiconContext: lexiconContext,
@@ -1270,12 +1272,14 @@ Cached: {{ cached_hit }}
                 chatHistory             = cached.chatHistory.slice();
                 chatMsgs.innerHTML      = cached.chatHtml;
                 currentUrl              = url;
+                lexiconLoadedOk         = true;
                 chatMsgs.scrollTop      = chatMsgs.scrollHeight;
                 return;
             }
 
             // New word — clear and fetch
             currentUrl              = url;
+            lexiconLoadedOk         = false;
             lexContent.innerHTML    = '<p style="color:#888;">Loading…</p>';
             chatMsgs.innerHTML      = '';
             chatHistory             = [];
@@ -1286,12 +1290,16 @@ Cached: {{ cached_hit }}
                 const data = await resp.json();
                 if (data.error) throw new Error(data.error);
                 lexContent.innerHTML = data.content;
+                lexiconLoadedOk = true;
                 // Extract clean plain text for LLM context
                 const tmp = document.createElement('div');
                 tmp.innerHTML = data.content;
                 lexiconContext = tmp.innerText.replace(/\s+/g, ' ').trim();
             } catch (err) {
-                lexContent.innerHTML = '<p style="color:red;">Failed to load: ' + err.message + '</p>';
+                lexiconLoadedOk = false;
+                const retryBtn = `<button onclick="loadLexicon(${JSON.stringify(url)}, ${JSON.stringify(wordLabel || '')})" `
+                    + `style="margin-top:8px;padding:5px 12px;background:#17324f;color:#fff;border:none;border-radius:5px;cursor:pointer;">Retry</button>`;
+                lexContent.innerHTML = `<p style="color:red;">Failed to load lexicon. ${err.message}</p>${retryBtn}`;
             }
         }
 

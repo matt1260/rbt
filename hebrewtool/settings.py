@@ -41,6 +41,9 @@ DEFAULT_CHARSET = 'utf-8'
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY')
 
+# Logeion (anastrophe.uchicago.edu) public API key - extracted from Logeion's own JS
+LOGEION_KEY = os.environ.get('LOGEION_KEY', 'AIzaSyCT5aVzk3Yx-m8FH8rmTpEgfVyVA3pYbqg')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ENABLE_VERBOSE_DEBUG = os.environ.get('ENABLE_VERBOSE_DEBUG', 'False') == 'True'

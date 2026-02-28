@@ -5313,28 +5313,48 @@ def scrape_lexicon(request):
 
         # --- Logeion: use its JSON API directly (it's an AngularJS SPA, static scraping returns nothing) ---
         if 'logeion.uchicago.edu' in url:
+            import time
             from urllib.parse import urlparse, unquote
-            LOGEION_KEY = 'AIzaSyCT5aVzk3Yx-m8FH8rmTpEgfVyVA3pYbqg'
+            from django.conf import settings as django_settings
+            LOGEION_KEY = django_settings.LOGEION_KEY
             BASE = 'https://anastrophe.uchicago.edu/logeion-api'
+
+            logeion_headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Origin': 'https://logeion.uchicago.edu',
+                'Referer': 'https://logeion.uchicago.edu/',
+                'Connection': 'keep-alive',
+            }
+
+            def logeion_get(endpoint_url, retries=3, backoff=1.5):
+                last_exc = None
+                for attempt in range(retries):
+                    try:
+                        r = requests.get(endpoint_url, headers=logeion_headers, timeout=15)
+                        r.raise_for_status()
+                        return r
+                    except Exception as exc:
+                        last_exc = exc
+                        if attempt < retries - 1:
+                            time.sleep(backoff * (attempt + 1))
+                raise last_exc
 
             # Step 1: resolve inflected form → lemma + morphological parse
             raw_word = unquote(urlparse(url).path.lstrip('/'))
-            find_resp = requests.get(
-                f"{BASE}/find?key={LOGEION_KEY}&w={requests.utils.quote(raw_word)}",
-                headers=headers, timeout=10
+            find_resp = logeion_get(
+                f"{BASE}/find?key={LOGEION_KEY}&w={requests.utils.quote(raw_word)}"
             )
-            find_resp.raise_for_status()
             find_data = find_resp.json()
 
             lemma = find_data.get('word', raw_word)          # normalised lemma
             parses = find_data.get('parses', [])
 
             # Step 2: fetch full lexicon detail for the lemma
-            detail_resp = requests.get(
-                f"{BASE}/detail?key={LOGEION_KEY}&type=normal&w={requests.utils.quote(lemma)}",
-                headers=headers, timeout=10
+            detail_resp = logeion_get(
+                f"{BASE}/detail?key={LOGEION_KEY}&type=normal&w={requests.utils.quote(lemma)}"
             )
-            detail_resp.raise_for_status()
             detail = detail_resp.json().get('detail', {})
 
             # Priority order of dictionaries to display
