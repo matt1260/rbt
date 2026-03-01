@@ -30,9 +30,15 @@ from urllib.parse import quote, unquote
 from django.views.decorators.http import require_POST
 from django.conf import settings
 from django.db import connection, transaction
+import httpx
+from google.genai import types
+
+def get_ipv4_transport():
+    """Force HTTPX to bind over IPv4 exclusively to bypass DNS resolution stalls."""
+    return httpx.HTTPTransport(local_address="0.0.0.0")
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY, http_options={'client_args': {'transport': get_ipv4_transport()}})
 
 DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash-preview')
 MODEL_NAME_PATTERN = re.compile(r'^[\w\-.:+]+$')
@@ -406,7 +412,7 @@ def _strip_html_text(value: str | None) -> str:
         return value
 
 
-def _request_gemini_response(prompt: str, model_name: str | None = None, api_key: str | None = None) -> str:
+def _request_gemini_response(prompt: str, model_name: str | None = None, api_key: str | None = None, instructions: str | None = None) -> str:
     try:
         model_to_use = _resolve_model_name(model_name)
     except ValueError as exc:
@@ -420,7 +426,7 @@ def _request_gemini_response(prompt: str, model_name: str | None = None, api_key
             return 'Error: Invalid API key format.'
         # Do not log the API key
         try:
-            use_client = genai.Client(api_key=api_key)
+            use_client = genai.Client(api_key=api_key, http_options={'client_args': {'transport': get_ipv4_transport()}})
         except Exception as exc:
             logger.exception('Failed to initialize Gemini client with provided API key')
             return 'Error: Provided API key is invalid or client initialization failed.'
@@ -435,7 +441,10 @@ def _request_gemini_response(prompt: str, model_name: str | None = None, api_key
         import concurrent.futures
         # Execute the API call in a thread with a timeout to avoid long hangs
         def _call_api():
-            return use_client.models.generate_content(model=model_to_use, contents=prompt)
+            config_kwargs = {}
+            if instructions:
+                config_kwargs['config'] = types.GenerateContentConfig(system_instruction=instructions)
+            return use_client.models.generate_content(model=model_to_use, contents=prompt, **config_kwargs)
 
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -546,7 +555,7 @@ def _request_gemini_response(prompt: str, model_name: str | None = None, api_key
         return f"Error: Gemini API failed: {exc}"
 
 
-def _stream_gemini_response(prompt: str, model_name: str | None = None, api_key: str | None = None):
+def _stream_gemini_response(prompt: str, model_name: str | None = None, api_key: str | None = None, instructions: str | None = None):
     """Generator that yields raw text chunks from Gemini's streaming API."""
     try:
         model_to_use = _resolve_model_name(model_name)
@@ -560,7 +569,7 @@ def _stream_gemini_response(prompt: str, model_name: str | None = None, api_key:
             yield 'Error: Invalid API key format.'
             return
         try:
-            use_client = genai.Client(api_key=api_key)
+            use_client = genai.Client(api_key=api_key, http_options={'client_args': {'transport': get_ipv4_transport()}})
         except Exception:
             logger.exception('Failed to initialise Gemini client with provided API key (streaming)')
             yield 'Error: Provided API key is invalid or client initialisation failed.'
@@ -572,7 +581,13 @@ def _stream_gemini_response(prompt: str, model_name: str | None = None, api_key:
         use_client = client
 
     try:
-        for chunk in use_client.models.generate_content_stream(model=model_to_use, contents=prompt):
+        yield " " * 1024
+        
+        config_kwargs = {}
+        if instructions:
+            config_kwargs['config'] = types.GenerateContentConfig(system_instruction=instructions)
+
+        for chunk in use_client.models.generate_content_stream(model=model_to_use, contents=prompt, **config_kwargs):
             if hasattr(chunk, 'text') and chunk.text:
                 yield chunk.text
     except Exception as exc:
@@ -606,7 +621,6 @@ def gemini_translate(entries, prompt_instructions: str | None = None, model_name
     # Provide an explicit per-word mapping so morphology is aligned with each lemma
     mapping_lines = [f"{e.get('lemma','')} | {e.get('english','')} | {e.get('morph_description','')} ({e.get('morph','Unknown')})" for e in entries]
     prompt = (
-        f"{instructions}\n\n"
         "MAPPING (one per line: GREEK | ENGLISH | MORPHOLOGY):\n"
         + "\n".join(mapping_lines) + "\n\n"
         f"GREEK TEXT: {greek_text}\n"
@@ -614,7 +628,7 @@ def gemini_translate(entries, prompt_instructions: str | None = None, model_name
         f"MORPHOLOGY: {morphology_info}\n"
     )
 
-    return _request_gemini_response(prompt, model_name, api_key)
+    return _request_gemini_response(prompt, model_name, api_key, instructions=instructions)
 
 
 
@@ -634,12 +648,11 @@ def gemini_translate_hebrew(
     english_plain = (linear_english or '').strip() or 'Not provided'
 
     prompt = (
-        f"{instructions}\n\n"
         f"HEBREW TEXT: {hebrew_plain}\n"
         f"LINEAR ENGLISH: {english_plain}\n"
     )
 
-    return _request_gemini_response(prompt, model_name, api_key)
+    return _request_gemini_response(prompt, model_name, api_key, instructions=instructions)
 
 
 def _save_gemini_prefs(request, model_name: str, prompt_override: str | None, translation_type: str) -> None:
@@ -732,7 +745,6 @@ def request_gemini_translation(request):
                 interlinear_english = ' '.join([e.get('english', '') for e in entries])
                 morphology = ' | '.join([f"{e.get('morph_description','')} ({e.get('morph','Unknown')})" for e in entries])
                 stream_prompt = (
-                    f"{instructions}\n\n"
                     "MAPPING (one per line: GREEK | ENGLISH | MORPHOLOGY):\n"
                     + "\n".join(mapping_lines) + "\n\n"
                     f"GREEK TEXT: {greek_words}\n"
@@ -740,7 +752,14 @@ def request_gemini_translation(request):
                     f"MORPHOLOGY: {morphology}\n"
                 )
                 _save_gemini_prefs(request, resolved_model, prompt_override, translation_type)
-                return StreamingHttpResponse(_stream_gemini_response(stream_prompt, resolved_model, api_key), content_type='text/plain; charset=utf-8')
+                
+                response = StreamingHttpResponse(
+                    _stream_gemini_response(stream_prompt, resolved_model, api_key, instructions=instructions), 
+                    content_type='text/plain; charset=utf-8'
+                )
+                response['X-Accel-Buffering'] = 'no'
+                response['Cache-Control'] = 'no-cache'
+                return response
 
             suggestion = gemini_translate(entries, prompt_override, resolved_model, api_key)
         elif translation_type == 'hebrew':
@@ -767,12 +786,18 @@ def request_gemini_translation(request):
                 hebrew_plain = _strip_html_text(hebrew_text)
                 english_plain = (linear_english or '').strip() or 'Not provided'
                 stream_prompt = (
-                    f"{instructions}\n\n"
                     f"HEBREW TEXT: {hebrew_plain}\n"
                     f"LINEAR ENGLISH: {english_plain}\n"
                 )
                 _save_gemini_prefs(request, resolved_model, prompt_override, translation_type)
-                return StreamingHttpResponse(_stream_gemini_response(stream_prompt, resolved_model, api_key), content_type='text/plain; charset=utf-8')
+                
+                response = StreamingHttpResponse(
+                    _stream_gemini_response(stream_prompt, resolved_model, api_key, instructions=instructions), 
+                    content_type='text/plain; charset=utf-8'
+                )
+                response['X-Accel-Buffering'] = 'no'
+                response['Cache-Control'] = 'no-cache'
+                return response
 
             suggestion = gemini_translate_hebrew(hebrew_text, linear_english, prompt_override, resolved_model, api_key)
             if suggestion and suggestion.startswith('Error:'):

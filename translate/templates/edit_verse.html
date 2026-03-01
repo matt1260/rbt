@@ -1949,6 +1949,13 @@
                         }
                     }
 
+                    // Immediately drop modal while stream runs
+                    statusEl.textContent = 'Streaming suggestion...';
+                    toggleModal(false);
+                    if (targetTextarea) {
+                        targetTextarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+
                     if (contentType.includes('application/json')) {
                         const data = await response.json();
                         if (data.error) throw new Error(data.error);
@@ -1960,21 +1967,27 @@
                         const reader = response.body.getReader();
                         const decoder = new TextDecoder('utf-8');
                         let done = false;
+                        let firstChunk = true;
 
                         while (!done) {
                             const { value, done: readerDone } = await reader.read();
                             done = readerDone;
                             if (value) {
-                                const chunk = decoder.decode(value, { stream: true });
+                                let chunk = decoder.decode(value, { stream: true });
+                                if (firstChunk && chunk.trim() === '') {
+                                    // Skip the padding spaces sent to clear buffer
+                                    continue;
+                                } else if (firstChunk) {
+                                    chunk = chunk.trimStart();
+                                    firstChunk = false;
+                                }
+                                
                                 if (targetTextarea) {
                                     targetTextarea.value += chunk;
                                 }
                             }
                         }
                     }
-
-                    statusEl.textContent = 'Suggestion loaded into editor.';
-                    toggleModal(false);
                 } catch (error) {
                     statusEl.textContent = error.message;
                 } finally {
