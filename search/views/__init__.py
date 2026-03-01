@@ -89,6 +89,11 @@ from .statistics_views import (
     visitor_locations_api,
 )
 
+# Northflank operational stats
+from .northflank_stats_views import (
+    northflank_stats_api,
+)
+
 __all__ = [
     # Utils
     'HEBREW_RANGE',
@@ -144,4 +149,7 @@ __all__ = [
     'update_statistics_view',
     'update_statistics_api',
     'visitor_locations_api',
+
+    # Northflank stats
+    'northflank_stats_api',
 ]
