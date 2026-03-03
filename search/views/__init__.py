@@ -94,6 +94,16 @@ from .northflank_stats_views import (
     northflank_stats_api,
 )
 
+# Aeon Bot views
+from .aeon_views import (
+    aeon_dashboard,
+    aeon_dashboard_page,
+    aeon_status,
+    aeon_ingest,
+    aeon_ingest_wordpress,
+    aeon_query,
+)
+
 __all__ = [
     # Utils
     'HEBREW_RANGE',
@@ -152,4 +162,12 @@ __all__ = [
 
     # Northflank stats
     'northflank_stats_api',
+
+    # Aeon Bot
+    'aeon_dashboard',
+    'aeon_dashboard_page',
+    'aeon_status',
+    'aeon_ingest',
+    'aeon_ingest_wordpress',
+    'aeon_query',
 ]

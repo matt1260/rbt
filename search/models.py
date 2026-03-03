@@ -205,3 +205,62 @@ class VisitorLocation(models.Model):
 
     def __str__(self):
         return f"{self.country} - {self.city} ({self.timestamp})"
+
+
+class AeonCorpusSource(models.Model):
+    """Tracks source documents ingested into Aeon Bot corpus."""
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('ready', 'Ready'),
+        ('failed', 'Failed'),
+    ]
+
+    source_type = models.CharField(max_length=32, default='conversation', db_index=True)
+    source_identifier = models.CharField(max_length=128, db_index=True)
+    title = models.CharField(max_length=255, db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_ingested_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'aeon_corpus_sources'
+        unique_together = [('source_type', 'source_identifier')]
+        indexes = [
+            models.Index(fields=['source_type', 'title'], name='idx_aeon_source_type_title'),
+            models.Index(fields=['status', 'updated_at'], name='idx_aeon_source_status'),
+        ]
+
+    def __str__(self):
+        return f"{self.source_type}:{self.source_identifier} ({self.status})"
+
+
+class AeonChunk(models.Model):
+    """Stores chunked text and vector embeddings for retrieval."""
+
+    source = models.ForeignKey(AeonCorpusSource, on_delete=models.CASCADE, related_name='chunks')
+    chunk_index = models.IntegerField()
+    role_mix = models.CharField(max_length=50, blank=True, null=True)
+    start_turn = models.IntegerField(default=0)
+    end_turn = models.IntegerField(default=0)
+    text = models.TextField()
+    text_hash = models.CharField(max_length=64, db_index=True)
+    embedding = models.JSONField(blank=True, null=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'aeon_chunks'
+        unique_together = [('source', 'chunk_index')]
+        indexes = [
+            models.Index(fields=['source', 'chunk_index'], name='idx_aeon_chunk_source_idx'),
+            models.Index(fields=['text_hash'], name='idx_aeon_chunk_text_hash'),
+        ]
+
+    def __str__(self):
+        return f"{self.source_id}#{self.chunk_index}"

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aeon Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
+    h1, h2 { margin: 0 0 12px; }
+    .meta { margin-bottom: 20px; color: #4b5563; }
+    .cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+    .card { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; min-width: 180px; }
+    .label { font-size: 12px; color: #6b7280; text-transform: uppercase; }
+    .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; font-size: 14px; }
+    th { background: #f3f4f6; }
+    .section { margin-top: 24px; }
+    .muted { color: #6b7280; }
+    .pill { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 12px; background: #e5e7eb; }
+  </style>
+</head>
+<body>
+  <h1>Aeon Sources Dashboard</h1>
+  <div class="meta">Browser view for current Aeon corpus state.</div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="label">Total Sources</div>
+      <div class="value">{{ totals.sources|default:0 }}</div>
+    </div>
+    <div class="card">
+      <div class="label">Total Chunks</div>
+      <div class="value">{{ totals.chunks|default:0 }}</div>
+    </div>
+    <div class="card">
+      <div class="label">Latest Source</div>
+      <div class="value" style="font-size:14px;line-height:1.3;">{{ latest_source.title|default:"None" }}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>By Status</h2>
+    {% if by_status %}
+      {% for key, value in by_status.items %}
+        <span class="pill">{{ key }}: {{ value }}</span>
+      {% endfor %}
+    {% else %}
+      <div class="muted">No status data.</div>
+    {% endif %}
+  </div>
+
+  <div class="section">
+    <h2>By Type</h2>
+    {% if by_type %}
+      {% for key, value in by_type.items %}
+        <span class="pill">{{ key }}: {{ value }}</span>
+      {% endfor %}
+    {% else %}
+      <div class="muted">No type data.</div>
+    {% endif %}
+  </div>
+
+  <div class="section">
+    <h2>Sources</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Title</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Chunks</th>
+          <th>Updated</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for source in sources %}
+        <tr>
+          <td>{{ source.id }}</td>
+          <td>{{ source.title }}</td>
+          <td>{{ source.source_type }}</td>
+          <td>{{ source.status }}</td>
+          <td>{{ source.chunk_count }}</td>
+          <td>{{ source.updated_at }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="muted">No sources yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Failed Sources</h2>
+    {% if failed_sources %}
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for source in failed_sources %}
+          <tr>
+            <td>{{ source.id }}</td>
+            <td>{{ source.title }}</td>
+            <td>{{ source.source_type }}</td>
+            <td>{{ source.error_message }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="muted">No failed sources.</div>
+    {% endif %}
+  </div>
+</body>
+</html>

@@ -375,6 +375,87 @@
         font-size: 12px;
         width: 100%;
     }
+
+    /* Aeon Bot box (separate from Lexicon side panel chat) */
+    #aeon-chat-box {
+        margin-top: 24px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        background: #f8fafc;
+        overflow: hidden;
+    }
+    #aeon-chat-header {
+        background: #17324f;
+        color: #fff;
+        padding: 10px 12px;
+        font-weight: 700;
+        font-size: 14px;
+    }
+    #aeon-chat-body {
+        padding: 10px 12px;
+    }
+    #aeon-chat-messages {
+        min-height: 110px;
+        max-height: 260px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 4px 2px 10px;
+    }
+    .aeon-msg {
+        border-radius: 8px;
+        padding: 8px 10px;
+        line-height: 1.4;
+        font-size: 13px;
+        max-width: 95%;
+        word-break: break-word;
+    }
+    .aeon-msg.user {
+        align-self: flex-end;
+        background: #dbeafe;
+        color: #1f3b65;
+    }
+    .aeon-msg.bot {
+        align-self: flex-start;
+        background: #eef2f7;
+        color: #1f2937;
+    }
+    #aeon-chat-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    #aeon-chat-input {
+        flex: 1;
+        min-height: 40px;
+        max-height: 120px;
+        resize: vertical;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 13px;
+        font-family: inherit;
+    }
+    #aeon-chat-send {
+        background: #17324f;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 14px;
+        cursor: pointer;
+        font-size: 13px;
+        align-self: flex-end;
+    }
+    #aeon-chat-send:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    #aeon-chat-meta {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #4b5563;
+    }
 </style>
 
 
@@ -1163,6 +1244,89 @@ Cached: {{ cached_hit }}
         </script>
 
     <!-- ============================================================
+         AEON BOT CHAT BOX (inline, separate from Lexicon panel)
+    ============================================================ -->
+    <div id="aeon-chat-box">
+        <div id="aeon-chat-header">Aeon Bot</div>
+        <div id="aeon-chat-body">
+            <div id="aeon-chat-messages">
+                <div class="aeon-msg bot">Ask Aeon Bot about this verse, your ingested papers, or Aonic themes.</div>
+            </div>
+            <div id="aeon-chat-row">
+                <textarea id="aeon-chat-input" placeholder="Ask Aeon Bot... (Shift+Enter for newline)"></textarea>
+                <button id="aeon-chat-send">Send</button>
+            </div>
+            <div id="aeon-chat-meta"></div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        const messagesEl = document.getElementById('aeon-chat-messages');
+        const inputEl = document.getElementById('aeon-chat-input');
+        const sendEl = document.getElementById('aeon-chat-send');
+        const metaEl = document.getElementById('aeon-chat-meta');
+        if (!messagesEl || !inputEl || !sendEl || !metaEl) return;
+
+        function addMsg(role, text) {
+            const div = document.createElement('div');
+            div.className = 'aeon-msg ' + role;
+            div.textContent = text;
+            messagesEl.appendChild(div);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        async function sendAeon() {
+            const question = inputEl.value.trim();
+            if (!question) return;
+
+            addMsg('user', question);
+            inputEl.value = '';
+            metaEl.textContent = '';
+            sendEl.disabled = true;
+            sendEl.textContent = '...';
+
+            try {
+                const response = await fetch('/api/aeon/query/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question,
+                        top_k: 8,
+                    }),
+                });
+
+                const data = await response.json();
+                if (!response.ok || !data.ok || !data.result) {
+                    throw new Error((data && data.error) || 'Aeon query failed');
+                }
+
+                addMsg('bot', data.result.answer || 'No answer returned.');
+
+                const sources = (data.result.sources || []).map(item => item.title).filter(Boolean);
+                const snippets = (data.result.snippets || []).length;
+                metaEl.textContent = `Sources: ${sources.join(' | ') || 'n/a'} • Snippets: ${snippets}`;
+            } catch (err) {
+                addMsg('bot', 'Error: ' + (err && err.message ? err.message : String(err)));
+            } finally {
+                sendEl.disabled = false;
+                sendEl.textContent = 'Send';
+            }
+        }
+
+        sendEl.addEventListener('click', sendAeon);
+        inputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendAeon();
+            }
+        });
+    })();
+    </script>
+
+    <!-- ============================================================
          LEXICON SLIDING PANEL (right-side)
          Opened by clicking any Λογεῖον link in the interlinear.
     ============================================================ -->
@@ -1403,6 +1567,8 @@ Cached: {{ cached_hit }}
         document.addEventListener('click', (e) => {
             const link = e.target.closest('a[href*="logeion.uchicago.edu"]');
             if (!link) return;
+            // Skip if the link is inside the lexicon panel (allow opening in new tab)
+            if (link.closest('#lexicon-panel')) return;
             e.preventDefault();
             // Try to get the word from a nearby .gk span or fall back to URL path
             const cell = link.closest('td') || link.parentElement;

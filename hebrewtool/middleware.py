@@ -106,17 +106,17 @@ class RateLimitMiddleware:
         # Determine rate limit based on endpoint
         if 'verse' in request.GET and 'chapter' in request.GET:
             # Individual verse lookup - configurable and less aggressive by default
-            limit = getattr(settings, 'RATE_LIMIT_VERSE_LIMIT', 30)
+            limit = getattr(settings, 'RATE_LIMIT_VERSE_LIMIT', 20) # Lowered
             window = getattr(settings, 'RATE_LIMIT_VERSE_WINDOW', 60)
             endpoint_type = 'verse'
-            max_strikes = getattr(settings, 'RATE_LIMIT_VERSE_MAX_STRIKES', 3)
+            max_strikes = getattr(settings, 'RATE_LIMIT_VERSE_MAX_STRIKES', 2)
             ban_duration = getattr(settings, 'RATE_LIMIT_VERSE_BAN_DURATION', 1800)
         elif 'chapter' in request.GET and 'book' in request.GET:
             # Chapter view
-            limit = getattr(settings, 'RATE_LIMIT_CHAPTER_LIMIT', 60)
+            limit = getattr(settings, 'RATE_LIMIT_CHAPTER_LIMIT', 20) # Lowered significantly
             window = getattr(settings, 'RATE_LIMIT_CHAPTER_WINDOW', 60)
             endpoint_type = 'chapter'
-            max_strikes = getattr(settings, 'RATE_LIMIT_CHAPTER_MAX_STRIKES', 4)
+            max_strikes = getattr(settings, 'RATE_LIMIT_CHAPTER_MAX_STRIKES', 2)
             ban_duration = getattr(settings, 'RATE_LIMIT_CHAPTER_BAN_DURATION', 1800)
         elif path.startswith('/translate/') or path.startswith('/api/'):
             # Translation API
@@ -127,11 +127,20 @@ class RateLimitMiddleware:
             ban_duration = getattr(settings, 'RATE_LIMIT_API_BAN_DURATION', 3600)
         else:
             # General pages
-            limit = getattr(settings, 'RATE_LIMIT_GENERAL_LIMIT', 120)
+            limit = getattr(settings, 'RATE_LIMIT_GENERAL_LIMIT', 60) # Lowered from 120
             window = getattr(settings, 'RATE_LIMIT_GENERAL_WINDOW', 60)
             endpoint_type = 'general'
-            max_strikes = getattr(settings, 'RATE_LIMIT_GENERAL_MAX_STRIKES', 6)
-            ban_duration = getattr(settings, 'RATE_LIMIT_GENERAL_BAN_DURATION', 300)
+            max_strikes = getattr(settings, 'RATE_LIMIT_GENERAL_MAX_STRIKES', 4)
+            ban_duration = getattr(settings, 'RATE_LIMIT_GENERAL_BAN_DURATION', 600)
+            
+        # Drastically throttle requests coming from known Data Centers/Clouds/Proxies
+        try:
+            geo_data = cache.get(f'geoip_{ip}')
+            if geo_data and geo_data.get('is_bot', False):
+                limit = max(1, limit // 5)  # 5x stricter
+                max_strikes = 1             # Immediately challenge/ban
+        except Exception:
+            pass
         
         cache_key = f'ratelimit:{endpoint_type}:{ip}'
         strikes_key = f'strikes:{endpoint_type}:{ip}'
@@ -473,15 +482,17 @@ class VisitorTrackingMiddleware:
         if not geo_data:
             try:
                 # Use ip-api.com (free, no key required, 45 requests/minute limit)
-                res = requests.get(f'http://ip-api.com/json/{ip}?fields=status,country,city,lat,lon', timeout=5)
+                res = requests.get(f'http://ip-api.com/json/{ip}?fields=status,country,city,lat,lon,proxy,hosting', timeout=5)
                 if res.status_code == 200:
                     data = res.json()
                     if data.get('status') == 'success':
+                        is_bot_network = data.get('proxy', False) or data.get('hosting', False)
                         geo_data = {
                             'country': data.get('country'),
                             'city': data.get('city'),
                             'latitude': data.get('lat'),
-                            'longitude': data.get('lon')
+                            'longitude': data.get('lon'),
+                            'is_bot': is_bot_network
                         }
                         # Cache for 24 hours
                         cache.set(cache_key, geo_data, 60 * 60 * 24)
@@ -498,7 +509,7 @@ class VisitorTrackingMiddleware:
                     city=geo_data.get('city'),
                     latitude=geo_data.get('latitude'),
                     longitude=geo_data.get('longitude'),
-                    is_bot=False
+                    is_bot=geo_data.get('is_bot', False)
                 )
             except Exception as e:
                 logger.error(f"Error saving visitor log: {e}")

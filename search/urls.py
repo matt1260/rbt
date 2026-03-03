@@ -28,4 +28,12 @@ urlpatterns = [
     path('translation/status/', views.translation_job_status, name='translation_job_status'),
     path('translation/clear-cache/', views.clear_translation_cache, name='clear_translation_cache'),
     path('translation/retry-failed/', views.retry_failed_translations, name='retry_failed_translations'),
+
+    # Aeon Bot API endpoints
+    path('aeon/status/', views.aeon_status, name='aeon_status'),
+    path('aeon/dashboard/', views.aeon_dashboard, name='aeon_dashboard'),
+    path('aeon/dashboard/view/', views.aeon_dashboard_page, name='aeon_dashboard_page'),
+    path('aeon/ingest/', views.aeon_ingest, name='aeon_ingest'),
+    path('aeon/ingest-wordpress/', views.aeon_ingest_wordpress, name='aeon_ingest_wordpress'),
+    path('aeon/query/', views.aeon_query, name='aeon_query'),
 ]
