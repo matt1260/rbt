@@ -5,9 +5,52 @@
 	
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+<title>{% block title %}{{ meta_title|default:'Real Bible Translation Project' }}{% endblock %}</title>
+
+<!-- Standard SEO -->
+<meta name="description" content="{% block meta_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, faithful translations of scripture using extensive tools and AI-assisted workflows.' }}{% endblock %}">
+<meta name="keywords" content="{% block meta_keywords %}{{ meta_keywords|default:'Bible, Translation, Hebrew, Greek, RBT, Real Bible Translation' }}{% endblock %}">
+<meta name="robots" content="{{ meta_robots|default:'index, follow, max-image-preview:large' }}">
+{% if canonical_url %}
+<link rel="canonical" href="{{ canonical_url }}">
+{% else %}
+<link rel="canonical" href="{{ request.build_absolute_uri }}">
+{% endif %}
+
+<!-- Open Graph / Social Media -->
+<meta property="og:title" content="{% block og_title %}{{ meta_title|default:'Real Bible Translation Project' }}{% endblock %}">
+<meta property="og:description" content="{% block og_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, faithful translations of scripture using extensive tools and AI-assisted workflows.' }}{% endblock %}">
+<meta property="og:url" content="{% if canonical_url %}{{ canonical_url }}{% else %}{{ request.build_absolute_uri }}{% endif %}">
+<meta property="og:type" content="{% block og_type %}website{% endblock %}">
+
+<!-- Twitter Cards -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{% block twitter_title %}{{ meta_title|default:'Real Bible Translation Project' }}{% endblock %}">
+<meta name="twitter:description" content="{% block twitter_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, faithful translations of scripture using extensive tools and AI-assisted workflows.' }}{% endblock %}">
+
+<!-- JSON-LD Structured Data -->
+<script type="application/ld+json">
+{% block json_ld %}
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "{{ meta_title|default:'Real Bible Translation Project'|escapejs }}",
+  "description": "{{ meta_description|default:'The Real Bible Translation Project focuses on precise, faithful translations of scripture using extensive tools and AI-assisted workflows.'|escapejs }}",
+  "url": "{% if canonical_url %}{{ canonical_url|escapejs }}{% else %}{{ request.build_absolute_uri|escapejs }}{% endif %}",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Real Bible Translation"
+  },
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "https://read.realbible.tech/search/results/?q={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+}
+{% endblock %}
+</script>
+
 <link rel="profile" href="http://gmpg.org/xfn/11">
-<title>{% block title %}{% endblock %}</title>
-<meta name="robots" content="max-image-preview:large">
 <link rel="dns-prefetch" href="//fonts.googleapis.com">
 <link rel="alternate" type="application/rss+xml" title="Real Bible Translation Project » Feed" href="https://www.realbible.tech/feed/">
 <link rel="alternate" type="application/rss+xml" title="Real Bible Translation Project » Comments Feed" href="https://www.realbible.tech/comments/feed/">
