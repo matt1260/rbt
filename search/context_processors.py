@@ -8,7 +8,7 @@ def seo_context(request):
     context = {
         'canonical_url': request.build_absolute_uri(request.path),
         'meta_title': 'Real Bible Translation Project',
-        'meta_description': 'The Real Bible Translation Project focuses on precise, faithful translations of scripture using extensive tools and AI-assisted workflows.',
+        'meta_description': 'The Real Bible Translation Project focuses on precise, faithful translations of scripture using extensive tools and comprehensive linguistic workflows.',
         'meta_keywords': 'Bible, Translation, Hebrew, Greek, RBT, Real Bible Translation',
     }
 
@@ -24,7 +24,7 @@ def seo_context(request):
     if book and chapter:
         if verse:
             context['meta_title'] = f"{book} {chapter}:{verse} | Real Bible Translation Project"
-            context['meta_description'] = f"Read and study {book} {chapter}:{verse} with Greek and Hebrew interlinear data, comprehensive footnotes, and AI-assisted literal translations."
+            context['meta_description'] = f"Read and study {book} {chapter}:{verse} with Greek and Hebrew interlinear data, comprehensive footnotes, and literal translations."
             
             # Canonical URL logic
             params = urlencode({'book': book, 'chapter': chapter, 'verse': verse})
