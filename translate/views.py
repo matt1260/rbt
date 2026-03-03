@@ -5342,7 +5342,7 @@ def scrape_lexicon(request):
             from urllib.parse import urlparse, unquote
             from django.conf import settings as django_settings
             LOGEION_KEY = django_settings.LOGEION_KEY
-            BASE = 'https://anastrophe.uchicago.edu/logeion-api'
+            BASE = 'https://api.logeion.org'
 
             logeion_headers = {
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
