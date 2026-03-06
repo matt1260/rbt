@@ -159,7 +159,6 @@ function hideTranslationLoading() {
   {{ chapters|safe }}
 </div>
 
-<h1>{{ book }} {{ chapter_num }}</h1>
 {% with title_prefix=book|title %}
 <div id="toggleButtonsContainer">
     <div id="imageToggleButton"><i class="fas fa-eye-slash"></i> Images (I)</div>
@@ -177,7 +176,7 @@ function hideTranslationLoading() {
 </div>
 
 {% endwith %}
-
+<h1>{{ book }} {{ chapter_num }}</h1>
 {% if current_language in 'ar,he,ur,fa' %}
 <style>
     /* RTL support for Arabic, Hebrew, Urdu, Persian */
@@ -239,18 +238,17 @@ function hideTranslationLoading() {
         color: #666;
     }
 
-    /* Modern toolbar container */
+    /* Modern toolbar container — Sanctum style */
     #toggleButtonsContainer {
         display: flex;
         flex-wrap: wrap;
         justify-content: flex-end;
-        gap: 8px;
-        background: #fafafa;
-        border: 1px solid #e0e0e0;
-        border-radius: 10px;
+        gap: 6px;
+        background: var(--sanctum-parchment, #faf7f2);
+        border: 1px solid var(--sanctum-rule, rgba(183,133,80,0.25));
+        border-radius: 4px;
         padding: 8px 12px;
         margin-bottom: 15px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
         position: sticky;
         top: 0;
         z-index: 50;
@@ -264,28 +262,33 @@ function hideTranslationLoading() {
     #toggleButtonsContainer > div {
         display: flex;
         align-items: center;
-        gap: 6px;
-        font-size: 14px;
-        padding: 6px 12px;
-        color: #ba8666;
-        background: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 6px;
+        gap: 5px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.68rem;
+        font-weight: 500;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        padding: 5px 10px;
+        color: var(--sanctum-stone, #8a7e70);
+        background: transparent;
+        border: 1px solid var(--sanctum-rule, rgba(183,133,80,0.25));
+        border-radius: 3px;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.2s;
         user-select: none;
     }
 
-    /* Hover and active states */
+    /* Hover state */
     #toggleButtonsContainer > div:hover {
-        background: #f4ebe5;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        background: var(--sanctum-cream, #f0ebe3);
+        color: var(--sanctum-gold, #b78550);
+        border-color: var(--sanctum-gold, #b78550);
     }
 
     /* Icon styling */
     #toggleButtonsContainer i {
-        color: #ba8666;
-        font-size: 14px;
+        color: var(--sanctum-stone, #8a7e70);
+        font-size: 11px;
     }
 
     #paraphraseContainer {
@@ -490,7 +493,7 @@ function hideTranslationLoading() {
     }
 
     .footnote-popup-title {
-        font-size: 15px;
+        font-size: 20px;
         font-weight: 600;
         margin: 0;
     }

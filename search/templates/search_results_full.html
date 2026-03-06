@@ -1,256 +1,174 @@
 {% extends 'base.html' %}
 {% load custom_tags %}
 {% load static %}
-{% block title %}Search Results for "{{ query }}" - Real Bible{% endblock %}
+{% block title %}Search Results for "{{ query }}" — Real Bible{% endblock %}
 {% block content %}
 
 <style>
+:root {
+    --s-gold: #b78550;
+    --s-gold-light: #d4a96a;
+    --s-parchment: #faf7f2;
+    --s-ink: #1a1611;
+    --s-ink-soft: #4a3f33;
+    --s-stone: #8a7e70;
+    --s-cream: #f0ebe3;
+    --s-rule: rgba(183, 133, 80, 0.25);
+}
+
 .results-page {
     max-width: 1000px;
     margin: 0 auto;
-    padding: 20px;
-}
-
-.results-header {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    border-radius: 12px;
-    padding: 30px;
-    margin-bottom: 30px;
-    color: #fff;
-}
-
-.results-header h1 {
-    font-size: 1.8rem;
-    margin-bottom: 10px;
-    color: #b78550;
-}
-
-.results-header .search-meta {
-    color: #c0c0c0;
-    font-size: 14px;
-}
-
-.results-header .search-meta strong {
-    color: #fff;
+    padding: 24px 20px 60px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--s-ink);
 }
 
 .back-to-search {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: #b78550;
-    text-decoration: none;
-    margin-bottom: 15px;
-    font-size: 14px;
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--s-gold); text-decoration: none;
+    margin-bottom: 16px;
+    font-size: 0.8rem; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    transition: color 0.15s;
 }
+.back-to-search:hover { color: var(--s-ink); }
 
-.back-to-search:hover {
-    text-decoration: underline;
+.results-header {
+    background: var(--s-ink);
+    padding: 32px 30px; margin-bottom: 28px;
+    color: #fff; position: relative; overflow: hidden;
 }
+.results-header::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--s-gold), transparent);
+}
+.results-header h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    margin: 0 0 10px; color: var(--s-parchment);
+    letter-spacing: 0.02em;
+}
+.results-header h1 i { color: var(--s-gold); margin-right: 10px; font-size: 0.8em; }
+.results-header .search-meta { color: var(--s-stone); font-size: 0.85rem; line-height: 1.6; }
+.results-header .search-meta strong { color: #fff; font-weight: 600; }
 
-/* Filters */
 .results-filters {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px;
 }
-
 .filter-btn {
     padding: 8px 16px;
-    border: 1px solid #e0e0e0;
-    border-radius: 20px;
-    background: #f8f9fa;
-    color: #333;
-    text-decoration: none;
-    font-size: 13px;
+    border: 1px solid var(--s-rule);
+    background: var(--s-parchment);
+    color: var(--s-ink-soft); text-decoration: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.72rem; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
     transition: all 0.2s;
 }
+.filter-btn:hover { border-color: var(--s-gold); background: #fff; color: var(--s-ink); }
+.filter-btn.active { background: var(--s-gold); color: #fff; border-color: var(--s-gold); }
 
-.filter-btn:hover {
-    border-color: #b78550;
-    background: #fff;
-}
-
-.filter-btn.active {
-    background: #b78550;
-    color: #fff;
-    border-color: #b78550;
-}
-
-/* Results Sections */
 .results-section {
     background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-    margin-bottom: 25px;
-    overflow: hidden;
+    border: 1px solid var(--s-rule);
+    margin-bottom: 28px; overflow: hidden;
 }
-
 .section-header {
-    background: #f8f9fa;
-    padding: 15px 20px;
-    border-bottom: 1px solid #e0e0e0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    background: var(--s-parchment);
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--s-rule);
+    display: flex; justify-content: space-between; align-items: center;
 }
-
 .section-header h2 {
-    font-size: 16px;
-    margin: 0;
-    color: #333;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.15rem; font-weight: 500;
+    margin: 0; color: var(--s-ink);
+    display: flex; align-items: center; gap: 10px;
+    letter-spacing: 0.02em;
 }
-
-.section-header h2 i {
-    color: #b78550;
-}
-
+.section-header h2 i { color: var(--s-gold); }
 .section-header .count {
-    background: #b78550;
-    color: #fff;
+    background: var(--s-gold); color: #fff;
     padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.68rem; font-weight: 600; letter-spacing: 0.06em;
 }
 
 .result-item {
     padding: 18px 20px;
-    border-bottom: 1px solid #f0f0f0;
-    display: block;
-    text-decoration: none;
-    color: inherit;
-    transition: background 0.15s;
+    border-bottom: 1px solid var(--s-cream);
+    display: block; text-decoration: none !important;
+    color: inherit !important; transition: background 0.15s;
 }
-
-.result-item:hover {
-    background: #f8f9fa;
-}
-
-.result-item:last-child {
-    border-bottom: none;
-}
+.result-item:hover { background: var(--s-parchment); }
+.result-item:last-child { border-bottom: none; }
 
 .result-reference {
-    font-weight: 600;
-    color: #b78550;
+    font-weight: 600; color: var(--s-gold);
     margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
 }
-
-.result-reference i {
-    color: #999;
-}
-
+.result-reference i { color: var(--s-stone); }
 .source-badge {
-    font-size: 10px;
-    background: #e0e0e0;
-    padding: 2px 8px;
-    border-radius: 4px;
-    color: #666;
-    font-weight: normal;
+    font-size: 0.62rem;
+    background: var(--s-cream); padding: 2px 8px;
+    color: var(--s-stone); font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
 }
 
-.result-text {
-    font-size: 15px;
-    color: #444;
-    line-height: 1.6;
-}
-
-.result-text mark {
-    background: #ffeb3b;
-    padding: 1px 3px;
-    border-radius: 2px;
-}
+.result-text { font-size: 0.92rem; color: var(--s-ink-soft); line-height: 1.7; }
+.result-text mark { background: #ffe066; padding: 1px 3px; }
 
 .result-meta {
-    margin-top: 8px;
-    font-size: 12px;
-    color: #888;
-    display: flex;
-    gap: 15px;
-    flex-wrap: wrap;
+    margin-top: 8px; font-size: 0.75rem;
+    color: var(--s-stone); display: flex; gap: 15px; flex-wrap: wrap;
 }
 
 .hebrew-text {
-    font-family: 'SBL Hebrew', 'Ezra SIL', serif;
-    font-size: 20px;
-    direction: rtl;
+    font-family: 'SBL Hebrew', 'Ezra SIL', 'Frank Ruhl Libre', serif;
+    font-size: 20px; direction: rtl;
 }
-
 .greek-text {
     font-family: 'SBL Greek', 'Gentium Plus', serif;
     font-size: 18px;
 }
 
-/* Pagination */
 .pagination {
-    display: flex;
-    justify-content: center;
-    gap: 5px;
-    margin: 30px 0;
-    flex-wrap: wrap;
+    display: flex; justify-content: center;
+    gap: 4px; margin: 36px 0; flex-wrap: wrap;
 }
-
 .pagination a, .pagination span {
     padding: 10px 15px;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    text-decoration: none;
-    color: #333;
-    font-size: 14px;
-    transition: all 0.2s;
+    border: 1px solid var(--s-rule);
+    text-decoration: none; color: var(--s-ink-soft);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem; transition: all 0.2s;
 }
+.pagination a:hover { border-color: var(--s-gold); background: #fff; color: var(--s-gold); }
+.pagination .current { background: var(--s-gold); color: #fff; border-color: var(--s-gold); }
+.pagination .disabled { color: var(--s-rule); cursor: not-allowed; background: var(--s-parchment); }
 
-.pagination a:hover {
-    border-color: #b78550;
-    background: #fff;
-}
-
-.pagination .current {
-    background: #b78550;
-    color: #fff;
-    border-color: #b78550;
-}
-
-.pagination .disabled {
-    color: #ccc;
-    cursor: not-allowed;
-}
-
-/* No Results */
-.no-results {
-    text-align: center;
-    padding: 60px 20px;
-    color: #666;
-}
-
-.no-results i {
-    font-size: 48px;
-    color: #ddd;
-    margin-bottom: 20px;
-}
-
+.no-results { text-align: center; padding: 60px 20px; color: var(--s-stone); }
+.no-results i { font-size: 48px; color: var(--s-rule); margin-bottom: 20px; display: block; }
 .no-results h3 {
-    margin-bottom: 10px;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500; font-size: 1.4rem;
+    color: var(--s-ink); margin-bottom: 10px;
 }
 
-/* Loading */
-.loading-results {
-    text-align: center;
-    padding: 60px 20px;
-    color: #666;
-}
+.loading-results { text-align: center; padding: 60px 20px; color: var(--s-stone); }
+.loading-results i { font-size: 32px; color: var(--s-gold); margin-bottom: 15px; display: block; }
 
-.loading-results i {
-    font-size: 32px;
-    color: #b78550;
-    margin-bottom: 15px;
+@media (max-width: 768px) {
+    .results-header { padding: 24px 16px; }
+    .results-header h1 { font-size: 1.3rem; }
+    .results-filters { gap: 6px; }
+    .filter-btn { padding: 6px 12px; font-size: 0.68rem; }
+    .result-item { padding: 14px 16px; }
 }
 </style>
 
@@ -258,16 +176,16 @@
     <a href="/search/" class="back-to-search">
         <i class="fas fa-arrow-left"></i> Back to Search
     </a>
-    
+
     <div class="results-header">
         <h1><i class="fas fa-search"></i> Search Results</h1>
         <div class="search-meta">
-            Searching for "<strong>{{ query }}</strong>" 
+            Searching for "<strong>{{ query }}</strong>"
             {% if scope != 'all' %} in <strong>{{ scope|title }}</strong>{% endif %}
             &bull; <span id="totalCount">Loading...</span> results found
         </div>
     </div>
-    
+
     <div class="results-filters">
         <a href="?q={{ query }}&scope=all&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'all' %}active{% endif %}">All</a>
         <a href="?q={{ query }}&scope=translations&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'translations' %}active{% endif %}">Translations</a>
@@ -278,14 +196,14 @@
         <a href="?q={{ query }}&scope=footnotes&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'footnotes' %}active{% endif %}">Footnotes</a>
         <a href="?q={{ query }}&scope=storehouse&page=1&type={{ search_type }}{% if request.GET.lang %}&lang={{ request.GET.lang }}{% endif %}{% if request.GET.translations_only %}&translations_only={{ request.GET.translations_only }}{% endif %}" class="filter-btn {% if scope == 'storehouse' %}active{% endif %}">Storehouse</a>
     </div>
-    
+
     <div id="resultsContainer">
         <div class="loading-results">
             <i class="fas fa-spinner fa-spin"></i>
             <p>Loading results...</p>
         </div>
     </div>
-    
+
     <div id="paginationContainer"></div>
 </div>
 
@@ -298,7 +216,7 @@
     const langParam = "{{ request.GET.lang|default:''|escapejs }}";
     const translationsOnlyParam = "{{ request.GET.translations_only|default:''|escapejs }}" === '1';
     const limit = 50;
-    
+
     async function loadResults() {
         try {
             const effectiveScope = translationsOnlyParam ? 'translations' : scope;
@@ -307,22 +225,22 @@
                 (translationsOnlyParam ? '&translations_only=1' : '')
             );
             const data = await response.json();
-            
+
             if (data.error) {
                 showError(data.error);
                 return;
             }
-            
+
             document.getElementById('totalCount').textContent = data.total.toLocaleString();
             renderResults(data);
             renderPagination(data.total);
-            
+
         } catch (error) {
             console.error('Error loading results:', error);
             showError('Failed to load results. Please try again.');
         }
     }
-    
+
     function showError(message) {
         document.getElementById('resultsContainer').innerHTML = `
             <div class="no-results">
@@ -332,21 +250,20 @@
             </div>
         `;
     }
-    
+
     function renderResults(data) {
         const { results, counts } = data;
         let html = '';
-        
-        // Check if there are any results
+
         const hasResults = (results.translations?.length || 0) +
-              (results.ot_verses?.length || 0) + 
-                  (results.ot_hebrew?.length || 0) + 
-                  (results.nt_verses?.length || 0) + 
-                  (results.nt_greek?.length || 0) + 
-                  (results.footnotes?.length || 0) + 
-                  (results.storehouse?.length || 0) + 
+              (results.ot_verses?.length || 0) +
+                  (results.ot_hebrew?.length || 0) +
+                  (results.nt_verses?.length || 0) +
+                  (results.nt_greek?.length || 0) +
+                  (results.footnotes?.length || 0) +
+                  (results.storehouse?.length || 0) +
                   (results.references?.length || 0) > 0;
-                // Translations
+
                 if (results.translations && results.translations.length > 0) {
                     html += `
                         <div class="results-section">
@@ -368,7 +285,6 @@
                     `;
                 }
 
-        
         if (!hasResults) {
             html = `
                 <div class="no-results">
@@ -380,8 +296,7 @@
             document.getElementById('resultsContainer').innerHTML = html;
             return;
         }
-        
-        // OT Verses
+
         if (results.ot_verses && results.ot_verses.length > 0) {
             html += `
                 <div class="results-section">
@@ -403,8 +318,7 @@
                 </div>
             `;
         }
-        
-        // Hebrew Words
+
         if (results.ot_hebrew && results.ot_hebrew.length > 0) {
             html += `
                 <div class="results-section">
@@ -430,8 +344,7 @@
                 </div>
             `;
         }
-        
-        // NT Verses
+
         if (results.nt_verses && results.nt_verses.length > 0) {
             html += `
                 <div class="results-section">
@@ -452,8 +365,7 @@
                 </div>
             `;
         }
-        
-        // Greek Words
+
         if (results.nt_greek && results.nt_greek.length > 0) {
             html += `
                 <div class="results-section">
@@ -465,7 +377,7 @@
                         <a href="${r.url}" class="result-item">
                             <div class="result-reference">
                                 <span class="greek-text">${escapeHtml(r.lemma || r.greek || '')}</span>
-                                <em style="margin-left: 10px; color: #666;">${escapeHtml(r.translit || '')}</em>
+                                <em style="margin-left: 10px; color: var(--s-stone);">${escapeHtml(r.translit || '')}</em>
                                 <span class="source-badge">${escapeHtml(r.book)} ${r.chapter}:${r.verse}</span>
                             </div>
                             <div class="result-text">
@@ -480,8 +392,7 @@
                 </div>
             `;
         }
-        
-        // Footnotes
+
         if (results.footnotes && results.footnotes.length > 0) {
             html += `
                 <div class="results-section">
@@ -503,7 +414,6 @@
             `;
         }
 
-        // Storehouse (Joseph and Aseneth)
         if (results.storehouse && results.storehouse.length > 0) {
             html += `
                 <div class="results-section">
@@ -524,39 +434,37 @@
                 </div>
             `;
         }
-        
+
         document.getElementById('resultsContainer').innerHTML = html;
     }
-    
+
     function renderPagination(total) {
         const totalPages = Math.ceil(total / limit);
         if (totalPages <= 1) return;
-        
+
         let html = '<div class="pagination">';
-        
-        // Previous
+
         if (page > 1) {
             html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${page - 1}">&laquo; Prev</a>`;
         } else {
             html += `<span class="disabled">&laquo; Prev</span>`;
         }
-        
-        // Page numbers
+
         const maxVisible = 7;
         let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
         let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-        
+
         if (endPage - startPage < maxVisible - 1) {
             startPage = Math.max(1, endPage - maxVisible + 1);
         }
-        
+
         if (startPage > 1) {
             html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=1">1</a>`;
             if (startPage > 2) {
                 html += `<span class="disabled">...</span>`;
             }
         }
-        
+
         for (let i = startPage; i <= endPage; i++) {
             if (i === page) {
                 html += `<span class="current">${i}</span>`;
@@ -564,52 +472,47 @@
                 html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${i}">${i}</a>`;
             }
         }
-        
+
         if (endPage < totalPages) {
             if (endPage < totalPages - 1) {
                 html += `<span class="disabled">...</span>`;
             }
             html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${totalPages}">${totalPages}</a>`;
         }
-        
-        // Next
+
         if (page < totalPages) {
             html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${page + 1}">Next &raquo;</a>`;
         } else {
             html += `<span class="disabled">Next &raquo;</span>`;
         }
-        
+
         html += '</div>';
         document.getElementById('paginationContainer').innerHTML = html;
     }
-    
+
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
-    
+
     function parseStrongs(strongsData) {
         if (!strongsData) return '';
-        
-        // Parse format like: "H9001=ו=seq/H1961=הָיָה=to be/H9014=־=link"
         const entries = strongsData.split('/');
         const parsed = entries.map(entry => {
             const parts = entry.split('=');
             if (parts.length >= 3) {
-                const num = parts[0]; // e.g., H9001
-                const hebrew = parts[1]; // e.g., ו
-                const gloss = parts.slice(2).join('=').split('_§')[0].split('@')[0]; // e.g., "seq" from "seq_§..."
-                return `<span title="${escapeHtml(entry)}" style="display: inline-block; padding: 2px 6px; margin: 2px; background: #f0f0f0; border-radius: 4px; font-size: 11px;">${num}: ${gloss}</span>`;
+                const num = parts[0];
+                const hebrew = parts[1];
+                const gloss = parts.slice(2).join('=').split('_§')[0].split('@')[0];
+                return `<span title="${escapeHtml(entry)}" style="display: inline-block; padding: 2px 6px; margin: 2px; background: var(--s-cream); font-size: 11px;">${num}: ${gloss}</span>`;
             }
             return escapeHtml(entry);
         });
-        
         return parsed.join(' ');
     }
-    
-    // Load results on page load
+
     loadResults();
 })();
 </script>

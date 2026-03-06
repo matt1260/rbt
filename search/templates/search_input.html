@@ -1,609 +1,428 @@
 {% extends 'base.html' %}
 {% load custom_tags %}
 {% load static %}
-{% block title %}Real Bible Search - The Most Powerful Bible Search Tool{% endblock %}
+{% block title %}Real Bible Search — The Most Powerful Bible Search Tool{% endblock %}
 {% block content %}
 
 <style>
 /* ============================================
-   MODERN BIBLE SEARCH INTERFACE
+   SANCTUM-STYLE SEARCH PAGE
+   Gold + parchment, typography-first, airy.
    ============================================ */
 
-/* Main Container */
-.search-page {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
+:root {
+    --s-gold: #b78550;
+    --s-gold-light: #d4a96a;
+    --s-parchment: #faf7f2;
+    --s-ink: #1a1611;
+    --s-ink-soft: #4a3f33;
+    --s-stone: #8a7e70;
+    --s-cream: #f0ebe3;
+    --s-rule: rgba(183, 133, 80, 0.25);
 }
 
+.search-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--s-ink);
+}
+
+/* Hero */
 .search-hero {
     text-align: center;
-    padding: 40px 20px;
-    background: linear-gradient(135deg, #1a1a2e 0%, #66431e 100%);
-    border-radius: 16px;
-    margin-bottom: 30px;
+    padding: 52px 24px 42px;
+    background: var(--s-ink);
+    margin: -24px -20px 36px;
     color: #fff;
+    position: relative;
+    overflow: hidden;
+}
+
+.search-hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--s-gold), transparent);
 }
 
 .search-hero h1 {
-    font-size: 2.5rem;
-    margin-bottom: 10px;
-    color: #b78550;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    margin: 0 0 10px;
+    color: var(--s-parchment);
+    letter-spacing: 0.02em;
 }
 
+.search-hero h1 i { color: var(--s-gold); margin-right: 10px; font-size: 0.8em; }
+
 .search-hero p {
-    font-size: 1.1rem;
-    color: #c0c0c0;
-    margin-bottom: 0;
+    font-size: 0.92rem;
+    color: var(--s-stone);
+    margin: 0;
+    font-weight: 400;
+    letter-spacing: 0.02em;
 }
 
 /* Search Container */
 .search-container {
     background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-    padding: 30px;
-    margin-bottom: 30px;
+    border: 1px solid var(--s-rule);
+    padding: 28px 32px;
+    margin-bottom: 36px;
 }
 
-/* Search Tabs */
+/* Tabs */
 .search-tabs {
-    display: flex;
-    gap: 10px;
+    display: flex; gap: 8px;
     margin-bottom: 20px;
     flex-wrap: wrap;
+    justify-content: center;
 }
 
 .search-tab {
     padding: 10px 20px;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    background: #f8f9fa;
+    border: 1px solid var(--s-rule);
+    background: var(--s-parchment);
     cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    display: flex; align-items: center; gap: 8px;
+    color: var(--s-ink-soft);
 }
 
-.search-tab:hover {
-    border-color: #b78550;
-    background: #fff;
-}
+.search-tab:hover { border-color: var(--s-gold); background: #fff; color: var(--s-ink); }
+.search-tab.active { border-color: var(--s-gold); background: var(--s-gold); color: #fff; }
+.search-tab i { font-size: 14px; }
 
-.search-tab.active {
-    border-color: #b78550;
-    background: #b78550;
-    color: #fff;
+/* Scope */
+.scope-selector {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-bottom: 18px; justify-content: center;
 }
+.scope-selector.hidden { display: none; }
 
-.search-tab i {
-    font-size: 16px;
+.scope-option {
+    padding: 6px 14px;
+    border: 1px solid var(--s-rule);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.72rem; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    cursor: pointer; transition: all 0.15s;
+    background: transparent; color: var(--s-stone);
 }
+.scope-option:hover { border-color: var(--s-gold); color: var(--s-ink); }
+.scope-option.active { background: var(--s-gold); color: #fff; border-color: var(--s-gold); }
 
-/* Search Input Area */
-.search-input-container {
-    position: relative;
-    margin-bottom: 20px;
-}
-
+/* Translation toggle */
 .translation-toggle {
-    margin-top: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: #666;
+    margin: 0 0 16px;
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; font-size: 0.8rem; color: var(--s-stone);
 }
+.translation-toggle input { accent-color: var(--s-gold); transform: scale(1.1); }
 
-.translation-toggle input {
-    transform: scale(1.05);
-}
+/* Search Input */
+.search-input-container { position: relative; margin-bottom: 16px; }
+.search-input-wrapper { display: flex; gap: 10px; align-items: stretch; }
+.search-input-field { flex: 1; position: relative; }
 
-.search-input-wrapper {
-    display: flex;
-    gap: 10px;
-    align-items: stretch;
-}
+@property --search-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes searchBorderSpin { to { --search-angle: 360deg; } }
 
-.search-input-field {
-    flex: 1;
-    position: relative;
+.search-input-field::before {
+    content: '';
+    position: absolute; inset: -2px; border-radius: 14px;
+    background: conic-gradient(from var(--search-angle),
+        transparent 0%, transparent 60%,
+        #f0c070 75%, #b78550 85%, #f0c070 92%, transparent 100%);
+    z-index: 0; opacity: 0; transition: opacity 0.25s;
+    animation: searchBorderSpin 1.2s linear infinite;
 }
+.search-input-field.loading::before { opacity: 1; }
 
 .search-input-field input {
     width: 100%;
-    padding: 18px 50px 18px 20px;
-    font-size: 18px;
-    border: 2px solid #e0e0e0;
-    border-radius: 12px;
-    transition: all 0.3s;
-    direction: ltr;
-    box-sizing: border-box;
+    padding: 16px 50px 16px 20px;
+    font-family: 'Inter', sans-serif; font-size: 17px;
+    border: 2px solid var(--s-rule);
+    border-radius: 12px; transition: all 0.3s;
+    background: #fff; color: var(--s-ink);
+    outline: none; box-shadow: none !important;
+    -webkit-appearance: none;
+    position: relative; z-index: 1; box-sizing: border-box;
 }
-
+.search-input-field input:focus {
+    border-color: var(--s-gold);
+    box-shadow: 0 0 0 4px rgba(183, 133, 80, 0.15) !important;
+}
+.search-input-field input::placeholder { color: var(--s-stone); font-style: italic; }
 .search-input-field input.rtl-input {
     direction: rtl;
-    font-family: 'SBL Hebrew', 'Ezra SIL', 'Times New Roman', serif;
+    font-family: 'SBL Hebrew', 'Ezra SIL', 'Frank Ruhl Libre', serif;
 }
-
 .search-input-field input.greek-input {
-    font-family: 'SBL Greek', 'Gentium Plus', 'Times New Roman', serif;
-}
-
-.search-input-field input:focus {
-    outline: none;
-    border-color: #b78550;
-    box-shadow: 0 0 0 4px rgba(183, 133, 80, 0.15);
+    font-family: 'SBL Greek', 'Gentium Plus', serif;
 }
 
 .search-input-field .input-icon {
-    position: absolute;
-    right: 15px;
-    top: 50%;
+    position: absolute; right: 18px; top: 50%;
     transform: translateY(-50%);
-    color: #999;
+    color: var(--s-stone); pointer-events: none;
+    z-index: 2; transition: opacity 0.2s;
 }
+.search-input-field .loading-spinner { display: none; }
+.search-input-field.loading .input-icon:not(.loading-spinner) { opacity: 0.25; }
 
-.search-input-field .loading-spinner {
-    display: none;
-}
-
-.search-input-field.loading .input-icon {
-    display: none;
-}
-
-.search-input-field.loading .loading-spinner {
-    display: block;
-}
-
-/* Keyboard Toggle Buttons */
-.keyboard-toggles {
-    display: flex;
-    gap: 8px;
-}
-
+/* Keyboard Toggles */
+.keyboard-toggles { display: flex; gap: 8px; }
 .keyboard-btn {
-    padding: 8px 16px;
-    border: 2px solid #e0e0e0;
-    border-radius: 12px;
-    background: #f8f9fa;
-    color: #333;
-    cursor: pointer;
-    font-size: 16px;
-    font-weight: 600;
-    transition: all 0.2s;
-    white-space: nowrap;
-    height: 56px;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    line-height: 1.2;
+    padding: 8px 14px;
+    border: 1px solid var(--s-rule);
+    background: var(--s-parchment); color: var(--s-ink-soft);
+    cursor: pointer; font-size: 16px; font-weight: 600;
+    transition: all 0.2s; white-space: nowrap;
+    height: 55px; box-sizing: border-box;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; line-height: 1.2;
 }
-
-.keyboard-btn:hover {
-    border-color: #b78550;
-    background: #fff;
-    color: #333;
-}
-
-.keyboard-btn.active {
-    border-color: #b78550;
-    background: #b78550;
-    color: #fff;
-}
-
+.keyboard-btn:hover { border-color: var(--s-gold); background: #fff; }
+.keyboard-btn.active { border-color: var(--s-gold); background: var(--s-gold); color: #fff; }
 .keyboard-btn .kbd-label {
-    font-size: 12px;
-    display: block;
-    margin-top: 2px;
-    opacity: 0.8;
+    font-size: 0.68rem; display: block; margin-top: 2px;
+    opacity: 0.7; letter-spacing: 0.05em; text-transform: uppercase;
 }
 
 /* Search Button */
 .search-btn {
-    padding: 18px 30px;
-    background: #b78550;
-    color: #fff;
-    border: none;
-    border-radius: 12px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 56px;
-    box-sizing: border-box;
+    padding: 16px 28px;
+    background: var(--s-gold); color: #fff; border: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; gap: 8px;
+    height: 55px; box-sizing: border-box;
 }
-
-.search-btn:hover {
-    background: #965f35;
-    transform: translateY(-2px);
-}
-
-/* Scope Selector */
-.scope-selector {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-}
-
-.scope-selector.hidden {
-    display: none;
-}
-
-.scope-option {
-    padding: 8px 16px;
-    border: 1px solid #e0e0e0;
-    border-radius: 20px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: #f8f9fa;
-}
-
-.scope-option:hover {
-    border-color: #b78550;
-}
-
-.scope-option.active {
-    background: #b78550;
-    color: #fff;
-    border-color: #b78550;
-}
+.search-btn:hover { background: #965f35; }
 
 /* Virtual Keyboards */
 .virtual-keyboard {
     display: none;
-    background: #f8f9fa;
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    padding: 15px;
-    margin-bottom: 20px;
+    background: var(--s-parchment);
+    border: 1px solid var(--s-rule);
+    padding: 18px; margin-bottom: 20px;
 }
-
-.virtual-keyboard.active {
-    display: block;
-}
+.virtual-keyboard.active { display: block; }
 
 .keyboard-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #e0e0e0;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--s-rule);
 }
-
 .keyboard-header h4 {
-    margin: 0;
-    font-size: 14px;
-    color: #666;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    margin: 0; font-family: 'Inter', sans-serif;
+    font-size: 0.72rem; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--s-stone);
+    display: flex; align-items: center; gap: 8px;
 }
+.keyboard-header h4 i { color: var(--s-gold); }
 
 .keyboard-close {
-    background: none;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
-    color: #999;
-    padding: 5px;
+    background: none; border: none;
+    font-size: 22px; cursor: pointer;
+    color: var(--s-stone); padding: 4px; line-height: 1;
 }
-
-.keyboard-close:hover {
-    color: #333;
-}
+.keyboard-close:hover { color: var(--s-ink); }
 
 .keyboard-row {
-    display: flex;
-    justify-content: center;
-    gap: 5px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
+    display: flex; justify-content: center;
+    gap: 5px; margin-bottom: 6px; flex-wrap: wrap;
 }
 
 .key {
-    min-width: 40px;
-    height: 45px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background: #fff;
-    cursor: pointer;
+    min-width: 40px; height: 44px;
+    border: 1px solid var(--s-rule);
+    background: #fff; cursor: pointer;
     font-size: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     transition: all 0.15s;
-    box-shadow: 0 2px 0 #ccc;
+    box-shadow: 0 1px 0 rgba(183, 133, 80, 0.2);
 }
-
-.key:hover {
-    background: #b78550;
-    color: #fff;
-    border-color: #b78550;
-}
-
-.key:active {
-    transform: translateY(2px);
-    box-shadow: none;
-}
-
+.key:hover { background: var(--s-gold); color: #fff; border-color: var(--s-gold); }
+.key:active { transform: translateY(1px); box-shadow: none; }
 .key.wide {
-    min-width: 80px;
-    font-size: 14px;
+    min-width: 80px; font-size: 0.78rem;
+    font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
 }
-
 .key.hebrew {
-    font-family: 'SBL Hebrew', 'Ezra SIL', 'Times New Roman', serif;
+    font-family: 'SBL Hebrew', 'Ezra SIL', 'Frank Ruhl Libre', serif;
     font-size: 24px;
 }
-
 .key.greek {
-    font-family: 'SBL Greek', 'Gentium Plus', 'Times New Roman', serif;
+    font-family: 'SBL Greek', 'Gentium Plus', serif;
     font-size: 22px;
 }
 
 /* Live Results Dropdown */
 .live-results {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-    max-height: 500px;
-    overflow-y: auto;
-    z-index: 1000;
     display: none;
-    margin-top: 8px;
+    position: absolute; top: 100%; left: 0; right: 0;
+    background: #fff;
+    border: 1px solid var(--s-rule);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(26, 22, 17, 0.15);
+    max-height: 450px; overflow-y: auto;
+    z-index: 10000; margin-top: 8px; text-align: left;
 }
-
-.live-results.active {
-    display: block;
-}
+.live-results.active { display: block; }
 
 .results-meta {
     padding: 12px 15px;
-    background: #f8f9fa;
-    border-bottom: 1px solid #e0e0e0;
-    font-size: 13px;
-    color: #666;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    background: var(--s-parchment);
+    border-bottom: 1px solid var(--s-rule);
+    font-size: 13px; color: var(--s-stone);
+    display: flex; justify-content: space-between; align-items: center;
 }
 
 .results-category {
     padding: 10px 15px;
-    background: #f0f0f0;
-    font-size: 12px;
-    font-weight: 600;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    background: var(--s-cream);
+    font-size: 0.68rem; font-weight: 600;
+    color: var(--s-stone);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    display: flex; align-items: center; gap: 8px;
 }
-
-.results-category i {
-    color: #b78550;
-}
+.results-category i { color: var(--s-gold); }
 
 .result-item {
-    padding: 15px;
-    border-bottom: 1px solid #f0f0f0;
-    cursor: pointer;
-    transition: background 0.15s;
-    text-decoration: none;
-    display: block;
-    color: inherit;
+    padding: 14px 15px;
+    border-bottom: 1px solid var(--s-cream);
+    cursor: pointer; transition: background 0.15s;
+    text-decoration: none !important;
+    display: block; color: inherit !important;
 }
-
-.result-item:hover {
-    background: #f8f9fa;
-}
-
-.result-item:last-child {
-    border-bottom: none;
-}
+.result-item:hover { background: var(--s-parchment); text-decoration: none !important; }
+.result-item:last-child { border-bottom: none; }
 
 .result-reference {
-    font-weight: 600;
-    color: #b78550;
+    font-weight: 600; color: var(--s-gold);
     margin-bottom: 5px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
-
 .result-reference .source-badge {
-    font-size: 10px;
-    background: #e0e0e0;
-    padding: 2px 6px;
-    border-radius: 4px;
-    color: #666;
-    font-weight: normal;
+    font-size: 10px; background: var(--s-cream);
+    padding: 2px 6px; border-radius: 4px;
+    color: var(--s-stone); font-weight: normal;
 }
 
-.result-preview {
-    font-size: 14px;
-    color: #555;
-    line-height: 1.5;
-}
-
-.result-preview mark {
-    background: #ffeb3b;
-    padding: 1px 3px;
-    border-radius: 2px;
-}
+.result-preview { font-size: 14px; color: var(--s-ink-soft); line-height: 1.5; }
+.result-preview mark { background: #ffe500; padding: 2px 3px; border-radius: 4px; }
 
 .result-meta {
-    font-size: 12px;
-    color: #999;
-    margin-top: 5px;
-    display: flex;
-    gap: 15px;
+    font-size: 12px; color: var(--s-stone);
+    margin-top: 5px; display: flex; gap: 15px;
 }
 
-.no-results {
-    padding: 30px;
-    text-align: center;
-    color: #999;
-}
+.no-results { padding: 30px; text-align: center; color: var(--s-stone); }
+.no-results i { font-size: 40px; margin-bottom: 15px; display: block; color: var(--s-rule); }
 
-.no-results i {
-    font-size: 40px;
-    margin-bottom: 15px;
-    color: #ddd;
-}
-
-/* View All Results Link */
 .view-all-results {
-    display: block;
-    padding: 15px;
-    text-align: center;
-    background: #f8f9fa;
-    color: #b78550;
-    font-weight: 600;
-    text-decoration: none;
+    display: block; padding: 15px; text-align: center;
+    background: var(--s-parchment);
+    color: var(--s-gold) !important; font-weight: 600;
+    text-decoration: none !important;
     border-radius: 0 0 12px 12px;
+    transition: all 0.2s; font-size: 0.85rem;
+}
+.view-all-results:hover { background: var(--s-gold); color: #fff !important; text-decoration: none !important; }
+
+.result-reference .hebrew-text {
+    font-family: 'SBL Hebrew', 'Ezra SIL', 'Frank Ruhl Libre', serif;
+    font-size: 18px;
+}
+.result-reference .greek-text {
+    font-family: 'SBL Greek', 'Gentium Plus', serif;
+    font-size: 16px;
 }
 
-.view-all-results:hover {
-    background: #b78550;
-    color: #fff;
+/* Error */
+.error-message {
+    background: #fff5f5; border: 1px solid #feb2b2;
+    color: #c53030; padding: 15px 20px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px; font-size: 0.9rem;
 }
 
 /* Book Browser */
-.book-browser {
-    margin-top: 40px;
-}
-
-.testament-section {
-    margin-bottom: 30px;
-}
+.book-browser { margin-top: 48px; }
+.testament-section { margin-bottom: 36px; }
 
 .testament-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #b78550;
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 16px; padding-bottom: 10px;
+    border-bottom: 2px solid var(--s-gold);
 }
-
 .testament-header h3 {
-    margin: 0;
-    color: #333;
-    font-size: 1.3rem;
+    margin: 0; font-family: 'Cormorant Garamond', serif;
+    font-weight: 500; font-size: 1.4rem;
+    color: var(--s-ink); letter-spacing: 0.02em;
 }
-
-.testament-header i {
-    color: #b78550;
-}
+.testament-header i { color: var(--s-gold); }
 
 .books-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px;
 }
 
 .book-item {
-    padding: 12px 15px;
-    background: #f8f9fa;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    text-decoration: none;
-    color: #333;
-    font-size: 14px;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.book-item:hover {
-    border-color: #b78550;
+    padding: 12px 16px;
     background: #fff;
-    transform: translateX(5px);
+    border: 1px solid var(--s-rule);
+    text-decoration: none;
+    color: var(--s-ink-soft);
+    font-size: 0.85rem;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 10px; line-height: 1.4;
 }
-
-.book-item i {
-    color: #b78550;
-    font-size: 12px;
+.book-item:hover {
+    border-color: var(--s-gold);
+    background: var(--s-parchment);
+    color: var(--s-ink);
+    transform: translateX(4px);
 }
-
-/* Error Message */
-.error-message {
-    background: #fff5f5;
-    border: 1px solid #feb2b2;
-    color: #c53030;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
+.book-item i { color: var(--s-gold); font-size: 10px; flex-shrink: 0; }
 
 /* Responsive */
 @media (max-width: 768px) {
-    .search-hero h1 {
-        font-size: 1.8rem;
-    }
-    
-    .search-input-wrapper {
-        flex-direction: column;
-    }
-    
-    .keyboard-toggles {
-        justify-content: center;
-    }
-    
-    .search-btn {
-        width: 100%;
-        justify-content: center;
-    }
-    
-    .search-tabs {
-        justify-content: center;
-    }
-    
-    .key {
-        min-width: 32px;
-        height: 40px;
-        font-size: 18px;
-    }
-    
-    .key.hebrew, .key.greek {
-        font-size: 20px;
-    }
+    .search-hero { padding: 36px 16px 30px; }
+    .search-hero h1 { font-size: 1.7rem; }
+    .search-container { padding: 20px 16px; }
+    .search-input-wrapper { flex-direction: column; }
+    .keyboard-toggles { justify-content: center; }
+    .search-btn { width: 100%; justify-content: center; }
+    .search-tabs { justify-content: center; }
+    .key { min-width: 32px; height: 40px; font-size: 18px; }
+    .key.hebrew, .key.greek { font-size: 20px; }
+    .books-grid { grid-template-columns: 1fr; }
 }
 </style>
 
 <div class="search-page">
-    <!-- Hero Section -->
     <div class="search-hero">
         <h1><i class="fas fa-search"></i> Real Bible Search</h1>
         <p>Search across Hebrew, Greek, English translations, Non-English translations, and footnotes</p>
     </div>
 
-    <!-- Search Container -->
     <div class="search-container">
-        <!-- Search Type Tabs -->
         <div class="search-tabs">
             <div class="search-tab active" data-type="keyword">
                 <i class="fas fa-font"></i> Keyword Search
@@ -619,69 +438,45 @@
             </div>
         </div>
 
-        <!-- Scope Selector -->
         <div class="scope-selector">
-            <div class="scope-option active" data-scope="all">
-                <i class="fas fa-globe"></i> All
-            </div>
-            <div class="scope-option" data-scope="ot">
-                Old Testament
-            </div>
-            <div class="scope-option" data-scope="nt">
-                New Testament
-            </div>
-            <div class="scope-option" data-scope="hebrew">
-                <i class="fas fa-language"></i> Hebrew Words
-            </div>
-            <div class="scope-option" data-scope="greek">
-                <i class="fas fa-language"></i> Greek Words
-            </div>
-            <div class="scope-option" data-scope="footnotes">
-                <i class="fas fa-sticky-note"></i> Footnotes
-            </div>
+            <div class="scope-option active" data-scope="all"><i class="fas fa-globe"></i> All</div>
+            <div class="scope-option" data-scope="ot">Old Testament</div>
+            <div class="scope-option" data-scope="nt">New Testament</div>
+            <div class="scope-option" data-scope="hebrew"><i class="fas fa-language"></i> Hebrew Words</div>
+            <div class="scope-option" data-scope="greek"><i class="fas fa-language"></i> Greek Words</div>
+            <div class="scope-option" data-scope="footnotes"><i class="fas fa-sticky-note"></i> Footnotes</div>
         </div>
 
         <div class="translation-toggle">
             <input type="checkbox" id="translationsOnlyToggle" name="translations_only" value="1">
-            <label for="translationsOnlyToggle">Search translations only (non‑English)</label>
+            <label for="translationsOnlyToggle">Search translations only (non&#8209;English)</label>
         </div>
 
-        <!-- Search Input -->
         <form id="searchForm" method="get" action="/search/">
             <div class="search-input-container">
                 <div class="search-input-wrapper">
                     <div class="search-input-field" id="searchInputField">
-                        <input 
-                            type="text" 
-                            id="searchInput" 
-                            name="q" 
-                            placeholder="Enter search term, reference, Hebrew or Greek..."
-                            autocomplete="off"
-                            autofocus
-                        >
+                        <input type="text" id="searchInput" name="q"
+                            placeholder="Enter search term, reference, Hebrew or Greek…"
+                            autocomplete="off" autofocus>
                         <i class="fas fa-search input-icon"></i>
                         <i class="fas fa-spinner fa-spin input-icon loading-spinner"></i>
-                        
-                        <!-- Live Results Dropdown -->
                         <div class="live-results" id="liveResults"></div>
                     </div>
-                    
                     <div class="keyboard-toggles">
                         <button type="button" class="keyboard-btn" id="hebrewKbdBtn" title="Hebrew Keyboard">
-                            עב
+                            &#x05E2;&#x05D1;
                             <span class="kbd-label">Hebrew</span>
                         </button>
                         <button type="button" class="keyboard-btn" id="greekKbdBtn" title="Greek Keyboard">
-                            Ελ
+                            &#x0395;&#x03BB;
                             <span class="kbd-label">Greek</span>
                         </button>
                     </div>
-                    
                     <button type="submit" class="search-btn">
                         <i class="fas fa-search"></i> Search
                     </button>
                 </div>
-                
                 <input type="hidden" name="scope" id="scopeInput" value="all">
                 <input type="hidden" name="type" id="typeInput" value="keyword">
             </div>
@@ -691,57 +486,56 @@
         <div class="virtual-keyboard" id="hebrewKeyboard">
             <div class="keyboard-header">
                 <h4><i class="fas fa-keyboard"></i> Hebrew Keyboard</h4>
-                <button type="button" class="keyboard-close" onclick="closeKeyboard('hebrew')">×</button>
+                <button type="button" class="keyboard-close" onclick="closeKeyboard('hebrew')">&#215;</button>
             </div>
             <div class="keyboard-row">
-                <div class="key hebrew" data-char="ק">ק</div>
-                <div class="key hebrew" data-char="ר">ר</div>
-                <div class="key hebrew" data-char="א">א</div>
-                <div class="key hebrew" data-char="ט">ט</div>
-                <div class="key hebrew" data-char="ו">ו</div>
-                <div class="key hebrew" data-char="ן">ן</div>
-                <div class="key hebrew" data-char="ם">ם</div>
-                <div class="key hebrew" data-char="פ">פ</div>
+                <div class="key hebrew" data-char="&#x05E7;">&#x05E7;</div>
+                <div class="key hebrew" data-char="&#x05E8;">&#x05E8;</div>
+                <div class="key hebrew" data-char="&#x05D0;">&#x05D0;</div>
+                <div class="key hebrew" data-char="&#x05D8;">&#x05D8;</div>
+                <div class="key hebrew" data-char="&#x05D5;">&#x05D5;</div>
+                <div class="key hebrew" data-char="&#x05DF;">&#x05DF;</div>
+                <div class="key hebrew" data-char="&#x05DD;">&#x05DD;</div>
+                <div class="key hebrew" data-char="&#x05E4;">&#x05E4;</div>
             </div>
             <div class="keyboard-row">
-                <div class="key hebrew" data-char="ש">ש</div>
-                <div class="key hebrew" data-char="ד">ד</div>
-                <div class="key hebrew" data-char="ג">ג</div>
-                <div class="key hebrew" data-char="כ">כ</div>
-                <div class="key hebrew" data-char="ע">ע</div>
-                <div class="key hebrew" data-char="י">י</div>
-                <div class="key hebrew" data-char="ח">ח</div>
-                <div class="key hebrew" data-char="ל">ל</div>
-                <div class="key hebrew" data-char="ך">ך</div>
-                <div class="key hebrew" data-char="ף">ף</div>
+                <div class="key hebrew" data-char="&#x05E9;">&#x05E9;</div>
+                <div class="key hebrew" data-char="&#x05D3;">&#x05D3;</div>
+                <div class="key hebrew" data-char="&#x05D2;">&#x05D2;</div>
+                <div class="key hebrew" data-char="&#x05DB;">&#x05DB;</div>
+                <div class="key hebrew" data-char="&#x05E2;">&#x05E2;</div>
+                <div class="key hebrew" data-char="&#x05D9;">&#x05D9;</div>
+                <div class="key hebrew" data-char="&#x05D7;">&#x05D7;</div>
+                <div class="key hebrew" data-char="&#x05DC;">&#x05DC;</div>
+                <div class="key hebrew" data-char="&#x05DA;">&#x05DA;</div>
+                <div class="key hebrew" data-char="&#x05E3;">&#x05E3;</div>
             </div>
             <div class="keyboard-row">
-                <div class="key hebrew" data-char="ז">ז</div>
-                <div class="key hebrew" data-char="ס">ס</div>
-                <div class="key hebrew" data-char="ב">ב</div>
-                <div class="key hebrew" data-char="ה">ה</div>
-                <div class="key hebrew" data-char="נ">נ</div>
-                <div class="key hebrew" data-char="מ">מ</div>
-                <div class="key hebrew" data-char="צ">צ</div>
-                <div class="key hebrew" data-char="ת">ת</div>
-                <div class="key hebrew" data-char="ץ">ץ</div>
+                <div class="key hebrew" data-char="&#x05D6;">&#x05D6;</div>
+                <div class="key hebrew" data-char="&#x05E1;">&#x05E1;</div>
+                <div class="key hebrew" data-char="&#x05D1;">&#x05D1;</div>
+                <div class="key hebrew" data-char="&#x05D4;">&#x05D4;</div>
+                <div class="key hebrew" data-char="&#x05E0;">&#x05E0;</div>
+                <div class="key hebrew" data-char="&#x05DE;">&#x05DE;</div>
+                <div class="key hebrew" data-char="&#x05E6;">&#x05E6;</div>
+                <div class="key hebrew" data-char="&#x05EA;">&#x05EA;</div>
+                <div class="key hebrew" data-char="&#x05E5;">&#x05E5;</div>
             </div>
             <div class="keyboard-row">
                 <div class="key wide" data-char=" ">Space</div>
-                <div class="key wide" data-action="backspace">⌫ Delete</div>
+                <div class="key wide" data-action="backspace">&#x232B; Delete</div>
                 <div class="key wide" data-action="clear">Clear</div>
             </div>
-            <!-- Vowels Row -->
-            <div class="keyboard-row" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
-                <div class="key hebrew" data-char="ָ" title="Qamats">ָ</div>
-                <div class="key hebrew" data-char="ַ" title="Patach">ַ</div>
-                <div class="key hebrew" data-char="ֵ" title="Tsere">ֵ</div>
-                <div class="key hebrew" data-char="ֶ" title="Segol">ֶ</div>
-                <div class="key hebrew" data-char="ִ" title="Hiriq">ִ</div>
-                <div class="key hebrew" data-char="ֹ" title="Holam">ֹ</div>
-                <div class="key hebrew" data-char="ֻ" title="Qubuts">ֻ</div>
-                <div class="key hebrew" data-char="ְ" title="Sheva">ְ</div>
-                <div class="key hebrew" data-char="ּ" title="Dagesh">ּ</div>
+            <div class="keyboard-row" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--s-rule);">
+                <div class="key hebrew" data-char="&#x05B8;" title="Qamats">&#x05B8;</div>
+                <div class="key hebrew" data-char="&#x05B7;" title="Patach">&#x05B7;</div>
+                <div class="key hebrew" data-char="&#x05B5;" title="Tsere">&#x05B5;</div>
+                <div class="key hebrew" data-char="&#x05B6;" title="Segol">&#x05B6;</div>
+                <div class="key hebrew" data-char="&#x05B4;" title="Hiriq">&#x05B4;</div>
+                <div class="key hebrew" data-char="&#x05B9;" title="Holam">&#x05B9;</div>
+                <div class="key hebrew" data-char="&#x05BB;" title="Qubuts">&#x05BB;</div>
+                <div class="key hebrew" data-char="&#x05B0;" title="Sheva">&#x05B0;</div>
+                <div class="key hebrew" data-char="&#x05BC;" title="Dagesh">&#x05BC;</div>
             </div>
         </div>
 
@@ -749,72 +543,71 @@
         <div class="virtual-keyboard" id="greekKeyboard">
             <div class="keyboard-header">
                 <h4><i class="fas fa-keyboard"></i> Greek Keyboard</h4>
-                <button type="button" class="keyboard-close" onclick="closeKeyboard('greek')">×</button>
+                <button type="button" class="keyboard-close" onclick="closeKeyboard('greek')">&#215;</button>
             </div>
             <div class="keyboard-row">
-                <div class="key greek" data-char="ς">ς</div>
-                <div class="key greek" data-char="ε">ε</div>
-                <div class="key greek" data-char="ρ">ρ</div>
-                <div class="key greek" data-char="τ">τ</div>
-                <div class="key greek" data-char="υ">υ</div>
-                <div class="key greek" data-char="θ">θ</div>
-                <div class="key greek" data-char="ι">ι</div>
-                <div class="key greek" data-char="ο">ο</div>
-                <div class="key greek" data-char="π">π</div>
+                <div class="key greek" data-char="&#x03C2;">&#x03C2;</div>
+                <div class="key greek" data-char="&#x03B5;">&#x03B5;</div>
+                <div class="key greek" data-char="&#x03C1;">&#x03C1;</div>
+                <div class="key greek" data-char="&#x03C4;">&#x03C4;</div>
+                <div class="key greek" data-char="&#x03C5;">&#x03C5;</div>
+                <div class="key greek" data-char="&#x03B8;">&#x03B8;</div>
+                <div class="key greek" data-char="&#x03B9;">&#x03B9;</div>
+                <div class="key greek" data-char="&#x03BF;">&#x03BF;</div>
+                <div class="key greek" data-char="&#x03C0;">&#x03C0;</div>
             </div>
             <div class="keyboard-row">
-                <div class="key greek" data-char="α">α</div>
-                <div class="key greek" data-char="σ">σ</div>
-                <div class="key greek" data-char="δ">δ</div>
-                <div class="key greek" data-char="φ">φ</div>
-                <div class="key greek" data-char="γ">γ</div>
-                <div class="key greek" data-char="η">η</div>
-                <div class="key greek" data-char="ξ">ξ</div>
-                <div class="key greek" data-char="κ">κ</div>
-                <div class="key greek" data-char="λ">λ</div>
+                <div class="key greek" data-char="&#x03B1;">&#x03B1;</div>
+                <div class="key greek" data-char="&#x03C3;">&#x03C3;</div>
+                <div class="key greek" data-char="&#x03B4;">&#x03B4;</div>
+                <div class="key greek" data-char="&#x03C6;">&#x03C6;</div>
+                <div class="key greek" data-char="&#x03B3;">&#x03B3;</div>
+                <div class="key greek" data-char="&#x03B7;">&#x03B7;</div>
+                <div class="key greek" data-char="&#x03BE;">&#x03BE;</div>
+                <div class="key greek" data-char="&#x03BA;">&#x03BA;</div>
+                <div class="key greek" data-char="&#x03BB;">&#x03BB;</div>
             </div>
             <div class="keyboard-row">
-                <div class="key greek" data-char="ζ">ζ</div>
-                <div class="key greek" data-char="χ">χ</div>
-                <div class="key greek" data-char="ψ">ψ</div>
-                <div class="key greek" data-char="ω">ω</div>
-                <div class="key greek" data-char="β">β</div>
-                <div class="key greek" data-char="ν">ν</div>
-                <div class="key greek" data-char="μ">μ</div>
+                <div class="key greek" data-char="&#x03B6;">&#x03B6;</div>
+                <div class="key greek" data-char="&#x03C7;">&#x03C7;</div>
+                <div class="key greek" data-char="&#x03C8;">&#x03C8;</div>
+                <div class="key greek" data-char="&#x03C9;">&#x03C9;</div>
+                <div class="key greek" data-char="&#x03B2;">&#x03B2;</div>
+                <div class="key greek" data-char="&#x03BD;">&#x03BD;</div>
+                <div class="key greek" data-char="&#x03BC;">&#x03BC;</div>
             </div>
             <div class="keyboard-row">
                 <div class="key wide" data-char=" ">Space</div>
-                <div class="key wide" data-action="backspace">⌫ Delete</div>
+                <div class="key wide" data-action="backspace">&#x232B; Delete</div>
                 <div class="key wide" data-action="clear">Clear</div>
             </div>
-            <!-- Uppercase Row -->
-            <div class="keyboard-row" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
-                <div class="key greek" data-char="Α">Α</div>
-                <div class="key greek" data-char="Β">Β</div>
-                <div class="key greek" data-char="Γ">Γ</div>
-                <div class="key greek" data-char="Δ">Δ</div>
-                <div class="key greek" data-char="Ε">Ε</div>
-                <div class="key greek" data-char="Ζ">Ζ</div>
-                <div class="key greek" data-char="Η">Η</div>
-                <div class="key greek" data-char="Θ">Θ</div>
-                <div class="key greek" data-char="Ι">Ι</div>
-                <div class="key greek" data-char="Κ">Κ</div>
-                <div class="key greek" data-char="Λ">Λ</div>
-                <div class="key greek" data-char="Μ">Μ</div>
+            <div class="keyboard-row" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--s-rule);">
+                <div class="key greek" data-char="&#x0391;">&#x0391;</div>
+                <div class="key greek" data-char="&#x0392;">&#x0392;</div>
+                <div class="key greek" data-char="&#x0393;">&#x0393;</div>
+                <div class="key greek" data-char="&#x0394;">&#x0394;</div>
+                <div class="key greek" data-char="&#x0395;">&#x0395;</div>
+                <div class="key greek" data-char="&#x0396;">&#x0396;</div>
+                <div class="key greek" data-char="&#x0397;">&#x0397;</div>
+                <div class="key greek" data-char="&#x0398;">&#x0398;</div>
+                <div class="key greek" data-char="&#x0399;">&#x0399;</div>
+                <div class="key greek" data-char="&#x039A;">&#x039A;</div>
+                <div class="key greek" data-char="&#x039B;">&#x039B;</div>
+                <div class="key greek" data-char="&#x039C;">&#x039C;</div>
             </div>
             <div class="keyboard-row">
-                <div class="key greek" data-char="Ν">Ν</div>
-                <div class="key greek" data-char="Ξ">Ξ</div>
-                <div class="key greek" data-char="Ο">Ο</div>
-                <div class="key greek" data-char="Π">Π</div>
-                <div class="key greek" data-char="Ρ">Ρ</div>
-                <div class="key greek" data-char="Σ">Σ</div>
-                <div class="key greek" data-char="Τ">Τ</div>
-                <div class="key greek" data-char="Υ">Υ</div>
-                <div class="key greek" data-char="Φ">Φ</div>
-                <div class="key greek" data-char="Χ">Χ</div>
-                <div class="key greek" data-char="Ψ">Ψ</div>
-                <div class="key greek" data-char="Ω">Ω</div>
+                <div class="key greek" data-char="&#x039D;">&#x039D;</div>
+                <div class="key greek" data-char="&#x039E;">&#x039E;</div>
+                <div class="key greek" data-char="&#x039F;">&#x039F;</div>
+                <div class="key greek" data-char="&#x03A0;">&#x03A0;</div>
+                <div class="key greek" data-char="&#x03A1;">&#x03A1;</div>
+                <div class="key greek" data-char="&#x03A3;">&#x03A3;</div>
+                <div class="key greek" data-char="&#x03A4;">&#x03A4;</div>
+                <div class="key greek" data-char="&#x03A5;">&#x03A5;</div>
+                <div class="key greek" data-char="&#x03A6;">&#x03A6;</div>
+                <div class="key greek" data-char="&#x03A7;">&#x03A7;</div>
+                <div class="key greek" data-char="&#x03A8;">&#x03A8;</div>
+                <div class="key greek" data-char="&#x03A9;">&#x03A9;</div>
             </div>
         </div>
     </div>
@@ -826,7 +619,6 @@
     </div>
     {% endif %}
 
-    <!-- Book Browser -->
     <div class="book-browser">
         <div class="testament-section">
             <div class="testament-header">
@@ -915,10 +707,10 @@
         <div class="testament-section">
             <div class="testament-header">
                 <i class="fas fa-scroll"></i>
-                <h3>Apocrypha & Additional Texts</h3>
+                <h3>Apocrypha &amp; Additional Texts</h3>
             </div>
             <div class="books-grid">
-                <a href="/aseneth/?chapter=1" class="book-item"><i class="fas fa-chevron-right"></i> He Adds and Storehouse (Joseph & Aseneth)</a>
+                <a href="/aseneth/?chapter=1" class="book-item"><i class="fas fa-chevron-right"></i> He Adds and Storehouse (Joseph &amp; Aseneth)</a>
             </div>
         </div>
     </div>

@@ -48,19 +48,19 @@
 
 {% with title_prefix=book|title %}
 <div id="toggleButtonsContainer" style="display: flex; justify-content: flex-end;">
-    <div id="imageToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+    <div id="imageToggleButton" style="padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-eye-slash"></i> Images (I)
     </div>
-    <div id="verseRefToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+    <div id="verseRefToggleButton" style="padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-eye"></i> Verse References (V)
     </div>
-    <div id="parenthesesToggleButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+    <div id="parenthesesToggleButton" style="padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-eye"></i> Names (P)
     </div>
-    <div id="fontDecreaseButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+    <div id="fontDecreaseButton" style="padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-minus"></i>
     </div>
-    <div id="fontIncreaseButton" style="font-size: 14px; padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
+    <div id="fontIncreaseButton" style="padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-plus"></i>
     </div>
     {% if paraphrase or html %}
@@ -383,7 +383,7 @@ function hideTranslationLoading() {
     }
 
     .footnote-popup-title {
-        font-size: 15px;
+        font-size: 20px;
         font-weight: 600;
         margin: 0;
     }
@@ -485,7 +485,7 @@ function hideTranslationLoading() {
     
     /* Mobile: Ensure all images and videos scale responsively */
     @media (max-width: 768px) {
-        img, video, .tooltip-container img, .tooltip-container video {
+        .tooltip-container img, .tooltip-container video {
             width: 100% !important;
             height: auto !important;
             max-width: 100% !important;
@@ -497,7 +497,7 @@ function hideTranslationLoading() {
     }
 
      /* Ensure all images and videos scale responsively */
-    img, video, .tooltip-container img, .tooltip-container video {
+    .tooltip-container img, .tooltip-container video {
         max-width: 500px;
         display: block;
         margin: 0 auto;
@@ -505,18 +505,17 @@ function hideTranslationLoading() {
         transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
 
-    /* Modern toolbar container */
+    /* Modern toolbar container — Sanctum style */
     #toggleButtonsContainer {
         display: flex;
         flex-wrap: wrap;
         justify-content: flex-end;
-        gap: 8px;
-        background: #fafafa;
-        border: 1px solid #e0e0e0;
-        border-radius: 10px;
+        gap: 6px;
+        background: var(--sanctum-parchment, #faf7f2);
+        border: 1px solid var(--sanctum-rule, rgba(183,133,80,0.25));
+        border-radius: 4px;
         padding: 8px 12px;
         margin-bottom: 15px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
         position: sticky;
         top: 0;
         z-index: 50;
@@ -526,28 +525,33 @@ function hideTranslationLoading() {
     #toggleButtonsContainer > div {
         display: flex;
         align-items: center;
-        gap: 6px;
-        font-size: 14px;
-        padding: 6px 12px;
-        color: #ba8666;
-        background: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 6px;
+        gap: 5px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.68rem;
+        font-weight: 500;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        padding: 5px 10px;
+        color: var(--sanctum-stone, #8a7e70);
+        background: transparent;
+        border: 1px solid var(--sanctum-rule, rgba(183,133,80,0.25));
+        border-radius: 3px;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.2s;
         user-select: none;
     }
 
-    /* Hover and active states */
+    /* Hover state */
     #toggleButtonsContainer > div:hover {
-        background: #f4ebe5;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        background: var(--sanctum-cream, #f0ebe3);
+        color: var(--sanctum-gold, #b78550);
+        border-color: var(--sanctum-gold, #b78550);
     }
 
     /* Icon styling */
     #toggleButtonsContainer i {
-        color: #ba8666;
-        font-size: 14px;
+        color: var(--sanctum-stone, #8a7e70);
+        font-size: 11px;
     }
 
     /* Mobile responsiveness */

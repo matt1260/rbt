@@ -19,6 +19,7 @@ ENV/
 scripts/
 reports/
 .playwright-mcp/
+*.bak
 
 rbt-sanctum/
 react-frontpage/
