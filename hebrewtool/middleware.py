@@ -377,7 +377,14 @@ class BotFilterMiddleware:
         # Skip in DEBUG mode
         if getattr(settings, 'DEBUG', False):
             return self.get_response(request)
-        
+
+        # Skip bot filtering for API endpoints called by server-side proxies
+        # (e.g. WordPress wp_remote_get sends a UA containing 'https://' which
+        #  matches the broad 'http' blocked pattern)
+        skip_paths = ('/update_count/', '/health', '/robots.txt', '/sitemap.xml')
+        if request.path in skip_paths or request.path.startswith('/api/'):
+            return self.get_response(request)
+
         user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
         
         # Allow empty user agent from browsers (some privacy tools strip UA)
