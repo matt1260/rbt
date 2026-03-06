@@ -987,7 +987,7 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
         margin-top: 1.2em;
         line-height: 2em;
         text-transform: capitalize;
-        font-weight: 600;
+        font-weight: 800;
     }
 
     h6 {
@@ -995,7 +995,7 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
     }
 
     h5 {
-        font-size: 16px;
+        font-size: 19px;
     }
 
     h4 {
@@ -1556,7 +1556,7 @@ blockquote {
 .greek-header {
     color: #222;
     /* font-family: 'SBL Greek', "Times New Roman", serif; */
-    font-size: 16px;
+    font-size: 18px;
     font-weight: bold;
 }
 
@@ -1617,6 +1617,264 @@ table.front_search td {
 
 	<style id="fit-vids-style">.fluid-width-video-wrapper{width:100%;position:relative;padding:0;}.fluid-width-video-wrapper iframe,.fluid-width-video-wrapper object,.fluid-width-video-wrapper embed {position:absolute;top:0;left:0;width:100%;height:100%;}</style>
 
+<!-- Sanctum Theme Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Frank+Ruhl+Libre:wght@300;400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style id="sanctum-theme-overrides">
+/* ── Sanctum CSS Variables ── */
+:root {
+  --sanctum-gold: #b78550;
+  --sanctum-gold-light: #d4a96a;
+  --sanctum-parchment: #faf7f2;
+  --sanctum-ink: #1a1611;
+  --sanctum-ink-soft: #4a3f33;
+  --sanctum-stone: #8a7e70;
+  --sanctum-cream: #f0ebe3;
+  --sanctum-rule: rgba(183, 133, 80, 0.25);
+}
+
+/* ── Heading Fonts ── */
+h1, h2, h3, h4, h5, h6,
+.page-title, .entry-title {
+  font-family: 'Cormorant Garamond', 'Frank Ruhl Libre', Georgia, serif !important;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--sanctum-ink);
+}
+
+h1 { font-size: 2.4rem; line-height: 1.2; }
+h2 { font-size: 1.9rem; line-height: 1.25; }
+h3 { font-size: 1.5rem; line-height: 1.3; }
+h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
+
+/* ── Sanctum Fixed Nav ── */
+.rbt-sanctum-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.rbt-sanctum-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 2rem;
+  background: rgba(250, 247, 242, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--sanctum-rule);
+  gap: 1rem;
+}
+
+.rbt-sanctum-brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.rbt-sanctum-logo,
+.sanctum-nav-nun {
+  height: 22px;
+  width: auto;
+  display: block;
+  background: transparent !important;
+  padding-right: 0.5rem;
+}
+
+.sanctum-nav-wordmark {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: 0.06em;
+  color: var(--sanctum-ink);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.rbt-sanctum-nav-links {
+  display: flex;
+  gap: 2rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rbt-sanctum-nav-links a {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sanctum-stone);
+  text-decoration: none;
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+
+.rbt-sanctum-nav-links a:hover {
+  color: var(--sanctum-gold);
+}
+
+.rbt-sanctum-cta {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sanctum-ink);
+  text-decoration: none;
+  padding: 0.42rem 1rem;
+  border: 1px solid var(--sanctum-gold);
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rbt-sanctum-cta:hover {
+  background: var(--sanctum-gold);
+  color: #fff !important;
+}
+
+.rbt-sanctum-hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.rbt-sanctum-hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--sanctum-ink);
+  border-radius: 2px;
+  transition: transform 0.25s, opacity 0.25s;
+}
+
+/* Drawer */
+.rbt-sanctum-drawer {
+  position: fixed;
+  top: 0;
+  right: -320px;
+  width: 280px;
+  height: 100%;
+  background: var(--sanctum-parchment);
+  z-index: 2000;
+  padding: 4rem 2rem 2rem;
+  transition: right 0.3s ease;
+  border-left: 1px solid var(--sanctum-rule);
+  box-shadow: -4px 0 24px rgba(26,22,17,0.08);
+  overflow-y: auto;
+}
+
+.rbt-sanctum-drawer.open {
+  right: 0;
+}
+
+.rbt-sanctum-drawer ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rbt-sanctum-drawer ul li {
+  border-bottom: 1px solid var(--sanctum-rule);
+}
+
+.rbt-sanctum-drawer ul a {
+  display: block;
+  padding: 0.9rem 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sanctum-ink);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.rbt-sanctum-drawer ul a:hover {
+  color: var(--sanctum-gold);
+}
+
+.rbt-sanctum-drawer-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: var(--sanctum-stone);
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.rbt-sanctum-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 1999;
+}
+
+.rbt-sanctum-overlay.open {
+  display: block;
+}
+
+@media (max-width: 820px) {
+  .rbt-sanctum-nav-links,
+  .rbt-sanctum-cta {
+    display: none;
+  }
+  .rbt-sanctum-hamburger {
+    display: flex;
+  }
+  .rbt-sanctum-nav {
+    padding: 0.6rem 1rem;
+  }
+}
+
+/* ── Chapter Navigation Strip ── */
+.sanctum-chapters {
+  display: flex;
+  flex-wrap: wrap;
+  /* gap: 0.55rem; */
+  padding: 0.7rem 0;
+  margin-bottom: 1.25rem;
+}
+
+.sanctum-chapter-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.8rem;
+  height: 1.8rem;
+  padding: 0 0.2rem;
+  margin: 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--sanctum-ink-soft);
+  text-decoration: none;
+  border: 1px solid var(--sanctum-rule);
+  transition: all 0.15s;
+}
+
+.sanctum-chapter-link:hover {
+  background: var(--sanctum-gold);
+  color: #fff;
+  border-color: var(--sanctum-gold);
+}
+</style>
+
 </head>
 
 <body class="custom-background nv-blog-default nv-sidebar-full-width menu_sidebar_slide_left" id="neve_body">
@@ -1648,10 +1906,36 @@ table.front_search td {
 
 		<div class="wrapper">
 	
-	<header class="header">
-		<a class="neve-skip-link show-on-focus" href="#content">
-			Skip to content		</a>
-		<div id="header-grid" class="hfg_header site-header">
+<header class="rbt-sanctum-header" id="site-header">
+  <nav class="rbt-sanctum-nav">
+    <a href="https://www.realbible.tech/" class="rbt-sanctum-brand sanctum-nav-logo">
+      <img src="{% static 'nun.png' %}" alt="nun" class="rbt-sanctum-logo sanctum-nav-nun">
+      <span class="sanctum-nav-wordmark">Real Bible Translation Project</span>
+    </a>
+    <ul class="rbt-sanctum-nav-links">
+      <li><a href="https://read.realbible.tech/">Read</a></li>
+      <li><a href="https://read.realbible.tech/statistics/">Statistics</a></li>
+      <li><a href="https://www.realbible.tech/notes/">Notes</a></li>
+      <li><a href="https://www.realbible.tech/about/">About</a></li>
+      <li><a href="https://www.realbible.tech/methodology/">Methodology</a></li>
+    </ul>
+    <a href="https://read.realbible.tech/" class="rbt-sanctum-cta">Search</a>
+    <button class="rbt-sanctum-hamburger" id="rbtMenuToggle" aria-label="Toggle navigation" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </nav>
+  <div class="rbt-sanctum-drawer" id="rbtDrawer" aria-hidden="true">
+    <button class="rbt-sanctum-drawer-close" id="rbtDrawerClose" aria-label="Close menu">&times;</button>
+    <ul>
+      <li><a href="https://read.realbible.tech/">Read the Bible</a></li>
+      <li><a href="https://read.realbible.tech/statistics/">Statistics</a></li>
+      <li><a href="https://www.realbible.tech/notes/">Notes</a></li>
+      <li><a href="https://www.realbible.tech/about/">About</a></li>
+      <li><a href="https://www.realbible.tech/methodology/">Methodology</a></li>
+    </ul>
+  </div>
+  <div class="rbt-sanctum-overlay" id="rbtOverlay"></div>
+		<div id="header-grid" class="hfg_header site-header" style="display:none">
 	
 <nav class="header--row header-main hide-on-mobile hide-on-tablet layout-full-contained nv-navbar header--row" data-row-id="main" data-show-on="desktop">
 
@@ -1767,10 +2051,8 @@ table.front_search td {
 	</div>
 </div>
 <div class="header-menu-sidebar-overlay hfg-ov hfg-pe" onclick="if('undefined' !== typeof toggleAriaClick ) { toggleAriaClick() }"></div>
-</div>
-	</header>
-
-	<style>.is-menu-sidebar .header-menu-sidebar { visibility: visible; }.is-menu-sidebar.menu_sidebar_slide_left .header-menu-sidebar { transform: translate3d(0, 0, 0); left: 0; }.is-menu-sidebar.menu_sidebar_slide_right .header-menu-sidebar { transform: translate3d(0, 0, 0); right: 0; }.is-menu-sidebar.menu_sidebar_pull_right .header-menu-sidebar, .is-menu-sidebar.menu_sidebar_pull_left .header-menu-sidebar { transform: translateX(0); }.is-menu-sidebar.menu_sidebar_dropdown .header-menu-sidebar { height: auto; }.is-menu-sidebar.menu_sidebar_dropdown .header-menu-sidebar-inner { max-height: 400px; padding: 20px 0; }.is-menu-sidebar.menu_sidebar_full_canvas .header-menu-sidebar { opacity: 1; }.header-menu-sidebar .menu-item-nav-search { pointer-events: none; }.header-menu-sidebar .menu-item-nav-search .is-menu-sidebar & { pointer-events: unset; }.nav-ul li:focus-within .wrap.active + .sub-menu { opacity: 1; visibility: visible; }.nav-ul li.neve-mega-menu:focus-within .wrap.active + .sub-menu { display: grid; }.nav-ul li > .wrap { display: flex; align-items: center; position: relative; padding: 0 4px; }.nav-ul:not(.menu-mobile):not(.neve-mega-menu) > li > .wrap > a { padding-top: 1px }</style>
+</div><!-- /.hfg_header -->
+</header><!-- /.rbt-sanctum-header -->
 
 	
 	<main id="content" class="neve-main">
@@ -1806,256 +2088,126 @@ table.front_search td {
     </main><!--/.neve-main-->
 
 <style>
-/* Enhanced Footer Styles */
-.rbt-footer {
-    background: linear-gradient(135deg, #312317 0%, #50331c 100%);
-    color: #e0e0e0;
-    padding: 0;
-    margin-top: 40px;
+/* ── Sanctum Footer ── */
+.sanctum-footer {
+  background: var(--sanctum-ink);
+  color: rgba(250, 247, 242, 0.5);
+  padding: 3rem 2rem 2rem;
+  font-size: 0.78rem;
+  text-align: center;
+  margin-top: 40px;
 }
 
-.rbt-footer-main {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 40px 20px 30px;
+.sanctum-footer a {
+  color: var(--sanctum-gold);
+  text-decoration: none;
 }
 
-.rbt-footer-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 30px;
+.sanctum-footer a:hover {
+  color: var(--sanctum-gold-light);
 }
 
-.rbt-footer-section h4 {
-    color: #b78550;
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #b78550;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.sanctum-footer-logo {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(250, 247, 242, 0.7);
+  margin-bottom: 2rem;
 }
 
-.rbt-footer-section h4 i {
-    font-size: 14px;
+.sanctum-footer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  max-width: 700px;
+  margin: 0 auto 2rem;
+  text-align: left;
 }
 
-.rbt-footer-nav {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+.sanctum-footer-section h4 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(250, 247, 242, 0.45);
+  margin: 0 0 0.75rem;
 }
 
-.rbt-footer-nav li {
-    margin-bottom: 12px;
+.sanctum-footer-nav {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.rbt-footer-nav a {
-    color: #c0c0c0;
-    text-decoration: none;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transition: all 0.2s ease;
-    padding: 6px 0;
+.sanctum-footer-nav li a {
+  color: rgba(250, 247, 242, 0.65);
+  font-size: 0.8rem;
+  transition: color 0.2s;
 }
 
-.rbt-footer-nav a i {
-    color: #b78550;
-    font-size: 12px;
-    width: 16px;
+.sanctum-footer-nav li a:hover {
+  color: var(--sanctum-gold-light);
+}
+
+.sanctum-footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-top: 1px solid rgba(250, 247, 242, 0.08);
+  padding-top: 1.5rem;
+  color: rgba(250, 247, 242, 0.35);
+}
+
+@media (max-width: 600px) {
+  .sanctum-footer-grid {
+    grid-template-columns: 1fr;
     text-align: center;
-    transition: transform 0.2s ease;
-}
-
-.rbt-footer-nav a:hover {
-    color: #b78550;
-    padding-left: 5px;
-}
-
-.rbt-footer-nav a:hover i {
-    transform: translateX(3px);
-}
-
-.rbt-footer-bottom {
-    background: rgba(0, 0, 0, 0.3);
-    padding: 20px;
-    text-align: center;
-    border-top: 1px solid rgba(183, 133, 80, 0.2);
-}
-
-.rbt-footer-bottom p {
-    margin: 0;
-    font-size: 13px;
-    color: #888;
-}
-
-.rbt-footer-bottom a {
-    color: #b78550;
-    text-decoration: none;
-}
-
-.rbt-footer-bottom a:hover {
-    text-decoration: underline;
-}
-
-/* Social Links */
-.rbt-social-links {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.rbt-social-links a {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    background: rgba(183, 133, 80, 0.15);
-    border: 1px solid rgba(183, 133, 80, 0.3);
-    border-radius: 8px;
-    color: #b78550;
-    font-size: 16px;
-    transition: all 0.2s ease;
-}
-
-.rbt-social-links a:hover {
-    background: #b78550;
-    color: #fff;
-    transform: translateY(-3px);
-}
-
-/* Mobile Responsive */
-@media (max-width: 768px) {
-    .rbt-footer-main {
-        padding: 30px 15px 20px;
-    }
-    
-    .rbt-footer-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 25px;
-    }
-    
-    .rbt-footer-section h4 {
-        font-size: 14px;
-        margin-bottom: 15px;
-    }
-    
-    .rbt-footer-nav a {
-        font-size: 13px;
-        padding: 5px 0;
-    }
-}
-
-@media (max-width: 480px) {
-    .rbt-footer-grid {
-        grid-template-columns: 1fr;
-        gap: 20px;
-    }
-    
-    .rbt-footer-section {
-        text-align: center;
-    }
-    
-    .rbt-footer-nav a {
-        justify-content: center;
-    }
-    
-    .rbt-social-links {
-        justify-content: center;
-    }
+  }
+  .sanctum-footer-section h4 {
+    margin-bottom: 0.4rem;
+  }
 }
 </style>
 
-<footer class="rbt-footer" id="site-footer">
-    <div class="rbt-footer-main">
-        <div class="rbt-footer-grid">
-            <!-- About Section -->
-            <div class="rbt-footer-section">
-                <h4>About</h4>
-                <ul class="rbt-footer-nav">
-                    <li>
-                        <a href="https://www.realbible.tech/about/">
-                            <i class="fas fa-info-circle"></i>
-                            About the RBT Project
-                        </a>
-                    </li>
-                    <li>
-                        <a href="https://www.realbible.tech/methodology/">
-                            <i class="fas fa-flask"></i>
-                            Methodology
-                        </a>
-                    </li>
-                    <li>
-                        <a href="https://www.realbible.tech/copyrights/">
-                            <i class="fas fa-copyright"></i>
-                            Copyrights
-                        </a>
-                    </li>
-                </ul>
-            </div>
-
-            <!-- Resources Section -->
-            <div class="rbt-footer-section">
-                <h4>Resources</h4>
-                <ul class="rbt-footer-nav">
-                    <li>
-                        <a href="https://www.realbible.tech/let-there-be-science/">
-                            <i class="fa-solid fa-atom"></i>
-                            Let There Be Science
-                        </a>
-                    </li>
-                    <li>
-                        <a href="https://read.realbible.tech/statistics/">
-                            <i class="fas fa-chart-bar"></i>
-                            Statistics
-                        </a>
-                    </li>
-                    <li>
-                        <a href="https://www.realbible.tech/notes/">
-                            <i class="fas fa-sticky-note"></i>
-                            Notes
-                        </a>
-                    </li>
-                </ul>
-            </div>
-
-            <!-- Quick Links Section -->
-            <div class="rbt-footer-section">
-                <h4>Quick Links</h4>
-                <ul class="rbt-footer-nav">
-                    <li>
-                        <a href="https://www.realbible.tech/">
-                            <i class="fas fa-home"></i>
-                            Home
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/search/">
-                            <i class="fas fa-search"></i>
-                            Search
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/updates/">
-                            <i class="fas fa-clock"></i>
-                            Recent Updates
-                        </a>
-                    </li>
-                </ul>
-            </div>
-
-
-        </div>
+<footer class="sanctum-footer" id="site-footer">
+  <div class="sanctum-footer-logo">Real Bible Translation</div>
+  <div class="sanctum-footer-grid">
+    <div class="sanctum-footer-section">
+      <h4>About</h4>
+      <ul class="sanctum-footer-nav">
+        <li><a href="https://www.realbible.tech/about/">About the Project</a></li>
+        <li><a href="https://www.realbible.tech/methodology/">Methodology</a></li>
+        <li><a href="https://www.realbible.tech/copyrights/">Copyrights</a></li>
+      </ul>
     </div>
-
-    <div class="rbt-footer-bottom">
-        <p>© Now <a href="https://www.realbible.tech">Real Bible Translation Project</a>. All rights reserved.</p>
+    <div class="sanctum-footer-section">
+      <h4>Resources</h4>
+      <ul class="sanctum-footer-nav">
+        <li><a href="https://www.realbible.tech/let-there-be-science/">Let There Be Science</a></li>
+        <li><a href="https://read.realbible.tech/statistics/">Statistics</a></li>
+        <li><a href="https://www.realbible.tech/notes/">Notes</a></li>
+      </ul>
     </div>
+    <div class="sanctum-footer-section">
+      <h4>Quick Links</h4>
+      <ul class="sanctum-footer-nav">
+        <li><a href="https://www.realbible.tech/">Home</a></li>
+        <li><a href="https://read.realbible.tech/search/">Search</a></li>
+        <li><a href="https://read.realbible.tech/updates/">Recent Updates</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="sanctum-footer-bottom" dir="ltr">
+    <span>© Now Real Bible Translation Project</span>
+    <span>·</span>
+    <span>#LetMyPeopleGo</span>
+  </div>
 </footer>
 
 </div><!--/.wrapper-->
@@ -2116,6 +2268,40 @@ var NeveProperties = {"ajaxurl":"https:\/\/www.realbible.tech\/wp-admin\/admin-a
 		attributes: true
 	});
 function toggleAriaClick() { function toggleAriaExpanded(toggle = 'true') { document.querySelectorAll('button.navbar-toggle').forEach(function(el) { if ( el.classList.contains('caret-wrap') ) { return; } el.setAttribute('aria-expanded', 'true' === el.getAttribute('aria-expanded') ? 'false' : toggle); }); } toggleAriaExpanded(); if ( document.body.hasAttribute('data-ftrap-listener') ) { return; } document.body.setAttribute('data-ftrap-listener', 'true'); document.addEventListener('ftrap-end', function() { toggleAriaExpanded('false'); }); }
+</script>
+
+<script>
+// Sanctum Mobile Nav
+(function() {
+  function initSanctumNav() {
+    var toggle = document.getElementById('rbtMenuToggle');
+    var drawer = document.getElementById('rbtDrawer');
+    var overlay = document.getElementById('rbtOverlay');
+    var closeBtn = document.getElementById('rbtDrawerClose');
+    if (!toggle || !drawer) return;
+    function openMenu() {
+      drawer.classList.add('open');
+      overlay.classList.add('open');
+      toggle.setAttribute('aria-expanded', 'true');
+      drawer.setAttribute('aria-hidden', 'false');
+    }
+    function closeMenu() {
+      drawer.classList.remove('open');
+      overlay.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      drawer.setAttribute('aria-hidden', 'true');
+    }
+    toggle.addEventListener('click', function() {
+      drawer.classList.contains('open') ? closeMenu() : openMenu();
+    });
+    if (overlay) overlay.addEventListener('click', closeMenu);
+    if (closeBtn) closeBtn.addEventListener('click', closeMenu);
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeMenu();
+    });
+  }
+  document.addEventListener('DOMContentLoaded', initSanctumNav);
+})();
 </script>
 
 <script>

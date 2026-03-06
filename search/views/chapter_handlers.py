@@ -172,9 +172,7 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
 
     chapters = ""
     for number in chapter_list:
-        chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" style="text-decoration: none;">{number}</a> |'
-
-    # Build notes_html with translated footnotes when available
+        chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" class="sanctum-chapter-link">{number}</a>'
     notes_html = build_notes_html(notes_sources, source_book, chapter_num, translated_footnotes=translated_footnotes)
 
     # Transform book name for display
@@ -417,7 +415,7 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     
     chapters = ''
     for number in chapter_list:
-        chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" style="text-decoration: none;">{number}</a> |'
+        chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" class="sanctum-chapter-link">{number}</a>'
 
     # Transform book name for display only
     display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
@@ -664,7 +662,7 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     
     chapters = ''
     for number in chapter_list:
-        chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" style="text-decoration: none;">{number}</a> |'
+        chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" class="sanctum-chapter-link">{number}</a>'
 
     # Transform book name for display
     display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)

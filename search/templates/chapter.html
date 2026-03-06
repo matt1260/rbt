@@ -111,8 +111,6 @@ function hideTranslationLoading() {
 </script>
 {% endif %}
 
-<p><a href="/">Back to Search</a></p>
-
 {% if has_failed_translations %}
 <div style="margin: 10px 0; padding: 10px 12px; border: 1px solid #f0c36d; background: #fff8e1; border-radius: 6px; display: inline-flex; gap: 10px; align-items: center;">
     <strong>Some verses failed to translate.</strong>
@@ -157,9 +155,8 @@ function hideTranslationLoading() {
 </script>
 
 <!-- make this a python generated variable depending on book i.e. 'Genesis Chapters: '-->
-<div style="padding-bottom: 20px;">
-<strong>Select a Chapter:</strong>
-    {{ chapters|safe }}
+<div class="sanctum-chapters">
+  {{ chapters|safe }}
 </div>
 
 <h1>{{ book }} {{ chapter_num }}</h1>

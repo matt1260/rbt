@@ -120,7 +120,7 @@ def storehouse_view(request):
                 for number in chapter_list:
                     lang_param = f'&lang={language}' if language != 'en' else ''
                     chapters_markup += (
-                        f'<a href="?chapter={number}{lang_param}" style="text-decoration: none;">{number}</a> |'
+                        f'<a href="?chapter={number}{lang_param}" class="sanctum-chapter-link">{number}</a>'
                     )
 
                 cursor.execute(

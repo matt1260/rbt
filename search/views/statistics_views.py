@@ -21,25 +21,31 @@ from search.db_utils import execute_query
 from translate.translator import convert_book_name
 
 
+def _cors_json(data, status=200):
+    """Return a JsonResponse with CORS headers always set."""
+    response = JsonResponse(data, status=status)
+    response["Access-Control-Allow-Origin"] = "*"
+    response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+
 @csrf_exempt
 def update_count(request):
     """Get count of translation updates for today."""
+    if request.method == 'OPTIONS':
+        return _cors_json({}, status=204)
     if request.method == 'GET':
-        today = datetime.now()
-
-        start_date = today.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        update_count = TranslationUpdates.objects.filter(
-            date__range=[start_date, end_date]
-        ).count()
-
-        response = JsonResponse({'updateCount': update_count})
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type"
-
-        return response
+        try:
+            today = datetime.now()
+            start_date = today.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+            count = TranslationUpdates.objects.filter(
+                date__range=[start_date, end_date]
+            ).count()
+            return _cors_json({'updateCount': count})
+        except Exception:
+            return _cors_json({'updateCount': 0})
 
 
 def update_statistics_view(request):

@@ -34,8 +34,6 @@
     </div>
 </div>
 
-<p><a href="/">Back to Search</a></p>
-
 {% if has_failed_translations %}
 <div style="margin: 10px 0; padding: 10px 12px; border: 1px solid #f0c36d; background: #fff8e1; border-radius: 6px; display: inline-flex; gap: 10px; align-items: center;">
     <strong>Some verses failed to translate.</strong>
@@ -43,7 +41,7 @@
 </div>
 {% endif %}
 
-<div style="padding-bottom: 20px;">
+<div style="padding-bottom: 20px; padding-top: 20px;">
 <strong>Select a Chapter:</strong>
     {{ chapters|safe }}
 </div>

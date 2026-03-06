@@ -142,8 +142,6 @@ function hideTranslationLoading() {
 }
 </script>
 
-<p><a href="/">Back to Search</a></p>
-
 {% if has_failed_translations %}
 <div style="margin: 10px 0; padding: 10px 12px; border: 1px solid #f0c36d; background: #fff8e1; border-radius: 6px; display: inline-flex; gap: 10px; align-items: center;">
     <strong>Some verses failed to translate.</strong>
@@ -350,7 +348,7 @@ function hideTranslationLoading() {
     #resizeHandle { display: none; }
 }
 
-img, video, .tooltip-container img, .tooltip-container video { width: 100% !important; height: auto !important; max-width: 500px; display: block; margin: 0 auto; background: #fff; transition: transform 0.3s ease, box-shadow 0.3s ease; }
+.tooltip-container img, .tooltip-container video { width: 100% !important; height: auto !important; max-width: 500px; display: block; margin: 0 auto; background: #fff; transition: transform 0.3s ease, box-shadow 0.3s ease; }
 </style>
 
 <script>
