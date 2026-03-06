@@ -112,9 +112,9 @@ def updates(request):
     current_month = today.strftime('%m')
     current_day = today.strftime('%Y-%m-%d')
 
-    def parse_and_construct_url(result):
-        if '.' in result.reference:
-            ref = result.reference.split('.')
+    def parse_and_construct_url(reference):
+        if '.' in reference:
+            ref = reference.split('.')
             
             if len(ref) == 3:
                 bookref_raw = ref[0]
@@ -134,7 +134,7 @@ def updates(request):
             else:
                 url = 'None'
         else:
-            parts = result.reference.split()
+            parts = reference.split()
             book = parts[0]
             chapter, verse = map(int, parts[1].split(':'))
             url = f'?book={book}&chapter={chapter}&verse={verse}'
@@ -143,8 +143,12 @@ def updates(request):
     
     update_entries = []
     for result in results:
+        reference_value = result.reference
+        if result.version == 'Hebrew Footnote':
+            reference_value = re.sub(r'\s*-\s*\d+\s*$', '', reference_value)
+
         try:
-            url = parse_and_construct_url(result)
+            url = parse_and_construct_url(reference_value)
         except Exception:
             url = None
 
@@ -156,7 +160,7 @@ def updates(request):
 
         update_entries.append({
             'date': display_date,
-            'reference': result.reference,
+            'reference': reference_value,
             'version': result.version,
             'url': url,
         })

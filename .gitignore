@@ -20,7 +20,10 @@ scripts/
 reports/
 .playwright-mcp/
 
-neve-child/
+rbt-sanctum/
+react-frontpage/
+
+wordpress/
 namecheap_server.txt
 BDB_extract.py
 bdb_images/

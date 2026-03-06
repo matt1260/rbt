@@ -1556,7 +1556,7 @@ def translate(request):
         cleared_keys = _invalidate_reader_cache(book_name, chapter_value, verse_value)
         updates.append(f'Updated HTML Paraphrase: {verse_id} in HTML with "{html}". Cache cleared ({len(cleared_keys)} keys).')
 
-    def save_footnote_to_database(verse_id, id, key, text):
+    def save_footnote_to_database(verse_id, id, text):
         execute_query("UPDATE old_testament.hebrewdata SET footnote = %s WHERE id = %s;", (text, id))
 
         verse_id = verse_id.split('-')[0]
@@ -1564,7 +1564,7 @@ def translate(request):
         update_text = re.sub(r'<a\s+.*?>(.*?)</a>', r'\1', text)
         update_version = "Hebrew Footnote"
         update_date = datetime.now()
-        update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{verse_id} - {key}", update_text=update_text)
+        update_instance = TranslationUpdates(date=update_date, version=update_version, reference=verse_id, update_text=update_text)
         _safe_save_update(update_instance)
 
         book_parts = verse_id.split('.')
@@ -1865,7 +1865,7 @@ def translate(request):
         for row_id, text in updated_footnotes.items():
             # row_id is already the database ID - no need to look up in color_id_list
             logger.debug(f"Saving footnote: row_id={row_id}, text preview={text[:50] if text else 'empty'}...")
-            save_footnote_to_database(verse_ref or verse_id_full, row_id, row_id, text)
+            save_footnote_to_database(verse_ref or verse_id_full, row_id, text)
 
     ############### END POST EDIT
 
