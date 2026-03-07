@@ -1688,9 +1688,9 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
 .sanctum-nav-wordmark {
   font-family: 'Cormorant Garamond', Georgia, serif;
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   letter-spacing: 0.06em;
-  color: var(--sanctum-ink);
+  color: var(--sanctum-ink-soft);
   line-height: 1;
   white-space: nowrap;
 }
@@ -1911,14 +1911,14 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
   <nav class="rbt-sanctum-nav">
     <a href="https://www.realbible.tech/" class="rbt-sanctum-brand sanctum-nav-logo">
       <img src="{% static 'nun.png' %}" alt="nun" class="rbt-sanctum-logo sanctum-nav-nun">
-      <span class="sanctum-nav-wordmark">Real Bible Translation Project</span>
+      <span class="sanctum-nav-wordmark">Real Bible Project</span>
     </a>
     <ul class="rbt-sanctum-nav-links">
       <li><a href="https://read.realbible.tech/">Read</a></li>
       <li><a href="https://read.realbible.tech/statistics/">Statistics</a></li>
       <li><a href="https://www.realbible.tech/notes/">Notes</a></li>
-      <li><a href="https://www.realbible.tech/about/">About</a></li>
       <li><a href="https://www.realbible.tech/methodology/">Methodology</a></li>
+      <li><a href="https://www.realbible.tech/about/">About</a></li>
     </ul>
     <a href="https://read.realbible.tech/" class="rbt-sanctum-cta">Search</a>
     <button class="rbt-sanctum-hamburger" id="rbtMenuToggle" aria-label="Toggle navigation" aria-expanded="false">
@@ -1931,8 +1931,8 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
       <li><a href="https://read.realbible.tech/">Read the Bible</a></li>
       <li><a href="https://read.realbible.tech/statistics/">Statistics</a></li>
       <li><a href="https://www.realbible.tech/notes/">Notes</a></li>
-      <li><a href="https://www.realbible.tech/about/">About</a></li>
       <li><a href="https://www.realbible.tech/methodology/">Methodology</a></li>
+      <li><a href="https://www.realbible.tech/about/">About</a></li>
     </ul>
   </div>
   <div class="rbt-sanctum-overlay" id="rbtOverlay"></div>
@@ -1946,24 +1946,49 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
 				<div class="hfg-slot left"><div class="builder-item desktop-center"><div class="item--inner builder-item--logo" data-section="title_tagline" data-item-id="logo">
 	
 <div class="site-logo">
-	<a class="brand" href="https://www.realbible.tech/" title="← Real Bible Translation Project" aria-label="Real Bible Translation Project" rel="home"><div class="logo-on-top"><img width="1178" height="130" src="https://www.realbible.tech/wp-content/uploads/2022/05/rb_logo.png" class="neve-site-logo skip-lazy" alt="" decoding="async" data-variant="logo" fetchpriority="high" srcset="https://www.realbible.tech/wp-content/uploads/2022/05/rb_logo.png 1178w, https://www.realbible.tech/wp-content/uploads/2022/05/rb_logo-768x85.png 768w" sizes="(max-width: 1178px) 100vw, 1178px"><div class="nv-title-tagline-wrap"></div></div></a></div>
-	</div>
-
-</div></div><div class="hfg-slot right"><div class="builder-item has-nav hfg-is-group has-primary-menu"><div class="item--inner builder-item--primary-menu has_menu" data-section="header_menu_primary" data-item-id="primary-menu">
-	<div class="nv-nav-wrap">
-	<div role="navigation" class="nav-menu-primary style-border-bottom m-style" aria-label="Primary Menu">
-
-		<ul id="nv-primary-navigation-main" class="primary-menu-ul nav-ul menu-desktop">
-			<li id="menu-item-10305" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10305">
-				<div class="wrap"><a href="https://read.realbible.tech/statistics/">Statistics</a></div></li>
-			<li id="menu-item-10305" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10305">
-				<div class="wrap"><a href="https://www.realbible.tech/notes/">Notes</a></div></li>
-			<li id="menu-item-9945" class="menu-item menu-item-type-post_type menu-item-object-page current-menu-item page_item page-item-9943 current_page_item menu-item-9945 nv-active">
-			<div class="wrap"><a href="https://www.realbible.tech/about/" aria-current="page">About</a></div></li>
-<li id="menu-item-10305" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10305">
-	<div class="wrap"><a href="https://www.realbible.tech/methodology/">Methodology</a></div></li>
-</ul>	</div>
+    <a class="brand" href="https://www.realbible.tech/" title="← Real Bible Translation Project"
+        aria-label="Real Bible Translation Project" rel="home">
+        <div class="logo-on-top"><img width="1178" height="130"
+                src="https://www.realbible.tech/wp-content/uploads/2022/05/rb_logo.png" class="neve-site-logo skip-lazy"
+                alt="" decoding="async" data-variant="logo" fetchpriority="high"
+                srcset="https://www.realbible.tech/wp-content/uploads/2022/05/rb_logo.png 1178w, https://www.realbible.tech/wp-content/uploads/2022/05/rb_logo-768x85.png 768w"
+                sizes="(max-width: 1178px) 100vw, 1178px">
+            <div class="nv-title-tagline-wrap"></div>
+        </div>
+    </a>
 </div>
+</div>
+
+</div>
+</div>
+<div class="hfg-slot right">
+    <div class="builder-item has-nav hfg-is-group has-primary-menu">
+        <div class="item--inner builder-item--primary-menu has_menu" data-section="header_menu_primary"
+            data-item-id="primary-menu">
+            <div class="nv-nav-wrap">
+                <div role="navigation" class="nav-menu-primary style-border-bottom m-style" aria-label="Primary Menu">
+
+                    <ul id="nv-primary-navigation-main" class="primary-menu-ul nav-ul menu-desktop">
+                        <li id="menu-item-10305"
+                            class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10305">
+                            <div class="wrap"><a href="https://read.realbible.tech/statistics/">Statistics</a></div>
+                        </li>
+                        <li id="menu-item-10305"
+                            class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10305">
+                            <div class="wrap"><a href="https://www.realbible.tech/notes/">Notes</a></div>
+                        </li>
+                        <li id="menu-item-10305"
+                            class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10305">
+                            <div class="wrap"><a href="https://www.realbible.tech/methodology/">Methodology</a></div>
+                        </li>
+                        <li id="menu-item-9945"
+                            class="menu-item menu-item-type-post_type menu-item-object-page current-menu-item page_item page-item-9943 current_page_item menu-item-9945 nv-active">
+                            <div class="wrap"><a href="https://www.realbible.tech/about/" aria-current="page">About</a>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
 
 	</div>
 
@@ -2033,10 +2058,12 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
 				<div class="wrap"><a href="https://read.realbible.tech/statistics/">Statistics</a></div></li>
 			<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10305">
 				<div class="wrap"><a href="https://www.realbible.tech/notes/">Notes</a></div></li>
-			<li class="menu-item menu-item-type-post_type menu-item-object-page current-menu-item page_item page-item-9943">
-				<div class="wrap"><a href="https://www.realbible.tech/about/" aria-current="page">About</a></div></li>
-			<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10305">
+				<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-10305">
 				<div class="wrap"><a href="https://www.realbible.tech/methodology/">Methodology</a></div></li>
+                <li class="menu-item menu-item-type-post_type menu-item-object-page current-menu-item page_item page-item-9943">
+				<div class="wrap"><a href="https://www.realbible.tech/about/" aria-current="page">About</a></div></li>
+
+
 </ul>	</div>
 </div>
 
@@ -2120,9 +2147,9 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
 
 .sanctum-footer-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 2rem;
-  max-width: 700px;
+  max-width: 900px;
   margin: 0 auto 2rem;
   text-align: left;
 }
@@ -2165,15 +2192,22 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
   color: rgba(250, 247, 242, 0.35);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 720px) {
   .sanctum-footer-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
     text-align: center;
   }
   .sanctum-footer-section h4 {
     margin-bottom: 0.4rem;
   }
 }
+@media (max-width: 400px) {
+  .sanctum-footer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+html { scroll-behavior: smooth; }
 </style>
 
 <footer class="sanctum-footer" id="site-footer">
@@ -2201,6 +2235,14 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
         <li><a href="https://www.realbible.tech/">Home</a></li>
         <li><a href="https://read.realbible.tech/search/">Search</a></li>
         <li><a href="https://read.realbible.tech/updates/">Recent Updates</a></li>
+      </ul>
+    </div>
+    <div class="sanctum-footer-section" id="support-this-work">
+      <h4>Support this Work</h4>
+      <ul class="sanctum-footer-nav">
+        <li><a href="https://www.paypal.com/donate/?hosted_button_id=6LHHSLKJCY4RY" target="_blank" rel="noopener">Donate via PayPal</a></li>
+        <li><a href="https://x.com/intent/tweet?hashtags=LetMyPeopleGo&text=Reading+the+Real+Bible+Translation+Project" target="_blank" rel="noopener">Share on X #LetMyPeopleGo</a></li>
+        <li><a href="https://mempool.space/address/bc1qcwsz2yen5f9xy7dyxma3f4wrmrck7htgwnj6al" target="_blank" rel="noopener">Donate Crypto (BTC)</a></li>
       </ul>
     </div>
   </div>
