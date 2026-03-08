@@ -196,10 +196,11 @@ document.addEventListener("DOMContentLoaded", function() {
         updateFontSize();
     }
     
-    // Determine if current book is Genesis by reading the h1 title
-    const h1Element = document.querySelector('h1');
-    const bookName = h1Element ? h1Element.textContent.split(' ')[0] : '';
-    const isGenesis = bookName === 'Genesis';
+    // Determine if current book is Genesis by reading the URL query parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const bookParam = urlParams.get('book') || '';
+    const isGenesis = bookParam === 'Genesis';
+    console.log('[DEBUG] Chapter viewer loaded. Book:', bookParam, 'isGenesis:', isGenesis);
     
     let isLiteralVisible = isGenesis; // Default literal to ON for Genesis, OFF for other books
     let isImageVisible = true;
