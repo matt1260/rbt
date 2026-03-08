@@ -196,7 +196,12 @@ document.addEventListener("DOMContentLoaded", function() {
         updateFontSize();
     }
     
-    let isLiteralVisible = false;
+    // Determine if current book is Genesis by reading the h1 title
+    const h1Element = document.querySelector('h1');
+    const bookName = h1Element ? h1Element.textContent.split(' ')[0] : '';
+    const isGenesis = bookName === 'Genesis';
+    
+    let isLiteralVisible = isGenesis; // Default literal to ON for Genesis, OFF for other books
     let isImageVisible = true;
     let isH5Visible = true;
     let isVerseRefVisible = false;
