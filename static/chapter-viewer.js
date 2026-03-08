@@ -200,7 +200,6 @@ document.addEventListener("DOMContentLoaded", function() {
     const urlParams = new URLSearchParams(window.location.search);
     const bookParam = urlParams.get('book') || '';
     const isGenesis = bookParam === 'Genesis';
-    console.log('[DEBUG] Chapter viewer loaded. Book:', bookParam, 'isGenesis:', isGenesis);
     
     let isLiteralVisible = isGenesis; // Default literal to ON for Genesis, OFF for other books
     let isImageVisible = true;
