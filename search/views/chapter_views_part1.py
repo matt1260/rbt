@@ -1032,15 +1032,15 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 verse_key = f"{verse_num:02d}"
                 
                 eng_parts = []
-                html_parts = []
+                first_html = None  # Only use first non-empty html (verse HTML is verse-level, not word-level)
                 
                 for eng, html_content in verse_groups[verse_num]:
                     if eng:
                         eng_parts.append(eng)
-                    if html_content:
-                        html_parts.append(html_content)
+                    if html_content and first_html is None:
+                        first_html = html_content
                 
-                html[verse_key] = (' '.join(eng_parts), ' '.join(html_parts))
+                html[verse_key] = (' '.join(eng_parts), first_html or '')
 
             unique_chapters = set(int(reference[0].split('.')[1]) for reference in chapter_references)
             chapter_list = sorted(map(str, unique_chapters), key=lambda x: int(x))
