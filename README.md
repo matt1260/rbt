@@ -19,7 +19,7 @@ The RBT Project is a sophisticated Bible study and translation platform that pro
 - **Backend**: Django 4.x (Python)
 - **Database**: PostgreSQL with multiple schemas
 - **Frontend**: Vanilla JavaScript with modern ES6+
-- **Deployment**: Railway.app with Gunicorn
+- **Deployment**: Northflank app with Gunicorn
 - **Static Files**: WhiteNoise middleware
 
 ### Database Structure
@@ -135,7 +135,7 @@ response = client.models.generate_content(
 ### Prerequisites
 - Python 3.12+
 - PostgreSQL 17
-- Railway CLI (for deployment)
+- Northflank CLI (for deployment)
 
 ### Environment Variables
 Create a `.env` file or set environment variables:

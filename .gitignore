@@ -25,6 +25,8 @@ rbt-sanctum/
 react-frontpage/
 rbt-translator/
 
+gospel_of_judas/
+
 wordpress/
 namecheap_server.txt
 BDB_extract.py
@@ -67,3 +69,5 @@ media/
 # Environment files
 *.env
 .env
+rbt-sanctum/style.css
+rbt-sanctum/react/sanctum.js
