@@ -3329,10 +3329,18 @@ def find_and_replace_ot(request):
                     )
 
                     # Keep hebrew editor/paraphrase in sync (hebrewdata stores per-lexeme rows).
+                    # Only update the first word row (-01) to avoid duplicating the verse HTML
+                    # across every word-level row (which causes verse repetition in the reader).
                     if ot_ref:
                         execute_query(
-                            "UPDATE old_testament.hebrewdata SET html = %s WHERE Ref LIKE %s;",
-                            (new_text, f"{ot_ref}-%"),
+                            "UPDATE old_testament.hebrewdata SET html = %s WHERE Ref = %s;",
+                            (new_text, f"{ot_ref}-01"),
+                            fetch=None,
+                        )
+                        # Clear html from any other word rows for this verse (in case previously corrupted)
+                        execute_query(
+                            "UPDATE old_testament.hebrewdata SET html = NULL WHERE Ref LIKE %s AND Ref != %s;",
+                            (f"{ot_ref}-%", f"{ot_ref}-01"),
                             fetch=None,
                         )
 
