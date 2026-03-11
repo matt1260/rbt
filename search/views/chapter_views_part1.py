@@ -36,7 +36,7 @@ from translate.translator import (
 from search.rbt_titles import rbt_books
 
 # Cache version for interlinear data
-INTERLINEAR_CACHE_VERSION = 'v2'
+INTERLINEAR_CACHE_VERSION = 'v3'
 
 
 def home(request):
