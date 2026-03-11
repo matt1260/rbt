@@ -123,12 +123,14 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
             close_text = '<br>'
 
         if '<h5>' in verse_reader:
-            parts = verse_reader.split('</h5>')
-            if len(parts) >= 2:
-                heading = parts[0] + '</h5>'
-                paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{parts[1]}{close_text}'
+            # Use regex to extract everything up to the first </h5> as heading
+            h5_match = re.match(r'^(.*?</h5>)(.*)', verse_reader, re.DOTALL)
+            if h5_match:
+                heading = h5_match.group(1)
+                rest = h5_match.group(2)
+                paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{rest}{close_text}'
             else:
-                paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
+                paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
         elif verse_reader == '':
             paraphrase += ''
         else:
@@ -366,12 +368,14 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
                     }
 
             if '<h5>' in html_verse:
-                parts = html_verse.split('</h5>')
-                if len(parts) >= 2:
-                    heading = parts[0] + '</h5>'
-                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a> </b></span>{parts[1]}{close_text}'
+                # Use regex to extract everything up to the first </h5> as heading
+                h5_match = re.match(r'^(.*?</h5>)(.*)', html_verse, re.DOTALL)
+                if h5_match:
+                    heading = h5_match.group(1)
+                    rest = h5_match.group(2)
+                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a> </b></span>{rest}{close_text}'
                 else:
-                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a> </b></span>{html_verse}{close_text}'
+                    paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a> </b></span>{html_verse}{close_text}'
             else:
                 html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a></b></span> {html_verse}'
                 paraphrase += html_verse + close_text
@@ -599,12 +603,14 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
             
             close_text = '' if html_verse.endswith('</span>') else '<br>'
             if '<h5>' in html_verse:
-                parts = html_verse.split('</h5>')
-                if len(parts) >= 2:
-                    heading = parts[0] + '</h5>'
-                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={display_vrs}">{display_vrs}</a> </b></span>{parts[1]}{close_text}'
+                # Use regex to extract everything up to the first </h5> as heading
+                h5_match = re.match(r'^(.*?</h5>)(.*)', html_verse, re.DOTALL)
+                if h5_match:
+                    heading = h5_match.group(1)
+                    rest = h5_match.group(2)
+                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={display_vrs}">{display_vrs}</a> </b></span>{rest}{close_text}'
                 else:
-                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={display_vrs}">{display_vrs}</a> </b></span>{html_verse}{close_text}'
+                    paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={display_vrs}">{display_vrs}</a> </b></span>{html_verse}{close_text}'
             else:
                 html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={display_vrs}">{display_vrs}</a></b></span> {html_verse}'
                 paraphrase += html_verse + close_text
