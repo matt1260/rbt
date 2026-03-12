@@ -1,0 +1,96 @@
+<!-- edit_judas_commentary.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .commentary-editor { max-width: 960px; margin: 0 auto; }
+    .commentary-editor h2 { margin-bottom: 0.5rem; }
+    .commentary-editor h3 { margin: 20px 0 10px; color: #5b514a; font-size: 1em; text-transform: uppercase; letter-spacing: 0.06em; }
+    .commentary-messages .message { margin-bottom: 12px; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
+    .commentary-messages .success { background-color: #e6ffed; border: 1px solid #8bd08b; }
+    .commentary-messages .error { background-color: #ffe6e6; border: 1px solid #f08a8a; }
+    .notice-bar { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; }
+    .error-bar { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; }
+    .editor-card { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; margin-bottom: 24px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+    .commentary-textarea {
+        width: 100%; min-height: 420px; padding: 12px; font-family: monospace;
+        font-size: 13px; line-height: 1.5; border: 1px solid #d0d0d0;
+        border-radius: 6px; background: #fff; resize: vertical; box-sizing: border-box;
+    }
+    .btn-save { background: #ba8666; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 15px; margin-right: 10px; }
+    .btn-save:hover { background: #a77152; }
+    .btn-back { display: inline-block; padding: 10px 20px; border-radius: 6px; border: 1px solid #d0d0d0; color: #555; background: #f5f5f5; text-decoration: none; font-size: 14px; }
+    .btn-back:hover { background: #ececec; }
+    .preview-box { border-left: 3px solid #ba8666; background: #faf7f2; padding: 16px 20px; border-radius: 0 6px 6px 0; line-height: 1.7; min-height: 100px; max-height: 60vh; overflow-y: auto; }
+    .char-count { font-size: 12px; color: #999; margin-top: 6px; }
+</style>
+
+<div class="container commentary-editor">
+    <h2>{{ book }} — Commentary Editor</h2>
+    <p style="color:#777;font-size:14px;margin-bottom:18px;">
+        This is the global commentary displayed in the Commentary panel for all codex pages.
+        Edit the HTML content below and save.
+    </p>
+
+    {% if messages %}
+    <div class="commentary-messages">
+        {% for message in messages %}
+            <div class="message {{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="editor-card">
+        <form method="post" id="commentaryForm">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_commentary">
+
+            <h3>Commentary HTML</h3>
+            <textarea
+                name="edited_commentary"
+                id="commentaryTextarea"
+                class="commentary-textarea"
+                oninput="updatePreview(); updateCharCount();"
+            >{{ commentary_content|default_if_none:"" }}</textarea>
+
+            <div class="char-count" id="charCount"></div>
+
+            <div style="margin-top: 14px;">
+                <button type="submit" class="btn-save">
+                    <i class="fas fa-save"></i> Save Commentary
+                </button>
+                <a href="/edit_judas/" class="btn-back">← Back to Editor</a>
+            </div>
+        </form>
+    </div>
+
+    <h3>Live Preview</h3>
+    <div class="preview-box" id="commentaryPreview">
+        {{ commentary_content|default_if_none:""|safe }}
+    </div>
+</div>
+
+<script>
+function updatePreview() {
+    const text = document.getElementById('commentaryTextarea').value;
+    document.getElementById('commentaryPreview').innerHTML = text;
+}
+
+function updateCharCount() {
+    const len = document.getElementById('commentaryTextarea').value.length;
+    document.getElementById('charCount').textContent = len.toLocaleString() + ' characters';
+}
+
+// Keyboard shortcut: Ctrl+S / Cmd+S to save
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        document.getElementById('commentaryForm').submit();
+    }
+});
+
+// Init char count on load
+document.addEventListener('DOMContentLoaded', updateCharCount);
+</script>
+
+{% endblock %}
