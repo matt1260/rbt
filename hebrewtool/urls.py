@@ -77,6 +77,8 @@ urlpatterns = [
     path('__human_verify/', human_verify, name='human_verify'),
     path('edit_aseneth/', views.edit_aseneth, name='edit_aseneth'),
     path('edit_aseneth/accounts/', include('django.contrib.auth.urls')),
+    path('edit_judas/', views.edit_judas, name='edit_judas'),
+    path('edit_judas/accounts/', include('django.contrib.auth.urls')),
 
 ]
 

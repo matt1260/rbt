@@ -1,0 +1,125 @@
+<!-- edit_judas_verse.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+<style>
+    .highlight { background-color: yellow; }
+    .notice-bar { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+    .error-bar { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+    textarea#editor-texto { width: 100%; height: 250px; font-family: monospace; }
+    .tooltip-container { position: relative; display: inline-block; cursor: pointer; }
+    .tooltip-container img, .tooltip-container video { width: 500px; display: block; margin: 0 auto; border-radius: 8px; transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    .tooltip-container .tooltip-text { visibility: hidden; width: auto; background-color: #f9f9f9; color: #000; text-align: left; border-radius: 4px; padding: 4px 8px; position: absolute; z-index: 100; bottom: 68%; left: 50%; transform: translateX(-50%); box-shadow: 0px 2px 6px rgba(0,0,0,0.2); white-space: nowrap; font-size: 0.85em; pointer-events: auto; }
+    .tooltip-container:hover .tooltip-text, .tooltip-container .tooltip-text:hover { visibility: visible; }
+    .interlinear-preview { margin: 20px 0; padding: 15px; background: #f9f7f4; border: 1px solid #e0d8d0; border-radius: 8px; }
+    .interlinear-preview table { width: 100%; border-collapse: collapse; }
+    .interlinear-preview th { text-align: left; padding: 6px 8px; border-bottom: 2px solid #ba8666; color: #ba8666; font-size: 0.85em; text-transform: uppercase; }
+    .interlinear-preview td { padding: 6px 8px; border-bottom: 1px solid #eee; font-size: 14px; }
+</style>
+
+<div class="container">
+    <h2>Edit: {{ book }} — Codex {{ codex }} : Line {{ line_num }}</h2>
+
+    {% if edit_result %}
+        {{ edit_result|safe }}
+    {% endif %}
+
+    {% if error_message %}
+        <div class="error-bar">{{ error_message }}</div>
+    {% endif %}
+
+    {% if line_data %}
+        <!-- Interlinear context -->
+        <div class="interlinear-preview">
+            <table>
+                <tr>
+                    <th>Coptic</th>
+                    <th>Greek</th>
+                    <th>English</th>
+                    <th>Notes</th>
+                </tr>
+                <tr>
+                    <td>{{ line_data.coptic|safe }}</td>
+                    <td>{{ line_data.greek|safe }}</td>
+                    <td>{{ line_data.english|safe }}</td>
+                    <td>{{ line_data.notes|safe }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <strong>English Translation:</strong>
+        <div class="single_verse" id="englishReader">{{ line_data.english|safe }}</div>
+
+        <form method="post">
+            {% csrf_token %}
+            <label><strong>Coptic:</strong></label>
+            <textarea name="edited_coptic" style="width:100%;height:60px;font-family:monospace;">{{ line_data.coptic }}</textarea>
+
+            <label><strong>Greek:</strong></label>
+            <textarea name="edited_greek" style="width:100%;height:60px;font-family:monospace;">{{ line_data.greek }}</textarea>
+
+            <label><strong>English:</strong></label>
+            <textarea id="editor-texto" name="edited_english" oninput="updateReader()">{{ line_data.english }}</textarea>
+
+            <label><strong>Notes:</strong></label>
+            <textarea name="edited_notes" style="width:100%;height:80px;font-family:monospace;">{{ line_data.notes }}</textarea>
+
+            <input type="hidden" name="record_id" value="{{ line_data.id }}">
+            <input type="hidden" name="codex" value="{{ codex }}">
+            <input type="hidden" name="line_num" value="{{ line_num }}">
+
+            <div class="button-group" style="margin-top:12px;">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="button" onclick="applyStyle('bold')"><b>B</b></button>
+                <button type="button" style="color:#ff00aa;" onclick="applyStyle('color_ff00aa')">Pink</button>
+                <button type="button" style="color:blue;" onclick="applyStyle('color_blue')">Blue</button>
+            </div>
+        </form>
+
+        <script>
+        function updateReader() {
+            document.getElementById('englishReader').innerHTML = document.getElementById('editor-texto').value;
+        }
+        function applyStyle(type) {
+            let textarea = document.getElementById('editor-texto');
+            let start = textarea.selectionStart;
+            let end = textarea.selectionEnd;
+            if (start === end) return;
+            let sel = textarea.value.substring(start, end);
+            let replacement = sel;
+            switch(type) {
+                case 'bold': replacement = `<strong>${sel}</strong>`; break;
+                case 'color_ff00aa': replacement = `<span style="color:#ff00aa;">${sel}</span>`; break;
+                case 'color_blue': replacement = `<span style="color:blue;">${sel}</span>`; break;
+            }
+            textarea.setRangeText(replacement, start, end, 'end');
+            updateReader();
+        }
+
+        </script>
+
+        <div class="verse-navigation" style="margin-top:20px;">
+            {% if line_num|add:"-1" >= 1 %}
+                <a href="?codex={{ codex }}&line={{ line_num|add:'-1' }}" class="btn">← Previous Line</a>
+            {% endif %}
+            {% if line_num|add:"1" <= max_line %}
+                <a href="?codex={{ codex }}&line={{ line_num|add:'1' }}" class="btn">Next Line →</a>
+            {% endif %}
+            <a href="?codex={{ codex }}" class="btn btn-secondary">View Codex Page</a>
+        </div>
+
+        <div class="codex-navigation" style="margin-top:20px;">
+            <strong>Codex Pages:</strong><br>
+            {% for c in codex_range %}
+                <a href="?codex={{ c }}&line=1" {% if c == codex|add:0 %}style="font-weight:bold;color:#ba8666;"{% endif %}>{{ c }}</a>
+                {% if not forloop.last %} | {% endif %}
+            {% endfor %}
+        </div>
+
+    {% else %}
+        <p>No interlinear line found for Codex {{ codex }}, line {{ line_num }}.</p>
+    {% endif %}
+</div>
+{% endblock %}

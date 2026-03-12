@@ -799,7 +799,113 @@ def search_api(request):
                         counts['storehouse'] = cnt[0] if cnt else 0
 
             except Exception as e:
-                print(f"Storehouse search error: {e}")
+                print(f"Storehouse search error (Aseneth): {e}")
+
+        # =================================================================
+        # SEARCH GOSPEL OF JUDAS (gospel_of_judas.judas_prose + judas_interlinear)
+        # =================================================================
+        if scope in ['all', 'storehouse']:
+            try:
+                with get_db_connection() as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute("BEGIN")
+                        cursor.execute("SET LOCAL search_path TO gospel_of_judas")
+
+                        # Search prose content
+                        cursor.execute(
+                            """
+                            SELECT codex, scene_title, content
+                            FROM judas_prose
+                            WHERE content ILIKE %s OR scene_title ILIKE %s
+                            ORDER BY codex
+                            LIMIT %s OFFSET %s
+                            """,
+                            (f'%{query}%', f'%{query}%', limit, offset)
+                        )
+                        prose_rows = cursor.fetchall()
+
+                        for row in prose_rows or []:
+                            codex = str(row[0]) if row[0] is not None else ''
+                            scene = row[1] or ''
+                            content = row[2] or ''
+
+                            text_field = content if query.lower() in content.lower() else scene
+
+                            results['storehouse'].append({
+                                'type': 'storehouse_verse',
+                                'source': 'gospel_of_judas.judas_prose',
+                                'book': 'Gospel of Judas',
+                                'chapter': codex,
+                                'verse': '',
+                                'reference': f'Gospel of Judas — Codex {codex}' + (f' ({scene})' if scene else ''),
+                                'text': highlight_match(text_field, query),
+                                'url': f'/judas/?codex={codex}'
+                            })
+
+                        # Search interlinear (english, greek, coptic, notes)
+                        cursor.execute(
+                            """
+                            SELECT codex, line_num, coptic, greek, english, notes
+                            FROM judas_interlinear
+                            WHERE english ILIKE %s OR greek ILIKE %s
+                               OR coptic ILIKE %s OR notes ILIKE %s
+                            ORDER BY codex, line_num
+                            LIMIT %s OFFSET %s
+                            """,
+                            (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%', limit, offset)
+                        )
+                        il_rows = cursor.fetchall()
+
+                        for row in il_rows or []:
+                            codex = str(row[0]) if row[0] is not None else ''
+                            line_num = str(row[1]) if row[1] is not None else ''
+                            coptic = row[2] or ''
+                            greek = row[3] or ''
+                            english = row[4] or ''
+                            notes = row[5] or ''
+
+                            # Pick the first matching field for snippet
+                            ql = query.lower()
+                            if ql in english.lower():
+                                text_field = english
+                            elif ql in greek.lower():
+                                text_field = greek
+                            elif ql in coptic.lower():
+                                text_field = coptic
+                            else:
+                                text_field = notes
+
+                            results['storehouse'].append({
+                                'type': 'storehouse_verse',
+                                'source': 'gospel_of_judas.judas_interlinear',
+                                'book': 'Gospel of Judas',
+                                'chapter': codex,
+                                'verse': line_num,
+                                'reference': f'Gospel of Judas — Codex {codex}:{line_num}',
+                                'text': highlight_match(text_field, query),
+                                'url': f'/judas/?codex={codex}'
+                            })
+
+                        # Count totals for Gospel of Judas
+                        cursor.execute(
+                            "SELECT COUNT(*) FROM judas_prose WHERE content ILIKE %s OR scene_title ILIKE %s",
+                            (f'%{query}%', f'%{query}%')
+                        )
+                        cnt_prose = cursor.fetchone()
+
+                        cursor.execute(
+                            """SELECT COUNT(*) FROM judas_interlinear
+                               WHERE english ILIKE %s OR greek ILIKE %s
+                                  OR coptic ILIKE %s OR notes ILIKE %s""",
+                            (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%')
+                        )
+                        cnt_il = cursor.fetchone()
+
+                        judas_total = (cnt_prose[0] if cnt_prose else 0) + (cnt_il[0] if cnt_il else 0)
+                        counts['storehouse'] = counts.get('storehouse', 0) + judas_total
+
+            except Exception as e:
+                print(f"Storehouse search error (Gospel of Judas): {e}")
     
     # Deduplicate verse results to avoid duplicate entries (e.g., same reference from multiple sources)
     def dedupe_by_ref(items):
@@ -925,6 +1031,12 @@ def search_suggestions(request):
         'Hebrews', 'James', '1 Peter', '2 Peter', '1 John', '2 John', '3 John',
         'Jude', 'Revelation'
     ]
+
+    # Apocryphal / Storehouse book suggestions
+    storehouse_books = [
+        ('Joseph and Aseneth', '/aseneth/?chapter=1'),
+        ('Gospel of Judas', '/judas/'),
+    ]
     
     for book in book_names:
         if book.lower().startswith(query.lower()):
@@ -932,6 +1044,14 @@ def search_suggestions(request):
                 'type': 'book',
                 'text': book,
                 'url': f'/?book={book}&chapter=1'
+            })
+
+    for sbook, surl in storehouse_books:
+        if sbook.lower().startswith(query.lower()) or query.lower() in sbook.lower():
+            suggestions.append({
+                'type': 'book',
+                'text': sbook,
+                'url': surl
             })
     
     return JsonResponse({'suggestions': suggestions[:10]})

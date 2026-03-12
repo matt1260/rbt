@@ -1,0 +1,119 @@
+<!-- edit_judas_input.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .judas-editor { max-width: 960px; margin: 0 auto; }
+    .judas-editor h2 { margin-bottom: 1rem; }
+    .judas-messages .message { margin-bottom: 12px; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
+    .judas-messages .success { background-color: #e6ffed; border: 1px solid #8bd08b; }
+    .judas-messages .error { background-color: #ffe6e6; border: 1px solid #f08a8a; }
+    .judas-messages .info { background-color: #e6f3ff; border: 1px solid #8ab6f0; }
+    .nav-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+    .nav-tabs a { background: #ba8666; color: #fff; padding: 8px 14px; border-radius: 4px; text-decoration: none; font-size: 14px; transition: background 0.2s ease; }
+    .nav-tabs a:hover { background: #a77152; }
+    .codex-selector { background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; padding: 12px; margin-bottom: 20px; }
+    .codex-selector label { font-weight: 600; margin-right: 10px; }
+    .codex-selector select { padding: 6px 10px; border: 1px solid #cfcfcf; border-radius: 4px; }
+    .codex-selector button { background: #ba8666; color: #fff; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 14px; margin-left: 8px; }
+    .codex-selector button:hover { background: #a77152; }
+    .find-replace-card { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; margin-bottom: 24px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+    .find-replace-card label { font-weight: 600; display: block; margin-bottom: 6px; }
+    .find-replace-card input[type="text"] { width: 100%; padding: 8px 10px; font-size: 15px; border: 1px solid #cfcfcf; border-radius: 6px; margin-bottom: 14px; }
+    .find-replace-card button { background: #ba8666; color: #fff; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-size: 15px; transition: background 0.2s ease; }
+    .find-replace-card button:hover { background: #a77152; }
+    .story-wrapper { border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; background: #fff; max-height: 65vh; overflow-y: auto; }
+    .story-verse + .story-verse { border-top: 1px solid #f0f0f0; margin-top: 14px; padding-top: 14px; }
+    .story-ref { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #7b6f66; margin-bottom: 6px; }
+    .story-ref a { margin-left: 8px; text-transform: none; letter-spacing: normal; text-decoration: none; color: #ba8666; font-weight: 600; }
+    .story-ref a:hover { color: #a77152; text-decoration: underline; }
+    .story-text { font-size: 16px; line-height: 1.6; }
+    @media (max-width: 768px) { .story-wrapper { max-height: none; } }
+</style>
+
+<div class="container judas-editor">
+    <h2>Gospel of Confessor (Judas) — Prose Editor</h2>
+
+    <!-- Navigation Tabs -->
+    <div class="nav-tabs">
+        <a href="?action=prose">📝 Prose Editor (This Page)</a>
+        <a href="?action=codex">📖 Browse Codex Pages</a>
+        <a href="?action=interlinear">🔤 Edit Interlinear Lines</a>
+    </div>
+
+    <!-- Codex Page Selector -->
+    <div class="codex-selector">
+        <label for="codex_select">Jump to Codex Page:</label>
+        <select id="codex_select" onchange="jumpToCodex()">
+            <option value="">Select a codex page...</option>
+            {% for c in codex_range %}
+            <option value="{{ c }}">Codex {{ c }}</option>
+            {% endfor %}
+        </select>
+        <label for="line_select">Line (for interlinear editor):</label>
+        <select id="line_select">
+            <option value="1">1</option>
+            {% for i in line_range %}
+            <option value="{{ i }}">{{ i }}</option>
+            {% endfor %}
+        </select>
+        <button onclick="jumpToLine()">Edit Line</button>
+    </div>
+
+    {% if messages %}
+    <div class="judas-messages">
+        {% for message in messages %}
+            <div class="message {{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="find-replace-card">
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="preview">
+            <label for="find_text">Find (exact match required):</label>
+            <input type="text" id="find_text" name="find_text" value="{{ find_text|default:'' }}" required>
+            <label for="replace_text">Replace with:</label>
+            <input type="text" id="replace_text" name="replace_text" value="{{ replace_text|default:'' }}" required>
+            <button type="submit">Preview replacements</button>
+        </form>
+    </div>
+
+    <div class="story-wrapper">
+        {% if story %}
+            {% for page in story %}
+                <div class="story-verse">
+                    <div class="story-ref">
+                        Codex {{ page.codex }}{% if page.scene_title %} — {{ page.scene_title }}{% endif %}
+                        <a href="?codex={{ page.codex }}">Edit prose</a>
+                    </div>
+                    <div class="story-text">{{ page.content|default_if_none:""|safe }}</div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No content available.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function jumpToCodex() {
+    const codex = document.getElementById('codex_select').value;
+    if (codex) {
+        window.location.href = '?codex=' + codex;
+    }
+}
+
+function jumpToLine() {
+    const codex = document.getElementById('codex_select').value;
+    const line = document.getElementById('line_select').value;
+    if (codex) {
+        window.location.href = '?codex=' + codex + '&line=' + line;
+    } else {
+        alert('Please select a codex page first');
+    }
+}
+</script>
+
+{% endblock %}

@@ -513,6 +513,29 @@ def start_translation_job(request):
                 'message': f'Translation job created for {book} chapter {chapter_num}'
             })
         
+        # Special handling for Gospel of Judas
+        if book == "Gospel of Judas":
+            from search.models import VerseTranslation
+            # Check if already translated (verse=1 is the prose block)
+            existing = VerseTranslation.objects.filter(
+                book=book,
+                chapter=chapter_num,
+                verse=1,
+                language_code=language,
+                status__in=['completed', 'processing'],
+                footnote_id__isnull=True,
+            ).exists()
+            if existing:
+                return JsonResponse({'status': 'cached', 'message': 'Translation already exists for this codex page.'})
+            
+            from search.translation_worker import create_translation_job
+            job = create_translation_job(book, chapter_num, language)
+            return JsonResponse({
+                'status': 'ok',
+                'job_id': job.job_id,
+                'message': f'Translation job created for Gospel of Judas codex {chapter_num}'
+            })
+        
         # Validate that source content exists before creating a job
         results = get_results(book, chapter_num, None, 'en')
         if not results:

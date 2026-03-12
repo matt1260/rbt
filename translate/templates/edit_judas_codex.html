@@ -1,0 +1,125 @@
+<!-- edit_judas_codex.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>{{ book }} — Codex {{ codex_num }}</h2>
+
+    {% if edit_result %}
+        {{ edit_result|safe }}
+    {% endif %}
+
+    {% if cached_hit %}
+        <div class="cache-notice">Loaded from cache</div>
+    {% endif %}
+
+    {% if error_message %}
+        <div class="error-bar">{{ error_message }}</div>
+    {% endif %}
+
+    <!-- Codex Navigation -->
+    <div class="codex-nav">
+        <h3>Codex Pages:</h3>
+        {{ codex_links|safe }}
+    </div>
+
+    <!-- Prose Content -->
+    <h3 style="margin-top:20px;">Prose Editor</h3>
+    <form method="post" class="prose-editor-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_prose">
+        <input type="hidden" name="codex" value="{{ codex_num }}">
+        <textarea name="edited_prose" class="prose-editor-textarea">{{ prose_text|default_if_none:"" }}</textarea>
+        <div style="margin-top:10px;">
+            <button type="submit" class="save-prose-btn">Save Prose</button>
+            <a href="/edit_judas/" class="back-btn">Back to Main Judas Editor</a>
+        </div>
+    </form>
+
+    <h3 style="margin-top:24px;">Rendered Prose Preview</h3>
+    <div class="codex-content">
+        {{ html|safe }}
+    </div>
+
+    <!-- Interlinear Content -->
+    {% if interlinear_html %}
+    <h3 style="margin-top:30px;">Interlinear Lines</h3>
+    <div class="interlinear-content">
+        {{ interlinear_html|safe }}
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.codex-content {
+    margin: 20px 0;
+    padding: 15px;
+    border-left: 3px solid #ba8666;
+    background-color: #faf7f2;
+    line-height: 1.7;
+}
+.prose-editor-form {
+    margin: 16px 0;
+    padding: 14px;
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+}
+.prose-editor-textarea {
+    width: 100%;
+    min-height: 240px;
+    padding: 12px;
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    background: #fff;
+}
+.save-prose-btn {
+    background: #ba8666;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+}
+.save-prose-btn:hover { background: #a77152; }
+.back-btn {
+    margin-left: 8px;
+    padding: 8px 14px;
+    border-radius: 4px;
+    border: 1px solid #d0d0d0;
+    text-decoration: none;
+    color: #555;
+    background: #f5f5f5;
+    display: inline-block;
+}
+.back-btn:hover { background: #ececec; }
+.interlinear-content { margin: 20px 0; }
+.interlinear-row {
+    display: flex;
+    gap: 12px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #eee;
+    align-items: baseline;
+}
+.interlinear-row:hover { background: #faf7f2; }
+.interlinear-row .line-num { min-width: 30px; font-weight: 600; color: #ba8666; font-size: 0.9em; }
+.interlinear-row .col { flex: 1; font-size: 15px; }
+.interlinear-row .col-coptic { font-family: 'Noto Sans Coptic', serif; }
+.interlinear-row .col-greek { font-family: 'Times New Roman', serif; color: #333; }
+.interlinear-row .col-english { color: #555; }
+.interlinear-row .col-notes { color: #888; font-size: 0.9em; }
+.codex-nav { margin: 20px 0; padding: 15px; background-color: #e9ecef; border-radius: 4px; }
+.codex-nav a { margin: 0 5px; padding: 5px 10px; text-decoration: none; background-color: white; border-radius: 3px; color: #ba8666; }
+.codex-nav a:hover { background: #f4ebe5; }
+.cache-notice { background-color: #fff3cd; padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+.error-bar { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+.notice-bar { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+</style>
+
+
+{% endblock %}

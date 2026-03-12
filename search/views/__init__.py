@@ -59,6 +59,11 @@ from .storehouse_views import (
     storehouse_view,
 )
 
+# Gospel of Judas (Confessor) view
+from .judas_views import (
+    judas_view,
+)
+
 # Search dispatch view (main entry point)
 from .search_dispatch_views import (
     search,
@@ -137,6 +142,9 @@ __all__ = [
     
     # Storehouse view
     'storehouse_view',
+
+    # Gospel of Judas
+    'judas_view',
     
     # Search dispatch (main entry point)
     'search',

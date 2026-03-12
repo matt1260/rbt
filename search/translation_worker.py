@@ -176,6 +176,28 @@ class TranslationWorker:
                 logger.info(f"Job {job.job_id} completed successfully")
                 return
             
+            # Special handling for Gospel of Judas
+            if book == "Gospel of Judas":
+                # Translate display book name first
+                self._translate_book_name(book, language)
+
+                verses_to_translate, footnotes_to_translate = self._extract_judas_content(
+                    book, chapter_num, language
+                )
+                
+                job.total_verses = len(verses_to_translate)
+                job.total_footnotes = 0
+                job.save()
+                
+                if verses_to_translate:
+                    self._translate_verses(job, verses_to_translate, book, chapter_num, language)
+                
+                job.status = 'completed'
+                job.completed_at = timezone.now()
+                job.save()
+                logger.info(f"Job {job.job_id} completed successfully")
+                return
+            
             # Get chapter data for standard books
             results = get_results(book, chapter_num, None, 'en')
             
@@ -242,6 +264,43 @@ class TranslationWorker:
             job.completed_at = timezone.now()
             job.save()
     
+    def _extract_judas_content(self, book, chapter_num, language):
+        """Extract translatable prose content from Gospel of Judas (codex page = chapter_num)"""
+        from search.models import VerseTranslation
+        from search.db_utils import get_db_connection
+
+        verses_to_translate = {}
+
+        # Prose is stored as verse=1 in VerseTranslation
+        existing = VerseTranslation.objects.filter(
+            book=book, chapter=chapter_num, verse=1,
+            language_code=language, footnote_id__isnull=True
+        ).exists()
+
+        if existing:
+            print(f"[WORKER] Gospel of Judas codex {chapter_num} already translated to {language}")
+            return verses_to_translate, {}
+
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("BEGIN")
+                    cursor.execute("SET LOCAL search_path TO gospel_of_judas")
+                    cursor.execute(
+                        "SELECT content FROM judas_prose WHERE codex = %s",
+                        (chapter_num,)
+                    )
+                    row = cursor.fetchone()
+                    if row and row[0]:
+                        # Store prose as verse=1 (verse=0 is reserved for book name)
+                        verses_to_translate[1] = row[0]
+        except Exception as e:
+            print(f"[WORKER] Error extracting Gospel of Judas content: {e}")
+            import traceback
+            traceback.print_exc()
+
+        return verses_to_translate, {}
+
     def _extract_storehouse_content(self, book, chapter_num, language):
         """Extract translatable content from Joseph and Aseneth (storehouse)"""
         from search.models import VerseTranslation
@@ -462,7 +521,11 @@ class TranslationWorker:
         
         # Get English book name (with space between number and letters)
         display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
-        english_name = rbt_books.get(display_book, display_book)
+        # Special display names not in rbt_books
+        _display_overrides = {
+            'Gospel of Judas': 'Gospel of Confessor (Judas)',
+        }
+        english_name = _display_overrides.get(display_book) or rbt_books.get(display_book, display_book)
         
         print(f"[WORKER] Translating book name '{english_name}' ({book}) to {language}")
         

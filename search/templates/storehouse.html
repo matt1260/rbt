@@ -196,11 +196,7 @@ function hideTranslationLoading() {
 
 {% with title_prefix=book|title %}
 <div id="toggleButtonsContainer">
-    {% if paraphrase %}
-    <div id="languageSelector" class="language-selector" onclick="openLanguageModal()" aria-haspopup="dialog" role="button" title="Select language">
-        <i class="fas fa-language"></i> <span class="language-label">{{ supported_languages|get_item:current_language|default:'English' }}</span>
-    </div>
-    {% endif %}
+
     <div id="h5ToggleButton"><i class="fas fa-eye-slash"></i> Headers (H)</div>
     <div id="imageToggleButton"><i class="fas fa-eye-slash"></i> Images (I)</div>
     <div id="verseRefToggleButton"><i class="fas fa-eye"></i>Verse References (V)</div>
@@ -210,6 +206,11 @@ function hideTranslationLoading() {
     <div id="parenthesesToggleButton"><i class="fas fa-eye"></i>Names (P)</div>
     {% if footnotes %}
     <div id="footnotesToggleButton"><i class="fas fa-book"></i>Notes (N)</div>
+    {% endif %}
+    {% if paraphrase %}
+    <div id="languageSelector" class="language-selector" onclick="openLanguageModal()" aria-haspopup="dialog" role="button" title="Select language">
+        <i class="fas fa-language"></i> <span class="language-label">{{ supported_languages|get_item:current_language|default:'English' }}</span>
+    </div>
     {% endif %}
 </div>
 {% endwith %}

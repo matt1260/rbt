@@ -8,6 +8,7 @@ urlpatterns = [
     path('search/results/', views.search_results_page, name='search_results'),
     path('aseneth/', views.storehouse_view, name='storehouse'),
     path('storehouse/', views.storehouse_view, name='storehouse'),
+    path('judas/', views.judas_view, name='judas'),
     path('updates/', views.updates, name='updates'),
     path('update_count/', views.update_count, name='update_count_api'),
     path('statistics/', views.update_statistics_view, name='update_statistics'),
