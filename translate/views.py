@@ -197,17 +197,6 @@ def _safe_save_update(instance: 'TranslationUpdates') -> None:
             print(f"Failed to save TranslationUpdates: {exc}")
 
 
-def _record_judas_update(version: str, reference: str, update_text: str) -> None:
-    """Persist Judas editor actions into TranslationUpdates for /updates/."""
-    update_instance = TranslationUpdates(
-        date=datetime.now(),
-        version=version,
-        reference=reference,
-        update_text=(update_text or '').strip(),
-    )
-    _safe_save_update(update_instance)
-
-
 FOOTNOTE_LINK_RE = re.compile(r'\?footnote=([^&"\n]+)')
 
 
@@ -707,23 +696,17 @@ def request_gemini_translation(request):
     except ValueError as exc:
         return JsonResponse({'error': str(exc)}, status=400)
 
-    judas_translation_types = {'judas_line', 'judas_prose'}
-    if not translation_type:
-        return JsonResponse({'error': 'Missing translation_type.'}, status=400)
-
-    if translation_type not in judas_translation_types and not all([book, chapter, verse]):
+    if not all([translation_type, book, chapter, verse]):
         return JsonResponse({'error': 'Missing required parameters.'}, status=400)
 
     try:
         # Wrap the main processing in a top-level try/except so any unexpected errors
         # return a JSON-friendly response instead of an HTML error page (which
         # causes JSON.parse errors client-side).
-        context = {}
-        if translation_type not in judas_translation_types:
-            try:
-                context = _apply_gemini_preferences(request, get_context(book, chapter, verse))
-            except Exception as exc:  # pragma: no cover - safety net for DB errors
-                return JsonResponse({'error': f'Unable to load verse context: {exc}'}, status=500)
+        try:
+            context = _apply_gemini_preferences(request, get_context(book, chapter, verse))
+        except Exception as exc:  # pragma: no cover - safety net for DB errors
+            return JsonResponse({'error': f'Unable to load verse context: {exc}'}, status=500)
 
         assemble_only = payload.get('assemble_only')
         use_stream = bool(payload.get('stream')) and not assemble_only
@@ -819,59 +802,6 @@ def request_gemini_translation(request):
             suggestion = gemini_translate_hebrew(hebrew_text, linear_english, prompt_override, resolved_model, api_key)
             if suggestion and suggestion.startswith('Error:'):
                 return JsonResponse({'error': suggestion}, status=502)
-        elif translation_type == 'judas_line':
-            coptic_text = (payload.get('coptic') or '').strip()
-            greek_text = (payload.get('greek') or '').strip()
-            english_text = (payload.get('english') or '').strip()
-            notes_text = (payload.get('notes') or '').strip()
-            target_language = (payload.get('target_language') or 'English').strip()
-
-            if not any([coptic_text, greek_text, english_text, notes_text]):
-                return JsonResponse({'error': 'No line content provided for Judas translation.'}, status=400)
-
-            default_judas_line_prompt = (
-                "You are a careful literary and philological translator for the Gospel of Judas. "
-                "Produce one polished translation line in the requested target language. "
-                "Use Coptic and Greek as primary sources, and notes as secondary context. "
-                "Preserve proper names and theological terms accurately. "
-                "Return only the translated line, with no commentary or markdown."
-            )
-            instructions = _resolve_prompt_text(prompt_override, default_judas_line_prompt)
-            judas_line_prompt = (
-                f"TARGET LANGUAGE: {target_language}\n"
-                f"COPTIC LINE: {coptic_text or '[none]'}\n"
-                f"GREEK LINE: {greek_text or '[none]'}\n"
-                f"CURRENT ENGLISH: {english_text or '[none]'}\n"
-                f"NOTES: {notes_text or '[none]'}\n"
-            )
-
-            suggestion = _request_gemini_response(judas_line_prompt, resolved_model, api_key, instructions=instructions)
-            if suggestion and suggestion.startswith('Error:'):
-                return JsonResponse({'error': suggestion}, status=502)
-        elif translation_type == 'judas_prose':
-            prose_content = (payload.get('content') or '').strip()
-            target_language = (payload.get('target_language') or 'English').strip()
-
-            if not prose_content:
-                return JsonResponse({'error': 'No prose content provided for Judas translation.'}, status=400)
-
-            default_judas_prose_prompt = (
-                "You are translating narrative prose from the Gospel of Judas. "
-                "Produce fluent, readable text in the requested target language while preserving meaning and key terms. "
-                "Keep paragraph breaks if present. "
-                "Return only the translated prose, with no commentary or markdown."
-            )
-            instructions = _resolve_prompt_text(prompt_override, default_judas_prose_prompt)
-            judas_prose_prompt = (
-                f"TARGET LANGUAGE: {target_language}\n"
-                f"PROSE CONTENT:\n{prose_content}\n"
-            )
-
-            suggestion = _request_gemini_response(judas_prose_prompt, resolved_model, api_key, instructions=instructions)
-            if suggestion and suggestion.startswith('Error:'):
-                return JsonResponse({'error': suggestion}, status=502)
-        else:
-            return JsonResponse({'error': f'Unsupported translation type: {translation_type}'}, status=400)
 
         _save_gemini_prefs(request, resolved_model, prompt_override, translation_type)
         return JsonResponse({'suggestion': suggestion})
@@ -897,7 +827,7 @@ def save_gemini_preferences(request):
         return JsonResponse({'error': 'Invalid JSON payload.'}, status=400)
 
     translation_type = payload.get('translation_type')
-    if translation_type not in ('greek', 'hebrew', 'judas_line', 'judas_prose'):
+    if translation_type not in ('greek', 'hebrew'):
         return JsonResponse({'error': 'Invalid translation type.'}, status=400)
 
     prompt_text = payload.get('prompt')
@@ -4585,8 +4515,6 @@ def edit_judas(request):
                 return render(request, 'edit_judas_input.html', {
                     'book': book_name, 'story': story,
                     'find_text': find_text, 'replace_text': replace_text,
-                    'codex_range': JUDAS_CODEX_RANGE,
-                    'line_range': list(range(1, 101)),
                 })
 
             if action == 'preview':
@@ -4600,8 +4528,6 @@ def edit_judas(request):
                     return render(request, 'edit_judas_input.html', {
                         'book': book_name, 'story': story,
                         'find_text': find_text, 'replace_text': replace_text,
-                        'codex_range': JUDAS_CODEX_RANGE,
-                        'line_range': list(range(1, 101)),
                     })
 
                 try:
@@ -4611,8 +4537,6 @@ def edit_judas(request):
                     return render(request, 'edit_judas_input.html', {
                         'book': book_name, 'story': [],
                         'find_text': find_text, 'replace_text': replace_text,
-                        'codex_range': JUDAS_CODEX_RANGE,
-                        'line_range': list(range(1, 101)),
                     })
 
                 find_pattern = build_exact_match_pattern(find_text)
@@ -4622,8 +4546,6 @@ def edit_judas(request):
                     return render(request, 'edit_judas_input.html', {
                         'book': book_name, 'story': story,
                         'find_text': find_text, 'replace_text': replace_text,
-                        'codex_range': JUDAS_CODEX_RANGE,
-                        'line_range': list(range(1, 101)),
                     })
 
                 updates = []
@@ -4654,8 +4576,6 @@ def edit_judas(request):
                     return render(request, 'edit_judas_input.html', {
                         'book': book_name, 'story': story,
                         'find_text': find_text, 'replace_text': replace_text,
-                        'codex_range': JUDAS_CODEX_RANGE,
-                        'line_range': list(range(1, 101)),
                     })
 
                 return render(request, 'edit_judas_review.html', {
@@ -4679,8 +4599,6 @@ def edit_judas(request):
                     return render(request, 'edit_judas_input.html', {
                         'book': book_name, 'story': story,
                         'find_text': find_text, 'replace_text': replace_text,
-                        'codex_range': JUDAS_CODEX_RANGE,
-                        'line_range': list(range(1, 101)),
                     })
 
                 try:
@@ -4694,8 +4612,6 @@ def edit_judas(request):
                     return render(request, 'edit_judas_input.html', {
                         'book': book_name, 'story': story,
                         'find_text': find_text, 'replace_text': replace_text,
-                        'codex_range': JUDAS_CODEX_RANGE,
-                        'line_range': list(range(1, 101)),
                     })
 
                 try:
@@ -4715,8 +4631,6 @@ def edit_judas(request):
                     return render(request, 'edit_judas_input.html', {
                         'book': book_name, 'story': story,
                         'find_text': find_text, 'replace_text': replace_text,
-                        'codex_range': JUDAS_CODEX_RANGE,
-                        'line_range': list(range(1, 101)),
                     })
 
                 # Invalidate caches
@@ -4727,14 +4641,16 @@ def edit_judas(request):
                             cache.delete(f'judas_{codex_val}_{panel}_v1')
 
                 total_matches = sum(item.get('count', 0) for item in updates)
-                _record_judas_update(
-                    version='Judas Prose Bulk',
-                    reference=book_name,
-                    update_text=(
-                        f"Replaced '{find_text}' with '{replace_text}' "
-                        f"in {len(updates)} pages ({total_matches} occurrences)."
-                    ),
-                )
+                try:
+                    update_instance = TranslationUpdates(
+                        date=datetime.now(),
+                        version='Judas Prose Bulk',
+                        reference=book_name,
+                        update_text=f"Replaced '{find_text}' with '{replace_text}' in {len(updates)} pages ({total_matches} occurrences).",
+                    )
+                    _safe_save_update(update_instance)
+                except Exception:
+                    pass
 
                 messages.success(
                     request,
@@ -4747,53 +4663,7 @@ def edit_judas(request):
                 return render(request, 'edit_judas_input.html', {
                     'book': book_name, 'story': story,
                     'find_text': '', 'replace_text': '',
-                    'codex_range': JUDAS_CODEX_RANGE,
-                    'line_range': list(range(1, 101)),
                 })
-
-        # ---- Single codex prose edit POST ----
-        action = request.POST.get('action')
-        if action == 'save_prose':
-            codex_num = request.POST.get('codex') or codex_query
-            edited_prose = request.POST.get('edited_prose', '')
-
-            try:
-                codex_int = int(codex_num)
-            except (TypeError, ValueError):
-                context = get_judas_codex_view(codex_num)
-                context['error_message'] = 'Invalid codex number.'
-                return render(request, 'edit_judas_codex.html', context)
-
-            try:
-                with get_judas_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        """UPDATE judas_prose
-                           SET content = %s
-                           WHERE codex = %s""",
-                        ((edited_prose or '').strip(), codex_int),
-                    )
-
-                _record_judas_update(
-                    version='Judas Prose',
-                    reference=f"{book_name} Codex {codex_int}",
-                    update_text=f"Updated prose content for codex {codex_int} ({len((edited_prose or '').strip())} chars).",
-                )
-
-                for panel in ('', 'greek', 'coptic', 'notes', 'commentary'):
-                    cache.delete(f'judas_{codex_int}_{panel}_v1')
-
-                context = get_judas_codex_view(codex_int)
-                context['edit_result'] = (
-                    '<div class="notice-bar"><p><span class="icon">'
-                    '<i class="fas fa-check-circle"></i></span>'
-                    'Updated codex prose successfully!</p></div>'
-                )
-                return render(request, 'edit_judas_codex.html', context)
-            except psycopg2.Error as exc:
-                context = get_judas_codex_view(codex_int)
-                context['error_message'] = f"Database error: {exc}"
-                return render(request, 'edit_judas_codex.html', context)
 
         # ---- Single interlinear line edit POST ----
         edited_coptic = request.POST.get('edited_coptic')
@@ -4822,16 +4692,16 @@ def edit_judas(request):
                     )
 
                 # Log update
-                _record_judas_update(
-                    version='Judas Interlinear',
-                    reference=f"{book_name} Codex {codex_num}:{line_num}",
-                    update_text=(
-                        f"Coptic: {(edited_coptic or '').strip()} | "
-                        f"Greek: {(edited_greek or '').strip()} | "
-                        f"English: {(edited_english or '').strip()} | "
-                        f"Notes: {(edited_notes or '').strip()}"
-                    ),
-                )
+                try:
+                    update_instance = TranslationUpdates(
+                        date=datetime.now(),
+                        version='Judas Interlinear',
+                        reference=f"{book_name} Codex {codex_num}:{line_num}",
+                        update_text=(edited_english or '').strip(),
+                    )
+                    _safe_save_update(update_instance)
+                except Exception:
+                    pass
 
                 # Invalidate caches for this codex
                 for panel in ('', 'greek', 'coptic', 'notes', 'commentary'):
@@ -4851,43 +4721,6 @@ def edit_judas(request):
                     'codex': codex_num, 'line_num': line_num,
                 })
 
-        # ---- Commentary edit POST ----
-        if action == 'save_commentary':
-            edited_commentary = request.POST.get('edited_commentary', '')
-            try:
-                with get_judas_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        "UPDATE judas_commentary SET content = %s WHERE id = 1",
-                        ((edited_commentary or '').strip(),),
-                    )
-                _record_judas_update(
-                    version='Judas Commentary',
-                    reference=book_name,
-                    update_text=f"Updated commentary ({len((edited_commentary or '').strip())} chars).",
-                )
-                # Invalidate commentary panel caches for all codex pages
-                from search.views.judas_views import CODEX_RANGE, CACHE_VERSION as JUDAS_CACHE_VERSION
-                for codex_val in CODEX_RANGE:
-                    cache.delete(f'judas_{codex_val}_commentary_{JUDAS_CACHE_VERSION}')
-                messages.success(request, "Commentary updated successfully!")
-            except psycopg2.Error as exc:
-                messages.error(request, f"Database error: {exc}")
-
-            try:
-                with get_judas_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT content FROM judas_commentary WHERE id = 1")
-                    row = cursor.fetchone()
-                    commentary_content = row[0] if row else ''
-            except psycopg2.Error:
-                commentary_content = ''
-
-            return render(request, 'edit_judas_commentary.html', {
-                'book': book_name,
-                'commentary_content': commentary_content,
-            })
-
     # ---- GET routing ----
     if codex_query and line_query:
         context = get_judas_line_context(codex_query, line_query)
@@ -4896,23 +4729,6 @@ def edit_judas(request):
     if codex_query:
         context = get_judas_codex_view(codex_query)
         return render(request, 'edit_judas_codex.html', context)
-
-    # ---- Commentary GET route ----
-    commentary_query = request.GET.get('commentary')
-    if commentary_query:
-        try:
-            with get_judas_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT content FROM judas_commentary WHERE id = 1")
-                row = cursor.fetchone()
-                commentary_content = row[0] if row else ''
-        except psycopg2.Error as exc:
-            messages.error(request, f"Unable to load commentary: {exc}")
-            commentary_content = ''
-        return render(request, 'edit_judas_commentary.html', {
-            'book': book_name,
-            'commentary_content': commentary_content,
-        })
 
     # Default: find/replace input
     try:
@@ -4926,8 +4742,6 @@ def edit_judas(request):
         'story': story,
         'find_text': request.GET.get('find_text', ''),
         'replace_text': request.GET.get('replace_text', ''),
-        'codex_range': JUDAS_CODEX_RANGE,
-        'line_range': list(range(1, 101)),
     })
 
 
@@ -4995,11 +4809,10 @@ def get_judas_codex_view(codex_num):
 
             # Prose
             cursor.execute(
-                "SELECT id, content FROM judas_prose WHERE codex = %s", (codex_int,)
+                "SELECT content FROM judas_prose WHERE codex = %s", (codex_int,)
             )
             prose_row = cursor.fetchone()
-            prose_id = prose_row[0] if prose_row else None
-            prose_html = prose_row[1] if prose_row else ''
+            prose_html = prose_row[0] if prose_row else ''
 
             # Interlinear
             cursor.execute(
@@ -5032,8 +4845,6 @@ def get_judas_codex_view(codex_num):
 
             return {
                 'html': prose_html,
-                'prose_id': prose_id,
-                'prose_text': prose_html,
                 'interlinear_html': il_html,
                 'book': 'Gospel of Confessor (Judas)',
                 'codex_num': codex_int,
