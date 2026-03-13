@@ -1332,10 +1332,15 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
         height: 6em;
         transform: translate(-50%, -50%);
         border-radius: 50%;
-        /* Use the converted mp4 video as an animated WebP background */
-        background: url('/static/sun.webp') center/cover no-repeat;
-        /* Use screen if video has a black background, or multiply if it has a white background */
-        mix-blend-mode: screen; 
+        /* sun.webp radiant starburst image fills the pseudo-element */
+        background-image: url("{% static 'sun.webp' %}");
+        background-size: cover;
+        background-position: center;
+        /* Fade edges so the image blends into the page */
+        -webkit-mask-image: radial-gradient(circle, black 30%, transparent 70%);
+        mask-image: radial-gradient(circle, black 30%, transparent 70%);
+        opacity: 0.85;
+        animation: sun-spin 18s linear infinite, sun-pulse-bg 2.5s ease-in-out infinite;
         z-index: -2;
         pointer-events: none;
     }
@@ -1349,13 +1354,14 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
         height: 4.5em;
         transform: translate(-50%, -50%);
         border-radius: 50%;
-        /* Subtle glow to reinforce the video core */
+        /* Bright white/yellow center fading into a soft orange halo */
         background: radial-gradient(
             circle,
-            rgba(255, 255, 255, 0.8) 0%,
-            rgba(255, 240, 150, 0.5) 15%,
-            rgba(255, 180, 0, 0.3) 30%,
-            transparent 60%
+            rgba(255, 255, 255, 1) 0%,
+            rgba(255, 240, 150, 0.8) 15%,
+            rgba(255, 180, 0, 0.5) 35%,
+            rgba(255, 100, 0, 0.1) 60%,
+            transparent 75%
         );
         animation: sun-pulse 2.5s ease-in-out infinite;
         z-index: -1;
@@ -1390,6 +1396,16 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
             opacity: 1;
             transform: translate(-50%, -50%) scale(1.15);
         }
+    }
+
+    @keyframes sun-spin {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    @keyframes sun-pulse-bg {
+        0%, 100% { opacity: 0.75; }
+        50% { opacity: 1; }
     }
 </style>
 
