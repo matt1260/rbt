@@ -516,8 +516,8 @@ def start_translation_job(request):
         # Special handling for Gospel of Judas
         if book == "Gospel of Judas":
             from search.models import VerseTranslation
-            # Check if already translated (verse=1 is the prose block)
-            existing = VerseTranslation.objects.filter(
+            # Only return 'cached' if both prose AND commentary are already translated
+            prose_exists = VerseTranslation.objects.filter(
                 book=book,
                 chapter=chapter_num,
                 verse=1,
@@ -525,7 +525,15 @@ def start_translation_job(request):
                 status__in=['completed', 'processing'],
                 footnote_id__isnull=True,
             ).exists()
-            if existing:
+            commentary_exists = VerseTranslation.objects.filter(
+                book=book,
+                chapter=0,
+                verse=2,
+                language_code=language,
+                status__in=['completed', 'processing'],
+                footnote_id__isnull=True,
+            ).exists()
+            if prose_exists and commentary_exists:
                 return JsonResponse({'status': 'cached', 'message': 'Translation already exists for this codex page.'})
             
             from search.translation_worker import create_translation_job

@@ -192,6 +192,9 @@ class TranslationWorker:
                 if verses_to_translate:
                     self._translate_verses(job, verses_to_translate, book, chapter_num, language)
                 
+                # Also translate the global commentary (chapter=0, verse=2)
+                self._translate_judas_commentary(language)
+                
                 job.status = 'completed'
                 job.completed_at = timezone.now()
                 job.save()
@@ -300,6 +303,50 @@ class TranslationWorker:
             traceback.print_exc()
 
         return verses_to_translate, {}
+
+    def _translate_judas_commentary(self, language):
+        """Translate the global Judas commentary (stored as book=Gospel of Judas, chapter=0, verse=2)."""
+        from search.models import VerseTranslation
+        from search.db_utils import get_db_connection
+        from search.translation_utils import translate_chapter_batch
+
+        book = "Gospel of Judas"
+        existing = VerseTranslation.objects.filter(
+            book=book, chapter=0, verse=2,
+            language_code=language, footnote_id__isnull=True,
+            status='completed',
+        ).exists()
+        if existing:
+            print(f"[WORKER] Judas commentary already translated to {language}")
+            return
+
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("BEGIN")
+                    cursor.execute("SET LOCAL search_path TO gospel_of_judas")
+                    cursor.execute("SELECT content FROM judas_commentary WHERE id = 1")
+                    row = cursor.fetchone()
+                    commentary_content = row[0] if row else ''
+
+            if not commentary_content:
+                return
+
+            translated = translate_chapter_batch({2: commentary_content}, language)
+            for verse_num, translated_text in translated.items():
+                if '[Translation unavailable' not in translated_text:
+                    VerseTranslation.objects.update_or_create(
+                        book=book, chapter=0, verse=verse_num,
+                        language_code=language, footnote_id=None,
+                        defaults={
+                            'verse_text': translated_text,
+                            'status': 'completed',
+                            'generated_by': 'gemini-3-flash-preview',
+                        }
+                    )
+            print(f"[WORKER] Judas commentary translated to {language}")
+        except Exception as e:
+            print(f"[WORKER] Error translating Judas commentary: {e}")
 
     def _extract_storehouse_content(self, book, chapter_num, language):
         """Extract translatable content from Joseph and Aseneth (storehouse)"""

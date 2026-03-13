@@ -186,6 +186,24 @@ def judas_view(request):
         except Exception:
             logger.exception("Error looking up Judas prose translation for codex %s lang %s", codex_num, language)
 
+    # If non-English and commentary panel, look up translated commentary (chapter=0, verse=2)
+    if language != 'en' and panel == 'commentary' and right_panel:
+        try:
+            comm_translation = VerseTranslation.objects.filter(
+                book=internal_book_name,
+                chapter=0,
+                verse=2,
+                language_code=language,
+                footnote_id__isnull=True,
+            ).first()
+            if comm_translation and comm_translation.verse_text:
+                right_panel = comm_translation.verse_text
+                commentary_html = comm_translation.verse_text
+            else:
+                needs_translation = True
+        except Exception:
+            logger.exception("Error looking up Judas commentary translation for lang %s", language)
+
     context = {
         'book': book_name,
         'original_book': internal_book_name,
