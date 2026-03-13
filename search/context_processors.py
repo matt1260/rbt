@@ -8,7 +8,7 @@ def seo_context(request):
     context = {
         'canonical_url': request.build_absolute_uri(request.path),
         'meta_title': 'Real Bible Translation Project',
-        'meta_description': 'The Real Bible Translation Project focuses on precise, faithful translations of scripture using extensive tools and comprehensive linguistic workflows.',
+        'meta_description': 'The Real Bible Translation Project focuses on precise, trustworthy translations of scripture using extensive tools and comprehensive linguistic workflows.',
         'meta_keywords': 'Bible, Translation, Hebrew, Greek, RBT, Real Bible Translation',
     }
 
