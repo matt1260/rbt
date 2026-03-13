@@ -1332,17 +1332,10 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
         height: 6em;
         transform: translate(-50%, -50%);
         border-radius: 50%;
-        /* Radiant rays from a repeating conic gradient */
-        background: repeating-conic-gradient(
-            from 0deg,
-            rgba(255, 180, 0, 0) 0deg,
-            rgba(255, 220, 50, 0.5) 4deg,
-            rgba(255, 180, 0, 0) 8deg
-        );
-        /* Soften the inner and outer radius to blend like a starburst */
-        -webkit-mask-image: radial-gradient(circle, black 15%, transparent 60%);
-        mask-image: radial-gradient(circle, black 15%, transparent 60%);
-        animation: sun-spin 15s linear infinite;
+        /* Use the converted mp4 video as an animated WebP background */
+        background: url('/static/sun.webp') center/cover no-repeat;
+        /* Use screen if video has a black background, or multiply if it has a white background */
+        mix-blend-mode: screen; 
         z-index: -2;
         pointer-events: none;
     }
@@ -1356,14 +1349,13 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
         height: 4.5em;
         transform: translate(-50%, -50%);
         border-radius: 50%;
-        /* Bright white/yellow center fading into a soft orange halo */
+        /* Subtle glow to reinforce the video core */
         background: radial-gradient(
             circle,
-            rgba(255, 255, 255, 1) 0%,
-            rgba(255, 240, 150, 0.8) 15%,
-            rgba(255, 180, 0, 0.5) 35%,
-            rgba(255, 100, 0, 0.1) 60%,
-            transparent 75%
+            rgba(255, 255, 255, 0.8) 0%,
+            rgba(255, 240, 150, 0.5) 15%,
+            rgba(255, 180, 0, 0.3) 30%,
+            transparent 60%
         );
         animation: sun-pulse 2.5s ease-in-out infinite;
         z-index: -1;
@@ -1398,11 +1390,6 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
             opacity: 1;
             transform: translate(-50%, -50%) scale(1.15);
         }
-    }
-
-    @keyframes sun-spin {
-        0% { transform: translate(-50%, -50%) rotate(0deg); }
-        100% { transform: translate(-50%, -50%) rotate(360deg); }
     }
 </style>
 
