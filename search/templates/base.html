@@ -1311,101 +1311,12 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
     .sun-icon {
         display: inline-block;
         position: relative;
-        color: #c47f00;
         font-weight: bold;
-        text-shadow:
-            0 0 3px rgba(255, 200, 0, 0.9),
-            0 0 8px rgba(255, 170, 0, 0.6),
-            0 0 18px rgba(255, 140, 0, 0.3),
-            0 0 30px rgba(255, 100, 0, 0.15);
-        z-index: 1;
-        padding: 0 0.2em;
-        animation: sun-text-glow 2.5s ease-in-out infinite;
-    }
-
-    .sun-icon::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 6em;
-        height: 6em;
-        transform: translate(-50%, -50%);
-        border-radius: 50%;
-        /* sun.webp radiant starburst image fills the pseudo-element */
+        padding: 0 0.3em;
         background-image: url("{% static 'sun.webp' %}");
         background-size: cover;
         background-position: center;
-        /* Fade edges so the image blends into the page */
-        -webkit-mask-image: radial-gradient(circle, black 30%, transparent 70%);
-        mask-image: radial-gradient(circle, black 30%, transparent 70%);
-        opacity: 0.85;
-        animation: sun-spin 18s linear infinite, sun-pulse-bg 2.5s ease-in-out infinite;
-        z-index: -2;
-        pointer-events: none;
-    }
-
-    .sun-icon::after {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 4.5em;
-        height: 4.5em;
-        transform: translate(-50%, -50%);
         border-radius: 50%;
-        /* Bright white/yellow center fading into a soft orange halo */
-        background: radial-gradient(
-            circle,
-            rgba(255, 255, 255, 1) 0%,
-            rgba(255, 240, 150, 0.8) 15%,
-            rgba(255, 180, 0, 0.5) 35%,
-            rgba(255, 100, 0, 0.1) 60%,
-            transparent 75%
-        );
-        animation: sun-pulse 2.5s ease-in-out infinite;
-        z-index: -1;
-        pointer-events: none;
-    }
-
-    @keyframes sun-text-glow {
-        0%, 100% {
-            text-shadow:
-                0 0 3px rgba(255, 200, 0, 0.9),
-                0 0 8px rgba(255, 170, 0, 0.6),
-                0 0 18px rgba(255, 140, 0, 0.3),
-                0 0 30px rgba(255, 100, 0, 0.15);
-            color: #c47f00;
-        }
-        50% {
-            text-shadow:
-                0 0 5px rgba(255, 220, 0, 1),
-                0 0 14px rgba(255, 180, 0, 0.8),
-                0 0 28px rgba(255, 150, 0, 0.45),
-                0 0 45px rgba(255, 110, 0, 0.2);
-            color: #d48a00;
-        }
-    }
-
-    @keyframes sun-pulse {
-        0%, 100% {
-            opacity: 0.85;
-            transform: translate(-50%, -50%) scale(1);
-        }
-        50% {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1.15);
-        }
-    }
-
-    @keyframes sun-spin {
-        0% { transform: translate(-50%, -50%) rotate(0deg); }
-        100% { transform: translate(-50%, -50%) rotate(360deg); }
-    }
-
-    @keyframes sun-pulse-bg {
-        0%, 100% { opacity: 0.75; }
-        50% { opacity: 1; }
     }
 </style>
 
