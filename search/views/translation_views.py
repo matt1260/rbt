@@ -19,7 +19,7 @@ from .footnote_views import get_footnote
 # Import get_results from chapter_views when needed (to avoid circular import)
 # We'll use a late import pattern in the functions that need it
 
-INTERLINEAR_CACHE_VERSION = 'v2'
+INTERLINEAR_CACHE_VERSION = 'v3'
 
 
 def get_cache_key(book, chapter_num, verse_num, language):
