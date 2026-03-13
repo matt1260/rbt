@@ -4645,11 +4645,12 @@ def edit_judas(request):
                     })
 
                 # Invalidate caches
+                from search.views.judas_views import CACHE_VERSION as JUDAS_CACHE_VERSION
                 for item in updates:
                     codex_val = item.get('codex')
                     if codex_val is not None:
                         for panel in ('', 'greek', 'coptic', 'notes', 'commentary'):
-                            cache.delete(f'judas_{codex_val}_{panel}_v1')
+                            cache.delete(f'judas_{codex_val}_{panel}_{JUDAS_CACHE_VERSION}')
 
                 total_matches = sum(item.get('count', 0) for item in updates)
                 try:
@@ -4715,8 +4716,9 @@ def edit_judas(request):
                     pass
 
                 # Invalidate caches for this codex
+                from search.views.judas_views import CACHE_VERSION as JUDAS_CACHE_VERSION
                 for panel in ('', 'greek', 'coptic', 'notes', 'commentary'):
-                    cache.delete(f'judas_{codex_num}_{panel}_v1')
+                    cache.delete(f'judas_{codex_num}_{panel}_{JUDAS_CACHE_VERSION}')
 
                 context = get_judas_line_context(codex_num, line_num)
                 context['edit_result'] = (
@@ -4910,6 +4912,7 @@ def get_judas_codex_view(codex_num):
 
             return {
                 'html': prose_html,
+                'prose_text': prose_html,
                 'interlinear_html': il_html,
                 'book': 'Gospel of Confessor (Judas)',
                 'codex_num': codex_int,

@@ -25,7 +25,7 @@ CODEX_RANGE = list(range(CODEX_MIN, CODEX_MAX + 1))
 # Valid right-panel modes
 PANEL_MODES = {'greek', 'coptic', 'notes', 'commentary'}
 
-CACHE_VERSION = 'v2'
+CACHE_VERSION = 'v3'
 
 
 def judas_view(request):

@@ -47,8 +47,8 @@
         <label for="codex_select">Jump to Codex Page:</label>
         <select id="codex_select" onchange="jumpToCodex()">
             <option value="">Select a codex page...</option>
-            {% for c in codex_range %}
-            <option value="{{ c }}">Codex {{ c }}</option>
+            {% for page in story %}
+            <option value="{{ page.codex }}">Codex {{ page.codex }}</option>
             {% endfor %}
         </select>
         <label for="line_select">Line (for interlinear editor):</label>
