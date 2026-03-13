@@ -8,7 +8,7 @@
 <title>{% block title %}{{ meta_title|default:'Real Bible Translation Project' }}{% endblock %}</title>
 
 <!-- Standard SEO -->
-<meta name="description" content="{% block meta_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, faithful translations of scripture using extensive tools and comprehensive linguistic workflows.' }}{% endblock %}">
+<meta name="description" content="{% block meta_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, trustworthy translations of scripture using extensive tools and comprehensive linguistic workflows.' }}{% endblock %}">
 <meta name="keywords" content="{% block meta_keywords %}{{ meta_keywords|default:'Bible, Translation, Hebrew, Greek, RBT, Real Bible Translation' }}{% endblock %}">
 <meta name="robots" content="{{ meta_robots|default:'index, follow, max-image-preview:large' }}">
 {% if canonical_url %}
@@ -19,14 +19,14 @@
 
 <!-- Open Graph / Social Media -->
 <meta property="og:title" content="{% block og_title %}{{ meta_title|default:'Real Bible Translation Project' }}{% endblock %}">
-<meta property="og:description" content="{% block og_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, faithful translations of scripture using extensive tools and comprehensive linguistic workflows.' }}{% endblock %}">
+<meta property="og:description" content="{% block og_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, trustworthy translations of scripture using extensive tools and comprehensive linguistic workflows.' }}{% endblock %}">
 <meta property="og:url" content="{% if canonical_url %}{{ canonical_url }}{% else %}{{ request.build_absolute_uri }}{% endif %}">
 <meta property="og:type" content="{% block og_type %}website{% endblock %}">
 
 <!-- Twitter Cards -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{% block twitter_title %}{{ meta_title|default:'Real Bible Translation Project' }}{% endblock %}">
-<meta name="twitter:description" content="{% block twitter_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, faithful translations of scripture using extensive tools and comprehensive linguistic workflows.' }}{% endblock %}">
+<meta name="twitter:description" content="{% block twitter_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, trustworthy translations of scripture using extensive tools and comprehensive linguistic workflows.' }}{% endblock %}">
 
 <!-- JSON-LD Structured Data -->
 <script type="application/ld+json">
@@ -35,7 +35,7 @@
   "@context": "https://schema.org",
   "@type": "WebPage",
   "name": "{{ meta_title|default:'Real Bible Translation Project'|escapejs }}",
-  "description": "{{ meta_description|default:'The Real Bible Translation Project focuses on precise, faithful translations of scripture using extensive tools and comprehensive linguistic workflows.'|escapejs }}",
+  "description": "{{ meta_description|default:'The Real Bible Translation Project focuses on precise, trustworthy translations of scripture using extensive tools and comprehensive linguistic workflows.'|escapejs }}",
   "url": "{% if canonical_url %}{{ canonical_url|escapejs }}{% else %}{{ request.build_absolute_uri|escapejs }}{% endif %}",
   "publisher": {
     "@type": "Organization",
@@ -1311,59 +1311,107 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
     .sun-icon {
         display: inline-block;
         position: relative;
-        color: #c47f00;
+        color: #b87300;
         font-weight: bold;
         text-shadow:
-            0 0 3px rgba(255, 200, 0, 0.9),
-            0 0 8px rgba(255, 170, 0, 0.6),
-            0 0 18px rgba(255, 140, 0, 0.3),
-            0 0 30px rgba(255, 100, 0, 0.15);
+            0 0 4px rgba(255, 220, 50, 1),
+            0 0 10px rgba(255, 180, 0, 0.8),
+            0 0 22px rgba(255, 140, 0, 0.45),
+            0 0 40px rgba(255, 100, 0, 0.2);
         z-index: 1;
-        padding: 0 0.2em;
-        animation: sun-text-glow 2.5s ease-in-out infinite;
+        padding: 0 0.3em;
+        animation: sun-text-glow 3s ease-in-out infinite;
     }
 
+    /* Inner bright core */
     .sun-icon::before {
         content: '';
         position: absolute;
         top: 50%;
         left: 50%;
-        width: 2.8em;
-        height: 2.8em;
+        width: 2.4em;
+        height: 2.4em;
         transform: translate(-50%, -50%);
         border-radius: 50%;
         background:
             radial-gradient(circle,
-                rgba(255, 230, 100, 0.6) 0%,
-                rgba(255, 200, 50, 0.4) 25%,
-                rgba(255, 170, 0, 0.2) 50%,
-                rgba(255, 130, 0, 0.05) 70%,
-                transparent 85%);
+                rgba(255, 255, 230, 0.95) 0%,
+                rgba(255, 240, 120, 0.75) 15%,
+                rgba(255, 210, 60, 0.5) 35%,
+                rgba(255, 170, 0, 0.25) 55%,
+                rgba(255, 130, 0, 0.08) 75%,
+                transparent 100%);
         box-shadow:
-            0 0 10px 3px rgba(255, 200, 50, 0.35),
-            0 0 20px 6px rgba(255, 160, 0, 0.15);
-        animation: sun-pulse 2.5s ease-in-out infinite;
+            0 0 8px 4px rgba(255, 230, 80, 0.5),
+            0 0 18px 8px rgba(255, 180, 0, 0.25),
+            0 0 35px 12px rgba(255, 140, 0, 0.1);
+        animation: sun-core-pulse 3s ease-in-out infinite;
         z-index: -1;
         pointer-events: none;
     }
 
+    /* Radiating rays via conic-gradient */
     .sun-icon::after {
         content: '';
         position: absolute;
         top: 50%;
         left: 50%;
-        width: 4.5em;
-        height: 4.5em;
-        transform: translate(-50%, -50%);
+        width: 5.5em;
+        height: 5.5em;
+        transform: translate(-50%, -50%) rotate(0deg);
         border-radius: 50%;
         background:
-            radial-gradient(circle,
-                transparent 20%,
-                rgba(255, 210, 50, 0.12) 35%,
-                rgba(255, 180, 0, 0.08) 50%,
-                rgba(255, 150, 0, 0.03) 65%,
-                transparent 80%);
-        animation: sun-rays 3.5s ease-in-out infinite alternate;
+            conic-gradient(
+                from 0deg,
+                rgba(255, 210, 50, 0.28) 0deg,
+                transparent 12deg,
+                transparent 18deg,
+                rgba(255, 200, 40, 0.22) 24deg,
+                transparent 36deg,
+                transparent 42deg,
+                rgba(255, 190, 30, 0.25) 48deg,
+                transparent 60deg,
+                transparent 66deg,
+                rgba(255, 210, 50, 0.2) 72deg,
+                transparent 84deg,
+                transparent 90deg,
+                rgba(255, 200, 40, 0.26) 96deg,
+                transparent 108deg,
+                transparent 114deg,
+                rgba(255, 190, 30, 0.22) 120deg,
+                transparent 132deg,
+                transparent 138deg,
+                rgba(255, 210, 50, 0.24) 144deg,
+                transparent 156deg,
+                transparent 162deg,
+                rgba(255, 200, 40, 0.2) 168deg,
+                transparent 180deg,
+                transparent 186deg,
+                rgba(255, 190, 30, 0.26) 192deg,
+                transparent 204deg,
+                transparent 210deg,
+                rgba(255, 210, 50, 0.22) 216deg,
+                transparent 228deg,
+                transparent 234deg,
+                rgba(255, 200, 40, 0.24) 240deg,
+                transparent 252deg,
+                transparent 258deg,
+                rgba(255, 190, 30, 0.2) 264deg,
+                transparent 276deg,
+                transparent 282deg,
+                rgba(255, 210, 50, 0.25) 288deg,
+                transparent 300deg,
+                transparent 306deg,
+                rgba(255, 200, 40, 0.22) 312deg,
+                transparent 324deg,
+                transparent 330deg,
+                rgba(255, 190, 30, 0.24) 336deg,
+                transparent 348deg,
+                rgba(255, 210, 50, 0.28) 360deg
+            );
+        -webkit-mask-image: radial-gradient(circle, transparent 18%, white 30%, white 70%, transparent 90%);
+        mask-image: radial-gradient(circle, transparent 18%, white 30%, white 70%, transparent 90%);
+        animation: sun-rays-rotate 8s linear infinite;
         z-index: -2;
         pointer-events: none;
     }
@@ -1371,41 +1419,45 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
     @keyframes sun-text-glow {
         0%, 100% {
             text-shadow:
-                0 0 3px rgba(255, 200, 0, 0.9),
-                0 0 8px rgba(255, 170, 0, 0.6),
-                0 0 18px rgba(255, 140, 0, 0.3),
-                0 0 30px rgba(255, 100, 0, 0.15);
-            color: #c47f00;
+                0 0 4px rgba(255, 220, 50, 1),
+                0 0 10px rgba(255, 180, 0, 0.8),
+                0 0 22px rgba(255, 140, 0, 0.45),
+                0 0 40px rgba(255, 100, 0, 0.2);
+            color: #b87300;
         }
         50% {
             text-shadow:
-                0 0 5px rgba(255, 220, 0, 1),
-                0 0 14px rgba(255, 180, 0, 0.8),
-                0 0 28px rgba(255, 150, 0, 0.45),
-                0 0 45px rgba(255, 110, 0, 0.2);
-            color: #d48a00;
+                0 0 6px rgba(255, 240, 80, 1),
+                0 0 16px rgba(255, 200, 0, 0.9),
+                0 0 32px rgba(255, 160, 0, 0.55),
+                0 0 50px rgba(255, 120, 0, 0.25);
+            color: #d49000;
         }
     }
 
-    @keyframes sun-pulse {
+    @keyframes sun-core-pulse {
         0%, 100% {
-            opacity: 0.85;
+            opacity: 0.9;
             transform: translate(-50%, -50%) scale(1);
         }
         50% {
             opacity: 1;
-            transform: translate(-50%, -50%) scale(1.25);
+            transform: translate(-50%, -50%) scale(1.18);
         }
     }
 
-    @keyframes sun-rays {
+    @keyframes sun-rays-rotate {
         0% {
-            opacity: 0.5;
-            transform: translate(-50%, -50%) scale(1) rotate(0deg);
+            transform: translate(-50%, -50%) rotate(0deg) scale(1);
+            opacity: 0.8;
+        }
+        50% {
+            transform: translate(-50%, -50%) rotate(180deg) scale(1.1);
+            opacity: 1;
         }
         100% {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1.35) rotate(30deg);
+            transform: translate(-50%, -50%) rotate(360deg) scale(1);
+            opacity: 0.8;
         }
     }
 </style>
