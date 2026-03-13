@@ -1311,154 +1311,98 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
     .sun-icon {
         display: inline-block;
         position: relative;
-        color: #b87300;
+        color: #c47f00;
         font-weight: bold;
         text-shadow:
-            0 0 4px rgba(255, 220, 50, 1),
-            0 0 10px rgba(255, 180, 0, 0.8),
-            0 0 22px rgba(255, 140, 0, 0.45),
-            0 0 40px rgba(255, 100, 0, 0.2);
+            0 0 3px rgba(255, 200, 0, 0.9),
+            0 0 8px rgba(255, 170, 0, 0.6),
+            0 0 18px rgba(255, 140, 0, 0.3),
+            0 0 30px rgba(255, 100, 0, 0.15);
         z-index: 1;
-        padding: 0 0.3em;
-        animation: sun-text-glow 3s ease-in-out infinite;
+        padding: 0 0.2em;
+        animation: sun-text-glow 2.5s ease-in-out infinite;
     }
 
-    /* Inner bright core */
     .sun-icon::before {
         content: '';
         position: absolute;
         top: 50%;
         left: 50%;
-        width: 2.4em;
-        height: 2.4em;
+        width: 6em;
+        height: 6em;
         transform: translate(-50%, -50%);
         border-radius: 50%;
-        background:
-            radial-gradient(circle,
-                rgba(255, 255, 230, 0.95) 0%,
-                rgba(255, 240, 120, 0.75) 15%,
-                rgba(255, 210, 60, 0.5) 35%,
-                rgba(255, 170, 0, 0.25) 55%,
-                rgba(255, 130, 0, 0.08) 75%,
-                transparent 100%);
-        box-shadow:
-            0 0 8px 4px rgba(255, 230, 80, 0.5),
-            0 0 18px 8px rgba(255, 180, 0, 0.25),
-            0 0 35px 12px rgba(255, 140, 0, 0.1);
-        animation: sun-core-pulse 3s ease-in-out infinite;
-        z-index: -1;
+        /* Radiant rays from a repeating conic gradient */
+        background: repeating-conic-gradient(
+            from 0deg,
+            rgba(255, 180, 0, 0) 0deg,
+            rgba(255, 220, 50, 0.5) 4deg,
+            rgba(255, 180, 0, 0) 8deg
+        );
+        /* Soften the inner and outer radius to blend like a starburst */
+        -webkit-mask-image: radial-gradient(circle, black 15%, transparent 60%);
+        mask-image: radial-gradient(circle, black 15%, transparent 60%);
+        animation: sun-spin 15s linear infinite;
+        z-index: -2;
         pointer-events: none;
     }
 
-    /* Radiating rays via conic-gradient */
     .sun-icon::after {
         content: '';
         position: absolute;
         top: 50%;
         left: 50%;
-        width: 5.5em;
-        height: 5.5em;
-        transform: translate(-50%, -50%) rotate(0deg);
+        width: 4.5em;
+        height: 4.5em;
+        transform: translate(-50%, -50%);
         border-radius: 50%;
-        background:
-            conic-gradient(
-                from 0deg,
-                rgba(255, 210, 50, 0.28) 0deg,
-                transparent 12deg,
-                transparent 18deg,
-                rgba(255, 200, 40, 0.22) 24deg,
-                transparent 36deg,
-                transparent 42deg,
-                rgba(255, 190, 30, 0.25) 48deg,
-                transparent 60deg,
-                transparent 66deg,
-                rgba(255, 210, 50, 0.2) 72deg,
-                transparent 84deg,
-                transparent 90deg,
-                rgba(255, 200, 40, 0.26) 96deg,
-                transparent 108deg,
-                transparent 114deg,
-                rgba(255, 190, 30, 0.22) 120deg,
-                transparent 132deg,
-                transparent 138deg,
-                rgba(255, 210, 50, 0.24) 144deg,
-                transparent 156deg,
-                transparent 162deg,
-                rgba(255, 200, 40, 0.2) 168deg,
-                transparent 180deg,
-                transparent 186deg,
-                rgba(255, 190, 30, 0.26) 192deg,
-                transparent 204deg,
-                transparent 210deg,
-                rgba(255, 210, 50, 0.22) 216deg,
-                transparent 228deg,
-                transparent 234deg,
-                rgba(255, 200, 40, 0.24) 240deg,
-                transparent 252deg,
-                transparent 258deg,
-                rgba(255, 190, 30, 0.2) 264deg,
-                transparent 276deg,
-                transparent 282deg,
-                rgba(255, 210, 50, 0.25) 288deg,
-                transparent 300deg,
-                transparent 306deg,
-                rgba(255, 200, 40, 0.22) 312deg,
-                transparent 324deg,
-                transparent 330deg,
-                rgba(255, 190, 30, 0.24) 336deg,
-                transparent 348deg,
-                rgba(255, 210, 50, 0.28) 360deg
-            );
-        -webkit-mask-image: radial-gradient(circle, transparent 18%, white 30%, white 70%, transparent 90%);
-        mask-image: radial-gradient(circle, transparent 18%, white 30%, white 70%, transparent 90%);
-        animation: sun-rays-rotate 8s linear infinite;
-        z-index: -2;
+        /* Bright white/yellow center fading into a soft orange halo */
+        background: radial-gradient(
+            circle,
+            rgba(255, 255, 255, 1) 0%,
+            rgba(255, 240, 150, 0.8) 15%,
+            rgba(255, 180, 0, 0.5) 35%,
+            rgba(255, 100, 0, 0.1) 60%,
+            transparent 75%
+        );
+        animation: sun-pulse 2.5s ease-in-out infinite;
+        z-index: -1;
         pointer-events: none;
     }
 
     @keyframes sun-text-glow {
         0%, 100% {
             text-shadow:
-                0 0 4px rgba(255, 220, 50, 1),
-                0 0 10px rgba(255, 180, 0, 0.8),
-                0 0 22px rgba(255, 140, 0, 0.45),
-                0 0 40px rgba(255, 100, 0, 0.2);
-            color: #b87300;
+                0 0 3px rgba(255, 200, 0, 0.9),
+                0 0 8px rgba(255, 170, 0, 0.6),
+                0 0 18px rgba(255, 140, 0, 0.3),
+                0 0 30px rgba(255, 100, 0, 0.15);
+            color: #c47f00;
         }
         50% {
             text-shadow:
-                0 0 6px rgba(255, 240, 80, 1),
-                0 0 16px rgba(255, 200, 0, 0.9),
-                0 0 32px rgba(255, 160, 0, 0.55),
-                0 0 50px rgba(255, 120, 0, 0.25);
-            color: #d49000;
+                0 0 5px rgba(255, 220, 0, 1),
+                0 0 14px rgba(255, 180, 0, 0.8),
+                0 0 28px rgba(255, 150, 0, 0.45),
+                0 0 45px rgba(255, 110, 0, 0.2);
+            color: #d48a00;
         }
     }
 
-    @keyframes sun-core-pulse {
+    @keyframes sun-pulse {
         0%, 100% {
-            opacity: 0.9;
+            opacity: 0.85;
             transform: translate(-50%, -50%) scale(1);
         }
         50% {
             opacity: 1;
-            transform: translate(-50%, -50%) scale(1.18);
+            transform: translate(-50%, -50%) scale(1.15);
         }
     }
 
-    @keyframes sun-rays-rotate {
-        0% {
-            transform: translate(-50%, -50%) rotate(0deg) scale(1);
-            opacity: 0.8;
-        }
-        50% {
-            transform: translate(-50%, -50%) rotate(180deg) scale(1.1);
-            opacity: 1;
-        }
-        100% {
-            transform: translate(-50%, -50%) rotate(360deg) scale(1);
-            opacity: 0.8;
-        }
+    @keyframes sun-spin {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
     }
 </style>
 
