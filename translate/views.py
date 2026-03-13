@@ -4721,6 +4721,43 @@ def edit_judas(request):
                     'codex': codex_num, 'line_num': line_num,
                 })
 
+        # ---- Commentary edit POST ----
+        if action == 'save_commentary':
+            edited_commentary = request.POST.get('edited_commentary', '')
+            try:
+                with get_judas_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "UPDATE judas_commentary SET content = %s WHERE id = 1",
+                        ((edited_commentary or '').strip(),),
+                    )
+                _record_judas_update(
+                    version='Judas Commentary',
+                    reference=book_name,
+                    update_text=f"Updated commentary ({len((edited_commentary or '').strip())} chars).",
+                )
+                # Invalidate commentary panel caches for all codex pages
+                from search.views.judas_views import CODEX_RANGE, CACHE_VERSION as JUDAS_CACHE_VERSION
+                for codex_val in CODEX_RANGE:
+                    cache.delete(f'judas_{codex_val}_commentary_{JUDAS_CACHE_VERSION}')
+                messages.success(request, "Commentary updated successfully!")
+            except psycopg2.Error as exc:
+                messages.error(request, f"Database error: {exc}")
+
+            try:
+                with get_judas_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT content FROM judas_commentary WHERE id = 1")
+                    row = cursor.fetchone()
+                    commentary_content = row[0] if row else ''
+            except psycopg2.Error:
+                commentary_content = ''
+
+            return render(request, 'edit_judas_commentary.html', {
+                'book': book_name,
+                'commentary_content': commentary_content,
+            })
+
     # ---- GET routing ----
     if codex_query and line_query:
         context = get_judas_line_context(codex_query, line_query)
@@ -4729,6 +4766,23 @@ def edit_judas(request):
     if codex_query:
         context = get_judas_codex_view(codex_query)
         return render(request, 'edit_judas_codex.html', context)
+
+    # ---- Commentary GET route ----
+    commentary_query = request.GET.get('commentary')
+    if commentary_query:
+        try:
+            with get_judas_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT content FROM judas_commentary WHERE id = 1")
+                row = cursor.fetchone()
+                commentary_content = row[0] if row else ''
+        except psycopg2.Error as exc:
+            messages.error(request, f"Unable to load commentary: {exc}")
+            commentary_content = ''
+        return render(request, 'edit_judas_commentary.html', {
+            'book': book_name,
+            'commentary_content': commentary_content,
+        })
 
     # Default: find/replace input
     try:
