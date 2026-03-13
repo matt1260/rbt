@@ -155,6 +155,7 @@ def judas_view(request):
         error_message = str(exc)
 
     # If non-English, look up translated book name from VerseTranslation (chapter=0, verse=0)
+    heading_prefix = "Gospel of Confessor"
     if language != 'en':
         try:
             book_name_trans = VerseTranslation.objects.filter(
@@ -168,6 +169,21 @@ def judas_view(request):
                 book_name = book_name_trans.verse_text
         except Exception:
             logger.exception("Error looking up Judas book name translation for lang %s", language)
+
+    # If non-English, look up translated heading prefix (chapter=0, verse=3)
+    if language != 'en':
+        try:
+            heading_trans = VerseTranslation.objects.filter(
+                book=internal_book_name,
+                chapter=0,
+                verse=3,
+                language_code=language,
+                footnote_id__isnull=True,
+            ).first()
+            if heading_trans and heading_trans.verse_text:
+                heading_prefix = heading_trans.verse_text
+        except Exception:
+            logger.exception("Error looking up Judas heading translation for lang %s", language)
 
     # If non-English, look up translated prose from VerseTranslation
     if language != 'en' and prose:
@@ -216,6 +232,7 @@ def judas_view(request):
         'commentary': commentary_html,
         'error_message': error_message,
         'cache_hit': False,
+        'heading_prefix': heading_prefix,
         'page_title': f"Gospel of Confessor {codex_num}",
         'supported_languages': SUPPORTED_LANGUAGES,
         'current_language': language,

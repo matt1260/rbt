@@ -533,7 +533,15 @@ def start_translation_job(request):
                 status__in=['completed', 'processing'],
                 footnote_id__isnull=True,
             ).exists()
-            if prose_exists and commentary_exists:
+            heading_exists = VerseTranslation.objects.filter(
+                book=book,
+                chapter=0,
+                verse=3,
+                language_code=language,
+                status__in=['completed', 'processing'],
+                footnote_id__isnull=True,
+            ).exists()
+            if prose_exists and commentary_exists and heading_exists:
                 return JsonResponse({'status': 'cached', 'message': 'Translation already exists for this codex page.'})
             
             from search.translation_worker import create_translation_job

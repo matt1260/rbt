@@ -194,6 +194,8 @@ class TranslationWorker:
                 
                 # Also translate the global commentary (chapter=0, verse=2)
                 self._translate_judas_commentary(language)
+                # Also translate the heading prefix (chapter=0, verse=3)
+                self._translate_judas_heading(language)
                 
                 job.status = 'completed'
                 job.completed_at = timezone.now()
@@ -347,6 +349,36 @@ class TranslationWorker:
             print(f"[WORKER] Judas commentary translated to {language}")
         except Exception as e:
             print(f"[WORKER] Error translating Judas commentary: {e}")
+
+    def _translate_judas_heading(self, language):
+        """Translate the heading phrase 'Gospel of Confessor' (chapter=0, verse=3) per language."""
+        from search.models import VerseTranslation
+        from search.translation_utils import translate_chapter_batch
+
+        book = "Gospel of Judas"
+        existing = VerseTranslation.objects.filter(
+            book=book, chapter=0, verse=3,
+            language_code=language, footnote_id__isnull=True,
+            status='completed',
+        ).exists()
+        if existing:
+            print(f"[WORKER] Judas heading already translated to {language}")
+            return
+
+        heading_text = "Gospel of Confessor"
+        translated = translate_chapter_batch({3: heading_text}, language)
+        for verse_num, translated_text in translated.items():
+            if '[Translation unavailable' not in translated_text:
+                VerseTranslation.objects.update_or_create(
+                    book=book, chapter=0, verse=verse_num,
+                    language_code=language, footnote_id=None,
+                    defaults={
+                        'verse_text': translated_text,
+                        'status': 'completed',
+                        'generated_by': 'gemini-3-flash-preview',
+                    }
+                )
+        print(f"[WORKER] Judas heading translated to {language}")
 
     def _extract_storehouse_content(self, book, chapter_num, language):
         """Extract translatable content from Joseph and Aseneth (storehouse)"""
