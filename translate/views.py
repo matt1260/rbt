@@ -4734,6 +4734,44 @@ def edit_judas(request):
                     'codex': codex_num, 'line_num': line_num,
                 })
 
+        # ---- Single prose page save POST ----
+        if action == 'save_prose':
+            edited_prose = request.POST.get('edited_prose', '')
+            codex_num_post = request.POST.get('codex') or codex_query
+            try:
+                codex_int = int(codex_num_post)
+            except (TypeError, ValueError):
+                messages.error(request, "Invalid codex number.")
+                context = get_judas_codex_view(codex_num_post)
+                return render(request, 'edit_judas_codex.html', context)
+
+            try:
+                with get_judas_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "UPDATE judas_prose SET content = %s WHERE codex = %s",
+                        ((edited_prose or '').strip(), codex_int),
+                    )
+                _record_judas_update(
+                    version='Judas Prose',
+                    reference=f"{book_name} Codex {codex_int}",
+                    update_text=f"Updated prose ({len((edited_prose or '').strip())} chars).",
+                )
+                from search.views.judas_views import CACHE_VERSION as JUDAS_CACHE_VERSION
+                for panel in ('', 'greek', 'coptic', 'notes', 'commentary'):
+                    cache.delete(f'judas_{codex_int}_{panel}_{JUDAS_CACHE_VERSION}')
+                messages.success(request, f"Codex {codex_int} prose updated successfully!")
+            except psycopg2.Error as exc:
+                messages.error(request, f"Database error: {exc}")
+
+            context = get_judas_codex_view(codex_int)
+            context['edit_result'] = (
+                '<div class="notice-bar"><p><span class="icon">'
+                '<i class="fas fa-check-circle"></i></span>'
+                'Prose saved successfully!</p></div>'
+            )
+            return render(request, 'edit_judas_codex.html', context)
+
         # ---- Commentary edit POST ----
         if action == 'save_commentary':
             edited_commentary = request.POST.get('edited_commentary', '')
