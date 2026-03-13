@@ -197,6 +197,17 @@ def _safe_save_update(instance: 'TranslationUpdates') -> None:
             print(f"Failed to save TranslationUpdates: {exc}")
 
 
+def _record_judas_update(version: str, reference: str, update_text: str) -> None:
+    """Persist Judas editor actions into TranslationUpdates for /updates/."""
+    update_instance = TranslationUpdates(
+        date=datetime.now(),
+        version=version,
+        reference=reference,
+        update_text=(update_text or '').strip(),
+    )
+    _safe_save_update(update_instance)
+
+
 FOOTNOTE_LINK_RE = re.compile(r'\?footnote=([^&"\n]+)')
 
 
