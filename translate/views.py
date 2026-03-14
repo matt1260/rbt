@@ -5852,7 +5852,7 @@ def scrape_lexicon(request):
             from urllib.parse import urlparse, unquote
             from django.conf import settings as django_settings
             LOGEION_KEY = django_settings.LOGEION_KEY
-            BASE = 'https://api.logeion.org'
+            BASE = 'https://anastrophe.uchicago.edu/logeion-api'
 
             logeion_headers = {
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -5863,34 +5863,73 @@ def scrape_lexicon(request):
                 'Connection': 'keep-alive',
             }
 
+            import ssl
+            from requests.adapters import HTTPAdapter
+
+            class _LogeionSSLAdapter(HTTPAdapter):
+                """
+                Handles two SSL-EOF variants from api.logeion.org:
+                  - SSLEOFError (code 8): suppressed via OP_IGNORE_UNEXPECTED_EOF
+                  - SSLZeroReturnError (code 6): server sends close_notify mid-response;
+                    handled by creating a fresh session per retry attempt.
+                """
+                def init_poolmanager(self, *args, **kwargs):
+                    ctx = ssl.create_default_context()
+                    ctx.options |= getattr(ssl, 'OP_IGNORE_UNEXPECTED_EOF', 0)
+                    kwargs['ssl_context'] = ctx
+                    super().init_poolmanager(*args, **kwargs)
+
+            def _new_logeion_session():
+                sess = requests.Session()
+                sess.mount('https://', _LogeionSSLAdapter())
+                return sess
+
             def logeion_get(endpoint_url, retries=3, backoff=1.5):
                 last_exc = None
                 for attempt in range(retries):
+                    # Fresh session each attempt: clears stale SSL pool connections
+                    # that cause SSLZeroReturnError on reuse.
+                    sess = _new_logeion_session()
                     try:
-                        r = requests.get(endpoint_url, headers=logeion_headers, timeout=15)
+                        r = sess.get(endpoint_url, headers=logeion_headers, timeout=15)
                         r.raise_for_status()
                         return r
                     except Exception as exc:
                         last_exc = exc
                         if attempt < retries - 1:
                             time.sleep(backoff * (attempt + 1))
+                    finally:
+                        sess.close()
                 raise last_exc
 
             # Step 1: resolve inflected form → lemma + morphological parse
             raw_word = unquote(urlparse(url).path.lstrip('/'))
-            find_resp = logeion_get(
-                f"{BASE}/find?key={LOGEION_KEY}&w={requests.utils.quote(raw_word)}"
-            )
+            try:
+                find_resp = logeion_get(
+                    f"{BASE}/find?key={LOGEION_KEY}&w={requests.utils.quote(raw_word)}"
+                )
+            except Exception as _logeion_exc:
+                logger.warning(f"Logeion API unreachable for '{raw_word}': {_logeion_exc}")
+                unavail_html = (
+                    f'<p style="color:#888;font-style:italic;">'
+                    f'Logeion is temporarily unavailable. '
+                    f'<a href="{url}" target="_blank" style="color:#0056b3;">Open directly ↗</a></p>'
+                )
+                return JsonResponse({'content': unavail_html})
             find_data = find_resp.json()
 
             lemma = find_data.get('word', raw_word)          # normalised lemma
             parses = find_data.get('parses', [])
 
             # Step 2: fetch full lexicon detail for the lemma
-            detail_resp = logeion_get(
-                f"{BASE}/detail?key={LOGEION_KEY}&type=normal&w={requests.utils.quote(lemma)}"
-            )
-            detail = detail_resp.json().get('detail', {})
+            try:
+                detail_resp = logeion_get(
+                    f"{BASE}/detail?key={LOGEION_KEY}&type=normal&w={requests.utils.quote(lemma)}"
+                )
+                detail = detail_resp.json().get('detail', {})
+            except Exception as _logeion_exc:
+                logger.warning(f"Logeion detail API unreachable for '{lemma}': {_logeion_exc}")
+                detail = {}
 
             # Priority order of dictionaries to display
             priority = ['Abbott-Smith NT', 'LSJ', 'Middle Liddell', 'Brill-Montanari']

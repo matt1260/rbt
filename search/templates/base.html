@@ -1313,8 +1313,7 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
         position: relative;
         font-weight: bold;
         font-size: 1em;
-        z-index: 1;
-        padding: 0 0.2em;
+        /* z-index: 1; */
     }
 
     .sun-icon::before {
@@ -1322,24 +1321,17 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
         position: absolute;
         top: 50%;
         left: 50%;
-        width: 2.2em;
-        height: 2.2em;
+        width: 2.0em;
+        height: 2.0em;
         transform: translate(-50%, -50%);
         border-radius: 50%;
-        background:
-            radial-gradient(circle,
-                rgba(255, 255, 255, 1) 0%,
-                rgba(255, 255, 255, 1) 18%,
-                rgba(255, 235, 80, 0.85) 32%,
-                rgba(255, 200, 0, 0.35) 50%,
-                rgba(255, 170, 0, 0.08) 70%,
-                transparent 85%);
+        background: radial-gradient(circle, rgb(255, 255, 255) 0%, rgba(255, 255, 255, 0.95) 18%, rgba(255, 235, 80, 0.85) 32%, rgba(255, 200, 0, 0.35) 50%, rgba(255, 170, 0, 0) 70%, #0000001c 85%);
         box-shadow:
             0 0 6px 2px rgba(255, 255, 255, 0.95),
             0 0 8px 4px rgba(255, 230, 50, 0.55),
             0 0 18px 6px rgba(255, 200, 0, 0.25);
         animation: sun-pulse 2.5s ease-in-out infinite;
-        z-index: -1;
+        /* z-index: -1; */
         pointer-events: none;
     }
 
@@ -1352,13 +1344,7 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
         height: 3.6em;
         transform: translate(-50%, -50%);
         border-radius: 50%;
-        background:
-            radial-gradient(circle,
-                transparent 20%,
-                rgba(255, 235, 80, 0.18) 35%,
-                rgba(255, 210, 0, 0.1) 50%,
-                rgba(255, 180, 0, 0.04) 65%,
-                transparent 80%);
+        background: radial-gradient(circle, transparent 20%, rgba(229, 72, 72, 0.13) 35%, rgba(255, 210, 0, 0.1) 50%, rgba(255, 180, 0, 0.04) 65%, transparent 80%);
         animation: sun-rays 3.5s ease-in-out infinite alternate;
         z-index: -2;
         pointer-events: none;
