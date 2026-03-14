@@ -182,7 +182,7 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
             context = {'error': 'Verse is Invalid'}
             return render(request, 'search_input.html', context)
         
-        replacements = load_json('interlinear_english.json')  # NT
+        replacements = load_json()  # NT - loads from InterlinearConfig DB
         greek = results['rbt_greek']
         interlinear = results['interlinear']  # NT
         hebrew = results['hebrew']

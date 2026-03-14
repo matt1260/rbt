@@ -1206,11 +1206,7 @@ def edit(request):
 
         if replacements:
             
-            # Persist to file for backward compatibility
-            with open('interlinear_english.json', 'w', encoding='utf-8') as file:
-                json.dump(replacements, file, indent=4, ensure_ascii=False)
-
-            # Also persist to DB-backed InterlinearConfig if available
+            # Persist to DB-backed InterlinearConfig if available
             try:
                 from search.models import InterlinearConfig
                 user = getattr(request, 'user', None)
@@ -5662,12 +5658,7 @@ def update_interlinear_word(request):
                 replacements = {}
         except Exception as e:
             logger.warning(f"[INTERLINEAR] Could not load from InterlinearConfig: {e}")
-            # Fall back to file if model doesn't exist
-            try:
-                with open('interlinear_english.json', 'r', encoding='utf-8') as f:
-                    replacements = json.load(f)
-            except (FileNotFoundError, json.JSONDecodeError):
-                replacements = {}
+            replacements = {}
 
         logger.info(
             "[INTERLINEAR] (%s) mapping load took %.3fs",
@@ -5680,10 +5671,13 @@ def update_interlinear_word(request):
             logger.error(f"[INTERLINEAR] replacements is not a dict: {type(replacements)}")
             replacements = {}
         
-        # Update the mapping - ONLY store by lemma (exact Greek form)
-        # Do NOT store by strongs because that would affect all inflected forms
-        # (e.g., πονηρίαι and πονηρίαν both have strongs=4189 but are different words)
+        # Update the mapping - store by lemma (exact Greek form)
+        # If a Strongs-keyed entry already exists for this Strongs number, update it too
+        # so it doesn't override the lemma update (replace_words checks strongs first)
         replacements[lemma] = new_english
+        if strongs in replacements:
+            replacements[strongs] = new_english
+            logger.info(f"[INTERLINEAR] Also updated strongs-keyed entry {strongs} -> '{new_english}'")
         
         # Apply update to database immediately (following interlinear_apply.py logic)
         db_start = time.monotonic()

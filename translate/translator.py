@@ -847,65 +847,21 @@ def extract_footnote_references(verses):
     return footnote_references
 
 # For loading interlinear replacement json
-def load_json(filename):
-    # Return a mapping (dict) of replacements; the consumer expects a dict-like object
-    replacements = {}
-
-    # Prefer DB-stored mapping if available (persisted via admin)
+def load_json(_filename=None):
+    # Load interlinear mapping from DB (InterlinearConfig)
     try:
         from search.models import InterlinearConfig
         cfg = InterlinearConfig.objects.order_by('-updated_at').first()
         if cfg and isinstance(cfg.mapping, dict) and cfg.mapping:
             return cfg.mapping
     except Exception:
-        # Not running in Django context or model/migration not ready - fall back to file
         pass
-
-    if not os.path.exists(filename):
-        print(f"[DEBUG] JSON file not found: {filename}")
-        return replacements
-
-    try:
-        with open(filename, 'r', encoding='utf-8') as file:
-            json_string = file.read()
-
-        if not json_string.strip():
-            print(f"[DEBUG] JSON file is empty: {filename}")
-            return replacements
-
-        # Normalize quotes and remove escape characters
-        json_string = json_string.replace("'", '"')
-        if json_string and json_string[0] == '"' and json_string[-1] == '"':
-            json_string = json_string[1:-1]
-        json_string = json_string.replace("\\", "")
-
-        parsed = json.loads(json_string)
-
-        # Ensure we return a dict; if the file contains a list, try to convert it
-        if isinstance(parsed, dict):
-            replacements = parsed
-        elif isinstance(parsed, list):
-            # If a list of two-element lists or pairs, convert to dict
-            try:
-                replacements = dict(parsed)
-            except Exception:
-                # Fallback: leave replacements empty and log a debug message
-                print(f"[DEBUG] JSON parsed to list but could not convert to dict: {filename}")
-                replacements = {}
-        else:
-            # Unexpected JSON type; keep empty mapping
-            print(f"[DEBUG] JSON parsed to unsupported type ({type(parsed).__name__}): {filename}")
-            replacements = {}
-
-    except json.JSONDecodeError as e:
-        print(f"[ERROR] Failed to parse JSON file {filename}: {e}")
-
-    return replacements
+    return {}
 
 # function for replacing words in the interlinear greek
 def replace_words(strongs, lemma, english):
 
-    replacements = load_json('interlinear_english.json')
+    replacements = load_json()
 
     # Check if any of the conditions match and replace english if so
     for condition, replacement in replacements.items():

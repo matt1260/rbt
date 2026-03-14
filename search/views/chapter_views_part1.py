@@ -873,17 +873,12 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
             litv = litv.values_list('text', flat=True).first()
             litv = f'<div class="single_verse"><strong>LITV Translation:</strong><br> {litv}</div>'
 
-            replacements = []
-            json_file = 'interlinear_english.json'
-
-            if os.path.exists(json_file):
-                try:
-                    with open(json_file, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        if data:
-                            replacements = data
-                except json.JSONDecodeError as e:
-                    print(f"[ERROR] Failed to load JSON: {e}")
+            try:
+                from search.models import InterlinearConfig
+                cfg = InterlinearConfig.objects.order_by('-updated_at').first()
+                replacements = cfg.mapping if (cfg and isinstance(cfg.mapping, dict)) else {}
+            except Exception:
+                replacements = {}
 
             hebrew_cards = hebrew_cards or []
 

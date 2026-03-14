@@ -32,18 +32,7 @@ def load_mapping_from_db_or_file(file_path: str | None = None):
     except Exception:
         pass
 
-    # Fallback to project file
-    fallback = os.path.join(settings.BASE_DIR, 'interlinear_english.json')
-    if os.path.exists(fallback):
-        with open(fallback, 'r', encoding='utf-8') as fh:
-            raw = fh.read()
-            raw = raw.replace("'", '"')
-            if raw and raw[0] == '"' and raw[-1] == '"':
-                raw = raw[1:-1]
-            raw = raw.replace('\\', '')
-            return json.loads(raw)
-
-    raise RuntimeError('No interlinear mapping found (DB/FILE).')
+    raise RuntimeError('No interlinear mapping found in DB (InterlinearConfig).')
 
 
 def apply_interlinear(mapping: dict, dry_run: bool = True, limit: int = 20, backup_dir: str | None = None, clear_mapping_on_commit: bool = False, user: str | None = None):

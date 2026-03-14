@@ -56,6 +56,8 @@ MULTILINGUAL_README.md
 PATCHING_FILES.md
 GEMINI_KEYS.md
 AEON_Chatbot.md
+verse_edit.md
+wrap_greek_headers_nt.py
 
 # Django
 *.sqlite3
