@@ -95,7 +95,18 @@ def _resolve_source_path(source_file: str) -> Path:
 
 
 def _read_conversations_file(source_file: str) -> list[dict[str, Any]]:
-    source_path = _resolve_source_path(source_file)
+    # Allow override in deployment environments where conversations.json is not
+    # part of the container image.
+    env_override = os.getenv('AEON_CONVERSATIONS_FILE', '').strip()
+    source_path = _resolve_source_path(env_override or source_file)
+    if not source_path.exists():
+        raise ValueError(
+            'Conversations file not found. '
+            f'Looked for: {source_path}. '
+            'Provide source_file in request, set AEON_CONVERSATIONS_FILE, '
+            'or ingest using request payload.'
+        )
+
     with source_path.open('r', encoding='utf-8') as handle:
         data = json.load(handle)
     if not isinstance(data, list):
@@ -350,8 +361,12 @@ def _fetch_wordpress_post_from_web(url: str) -> dict[str, Any] | None:
         url,
         headers={'User-Agent': 'Mozilla/5.0 (compatible; AeonBot/1.0)'},
     )
-    with urllib.request.urlopen(req, timeout=20) as response:
-        html = response.read().decode('utf-8', errors='replace')
+    try:
+        with urllib.request.urlopen(req, timeout=60) as response:
+            html = response.read().decode('utf-8', errors='replace')
+    except Exception as exc:
+        logger.error('Failed to fetch URL %s from web: %s', url, exc)
+        return None
 
     soup = BeautifulSoup(html, 'html.parser')
     title = ''
@@ -426,15 +441,15 @@ def _embed_text(text: str, task_type: str) -> list[float]:
     raise RuntimeError('Embedding failed across available Gemini keys/models')
 
 
-def ingest_conversation_title(
-    title: str = DEFAULT_CONVERSATION_TITLE,
-    source_file: str = DEFAULT_SOURCE_FILE,
+def _ingest_conversation_object(
+    conversation: dict[str, Any],
+    title: str,
+    source_type: str,
+    source_identifier: str,
+    source_metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    conversation = _find_conversation_by_title(source_file=source_file, title=title)
-    source_identifier = str(conversation.get('id') or conversation.get('conversation_id') or title)
-
     source, _ = AeonCorpusSource.objects.get_or_create(
-        source_type='conversation',
+        source_type=source_type,
         source_identifier=source_identifier,
         defaults={'title': title},
     )
@@ -442,11 +457,7 @@ def ingest_conversation_title(
     source.title = title
     source.status = 'processing'
     source.error_message = None
-    source.metadata = {
-        'conversation_id': conversation.get('conversation_id'),
-        'current_node': conversation.get('current_node'),
-        'source_file': str(_resolve_source_path(source_file)),
-    }
+    source.metadata = source_metadata
     source.save(update_fields=['title', 'status', 'error_message', 'metadata', 'updated_at'])
 
     turns = extract_main_path_turns(conversation)
@@ -495,6 +506,51 @@ def ingest_conversation_title(
     }
 
 
+def ingest_conversation_title(
+    title: str = DEFAULT_CONVERSATION_TITLE,
+    source_file: str = DEFAULT_SOURCE_FILE,
+) -> dict[str, Any]:
+    conversation = _find_conversation_by_title(source_file=source_file, title=title)
+    source_identifier = str(conversation.get('id') or conversation.get('conversation_id') or title)
+    return _ingest_conversation_object(
+        conversation=conversation,
+        title=title,
+        source_type='conversation',
+        source_identifier=source_identifier,
+        source_metadata={
+            'conversation_id': conversation.get('conversation_id'),
+            'current_node': conversation.get('current_node'),
+            'source_file': str(_resolve_source_path(source_file)),
+            'ingest_mode': 'title_lookup',
+        },
+    )
+
+
+def ingest_conversation_payload(conversation: dict[str, Any], title: str | None = None) -> dict[str, Any]:
+    if not isinstance(conversation, dict):
+        raise ValueError('conversation payload must be a JSON object')
+
+    resolved_title = (
+        title
+        or str(conversation.get('title') or '').strip()
+        or DEFAULT_CONVERSATION_TITLE
+    )
+    source_identifier = str(conversation.get('id') or conversation.get('conversation_id') or _hash_text(resolved_title))
+
+    return _ingest_conversation_object(
+        conversation=conversation,
+        title=resolved_title,
+        source_type='conversation_payload',
+        source_identifier=source_identifier,
+        source_metadata={
+            'conversation_id': conversation.get('conversation_id'),
+            'current_node': conversation.get('current_node'),
+            'source_file': None,
+            'ingest_mode': 'payload',
+        },
+    )
+
+
 def ingest_wordpress_urls(urls: list[str]) -> dict[str, Any]:
     if not urls:
         raise ValueError('At least one URL is required')
@@ -508,20 +564,29 @@ def ingest_wordpress_urls(urls: list[str]) -> dict[str, Any]:
         if not url:
             continue
 
+        post = None
+        
+        # Try WordPress DB fetch first
         try:
             post = _fetch_wordpress_post_from_db(url)
         except Exception as exc:
             logger.warning('WordPress DB fetch failed for %s: %s', url, exc)
-            post = None
 
+        # Fall back to web fetch if DB failed
         if not post:
-            post = _fetch_wordpress_post_from_web(url)
+            try:
+                post = _fetch_wordpress_post_from_web(url)
+            except Exception as exc:
+                logger.error('Web fetch also failed for %s: %s', url, exc)
+        
         if not post:
-            raise ValueError(f'Unable to fetch content for URL: {url}')
+            logger.error('Unable to fetch content for URL: %s (tried DB and web)', url)
+            continue  # Skip this URL and try the next one
 
         text = _html_to_text(post.get('html') or '')
         if not text:
-            raise ValueError(f'No textual content extracted for URL: {url}')
+            logger.warning('No textual content extracted for URL: %s', url)
+            continue  # Skip this URL and try the next one
 
         source_identifier = f"wp:{post['slug']}"
         source, _ = AeonCorpusSource.objects.get_or_create(
@@ -595,6 +660,9 @@ def ingest_wordpress_urls(urls: list[str]) -> dict[str, Any]:
                 'embedded_chunk_count': embedded_count,
             }
         )
+
+    if not per_source_results:
+        raise ValueError('Unable to ingest any of the provided URLs (all failed to fetch, extract text, or embed)')
 
     return {
         'source_count': len(per_source_results),

@@ -10,6 +10,7 @@ from ..aeon_service import (
     DEFAULT_CONVERSATION_TITLE,
     DEFAULT_SOURCE_FILE,
     get_corpus_dashboard,
+    ingest_conversation_payload,
     ingest_conversation_title,
     ingest_wordpress_urls,
     list_corpus_sources,
@@ -54,10 +55,16 @@ def aeon_ingest(request):
 
     title = payload.get('title') or DEFAULT_CONVERSATION_TITLE
     source_file = payload.get('source_file') or DEFAULT_SOURCE_FILE
+    conversation_payload = payload.get('conversation')
 
     try:
-        result = ingest_conversation_title(title=title, source_file=source_file)
+        if isinstance(conversation_payload, dict):
+            result = ingest_conversation_payload(conversation=conversation_payload, title=title)
+        else:
+            result = ingest_conversation_title(title=title, source_file=source_file)
         return JsonResponse({'ok': True, 'result': result})
+    except ValueError as exc:
+        return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
     except Exception as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=500)
 

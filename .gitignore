@@ -58,6 +58,7 @@ GEMINI_KEYS.md
 AEON_Chatbot.md
 verse_edit.md
 wrap_greek_headers_nt.py
+conversations.json
 
 # Django
 *.sqlite3
