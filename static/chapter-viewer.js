@@ -564,20 +564,12 @@ function initializeFootnotePopups() {
             const tmp = document.createElement('div');
             tmp.innerHTML = content || '';
 
-            const secondTd = tmp.querySelector('td:nth-child(2)');
-            if (secondTd) {
-                const nl = secondTd.querySelector('.note-location');
-                if (nl) nl.remove();
-                return secondTd.innerHTML.trim();
-            }
-
             const nl = tmp.querySelector('.note-location');
             if (nl) {
                 nl.remove();
-                return tmp.innerHTML.trim();
             }
 
-            return content;
+            return tmp.innerHTML.trim();
         } catch (e) {
             return content;
         }
