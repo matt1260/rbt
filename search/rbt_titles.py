@@ -22,7 +22,7 @@ rbt_books: dict[str, str] = {
     'Ezra': 'Helper',
     'Nehemiah': 'He Is Comforted',
     'Esther': 'Star',
-    'Job': 'Adversary',
+    'Job': 'Hated',
     'Psalms': 'Melodies',
     'Proverbs': 'Comparisons',
     'Ecclesiastes': 'Alignments of the Assembler',
