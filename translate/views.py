@@ -1768,6 +1768,8 @@ def translate(request):
                             chapter_num = ref.start_chapter
                             verse_num = ref.start_verse
                             reference = f'{book} {chapter_num}:{verse_num}'
+                        else:
+                            reference = verse_ref
                         update_text = f"Updated RBT translation for Hebrew {heb} as a uniquely defined word using '{eng_data}' in {reference}"
                         update_version = 'Hebrew Literal'
                         update_date = datetime.now()
@@ -1784,6 +1786,8 @@ def translate(request):
                             chapter_num = ref.start_chapter
                             verse_num = ref.start_verse
                             reference = f'{book} {chapter_num}:{verse_num}'
+                        else:
+                            reference = verse_ref
                         update_text = f"Updated RBT translation for Hebrew {heb} with {eng_data} in {reference}"
                         update_version = 'Hebrew Literal'
                         update_date = datetime.now()
@@ -1813,6 +1817,8 @@ def translate(request):
                             chapter_num = ref.start_chapter
                             verse_num = ref.start_verse
                             reference = f'{book} {chapter_num}:{verse_num}'
+                        else:
+                            reference = verse_ref
                         update_text = f"Updated RBT translation for Hebrew {heb} with {eng_data} in {reference}"
                         update_date = datetime.now()
                         update_version = 'Hebrew Literal'
@@ -1832,7 +1838,8 @@ def translate(request):
                 chapter_num = ref.start_chapter
                 verse_num = ref.start_verse
                 reference = f'{book} {chapter_num}:{verse_num}'
-
+            else:
+                reference = verse_ref
 
             update_text = f"Updated RBT Paraphrase for {reference}: {html}"
             update_date = datetime.now()
