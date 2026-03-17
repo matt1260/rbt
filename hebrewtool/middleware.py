@@ -5,6 +5,7 @@ Prevents bot flooding by implementing IP-based rate limiting
 and User-Agent filtering for suspicious crawlers.
 """
 
+import re
 import time
 import logging
 from django.http import HttpResponse, JsonResponse
@@ -446,12 +447,28 @@ class VisitorTrackingMiddleware:
             threading.Thread(target=self.log_visitor_mock, args=(ip, user_agent, path)).start()
             return response
             
-        # Basic bot detection
+        # Basic bot detection — keyword check
         bot_keywords = ['bot', 'spider', 'crawler', 'scraper', 'google', 'bing', 'yandex', 'baidu', 'curl', 'wget', 'python-requests']
         is_bot = any(keyword in user_agent.lower() for keyword in bot_keywords)
-        
+
+        if not is_bot:
+            # Heuristic: old Chrome versions (< 100) are almost always headless bots or
+            # scrapers in 2026 — Chrome 100 shipped April 2022, anything older is suspicious.
+            chrome_match = re.search(r'Chrome/(\d+)\.', user_agent)
+            if chrome_match and int(chrome_match.group(1)) < 100:
+                is_bot = True
+
+        if not is_bot:
+            # Heuristic: Windows NT 5.x / 6.0 / 6.1 (XP / Vista / Win 7) are all
+            # end-of-life and overwhelmingly used as fake UA strings by bot networks.
+            if re.search(r'Windows NT [56]\.[01]', user_agent):
+                is_bot = True
+
+        if not is_bot and not user_agent:
+            is_bot = True  # Empty UA = bot
+
         if is_bot:
-            return response # Don't log bots to save DB space and API calls
+            return response  # Don't log bots to save DB space and API calls
             
         # Run geolocation and logging in a background thread to avoid blocking the response
         threading.Thread(target=self.log_visitor, args=(ip, user_agent, path)).start()
@@ -501,22 +518,25 @@ class VisitorTrackingMiddleware:
                             'longitude': data.get('lon'),
                             'is_bot': is_bot_network
                         }
-                        # Cache for 24 hours
+                        # Cache for 24 hours (including bot-network flag so we skip them on repeat visits)
                         cache.set(cache_key, geo_data, 60 * 60 * 24)
             except Exception as e:
                 logger.error(f"Error fetching geoip for {ip}: {e}")
                 
         if geo_data:
+            # Skip storing records for known proxy/hosting IPs — they're bots and waste DB space.
+            if geo_data.get('is_bot', False):
+                return
             try:
                 VisitorLocation.objects.create(
-                    ip_address=None, # Privacy: don't store raw IP
+                    ip_address=None,  # Privacy: don't store raw IP
                     user_agent=user_agent,
                     path=path,
                     country=geo_data.get('country'),
                     city=geo_data.get('city'),
                     latitude=geo_data.get('latitude'),
                     longitude=geo_data.get('longitude'),
-                    is_bot=geo_data.get('is_bot', False)
+                    is_bot=False
                 )
             except Exception as e:
                 logger.error(f"Error saving visitor log: {e}")

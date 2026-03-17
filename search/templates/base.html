@@ -1308,6 +1308,147 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 </style>
 
 <style>
+/* Help / Support Modal */
+.help-modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.help-modal-backdrop.open {
+  display: flex;
+}
+.help-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem 2rem 1.75rem;
+  max-width: 480px;
+  width: 100%;
+  position: relative;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.22);
+}
+.help-modal h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.35rem;
+  color: #1a1a1a;
+}
+.help-modal-intro {
+  margin: 0 0 1.3rem;
+  color: #555;
+  font-size: 0.93rem;
+  line-height: 1.5;
+}
+.help-modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.9rem;
+  background: none;
+  border: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #888;
+  padding: 0.1rem 0.4rem;
+}
+.help-modal-close:hover { color: #111; }
+.help-modal-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.help-modal-links li a {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+.help-modal-links li a:hover {
+  background: #fafafa;
+  border-color: #c8c8c8;
+}
+.help-modal-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.help-modal-links strong {
+  display: block;
+  font-size: 0.95rem;
+  color: #111;
+}
+.help-modal-links small {
+  display: block;
+  font-size: 0.78rem;
+  color: #777;
+  margin-top: 0.1rem;
+  word-break: break-all;
+}
+/* Crypto address rows */
+.help-modal-crypto > div,
+.help-modal-crypto-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.help-modal-crypto-row:hover {
+  background: #fafafa;
+  border-color: #c8c8c8;
+}
+.help-modal-crypto-info {
+  flex: 1;
+  min-width: 0;
+}
+.help-modal-crypto-info strong {
+  display: block;
+  font-size: 0.95rem;
+  color: #111;
+}
+.help-modal-crypto-addr {
+  display: block;
+  font-size: 0.72rem;
+  color: #555;
+  word-break: break-all;
+  text-decoration: none;
+  margin-top: 0.1rem;
+}
+.help-modal-crypto-addr:hover { text-decoration: underline; color: #333; }
+.help-copy-btn {
+  flex-shrink: 0;
+  background: #f0f0f0;
+  border: 1px solid #d0d0d0;
+  border-radius: 5px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  color: #333;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.help-copy-btn:hover { background: #e0e0e0; }
+.help-copy-btn.copied {
+  background: #d4edda;
+  border-color: #28a745;
+  color: #155724;
+}
+</style>
+
+<style>
     .sun-icon {
         display: inline-block;
         position: relative;
@@ -1976,6 +2117,7 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
       <li><a href="https://www.realbible.tech/notes/">Notes</a></li>
       <li><a href="https://www.realbible.tech/methodology/">Methodology</a></li>
       <li><a href="https://www.realbible.tech/about/">About</a></li>
+      <li><a href="#" id="helpNavLink" onclick="openHelpModal(event)">Help</a></li>
     </ul>
     <a href="https://read.realbible.tech/" class="rbt-sanctum-cta">Search</a>
     <button class="rbt-sanctum-hamburger" id="rbtMenuToggle" aria-label="Toggle navigation" aria-expanded="false">
@@ -1990,10 +2132,69 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
       <li><a href="https://www.realbible.tech/notes/">Notes</a></li>
       <li><a href="https://www.realbible.tech/methodology/">Methodology</a></li>
       <li><a href="https://www.realbible.tech/about/">About</a></li>
+      <li><a href="#" onclick="openHelpModal(event)">Help</a></li>
     </ul>
   </div>
   <div class="rbt-sanctum-overlay" id="rbtOverlay"></div>
-		<div id="header-grid" class="hfg_header site-header" style="display:none">
+
+  <!-- Help / Support Modal -->
+  <div class="help-modal-backdrop" id="helpModalBackdrop" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+    <div class="help-modal">
+      <button class="help-modal-close" id="helpModalClose" aria-label="Close">&times;</button>
+      <h3 id="helpModalTitle">Support this Work</h3>
+      <p class="help-modal-intro">The Real Bible Translation Project is a reader-supported initiative. Here's how you can help:</p>
+      <ul class="help-modal-links">
+        <li>
+          <a href="https://www.paypal.com/donate/?hosted_button_id=6LHHSLKJCY4RY" target="_blank" rel="noopener">
+            <span class="help-modal-icon">&#x1F4B3;</span>
+            <span>
+              <strong>Donate via PayPal</strong>
+              <small>Support the project with a one-time or recurring donation</small>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="https://x.com/intent/tweet?hashtags=LetMyPeopleGo&text=Reading+the+Real+Bible+Translation+Project" target="_blank" rel="noopener">
+            <span class="help-modal-icon">&#x1D54F;</span>
+            <span>
+              <strong>Share on X &mdash; #LetMyPeopleGo</strong>
+              <small>Help spread the word about this translation</small>
+            </span>
+          </a>
+        </li>
+        <li class="help-modal-crypto">
+          <div class="help-modal-crypto-row">
+            <span class="help-modal-icon">&#x20BF;</span>
+            <span class="help-modal-crypto-info">
+              <strong>Bitcoin (SegWit)</strong>
+              <a href="https://mempool.space/address/bc1qcwsz2yen5f9xy7dyxma3f4wrmrck7htgwnj6al" target="_blank" rel="noopener" class="help-modal-crypto-addr">bc1qcwsz2yen5f9xy7dyxma3f4wrmrck7htgwnj6al</a>
+            </span>
+            <button class="help-copy-btn" data-copy="bc1qcwsz2yen5f9xy7dyxma3f4wrmrck7htgwnj6al" title="Copy address">Copy</button>
+          </div>
+        </li>
+        <li class="help-modal-crypto">
+          <div class="help-modal-crypto-row">
+            <span class="help-modal-icon">&#x20BF;</span>
+            <span class="help-modal-crypto-info">
+              <strong>Bitcoin (Legacy)</strong>
+              <a href="https://mempool.space/address/39uKaNJLdSoebw8Sggd6mZegRZb7tu2C3y" target="_blank" rel="noopener" class="help-modal-crypto-addr">39uKaNJLdSoebw8Sggd6mZegRZb7tu2C3y</a>
+            </span>
+            <button class="help-copy-btn" data-copy="39uKaNJLdSoebw8Sggd6mZegRZb7tu2C3y" title="Copy address">Copy</button>
+          </div>
+        </li>
+        <li class="help-modal-crypto">
+          <div class="help-modal-crypto-row">
+            <span class="help-modal-icon">&#x25C7;</span>
+            <span class="help-modal-crypto-info">
+              <strong>Ethereum (ETH)</strong>
+              <a href="https://etherscan.io/address/0x8DA15DC1f2b01BD6D270cEA4bf99A78c3DE0C50F" target="_blank" rel="noopener" class="help-modal-crypto-addr">0x8DA15DC1f2b01BD6D270cEA4bf99A78c3DE0C50F</a>
+            </span>
+            <button class="help-copy-btn" data-copy="0x8DA15DC1f2b01BD6D270cEA4bf99A78c3DE0C50F" title="Copy address">Copy</button>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div> class="hfg_header site-header" style="display:none">
 	
 <nav class="header--row header-main hide-on-mobile hide-on-tablet layout-full-contained nv-navbar header--row" data-row-id="main" data-show-on="desktop">
 
@@ -2401,6 +2602,71 @@ function toggleAriaClick() { function toggleAriaExpanded(toggle = 'true') { docu
     });
   }
   document.addEventListener('DOMContentLoaded', initSanctumNav);
+})();
+</script>
+
+<script>
+// Help / Support Modal
+function openHelpModal(e) {
+  if (e) e.preventDefault();
+  var backdrop = document.getElementById('helpModalBackdrop');
+  if (!backdrop) return;
+  backdrop.classList.add('open');
+  backdrop.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  var closeBtn = document.getElementById('helpModalClose');
+  if (closeBtn) closeBtn.focus();
+}
+// Copy-to-clipboard for crypto addresses
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.help-copy-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var text = btn.getAttribute('data-copy');
+      if (!text) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() { showCopied(btn); });
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); showCopied(btn); } catch(err) {}
+        document.body.removeChild(ta);
+      }
+    });
+  });
+  function showCopied(btn) {
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      btn.textContent = orig;
+      btn.classList.remove('copied');
+    }, 2000);
+  }
+});
+(function() {
+  function closeHelpModal() {
+    var backdrop = document.getElementById('helpModalBackdrop');
+    if (!backdrop) return;
+    backdrop.classList.remove('open');
+    backdrop.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    var closeBtn = document.getElementById('helpModalClose');
+    var backdrop = document.getElementById('helpModalBackdrop');
+    if (closeBtn) closeBtn.addEventListener('click', closeHelpModal);
+    if (backdrop) backdrop.addEventListener('click', function(e) {
+      if (e.target === backdrop) closeHelpModal();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeHelpModal();
+    });
+  });
 })();
 </script>
 
