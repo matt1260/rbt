@@ -45,15 +45,8 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 LOGEION_KEY = os.environ.get('LOGEION_KEY', 'AIzaSyCT5aVzk3Yx-m8FH8rmTpEgfVyVA3pYbqg')
 
 # Coinbase Advanced Trade API (CDP)
-COINBASE_API_KEY_NAME = os.environ.get(
-    'COINBASE_API_KEY_NAME',
-    'organizations/f4fd613e-6b9f-4eab-ad92-abc3e19ac839/apiKeys/7966f426-7eac-4049-9375-17269b16e82a',
-)
-# Private key stored with literal \n — convert at runtime
-COINBASE_API_PRIVATE_KEY = os.environ.get(
-    'COINBASE_API_PRIVATE_KEY',
-    '-----BEGIN EC PRIVATE KEY-----\\nMHcCAQEEIB18Y7EaQeD20ym1HkwKNLF+pg5nZPKR+7jgBir+uyjWoAoGCCqGSM49\\nAwEHoUQDQgAEXwxnV8cC1TWqRSMEEFCr9yd/c/gnnEBKvAnUfMvs8O8QJwwYMcRq\\n6MAl+s9rJ285itc8K57DdqNbl5reKtr+BA==\\n-----END EC PRIVATE KEY-----\\n',
-)
+COINBASE_API_KEY_NAME = os.environ.get('COINBASE_API_KEY_NAME')
+COINBASE_API_PRIVATE_KEY = os.environ.get('COINBASE_API_PRIVATE_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
