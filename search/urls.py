@@ -37,4 +37,7 @@ urlpatterns = [
     path('aeon/ingest/', views.aeon_ingest, name='aeon_ingest'),
     path('aeon/ingest-wordpress/', views.aeon_ingest_wordpress, name='aeon_ingest_wordpress'),
     path('aeon/query/', views.aeon_query, name='aeon_query'),
+
+    # Coinbase donation wallet balances
+    path('crypto/balances/', views.crypto_balances, name='crypto_balances'),
 ]

@@ -1446,6 +1446,42 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
   border-color: #28a745;
   color: #155724;
 }
+.help-balance {
+  font-size: 0.78rem;
+  font-weight: normal;
+  color: #28a745;
+  margin-left: 0.3rem;
+}
+.help-modal-balances {
+  display: flex;
+  gap: 1.2rem;
+  margin: 0.4rem 0 0.8rem;
+}
+.help-modal-balance-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #f0faf4;
+  border: 1px solid #c3e6cb;
+  border-radius: 99px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+}
+.help-balance-label {
+  font-weight: 600;
+  color: #555;
+}
+.help-modal-balance-total {
+  background: #fff8e1;
+  border-color: #ffe082;
+}
+.help-modal-balance-total .help-balance-label {
+  color: #7a5f00;
+}
+.help-modal-balance-total .help-balance {
+  color: #b8860b;
+  font-weight: 600;
+}
 </style>
 
 <style>
@@ -2142,7 +2178,12 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
     <div class="help-modal">
       <button class="help-modal-close" id="helpModalClose" aria-label="Close">&times;</button>
       <h3 id="helpModalTitle">Support this Work</h3>
-      <p class="help-modal-intro">The Real Bible Translation Project is a reader-supported initiative. Here's how you can help:</p>
+      <p class="help-modal-intro">The Real Bible Translation Project is a reader-supported initiative because the world is rigged against truth. Here's how you can help:</p>
+      <div class="help-modal-balances">
+        <span class="help-modal-balance-item"><span class="help-balance-label">BTC</span> <span class="help-balance" id="balance-BTC"></span></span>
+        <span class="help-modal-balance-item"><span class="help-balance-label">ETH</span> <span class="help-balance" id="balance-ETH"></span></span>
+        <span class="help-modal-balance-item help-modal-balance-total"><span class="help-balance-label">Total</span> <span class="help-balance" id="balance-total-usd"></span></span>
+      </div>
       <ul class="help-modal-links">
         <li>
           <a href="https://www.paypal.com/donate/?hosted_button_id=6LHHSLKJCY4RY" target="_blank" rel="noopener">
@@ -2166,20 +2207,10 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
           <div class="help-modal-crypto-row">
             <span class="help-modal-icon">&#x20BF;</span>
             <span class="help-modal-crypto-info">
-              <strong>Bitcoin (SegWit)</strong>
-              <a href="https://mempool.space/address/bc1qcwsz2yen5f9xy7dyxma3f4wrmrck7htgwnj6al" target="_blank" rel="noopener" class="help-modal-crypto-addr">bc1qcwsz2yen5f9xy7dyxma3f4wrmrck7htgwnj6al</a>
+              <strong>Bitcoin (BTC)</strong>
+              <a href="https://mempool.space/address/3QDFmrY14HoQbnDNk5GBey4NQUg9ZLpggc" target="_blank" rel="noopener" class="help-modal-crypto-addr">3QDFmrY14HoQbnDNk5GBey4NQUg9ZLpggc</a>
             </span>
-            <button class="help-copy-btn" data-copy="bc1qcwsz2yen5f9xy7dyxma3f4wrmrck7htgwnj6al" title="Copy address">Copy</button>
-          </div>
-        </li>
-        <li class="help-modal-crypto">
-          <div class="help-modal-crypto-row">
-            <span class="help-modal-icon">&#x20BF;</span>
-            <span class="help-modal-crypto-info">
-              <strong>Bitcoin (Legacy)</strong>
-              <a href="https://mempool.space/address/39uKaNJLdSoebw8Sggd6mZegRZb7tu2C3y" target="_blank" rel="noopener" class="help-modal-crypto-addr">39uKaNJLdSoebw8Sggd6mZegRZb7tu2C3y</a>
-            </span>
-            <button class="help-copy-btn" data-copy="39uKaNJLdSoebw8Sggd6mZegRZb7tu2C3y" title="Copy address">Copy</button>
+            <button class="help-copy-btn" data-copy="3QDFmrY14HoQbnDNk5GBey4NQUg9ZLpggc" title="Copy address">Copy</button>
           </div>
         </li>
         <li class="help-modal-crypto">
@@ -2194,7 +2225,8 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
         </li>
       </ul>
     </div>
-  </div> class="hfg_header site-header" style="display:none">
+  </div>
+<div class="hfg_header site-header" style="display:none">
 	
 <nav class="header--row header-main hide-on-mobile hide-on-tablet layout-full-contained nv-navbar header--row" data-row-id="main" data-show-on="desktop">
 
@@ -2500,7 +2532,7 @@ html { scroll-behavior: smooth; }
       <ul class="sanctum-footer-nav">
         <li><a href="https://www.paypal.com/donate/?hosted_button_id=6LHHSLKJCY4RY" target="_blank" rel="noopener">Donate via PayPal</a></li>
         <li><a href="https://x.com/intent/tweet?hashtags=LetMyPeopleGo&text=Reading+the+Real+Bible+Translation+Project" target="_blank" rel="noopener">Share on X #LetMyPeopleGo</a></li>
-        <li><a href="https://mempool.space/address/bc1qcwsz2yen5f9xy7dyxma3f4wrmrck7htgwnj6al" target="_blank" rel="noopener">Donate Crypto (BTC)</a></li>
+        <li><a href="https://mempool.space/address/3QDFmrY14HoQbnDNk5GBey4NQUg9ZLpggc" target="_blank" rel="noopener">Donate Crypto (BTC)</a></li>
       </ul>
     </div>
   </div>
@@ -2616,6 +2648,38 @@ function openHelpModal(e) {
   document.body.style.overflow = 'hidden';
   var closeBtn = document.getElementById('helpModalClose');
   if (closeBtn) closeBtn.focus();
+  // Fetch live Coinbase balances
+  var currencies = ['BTC', 'ETH'];
+  currencies.forEach(function(c) {
+    var el = document.getElementById('balance-' + c);
+    if (el && !el.dataset.loaded) el.textContent = '…';
+  });
+  fetch('/crypto/balances/')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      currencies.forEach(function(c) {
+        var el = document.getElementById('balance-' + c);
+        if (!el) return;
+        if (data[c] !== undefined) {
+          el.textContent = parseFloat(data[c]).toPrecision(4);
+          el.dataset.loaded = '1';
+        } else {
+          el.textContent = '';
+        }
+      });
+      var totalEl = document.getElementById('balance-total-usd');
+      if (totalEl && data.total_usd !== undefined) {
+        var usd = parseFloat(data.total_usd);
+        totalEl.textContent = '$' + usd.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        totalEl.dataset.loaded = '1';
+      }
+    })
+    .catch(function() {
+      currencies.forEach(function(c) {
+        var el = document.getElementById('balance-' + c);
+        if (el) el.textContent = '';
+      });
+    });
 }
 // Copy-to-clipboard for crypto addresses
 document.addEventListener('DOMContentLoaded', function() {

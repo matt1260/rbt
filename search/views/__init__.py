@@ -109,6 +109,11 @@ from .aeon_views import (
     aeon_query,
 )
 
+# Coinbase balance API
+from .crypto_views import (
+    crypto_balances,
+)
+
 __all__ = [
     # Utils
     'HEBREW_RANGE',
