@@ -65,16 +65,204 @@ def update_count(request):
         return response
 
 
+def _parse_ref_to_chapter(ref_str):
+    """Parse a reference string to (book_abbreviation, chapter_number) or None."""
+    ref_str = re.sub(r'\s*-\s*\S+$', '', ref_str.strip())
+    # Dot format: 'Job.1.21', '1Ki.18.16', 'Act.16.3'
+    dot_match = re.match(r'^([A-Za-z0-9]+)\.(\d+)\.', ref_str)
+    if dot_match:
+        return dot_match.group(1), int(dot_match.group(2))
+    # Space:colon format: 'Acts 16:3', '1 John 1:5', 'Genesis 10:22'
+    space_match = re.match(r'^(.+?)\s+(\d+):', ref_str)
+    if space_match:
+        book_name = space_match.group(1).strip()
+        chapter = int(space_match.group(2))
+        abbrev = book_abbreviations.get(book_name, book_name)
+        return abbrev, chapter
+    return None
+
+
+def _parse_ref_verse_num(ref_str):
+    """Extract the verse number from a reference string, or None."""
+    ref_str = re.sub(r'\s*-\s*\S+$', '', ref_str.strip())
+    dot_match = re.match(r'^[A-Za-z0-9]+\.\d+\.(\d+)', ref_str)
+    if dot_match:
+        return int(dot_match.group(1))
+    space_match = re.match(r'^.+?\s+\d+:(\d+)', ref_str)
+    if space_match:
+        return int(space_match.group(1))
+    return None
+
+
+def _get_recently_completed_chapters(days=30, limit=5):
+    """Return the most recently completed chapters across OT and NT.
+
+    A chapter is "recently completed" if a significant portion of its verses
+    were edited within the lookback window:
+    - NT: distinct verse edits / total verses >= 70%
+    - OT: same, or >= 10% when bulk [] entries exist on the same dates
+      (the [] bug caused OT verse edits to lose their reference)
+
+    The completion date is the date the last verse was *first* saved.
+    """
+    abbrev_to_name = {}
+    for name, abbrev in book_abbreviations.items():
+        if abbrev not in abbrev_to_name:
+            abbrev_to_name[abbrev] = name
+
+    cutoff = datetime.now() - timedelta(days=days)
+
+    try:
+        # -- Batch-fetch recent entries (for coverage filter) --
+        recent_entries = list(
+            TranslationUpdates.objects.filter(date__gte=cutoff)
+            .exclude(reference='[]')
+            .values_list('reference', 'date')
+        )
+        chapter_edits = {}
+        for ref_str, dt in recent_entries:
+            parsed = _parse_ref_to_chapter(ref_str)
+            if not parsed:
+                continue
+            key = parsed
+            if key not in chapter_edits:
+                chapter_edits[key] = {'refs': set(), 'dates': set()}
+            chapter_edits[key]['refs'].add(ref_str)
+            chapter_edits[key]['dates'].add(dt.date())
+
+        # -- Bracket-entry counts per date (OT heuristic) --
+        bracket_by_date = {}
+        for dt in (
+            TranslationUpdates.objects.filter(
+                date__gte=cutoff,
+                reference='[]',
+                version__in=['Paraphrase', 'Hebrew Literal'],
+            ).values_list('date', flat=True)
+        ):
+            d = dt.date()
+            bracket_by_date[d] = bracket_by_date.get(d, 0) + 1
+
+        # -- Batch-fetch ALL entries (for first-save dating) --
+        all_entries = list(
+            TranslationUpdates.objects
+            .exclude(reference='[]')
+            .values_list('reference', 'date')
+        )
+        # Build per-chapter per-verse first-save dates
+        verse_first_save = {}   # (abbrev, chapter) -> {verse_num: earliest_date}
+        for ref_str, dt in all_entries:
+            parsed = _parse_ref_to_chapter(ref_str)
+            if not parsed:
+                continue
+            v = _parse_ref_verse_num(ref_str)
+            if v is None:
+                continue
+            key = parsed
+            if key not in verse_first_save:
+                verse_first_save[key] = {}
+            if v not in verse_first_save[key] or dt < verse_first_save[key][v]:
+                verse_first_save[key][v] = dt
+
+        recently_completed = []
+
+        # -- NT completed chapters --
+        nt_rows = execute_query(
+            """SELECT book, chapter, COUNT(*) AS total,
+                      COUNT(CASE WHEN rbt IS NOT NULL AND TRIM(rbt) != '' THEN 1 END) AS filled
+               FROM new_testament.nt GROUP BY book, chapter""",
+            fetch='all',
+        )
+        for book_abbrev, chapter, total, filled in (nt_rows or []):
+            if total == 0 or filled < total:
+                continue
+            chapter = int(chapter)
+            edits = chapter_edits.get((book_abbrev, chapter))
+            if not edits:
+                continue
+            coverage = len(edits['refs']) / total
+            if coverage < 0.70:
+                continue
+            # Completion date = when the last verse was first saved
+            first_saves = verse_first_save.get((book_abbrev, chapter), {})
+            completion_date = max(first_saves.values()).date() if first_saves else None
+            display_name = abbrev_to_name.get(book_abbrev, book_abbrev)
+            recently_completed.append({
+                'book': display_name,
+                'chapter': chapter,
+                'total_verses': total,
+                'last_updated': completion_date,
+                'testament': 'NT',
+                'url': f'?book={display_name.replace(" ", "_")}&chapter={chapter}&verse=1',
+            })
+
+        # -- OT completed chapters --
+        ot_rows = execute_query(
+            """SELECT book, chapter, COUNT(*) AS total,
+                      COUNT(CASE WHEN html IS NOT NULL AND TRIM(html) != '' THEN 1 END) AS filled
+               FROM old_testament.ot GROUP BY book, chapter""",
+            fetch='all',
+        )
+        for book_abbrev, chapter, total, filled in (ot_rows or []):
+            if total == 0 or filled < total:
+                continue
+            chapter = int(chapter)
+            edits = chapter_edits.get((book_abbrev, chapter))
+            if not edits:
+                continue
+            distinct_refs = len(edits['refs'])
+            coverage = distinct_refs / total
+
+            is_completed = coverage >= 0.40
+            # Secondary: lower coverage + bulk [] entries on same dates
+            if not is_completed and coverage >= 0.10 and distinct_refs >= 3:
+                bracket_volume = sum(
+                    bracket_by_date.get(d, 0) for d in edits['dates']
+                )
+                is_completed = bracket_volume > 0
+            if not is_completed:
+                continue
+
+            first_saves = verse_first_save.get((book_abbrev, chapter), {})
+            completion_date = max(first_saves.values()).date() if first_saves else None
+            display_name = abbrev_to_name.get(book_abbrev, book_abbrev)
+            recently_completed.append({
+                'book': display_name,
+                'chapter': chapter,
+                'total_verses': total,
+                'last_updated': completion_date,
+                'testament': 'OT',
+                'url': f'?book={display_name.replace(" ", "_")}&chapter={chapter}&verse=1',
+            })
+
+        recently_completed.sort(
+            key=lambda x: x['last_updated'] or datetime.min.date(),
+            reverse=True,
+        )
+        return recently_completed[:limit]
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception('Error fetching recently completed chapters: %s', e)
+        return []
+
+
 def updates(request):
     """
     Translation updates page showing changes by date or month.
+    Entire page is cached for 12 hours, keyed by query params.
     
     Query params:
     - date: Show updates for specific date (YYYY-MM-DD)
     - month: Show updates for specific month number
     """
-    date_param = request.GET.get('date')
-    month_param = request.GET.get('month')
+    date_param = request.GET.get('date', '')
+    month_param = request.GET.get('month', '')
+
+    cache_key = f'updates_page_{date_param}_{month_param}'
+    cached_response = cache.get(cache_key)
+    if cached_response is not None:
+        return cached_response
+
     today = datetime.now()
 
     if date_param:
@@ -165,6 +353,11 @@ def updates(request):
             'url': url,
         })
 
+    completion_data = cache.get('recently_completed_chapters')
+    if completion_data is None:
+        completion_data = _get_recently_completed_chapters()
+        cache.set('recently_completed_chapters', completion_data, 12 * 60 * 60)
+
     context = {
         'month': month_param if month_param else date_param if date_param else datetime.now().strftime('%B %Y'),
         'updates': update_entries,
@@ -172,9 +365,12 @@ def updates(request):
         'previous_month': previous_month,
         'current_month': current_month,
         'current_day': current_day,
+        'recently_completed': completion_data,
     }
 
-    return render(request, 'updates.html', context)
+    response = render(request, 'updates.html', context)
+    cache.set(cache_key, response, 12 * 60 * 60)  # 12 hours
+    return response
 
 
 def get_results(book, chapter_num, verse_num=None, language='en'):

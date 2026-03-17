@@ -39,6 +39,29 @@
 
     <h1>Translation Updates for {{ month }}</h1>
   <a href="?month={{previous_month}}"">See previous month</a> | <a href="?month={{current_month}}"">See current month</a> | <a href="?date={{current_day}}"">See current day</a>
+
+    {% if recently_completed %}
+    <h2 style="margin-top: 2rem;">Recently Completed Chapters</h2>
+    <table>
+      <thead>
+          <tr>
+              <th class="date-cell">Completed</th>
+              <th class="reference-cell">Chapter</th>
+              <th class="reference-cell">Verses</th>
+          </tr>
+      </thead>
+      <tbody>
+          {% for ch in recently_completed %}
+          <tr>
+              <td class="date-cell">{{ ch.last_updated }}</td>
+              <td class="reference-cell"><a href="../{{ ch.url }}">{{ ch.book }} {{ ch.chapter }}</a></td>
+              <td class="reference-cell">{{ ch.total_verses }}</td>
+          </tr>
+          {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
     {% if updates %}
     <p>{{ update_count }} updates</p>
 
