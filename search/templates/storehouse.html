@@ -207,6 +207,8 @@ function hideTranslationLoading() {
     {% if footnotes %}
     <div id="footnotesToggleButton"><i class="fas fa-book"></i>Notes (N)</div>
     {% endif %}
+    <div id="fontDecreaseButton"><i class="fas fa-minus"></i></div>
+    <div id="fontIncreaseButton"><i class="fas fa-plus"></i></div>
     {% if paraphrase %}
     <div id="languageSelector" class="language-selector" onclick="openLanguageModal()" aria-haspopup="dialog" role="button" title="Select language">
         <i class="fas fa-language"></i> <span class="language-label">{{ supported_languages|get_item:current_language|default:'English' }}</span>
@@ -720,6 +722,10 @@ document.addEventListener('DOMContentLoaded', function() {
             toggleParentheses();
         } else if (key === 'Escape' && isFootnotesVisible && isMobile()) {
             toggleFootnotes();
+        } else if ((key === '+' || key === '=') && fontIncreaseButton) {
+            fontIncreaseButton.click();
+        } else if ((key === '-' || key === '_') && fontDecreaseButton) {
+            fontDecreaseButton.click();
         }
     }
 
@@ -731,6 +737,21 @@ document.addEventListener('DOMContentLoaded', function() {
     if (footnotesToggleButton) footnotesToggleButton.addEventListener('click', toggleFootnotes);
     if (parenthesesToggleButton) parenthesesToggleButton.addEventListener('click', toggleParentheses);
     if (closeSidebarButton) closeSidebarButton.addEventListener('click', toggleFootnotes);
+
+    // Font size controls
+    const fontDecreaseButton = document.getElementById('fontDecreaseButton');
+    const fontIncreaseButton = document.getElementById('fontIncreaseButton');
+    let currentFontSize = 100;
+    const MIN_FONT_SIZE = 80, MAX_FONT_SIZE = 150, FONT_STEP = 10;
+    function updateFontSize() {
+        const target = document.getElementById('mainTextArea') || document.getElementById('container');
+        if (target) { target.style.fontSize = currentFontSize + '%'; }
+        localStorage.setItem('chapterFontSize', currentFontSize);
+    }
+    const savedFS = localStorage.getItem('chapterFontSize');
+    if (savedFS) { currentFontSize = parseInt(savedFS); updateFontSize(); }
+    if (fontIncreaseButton) fontIncreaseButton.addEventListener('click', function() { if (currentFontSize < MAX_FONT_SIZE) { currentFontSize += FONT_STEP; updateFontSize(); } });
+    if (fontDecreaseButton) fontDecreaseButton.addEventListener('click', function() { if (currentFontSize > MIN_FONT_SIZE) { currentFontSize -= FONT_STEP; updateFontSize(); } });
 
     document.querySelectorAll('.footnote-link').forEach(link => {
         link.addEventListener('click', function(e) {

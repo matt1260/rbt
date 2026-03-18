@@ -114,6 +114,8 @@ function hideTranslationLoadingLocal(){const m=document.getElementById('translat
     <div id="copticToggleButton" class="{% if panel == 'coptic' %}active-panel{% endif %}"><i class="fas fa-scroll"></i> Coptic (C)</div>
     <div id="notesToggleButton" class="{% if panel == 'notes' %}active-panel{% endif %}"><i class="fas fa-sticky-note"></i> Notes (N)</div>
     <div id="commentaryToggleButton" class="{% if panel == 'commentary' %}active-panel{% endif %}"><i class="fas fa-book-open"></i> Commentary</div>
+    <div id="fontDecreaseButton"><i class="fas fa-minus"></i></div>
+    <div id="fontIncreaseButton"><i class="fas fa-plus"></i></div>
     <div id="languageSelector" class="language-selector" onclick="openLanguageModal()" aria-haspopup="dialog" role="button" title="Select language">
         <i class="fas fa-language"></i> <span class="language-label">{{ supported_languages|get_item:current_language|default:'English' }}</span>
     </div>
@@ -306,10 +308,24 @@ document.addEventListener('DOMContentLoaded', function() {
     if (h5ToggleButton) h5ToggleButton.addEventListener('click', toggleH5Headers);
     if (imageToggleButton) imageToggleButton.addEventListener('click', toggleImages);
 
+    // Font size controls
+    const fontDecreaseButton = document.getElementById('fontDecreaseButton');
+    const fontIncreaseButton = document.getElementById('fontIncreaseButton');
+    let currentFontSize = 100;
+    const MIN_FONT_SIZE = 80, MAX_FONT_SIZE = 150, FONT_STEP = 10;
+    function updateFontSize() {
+        const target = document.getElementById('mainTextArea') || document.getElementById('container');
+        if (target) { target.style.fontSize = currentFontSize + '%'; }
+        localStorage.setItem('chapterFontSize', currentFontSize);
+    }
+    const savedFS = localStorage.getItem('chapterFontSize');
+    if (savedFS) { currentFontSize = parseInt(savedFS); updateFontSize(); }
+    if (fontIncreaseButton) fontIncreaseButton.addEventListener('click', function() { if (currentFontSize < MAX_FONT_SIZE) { currentFontSize += FONT_STEP; updateFontSize(); } });
+    if (fontDecreaseButton) fontDecreaseButton.addEventListener('click', function() { if (currentFontSize > MIN_FONT_SIZE) { currentFontSize -= FONT_STEP; updateFontSize(); } });
+
     // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-        // Don't interfere with browser shortcuts (Ctrl+C, Cmd+C, etc.)
         if (e.ctrlKey || e.metaKey) return;
         const key = e.key.toLowerCase();
         if (key === 'p' && parenthesesToggleButton) toggleParentheses();
@@ -326,6 +342,12 @@ document.addEventListener('DOMContentLoaded', function() {
         else if (key === 'n') {
             const btn = document.getElementById('notesToggleButton');
             if (btn) btn.click();
+        }
+        else if (e.key === '+' || e.key === '=') {
+            if (fontIncreaseButton) fontIncreaseButton.click();
+        }
+        else if (e.key === '-' || e.key === '_') {
+            if (fontDecreaseButton) fontDecreaseButton.click();
         }
     });
 });
