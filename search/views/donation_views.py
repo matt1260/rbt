@@ -191,6 +191,14 @@ def donation_totals(request):
     # PayPal
     try:
         result["paypal_usd"] = _paypal_donations_last_30_days()
+    except requests.exceptions.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 403:
+            logger.warning(
+                "PayPal Transaction Search returned 403 – enable the "
+                "'Transaction Search' permission in the PayPal Developer Dashboard."
+            )
+        else:
+            logger.exception("Failed to fetch PayPal donations")
     except Exception:
         logger.exception("Failed to fetch PayPal donations")
 
