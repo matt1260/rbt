@@ -41,4 +41,6 @@ urlpatterns = [
     # Coinbase donation wallet balances
     path('crypto/balances/', views.crypto_balances, name='crypto_balances'),
 
+    # Monthly donation totals (PayPal + crypto)
+    path('donations/totals/', views.donation_totals, name='donation_totals'),
 ]

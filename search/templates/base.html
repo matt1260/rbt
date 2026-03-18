@@ -1482,6 +1482,20 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
   color: #b8860b;
   font-weight: 600;
 }
+.help-modal-donations-row {
+  margin-top: 0.35rem;
+}
+.help-modal-donations-row .help-modal-balance-total {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+}
+.help-modal-donations-row .help-balance-label {
+  color: #2e7d32;
+}
+.help-modal-donations-row .help-balance {
+  color: #1b5e20;
+  font-weight: 600;
+}
 </style>
 
 <style>
@@ -2184,6 +2198,9 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
         <span class="help-modal-balance-item"><span class="help-balance-label">ETH</span> <span class="help-balance" id="balance-ETH"></span></span>
         <span class="help-modal-balance-item help-modal-balance-total"><span class="help-balance-label">Total</span> <span class="help-balance" id="balance-total-usd"></span></span>
       </div>
+      <div class="help-modal-balances help-modal-donations-row">
+        <span class="help-modal-balance-item help-modal-balance-total"><span class="help-balance-label">Donated This Month</span> <span class="help-balance" id="donations-month-total"></span></span>
+      </div>
       <ul class="help-modal-links">
         <li>
           <a href="https://www.paypal.com/donate/?hosted_button_id=6LHHSLKJCY4RY" target="_blank" rel="noopener">
@@ -2679,6 +2696,21 @@ function openHelpModal(e) {
         var el = document.getElementById('balance-' + c);
         if (el) el.textContent = '';
       });
+    });
+  // Fetch monthly donation totals
+  var donEl = document.getElementById('donations-month-total');
+  if (donEl && !donEl.dataset.loaded) donEl.textContent = '…';
+  fetch('/donations/totals/')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (donEl && data.total_usd !== undefined) {
+        var usd = parseFloat(data.total_usd);
+        donEl.textContent = '$' + usd.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        donEl.dataset.loaded = '1';
+      }
+    })
+    .catch(function() {
+      if (donEl) donEl.textContent = '';
     });
 }
 // Copy-to-clipboard for crypto addresses

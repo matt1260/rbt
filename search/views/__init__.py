@@ -114,6 +114,11 @@ from .crypto_views import (
     crypto_balances,
 )
 
+# Donation totals (PayPal + crypto)
+from .donation_views import (
+    donation_totals,
+)
+
 __all__ = [
     # Utils
     'HEBREW_RANGE',
