@@ -14,7 +14,7 @@ from django.views.decorators.http import require_GET
 
 logger = logging.getLogger(__name__)
 
-_CACHE_KEY = "donation_totals_v1"
+_CACHE_KEY = "donation_totals_v2"
 _CACHE_TTL = 3600  # 1 hour
 
 _BTC_ADDRESS = "3QDFmrY14HoQbnDNk5GBey4NQUg9ZLpggc"
