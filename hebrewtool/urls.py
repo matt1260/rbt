@@ -16,8 +16,9 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from django.contrib.auth import views as auth_views
-from django.http import HttpResponse
+from django.http import HttpResponse, FileResponse
 from django.contrib.sitemaps.views import sitemap
+from django.conf import settings
 from search.sitemaps import BibleChapterSitemap, StaticViewSitemap
 
 from translate import views
@@ -26,6 +27,11 @@ from .human_verification import human_challenge, human_verify
 
 def health_check(request):
     return HttpResponse("OK", content_type="text/plain")
+
+def apple_pay_domain_association(request):
+    """Serve the Apple Pay domain association file required by Apple to verify the merchant domain."""
+    file_path = settings.BASE_DIR / 'apple-developer-merchantid-domain-association'
+    return FileResponse(open(file_path, 'rb'), content_type='application/octet-stream')
 
 def robots_txt(request):
     lines = [
@@ -45,6 +51,7 @@ sitemaps_dict = {
 
 urlpatterns = [
     path('health', health_check, name='health_check'),
+    path('.well-known/apple-developer-merchantid-domain-association', apple_pay_domain_association, name='apple_pay_domain_association'),
     path('sitemap.xml', sitemap, {'sitemaps': sitemaps_dict}, name='django.contrib.sitemaps.views.sitemap'),
     path('robots.txt', robots_txt, name='robots_txt'),
     path('admin/', admin.site.urls),

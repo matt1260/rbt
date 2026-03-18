@@ -51,7 +51,7 @@ class RateLimitMiddleware:
         # Skip rate limiting for static/media and common benign endpoints (assets, health checks)
         path = request.path or ''
         static_prefix = getattr(settings, 'STATIC_URL', '/static/')
-        if path.startswith(static_prefix) or path.startswith('/media/') or path in ('/favicon.ico', '/robots.txt', '/healthz'):
+        if path.startswith(static_prefix) or path.startswith('/media/') or path in ('/favicon.ico', '/robots.txt', '/healthz') or path.startswith('/.well-known/'):
             return self.get_response(request)
 
         # Skip rate limiting for translation polling endpoints to avoid accidental bans
@@ -383,7 +383,7 @@ class BotFilterMiddleware:
         # (e.g. WordPress wp_remote_get sends a UA containing 'https://' which
         #  matches the broad 'http' blocked pattern)
         skip_paths = ('/update_count/', '/health', '/robots.txt', '/sitemap.xml')
-        if request.path in skip_paths or request.path.startswith('/api/'):
+        if request.path in skip_paths or request.path.startswith('/api/') or request.path.startswith('/.well-known/'):
             return self.get_response(request)
 
         user_agent = request.META.get('HTTP_USER_AGENT', '').lower()

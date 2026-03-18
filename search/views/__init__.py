@@ -114,6 +114,12 @@ from .crypto_views import (
     crypto_balances,
 )
 
+# PayPal Apple Pay donation API
+from .paypal_views import (
+    paypal_create_order,
+    paypal_capture_order,
+)
+
 __all__ = [
     # Utils
     'HEBREW_RANGE',

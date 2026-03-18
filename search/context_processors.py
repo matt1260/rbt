@@ -1,4 +1,5 @@
 from urllib.parse import urlencode
+from django.conf import settings
 
 def seo_context(request):
     """
@@ -10,6 +11,7 @@ def seo_context(request):
         'meta_title': 'Real Bible Translation Project',
         'meta_description': 'The Real Bible Translation Project focuses on precise, trustworthy translations of scripture using extensive tools and comprehensive linguistic workflows.',
         'meta_keywords': 'Bible, Translation, Hebrew, Greek, RBT, Real Bible Translation',
+        'PAYPAL_CLIENT_ID': settings.PAYPAL_CLIENT_ID,
     }
 
     # Only process GET requests containing SEO-relevant params
