@@ -41,7 +41,4 @@ urlpatterns = [
     # Coinbase donation wallet balances
     path('crypto/balances/', views.crypto_balances, name='crypto_balances'),
 
-    # PayPal Apple Pay donation endpoints
-    path('paypal/orders/', views.paypal_create_order, name='paypal_create_order'),
-    path('paypal/orders/<str:order_id>/capture/', views.paypal_capture_order, name='paypal_capture_order'),
 ]

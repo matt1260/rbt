@@ -48,11 +48,6 @@ LOGEION_KEY = os.environ.get('LOGEION_KEY', 'AIzaSyCT5aVzk3Yx-m8FH8rmTpEgfVyVA3p
 COINBASE_API_KEY_NAME = os.environ.get('COINBASE_API_KEY_NAME')
 COINBASE_API_PRIVATE_KEY = os.environ.get('COINBASE_API_PRIVATE_KEY')
 
-# PayPal (for Apple Pay donations)
-PAYPAL_CLIENT_ID = os.environ.get('PAYPAL_CLIENT_ID', '')
-PAYPAL_CLIENT_SECRET = os.environ.get('PAYPAL_CLIENT_SECRET', '')
-PAYPAL_SANDBOX = os.environ.get('PAYPAL_SANDBOX', 'False').lower() in ('true', '1', 'yes')
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ENABLE_VERBOSE_DEBUG = os.environ.get('ENABLE_VERBOSE_DEBUG', 'False') == 'True'
