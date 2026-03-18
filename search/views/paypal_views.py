@@ -5,6 +5,7 @@ The PayPal client secret never leaves the server.
 """
 import json
 import logging
+import os
 
 import requests
 from django.conf import settings
@@ -13,8 +14,8 @@ from django.views.decorators.http import require_POST
 
 logger = logging.getLogger(__name__)
 
-_PAYPAL_API_BASE = "https://api-m.paypal.com"  # live
-# _PAYPAL_API_BASE = "https://api-m.sandbox.paypal.com"  # sandbox for testing
+_SANDBOX = os.environ.get('PAYPAL_SANDBOX', 'False').lower() in ('true', '1', 'yes')
+_PAYPAL_API_BASE = "https://api-m.sandbox.paypal.com" if _SANDBOX else "https://api-m.paypal.com"
 
 _MAX_DONATION_USD = 10_000
 
