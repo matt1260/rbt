@@ -1,4 +1,3 @@
-import os
 from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any, List, Optional, Sequence, Tuple, Union, Literal, overload, Mapping
@@ -44,29 +43,19 @@ def execute_query(
 def get_db_connection():
     """Context manager that yields Django's persistent database connection.
 
-    Resets ``search_path`` to the default (``"$user", public``) on both
-    entry and exit so that callers which temporarily switch schemas (e.g.
-    ``SET LOCAL search_path TO joseph_aseneth``) cannot leak that setting
-    into subsequent requests via Django's pooled connection.
+    Statement/lock timeouts are configured at connection-creation time via
+    Django's DATABASES['OPTIONS'] setting to avoid per-call round-trips.
+    Resets ``search_path`` on exit so that callers using ``SET LOCAL
+    search_path`` (e.g. Gesenius/Fuerst lookups) don't leak into subsequent
+    requests via Django's pooled connection.
     """
-    # Use Django's connection pool instead of creating new psycopg2 connections
-    statement_timeout = int(os.getenv('DB_STATEMENT_TIMEOUT_MS', '30000'))
-    lock_timeout = int(os.getenv('DB_LOCK_TIMEOUT_MS', '10000'))
-
-    # Set timeouts and ensure default search_path for this session
-    with connection.cursor() as cursor:
-        cursor.execute(f"SET statement_timeout = {statement_timeout}")
-        cursor.execute(f"SET lock_timeout = {lock_timeout}")
-        # Ensure default schema resolution order on checkout (mirrors search/db_utils.py)
-        cursor.execute('SET search_path TO "$user", public')
-
     try:
         yield connection
     except Exception as e:
         connection.rollback()
         raise e
     finally:
-        # Always restore default search_path on return so future callers
+        # Restore default search_path on return so future callers
         # (e.g. Django session/auth ORM queries) find tables in `public`.
         try:
             with connection.cursor() as cursor:

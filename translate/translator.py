@@ -46,6 +46,7 @@ def _debug_filtered_rows(label: str, before_rows: list[tuple], after_rows: list[
     print(info)
 
 
+@lru_cache(maxsize=4096)
 def get_manual_lexicon_mappings(hebrew_word: str, strong_number: Optional[str] = None,
                                    book: Optional[str] = None, chapter: Optional[int] = None, verse: Optional[int] = None):
     """

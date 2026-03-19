@@ -163,13 +163,19 @@ WSGI_APPLICATION = 'hebrewtool.wsgi.application'
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,  # Keep connections alive for 10 minutes
-        conn_health_checks=True  # Django 4.1+ health checks
-    )
-}
+_db_config = dj_database_url.config(
+    default=os.environ.get('DATABASE_URL'),
+    conn_max_age=600,  # Keep connections alive for 10 minutes
+    conn_health_checks=True  # Django 4.1+ health checks
+)
+# Set statement/lock timeouts at connection-creation time rather than per-query.
+# This eliminates 2 extra round-trips per DB call (critical for high-latency connections).
+if _db_config:
+    _db_opts = _db_config.setdefault('OPTIONS', {})
+    if 'options' not in _db_opts:
+        _db_opts['options'] = '-c statement_timeout=30000 -c lock_timeout=10000'
+
+DATABASES = {'default': _db_config}
 
 # Cache configuration - use database cache for rate limiting persistence
 CACHES = {
