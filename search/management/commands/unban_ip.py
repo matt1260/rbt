@@ -1,5 +1,7 @@
 from django.core.management.base import BaseCommand
-from django.db import connection
+from django.core.cache import cache
+
+ENDPOINTS = ['verse', 'chapter', 'api', 'general']
 
 class Command(BaseCommand):
     help = 'Unban an IP by removing any banned/strikes/ratelimit cache entries for that IP'
@@ -9,13 +11,11 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         ip = options['ip']
-        cur = connection.cursor()
-        cur.execute("SELECT cache_key FROM django_cache_table WHERE cache_key LIKE %s OR cache_key LIKE %s OR cache_key LIKE %s", (f'banned:{ip}', f'strikes:%:{ip}', f'ratelimit:%:{ip}'))
-        rows = cur.fetchall()
-        if not rows:
-            self.stdout.write(f'No cache entries found for {ip}')
-            return
-        keys = [r[0].decode() if isinstance(r[0], bytes) else r[0] for r in rows]
-        # Delete rows
-        cur.execute("DELETE FROM django_cache_table WHERE cache_key = ANY(%s)", (keys,))
-        self.stdout.write(f'Removed {len(keys)} cache entries for {ip}')
+        # Django DatabaseCache stores keys as MD5 hashes, so we must use the
+        # cache API (not raw SQL LIKE) to ensure proper key transformation.
+        keys = [f'banned:{ip}']
+        for ep in ENDPOINTS:
+            keys.append(f'ratelimit:{ep}:{ip}')
+            keys.append(f'strikes:{ep}:{ip}')
+        cache.delete_many(keys)
+        self.stdout.write(self.style.SUCCESS(f'Cleared {len(keys)} cache keys for {ip}'))

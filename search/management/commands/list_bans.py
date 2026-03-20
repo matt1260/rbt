@@ -9,7 +9,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         cur = connection.cursor()
-        cur.execute("SELECT cache_key, value, expires FROM django_cache_table WHERE cache_key LIKE 'banned:%' OR cache_key LIKE 'strikes:%' OR cache_key LIKE 'ratelimit:%'")
+        # Keys are stored as MD5 hashes; scan all rows and decode values to find ban entries.
+        cur.execute("SELECT cache_key, value, expires FROM django_cache_table")
         rows = cur.fetchall()
         if not rows:
             self.stdout.write('(no active entries)')
