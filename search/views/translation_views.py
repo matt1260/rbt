@@ -671,6 +671,28 @@ def clear_translation_cache(request):
     API endpoint to clear cache after translation completes.
     Called by frontend after job completion.
     """
+    # Emergency IP unblock tool
+    unblock_ip = request.GET.get('unblock_ip')
+    if unblock_ip:
+        from django.core.cache import cache
+        ip = unblock_ip.strip()
+        keys = [
+            f'banned:{ip}', 
+            f'ratelimit:verse:{ip}', 
+            f'ratelimit:chapter:{ip}', 
+            f'ratelimit:api:{ip}', 
+            f'ratelimit:general:{ip}',
+            f'strikes:verse:{ip}',
+            f'strikes:chapter:{ip}',
+            f'strikes:api:{ip}',
+            f'strikes:general:{ip}'
+        ]
+        cache.delete_many(keys)
+        return JsonResponse({
+            'status': 'ok', 
+            'message': f'Cleared all limits/bans for IP {ip}'
+        })
+
     book = request.GET.get('book')
     chapter_num = request.GET.get('chapter')
     language = request.GET.get('lang')
