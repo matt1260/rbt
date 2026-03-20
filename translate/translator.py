@@ -1507,13 +1507,17 @@ def get_lxx_stats_for_strongs(strong_refs):
             continue
         # canonical key in DB is like 'H5869'
         s = f'H{num}'
-        result = execute_query("""
-            SELECT greek_lemma, frequency, proportion_pct
-            FROM catss.strongs_lxx_profile
-            WHERE strongs = %s AND frequency >= 2
-            ORDER BY frequency DESC
-            LIMIT 10;
-        """, (s,), fetch='all') or []
+        try:
+            result = execute_query("""
+                SELECT greek_lemma, frequency, proportion_pct
+                FROM catss.strongs_lxx_profile
+                WHERE strongs = %s AND frequency >= 2
+                ORDER BY frequency DESC
+                LIMIT 10;
+            """, (s,), fetch='all') or []
+        except Exception:
+            # Fallback if catss schema is missing or query fails
+            result = []
         stats[strongs] = result
     return stats
 
