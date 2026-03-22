@@ -12,6 +12,7 @@ from django.core.cache import cache
 import subprocess
 from django.middleware.csrf import get_token
 import re
+import unicodedata
 from search.views import get_results, INTERLINEAR_CACHE_VERSION, get_footnote
 from translate.translator import *
 import pythonbible as bible
@@ -3050,7 +3051,7 @@ def find_and_replace_nt(request):
 
     if request.method == 'POST':
         find_text = (request.POST.get('find_text') or '').strip()
-        greek_lemma = (request.POST.get('greek_lemma') or '').strip()
+        greek_lemma = unicodedata.normalize('NFD', (request.POST.get('greek_lemma') or '').strip())
         replace_text = (request.POST.get('replace_text') or '').strip()
         exact_match = request.POST.get('exact_match') == '1' or request.POST.get('exact_match') == 'on'
         allow_html = request.POST.get('allow_html') == '1' or request.POST.get('allow_html') == 'on'
