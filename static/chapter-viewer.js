@@ -349,6 +349,82 @@ document.addEventListener("DOMContentLoaded", function() {
     if (parenthesesToggleButton) {
         parenthesesToggleButton.addEventListener("click", toggleParentheses);
     }
+
+    // Blue color toggle
+    const blueToggleButton = document.getElementById("blueToggleButton");
+    let isBlueVisible = true;
+
+    function toggleBlue() {
+        const root = document.getElementById('mainTextArea') || document.getElementById('container') || document.body;
+        const spans = root.querySelectorAll('span');
+        spans.forEach(function(span) {
+            if (isBlueVisible) {
+                // Hide blue: match computed color 'blue'
+                if (span.style.color === 'blue' || span.dataset.origColorBlue) {
+                    if (!span.dataset.origColorBlue) {
+                        span.dataset.origColorBlue = span.style.color;
+                    }
+                    span.style.color = 'inherit';
+                }
+            } else {
+                // Restore blue
+                if (span.dataset.origColorBlue) {
+                    span.style.color = span.dataset.origColorBlue;
+                    delete span.dataset.origColorBlue;
+                }
+            }
+        });
+        isBlueVisible = !isBlueVisible;
+        if (blueToggleButton) {
+            if (isBlueVisible) {
+                blueToggleButton.classList.add('active');
+            } else {
+                blueToggleButton.classList.remove('active');
+            }
+        }
+    }
+
+    if (blueToggleButton) {
+        blueToggleButton.addEventListener("click", toggleBlue);
+    }
+
+    // Magenta color toggle
+    const magentaToggleButton = document.getElementById("magentaToggleButton");
+    let isMagentaVisible = true;
+
+    function toggleMagenta() {
+        const root = document.getElementById('mainTextArea') || document.getElementById('container') || document.body;
+        const spans = root.querySelectorAll('span');
+        spans.forEach(function(span) {
+            if (isMagentaVisible) {
+                // Hide magenta: match computed color 'rgb(255, 0, 170)' (#ff00aa)
+                if (span.style.color === 'rgb(255, 0, 170)' || span.dataset.origColorMagenta) {
+                    if (!span.dataset.origColorMagenta) {
+                        span.dataset.origColorMagenta = span.style.color;
+                    }
+                    span.style.color = 'inherit';
+                }
+            } else {
+                // Restore magenta
+                if (span.dataset.origColorMagenta) {
+                    span.style.color = span.dataset.origColorMagenta;
+                    delete span.dataset.origColorMagenta;
+                }
+            }
+        });
+        isMagentaVisible = !isMagentaVisible;
+        if (magentaToggleButton) {
+            if (isMagentaVisible) {
+                magentaToggleButton.classList.add('active');
+            } else {
+                magentaToggleButton.classList.remove('active');
+            }
+        }
+    }
+
+    if (magentaToggleButton) {
+        magentaToggleButton.addEventListener("click", toggleMagenta);
+    }
     
     if (fontIncreaseButton) {
         fontIncreaseButton.addEventListener("click", function() {
@@ -381,6 +457,10 @@ document.addEventListener("DOMContentLoaded", function() {
             if (literalToggleButton) literalToggleButton.click();
         } else if (event.key === "p") {
             toggleParentheses();
+        } else if (event.key === "b") {
+            toggleBlue();
+        } else if (event.key === "m") {
+            toggleMagenta();
         } else if (event.key === "n") {
             if (notesToggleButton) notesToggleButton.click();
         } else if (event.key === "+" || event.key === "=") {

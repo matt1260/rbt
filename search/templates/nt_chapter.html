@@ -57,6 +57,12 @@
     <div id="parenthesesToggleButton" style="padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-eye"></i> Names (P)
     </div>
+    <div id="blueToggleButton" class="color-toggle active" title="Toggle blue text (B)" style="cursor:pointer;">
+        <span class="color-dot blue-dot"></span>
+    </div>
+    <div id="magentaToggleButton" class="color-toggle active" title="Toggle magenta text (M)" style="cursor:pointer;">
+        <span class="color-dot magenta-dot"></span>
+    </div>
     <div id="fontDecreaseButton" style="padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-minus"></i>
     </div>
@@ -552,6 +558,41 @@ function hideTranslationLoading() {
     #toggleButtonsContainer i {
         color: var(--sanctum-stone, #8a7e70);
         font-size: 11px;
+    }
+
+    /* Color toggle dot buttons (blue/magenta) */
+    .color-toggle {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        padding: 4px 8px !important;
+        border: 1px solid var(--sanctum-rule, rgba(183,133,80,0.25)) !important;
+    }
+    .color-dot {
+        display: block;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        transition: opacity 0.25s ease, filter 0.25s ease, box-shadow 0.25s ease;
+    }
+    /* Active: vivid gradient + subtle glow */
+    .blue-dot {
+        background: linear-gradient(135deg, #4facfe 0%, #1565c0 100%);
+        box-shadow: 0 0 6px rgba(79, 172, 254, 0.7);
+    }
+    .magenta-dot {
+        background: linear-gradient(135deg, #ff00aa 0%, #cc00ff 100%);
+        box-shadow: 0 0 6px rgba(255, 0, 170, 0.7);
+    }
+    /* Inactive: faded, desaturated but color still hints through */
+    #toggleButtonsContainer .color-toggle:not(.active) .color-dot {
+        opacity: 0.2;
+        /* filter: saturate(0.25) brightness(0.85); */
+        box-shadow: none;
+    }
+    #toggleButtonsContainer .color-toggle.active .color-dot {
+        opacity: 1;
+        filter: none;
     }
 
     /* Mobile responsiveness */
