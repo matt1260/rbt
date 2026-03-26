@@ -2942,4 +2942,22 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<!-- MathJax for rendering LaTeX equations -->
+<script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      startup: {
+        pageReady: () => {
+          return MathJax.startup.defaultPageReady().then(() => {
+            console.log('MathJax initial rendering complete');
+          });
+        }
+      }
+    };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
+
 </body></html>
