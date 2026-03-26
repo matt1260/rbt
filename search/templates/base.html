@@ -2937,7 +2937,14 @@ document.addEventListener('DOMContentLoaded', function() {
     attachTooltipListeners();
     
     // Watch for new content (e.g. dynamic loads)
-    const tooltipObserver = new MutationObserver(attachTooltipListeners);
+    const tooltipObserver = new MutationObserver((mutations) => {
+        attachTooltipListeners();
+        
+        // Also re-render MathJax on dynamically added content
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            window.MathJax.typesetPromise();
+        }
+    });
     tooltipObserver.observe(document.body, { childList: true, subtree: true });
 });
 </script>
@@ -2946,7 +2953,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
     window.MathJax = {
       tex: {
-        inlineMath: [['\\(', '\\)']],
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
         displayMath: [['$$', '$$'], ['\\[', '\\]']]
       },
       startup: {
