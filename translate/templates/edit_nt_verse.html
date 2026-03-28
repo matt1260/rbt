@@ -71,6 +71,116 @@
     }
     #lexicon-panel.is-open { transform: translateX(0); }
 
+    /* ---- Chapter sliding panel (left side) ---- */
+    #chapter-panel {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 350px;
+        height: 100vh;
+        background: #fff;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.18);
+        z-index: 3000;
+        display: flex;
+        flex-direction: column;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        font-size: 14px;
+    }
+    #chapter-panel.is-open { transform: translateX(0); }
+
+    #chapter-panel-header {
+        padding: 10px 14px;
+        background: #17324f;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+    }
+    #chapter-panel-title { font-weight: 700; font-size: 15px; }
+    #chapter-panel-close {
+        background: none;
+        border: none;
+        color: #fff;
+        font-size: 24px;
+        cursor: pointer;
+        line-height: 1;
+        padding: 0 4px;
+    }
+
+    #chapter-content {
+        padding: 12px 14px;
+        overflow-y: scroll;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        flex: 1 1 auto;
+        min-height: 0;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    .chapter-verse-row {
+        margin-bottom: 8px;
+        word-wrap: break-word;
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .chapter-verse-row strong {
+        flex-shrink: 0;
+        color: #17324f;
+    }
+    .chapter-verse-row-text {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+    #chapter-content h5 {
+        font-size: 1.3em;
+        font-weight: 600;
+        margin: 0;
+    }
+    #chapter-content img {
+        max-width: 100%;
+        width: 100%;
+        height: auto;
+        display: block;
+        border-radius: 4px;
+        margin-top: 4px;
+    }
+
+    /* ---- Handlers to open panels ---- */
+    .panel-handle {
+        position: absolute;
+        top: 50%;
+        background: #17324f;
+        color: #fff;
+        padding: 15px 8px;
+        cursor: pointer;
+        z-index: 2900;
+        border-radius: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        font-weight: bold;
+        user-select: none;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+    }
+    .panel-handle.left {
+        right: 0;
+        transform: translate(100%, -50%);
+        border-top-right-radius: 8px;
+        border-bottom-right-radius: 8px;
+    }
+    .panel-handle.right {
+        left: 0;
+        transform: translate(-100%, -50%);
+        border-top-left-radius: 8px;
+        border-bottom-left-radius: 8px;
+    }
+
     #lexicon-panel-header {
         padding: 10px 14px;
         background: #17324f;
@@ -1327,10 +1437,33 @@ Cached: {{ cached_hit }}
     </script>
 
     <!-- ============================================================
+         LEFT SLIDING PANEL (Chapter Overview)
+    ============================================================ -->
+    <div id="chapter-panel">
+        <div id="chapter-panel-handle" class="panel-handle left" title="Toggle Chapter Overview">Chapter</div>
+        <div id="chapter-panel-header">
+            <span id="chapter-panel-title">{{ book2|title }} {{ chapter_num }}</span>
+            <button id="chapter-panel-close" aria-label="Close panel">×</button>
+        </div>
+        <div id="chapter-content">
+            {% if chapter_reader %}
+                {% for row in chapter_reader %}
+                    <div class="chapter-verse-row">
+                        <strong>{{ row.2 }}</strong><span class="chapter-verse-row-text">{{ row.3|safe }}</span>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No chapter data found.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ============================================================
          LEXICON SLIDING PANEL (right-side)
          Opened by clicking any Λογεῖον link in the interlinear.
     ============================================================ -->
     <div id="lexicon-panel">
+        <div id="lexicon-panel-handle" class="panel-handle right" title="Toggle Lexicon">Lexicon</div>
         <div id="lexicon-panel-header">
             <span id="lexicon-panel-title">Lexicon</span>
             <button id="lexicon-panel-close" aria-label="Close panel">×</button>
@@ -1369,6 +1502,31 @@ Cached: {{ cached_hit }}
         const resizeHandle  = document.getElementById('chat-resize-handle');
         const chatSection   = document.getElementById('chat-section');
         const clearBtn      = document.getElementById('chat-clear-btn');
+
+        const lexHandle     = document.getElementById('lexicon-panel-handle');
+        const chapPanel     = document.getElementById('chapter-panel');
+        const chapCloseBtn  = document.getElementById('chapter-panel-close');
+        const chapHandle    = document.getElementById('chapter-panel-handle');
+
+        // Panel toggles
+        if (lexHandle) {
+            lexHandle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                panel.classList.toggle('is-open');
+            });
+        }
+        if (chapHandle) {
+            chapHandle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                chapPanel.classList.toggle('is-open');
+            });
+        }
+        if (chapCloseBtn) {
+            chapCloseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                chapPanel.classList.remove('is-open');
+            });
+        }
 
         // ── Drag-to-resize chat section ──────────────────────────────
         resizeHandle.addEventListener('mousedown', (e) => {
@@ -1444,7 +1602,10 @@ Cached: {{ cached_hit }}
 
         // Close panel with Escape key
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && panel.classList.contains('is-open')) closePanel();
+            if (e.key === 'Escape') {
+                if (panel.classList.contains('is-open')) closePanel();
+                if (chapPanel && chapPanel.classList.contains('is-open')) chapPanel.classList.remove('is-open');
+            }
         });
 
         function addMessage(role, text) {

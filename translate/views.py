@@ -254,6 +254,17 @@ def get_context(book, chapter_num, verse_num):
             results = get_results(book, chapter_num, '1')
             verse_num = '1'
 
+        try:
+            chapter_results = get_results(book, chapter_num, None)
+            chapter_reader = chapter_results.get('chapter_reader', [])
+            # Also get the chapter HTML if available
+            chapter_html = chapter_results.get('html', {})
+        except Exception as e:
+            import logging
+            logging.exception("Failed to fetch chapter_results in get_context: %s", e)
+            chapter_reader = []
+            chapter_html = {}
+
         new_linear_english = None
         record_id = results['record_id']
         verse_id = results['verse_id']
@@ -346,6 +357,8 @@ def get_context(book, chapter_num, verse_num):
             'morph_row': results.get('morph_row'),
             'hebrew_cards': results.get('hebrew_interlinear_cards', []),
             'hebrewdata_rows': results.get('hebrewdata_rows', []),
+            'chapter_reader': chapter_reader,
+            'chapter_html': chapter_html,
         }
 
         return context
