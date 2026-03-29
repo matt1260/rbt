@@ -8,6 +8,7 @@ from search.models import Genesis, GenesisFootnotes, EngLXX, LITV, TranslationUp
 from django.db.models import Q
 from django.utils.html import escape
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.core.cache import cache
 import subprocess
 from django.middleware.csrf import get_token
@@ -6142,4 +6143,64 @@ def chat_with_lexicon(request):
     except Exception as e:
         logger.error(f"Error in chat_with_lexicon: {e}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@xframe_options_exempt
+@login_required
+def biblehub_proxy(request):
+    """Proxy BibleHub interlinear pages, stripping X-Frame-Options so they can be embedded in a panel."""
+    book = request.GET.get('book', '').strip()
+    chapter = request.GET.get('chapter', '').strip()
+    verse = request.GET.get('verse', '').strip()
+
+    # Validate inputs
+    if not re.match(r'^[A-Za-z0-9 ]+$', book) or not re.match(r'^\d+$', chapter) or not re.match(r'^\d+$', verse):
+        return HttpResponse("<p>Invalid parameters.</p>", status=400)
+
+    book_slug = re.sub(r'[^a-z0-9]+', '_', book.lower()).strip('_')
+    url = f"https://biblehub.com/interlinear/{book_slug}/{chapter}-{verse}.htm"
+
+    headers = {
+        'User-Agent': (
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) '
+            'Chrome/123.0.0.0 Safari/537.36'
+        ),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://biblehub.com/',
+    }
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        # Force UTF-8 — requests defaults to ISO-8859-1 for HTML which garbles Hebrew/Greek
+        content = resp.content.decode('utf-8', errors='replace')
+        # Rewrite root-relative and protocol-relative URLs so assets load from BibleHub
+        content = content.replace('href="/', 'href="https://biblehub.com/')
+        content = content.replace("href='/", "href='https://biblehub.com/")
+        content = content.replace('src="/', 'src="https://biblehub.com/')
+        content = content.replace("src='/", "src='https://biblehub.com/")
+        content = content.replace('action="/', 'action="https://biblehub.com/')
+        # Fix protocol-relative URLs (//fonts.googleapis.com etc.)
+        content = content.replace('href="//', 'href="https://')
+        content = content.replace("href='//", "href='https://")
+        content = content.replace('src="//', 'src="https://')
+        content = content.replace("src='//", "src='https://")
+        # Make all links open in a new tab by injecting a <base> tag after <head>
+        content = content.replace('<head>', '<head><base target="_blank">', 1)
+        response = HttpResponse(content, content_type='text/html; charset=utf-8')
+        # Do NOT set X-Frame-Options so the iframe can embed this response
+        return response
+    except requests.exceptions.HTTPError as e:
+        return HttpResponse(
+            f"<p style='font-family:sans-serif;padding:12px;'>BibleHub returned an error: {e}</p>",
+            status=502,
+        )
+    except Exception as e:
+        logger.error(f"biblehub_proxy error: {e}")
+        return HttpResponse(
+            f"<p style='font-family:sans-serif;padding:12px;'>Could not load BibleHub page.</p>",
+            status=502,
+        )
 

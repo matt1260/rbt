@@ -202,6 +202,83 @@
 </style>
 
 <style>
+    /* ---- BibleHub sliding panel (right side) ---- */
+    #biblehub-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 48vw;
+        min-width: 340px;
+        max-width: 720px;
+        height: 100vh;
+        background: #fff;
+        box-shadow: -4px 0 24px rgba(0,0,0,0.18);
+        z-index: 3000;
+        display: flex;
+        flex-direction: column;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        overflow: visible;
+    }
+    #biblehub-panel.is-open { transform: translateX(0); }
+
+    #biblehub-panel-handle {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        transform: translate(-100%, -50%);
+        background: #1a5c2e;
+        color: #fff;
+        padding: 15px 8px;
+        cursor: pointer;
+        z-index: 2900;
+        border-top-left-radius: 8px;
+        border-bottom-left-radius: 8px;
+        box-shadow: -2px 2px 8px rgba(0,0,0,0.2);
+        font-weight: bold;
+        user-select: none;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+    }
+
+    #biblehub-panel-header {
+        padding: 10px 14px;
+        background: #1a5c2e;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+        gap: 8px;
+    }
+    #biblehub-panel-title { font-weight: 700; font-size: 15px; }
+    #biblehub-panel-close {
+        background: none;
+        border: none;
+        color: #fff;
+        font-size: 24px;
+        cursor: pointer;
+        line-height: 1;
+        padding: 0 4px;
+    }
+    #biblehub-panel-open-link {
+        color: #a8d8b2;
+        font-size: 12px;
+        text-decoration: none;
+        margin-left: auto;
+        white-space: nowrap;
+    }
+    #biblehub-panel-open-link:hover { color: #fff; }
+
+    #biblehub-iframe {
+        flex: 1 1 auto;
+        border: none;
+        width: 100%;
+        height: 100%;
+    }
+</style>
+
+<style>
     .genesis-editor {
         display: flex;
         flex-direction: column;
@@ -1278,6 +1355,7 @@
 
 
 <p></p>
+{{ slt|safe }}
 {{ litv|safe }}
 {{ eng_lxx|safe }}
 
@@ -2057,5 +2135,71 @@
             </div>
         </div>
     </div>
+
+<!-- ============================================================
+     BIBLEHUB SLIDING PANEL (right side)
+     Shows BibleHub interlinear for the current verse.
+============================================================ -->
+<div id="biblehub-panel">
+    <div id="biblehub-panel-handle" title="Toggle BibleHub Interlinear">BibleHub</div>
+    <div id="biblehub-panel-header">
+        <span id="biblehub-panel-title">BibleHub Interlinear</span>
+        <a id="biblehub-panel-open-link" href="#" target="_blank" rel="noopener noreferrer">Open in new tab ↗</a>
+        <button id="biblehub-panel-close" aria-label="Close BibleHub panel">×</button>
+    </div>
+    <iframe id="biblehub-iframe" src="" title="BibleHub Interlinear"></iframe>
+</div>
+
+<script>
+(function () {
+    const panel      = document.getElementById('biblehub-panel');
+    const handle     = document.getElementById('biblehub-panel-handle');
+    const closeBtn   = document.getElementById('biblehub-panel-close');
+    const iframe     = document.getElementById('biblehub-iframe');
+    const openLink   = document.getElementById('biblehub-panel-open-link');
+
+    // Build the BibleHub URL for the current verse
+    const book    = "{{ book }}";
+    const chapter = "{{ chapter_num }}";
+    const verse   = "{{ verse_num }}";
+
+    // Convert book name to BibleHub slug (lowercase, spaces → underscores)
+    const bookSlug = book.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const bibHubUrl = `https://biblehub.com/interlinear/${bookSlug}/${chapter}-${verse}.htm`;
+    const proxyUrl  = `/translate/proxy/biblehub/?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}&verse=${encodeURIComponent(verse)}`;
+
+    openLink.href = bibHubUrl;
+
+    let loaded = false;
+
+    function openPanel() {
+        panel.classList.add('is-open');
+        handle.classList.add('panel-open');
+        if (!loaded) {
+            iframe.src = proxyUrl;
+            loaded = true;
+        }
+    }
+
+    function closePanel() {
+        panel.classList.remove('is-open');
+        handle.classList.remove('panel-open');
+    }
+
+    handle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (panel.classList.contains('is-open')) {
+            closePanel();
+        } else {
+            openPanel();
+        }
+    });
+
+    closeBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        closePanel();
+    });
+})();
+</script>
 
 {% endblock %}
