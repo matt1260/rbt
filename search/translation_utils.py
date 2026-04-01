@@ -181,7 +181,10 @@ CRITICAL INSTRUCTIONS - READ CAREFULLY:
 12. SPECIAL: Try to maintain substantive clauses where possible in the target language, preserving their grammatical function, e.g. 'the One who is Coming' or 'from the Eyes of Themselves'.
 13. SPECIAL: Avoid combining emphatic clauses like 'within the Days, these ones,' into simpler forms; retain the emphasis and structure of the original English.
 14. SPECIAL: Preserve reflexive pronoun emphasis in clauses, e.g., 'they, themselves,' 'you, yourself,' 'he, himself,' to maintain the original emphasis in translation.
-
+15. SPECIAL: 'has sevened' and similar uses of 'seven' as a verbal should be translated to convey 'make seven' or 'cause to be seven' rather than a simple past tense, to preserve the original meaning and nuance.
+16. SPECIAL: 'self eternal' means 'eternal by one's own nature' or 'reflexively eternal' and is generally used adjectivally (e.g. 'the self-eternal stone' is a stone that exists of itself/self-existent) - translate accordingly to preserve this meaning.
+17. SPECIAL: 'the self' is integral to the meaning of certain phrases and should be preserved in translation (e.g. 'I, self, am striving' or 'learners of self' or he, self, is coming' - the 'self' emphasizes a reflexivity and should be retained as best as possible to preserve meaning).
+15. IMPORTANT: This is NOT a standard Bible translation. Translate the English text as-is, without trying to conform to traditional biblical language or style in the target language. The goal is a natural, accurate rendering of the English meaning, not a formal "Bible-like" style.
 EXAMPLES OF WHAT TO TRANSLATE:
 ✓ <h5><span style="color: blue;">The Twins</span></h5>
   → <h5><span style="color: blue;">Los Gemelos</span></h5>

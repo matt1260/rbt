@@ -48,7 +48,7 @@ rbt_books: dict[str, str] = {
     'Mark': 'Hammer',
     'Luke': 'Light Giver',
     'John': 'He Is Favored',
-    'Acts': 'Acts of the Sent Away Ones',
+    'Acts': 'Acts of the Sent Forth Ones',
     'Romans': 'People of Bodily Strength',
     '1 Corinthians': 'First People of Young Maiden',
     '2 Corinthians': 'Second People of Young Maiden',
