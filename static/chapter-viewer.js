@@ -199,7 +199,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // Determine if current book is Genesis by reading the URL query parameters
     const urlParams = new URLSearchParams(window.location.search);
     const bookParam = urlParams.get('book') || '';
-    const isGenesis = bookParam === 'Genesis';
+    const isGenesis = bookParam === 'Genesis' || window.location.pathname.toLowerCase().includes('/genesis/');
     
     let isLiteralVisible = isGenesis; // Default literal to ON for Genesis, OFF for other books
     let isImageVisible = true;
