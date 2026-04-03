@@ -124,3 +124,16 @@ def generate_chapter_schema(request, book_name: str, chapter_num: int, footnotes
             })
 
     return json.dumps(schemas).replace('</', '<\\/')
+
+
+def _get_verse_url(language, book, chapter_num, verse):
+    from django.urls import reverse
+    slug = book_to_slug(book)
+    if not slug:
+        return f"?book={book}&chapter={chapter_num}&verse={verse}"
+    try:
+        if language and language != 'en':
+            return reverse('verse_seo_view_lang', kwargs={'lang_code': language, 'book_slug': slug, 'chapter': chapter_num, 'verse': str(verse)})
+        return reverse('verse_seo_view', kwargs={'book_slug': slug, 'chapter': chapter_num, 'verse': str(verse)})
+    except Exception:
+        return f"?book={book}&chapter={chapter_num}&verse={verse}"

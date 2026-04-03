@@ -22,7 +22,7 @@ from search.models import Genesis, GenesisFootnotes, VerseTranslation
 from search.db_utils import execute_query, get_db_connection
 from search.views.utils import detect_script, strip_hebrew_vowels, highlight_match
 from translate.translator import book_abbreviations, convert_book_name
-from search.views.chapter_handlers import _get_verse_url
+from search.seo_utils import _get_verse_url
 from search.seo_utils import book_to_slug
 
 logger = logging.getLogger(__name__)

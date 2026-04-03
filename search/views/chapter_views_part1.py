@@ -33,7 +33,7 @@ from translate.translator import (
     build_heb_interlinear, replace_words, greek_lookup,
     ot_prev_next_references, extract_footnote_references, load_json
 )
-from search.views.chapter_handlers import _get_verse_url
+from search.seo_utils import _get_verse_url
 from search.seo_utils import book_to_slug
 from search.rbt_titles import rbt_books
 

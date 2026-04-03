@@ -23,6 +23,10 @@ from search.translation_utils import SUPPORTED_LANGUAGES
 from search.db_utils import execute_query, get_db_connection
 from hebrewtool.debug_utils import set_debug_context, should_emit_debug
 
+from search.seo_utils import book_to_slug, _get_verse_url
+
+
+
 
 def handle_genesis_chapter(request, book, chapter_num, results, language, source_book):
     """
@@ -112,11 +116,11 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
 
         if '</p><p>' in verse_html:
             parts = verse_html.split('</p><p>')
-            hebrew_literal += f'{parts[0]}</p><p><span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{parts[1]}'
+            hebrew_literal += f'{parts[0]}</p><p><span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{parts[1]}'
         elif verse_html.startswith('<p>'):
-            hebrew_literal += f'<p><span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{verse_html[3:]}'
+            hebrew_literal += f'<p><span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_html[3:]}'
         else:
-            hebrew_literal += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{verse_html}'
+            hebrew_literal += f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_html}'
 
         if verse_reader.endswith('</span>'):
             close_text = ''
@@ -129,13 +133,13 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
             if h5_match:
                 heading = h5_match.group(1)
                 rest = h5_match.group(2)
-                paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{rest}{close_text}'
+                paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{rest}{close_text}'
             else:
-                paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
+                paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
         elif verse_reader == '':
             paraphrase += ''
         else:
-            paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={result.chapter}&verse={result.verse}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
+            paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
 
         if result.html:
             notes_sources.append(result.html)
@@ -174,8 +178,6 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     original_book = book
 
     chapters = ""
-    from django.urls import reverse
-    from search.seo_utils import book_to_slug
     slug = book_to_slug(original_book)
     for number in chapter_list:
         if slug:
@@ -386,11 +388,11 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
                 if h5_match:
                     heading = h5_match.group(1)
                     rest = h5_match.group(2)
-                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a> </b></span>{rest}{close_text}'
+                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, vrs)}">{vrs}</a> </b></span>{rest}{close_text}'
                 else:
-                    paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a> </b></span>{html_verse}{close_text}'
+                    paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, vrs)}">{vrs}</a> </b></span>{html_verse}{close_text}'
             else:
-                html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={vrs}">{vrs}</a></b></span> {html_verse}'
+                html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, vrs)}">{vrs}</a></b></span> {html_verse}'
                 paraphrase += html_verse + close_text
     
     # Handle footnote translations
@@ -431,8 +433,6 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     original_book = book
     
     chapters = ''
-    from django.urls import reverse
-    from search.seo_utils import book_to_slug
     slug = book_to_slug(original_book)
     for number in chapter_list:
         if slug:
@@ -633,11 +633,11 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
                 if h5_match:
                     heading = h5_match.group(1)
                     rest = h5_match.group(2)
-                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={display_vrs}">{display_vrs}</a> </b></span>{rest}{close_text}'
+                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, display_vrs)}">{display_vrs}</a> </b></span>{rest}{close_text}'
                 else:
-                    paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={display_vrs}">{display_vrs}</a> </b></span>{html_verse}{close_text}'
+                    paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, display_vrs)}">{display_vrs}</a> </b></span>{html_verse}{close_text}'
             else:
-                html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="?book={book}&chapter={chapter_num}&verse={display_vrs}">{display_vrs}</a></b></span> {html_verse}'
+                html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, display_vrs)}">{display_vrs}</a></b></span> {html_verse}'
                 paraphrase += html_verse + close_text
 
     # Handle footnote translations
@@ -684,7 +684,7 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
         display_key = key.lstrip('0') or '0'
         hebrew_literal += (
             f'<span class="verse_ref" style="display: none;">'
-            f'<b><a href="?book={book}&chapter={chapter_num}&verse={display_key}">{display_key}</a> </b></span>'
+            f'<b><a href="{_get_verse_url(language, book, chapter_num, display_key)}">{display_key}</a> </b></span>'
             f'{words_str}<br>'
         )
     
@@ -692,8 +692,6 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     original_book = book
     
     chapters = ''
-    from django.urls import reverse
-    from search.seo_utils import book_to_slug
     slug = book_to_slug(original_book)
     for number in chapter_list:
         if slug:
