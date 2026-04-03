@@ -57,8 +57,11 @@ urlpatterns = [
     path('<str:lang_code>/judas/<int:codex_num>/<str:panel_code>/', views.judas_view, name='judas_seo_view_panel_lang'),
 
     # SEO URLs
-    path('<str:lang_code>/<str:book_slug>/<int:chapter>/', views.chapter_seo_view, name='chapter_seo_view_lang'),
+    # 4 segments
     path('<str:lang_code>/<str:book_slug>/<int:chapter>/<str:verse>/', views.verse_seo_view, name='verse_seo_view_lang'),
-    path('<str:book_slug>/<int:chapter>/', views.chapter_seo_view, name='chapter_seo_view'),
+    # 3 segments
     path('<str:book_slug>/<int:chapter>/<str:verse>/', views.verse_seo_view, name='verse_seo_view'),
+    path('<str:lang_code>/<str:book_slug>/<int:chapter>/', views.chapter_seo_view, name='chapter_seo_view_lang'),
+    # 2 segments
+    path('<str:book_slug>/<int:chapter>/', views.chapter_seo_view, name='chapter_seo_view'),
 ]
