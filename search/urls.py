@@ -8,7 +8,7 @@ urlpatterns = [
     path('search/results/', views.search_results_page, name='search_results'),
     path('aseneth/', views.storehouse_view, name='storehouse'),
     path('storehouse/', views.storehouse_view, name='storehouse'),
-    path('judas/', views.judas_view, name='judas'),
+    # Judas legacy route is defined via SEO routes below
     path('updates/', views.updates, name='updates'),
     path('update_count/', views.update_count, name='update_count_api'),
     path('statistics/', views.update_statistics_view, name='update_statistics'),
@@ -43,4 +43,22 @@ urlpatterns = [
 
     # Monthly donation totals (PayPal + crypto)
     path('donations/totals/', views.donation_totals, name='donation_totals'),
+
+    # Aseneth SEO URLs
+    path('aseneth/<int:chapter_num>/', views.storehouse_view, name='aseneth_seo_view'),
+    path('<str:lang_code>/aseneth/<int:chapter_num>/', views.storehouse_view, name='aseneth_seo_view_lang'),
+
+    # Judas SEO URLs
+    path('judas/', views.judas_view, name='judas'),
+    path('<str:lang_code>/judas/', views.judas_view, name='judas_lang'),
+    path('judas/<int:codex_num>/', views.judas_view, name='judas_seo_view'),
+    path('judas/<int:codex_num>/<str:panel_code>/', views.judas_view, name='judas_seo_view_panel'),
+    path('<str:lang_code>/judas/<int:codex_num>/', views.judas_view, name='judas_seo_view_lang'),
+    path('<str:lang_code>/judas/<int:codex_num>/<str:panel_code>/', views.judas_view, name='judas_seo_view_panel_lang'),
+
+    # SEO URLs
+    path('<str:lang_code>/<str:book_slug>/<int:chapter>/', views.chapter_seo_view, name='chapter_seo_view_lang'),
+    path('<str:lang_code>/<str:book_slug>/<int:chapter>/<int:verse>/', views.verse_seo_view, name='verse_seo_view_lang'),
+    path('<str:book_slug>/<int:chapter>/', views.chapter_seo_view, name='chapter_seo_view'),
+    path('<str:book_slug>/<int:chapter>/<int:verse>/', views.verse_seo_view, name='verse_seo_view'),
 ]

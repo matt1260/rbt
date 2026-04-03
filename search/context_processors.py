@@ -1,5 +1,7 @@
 from urllib.parse import urlencode
 from django.conf import settings
+from django.urls import reverse
+from search.seo_utils import book_to_slug, slug_to_book
 
 def seo_context(request):
     """
@@ -13,29 +15,48 @@ def seo_context(request):
         'meta_keywords': 'Bible, Translation, Hebrew, Greek, RBT, Real Bible Translation',
     }
 
-    # Only process GET requests containing SEO-relevant params
-    if not request.GET:
-        return context
-
-    book = request.GET.get('book')
-    chapter = request.GET.get('chapter')
-    verse = request.GET.get('verse')
+    # Extract args from resolver_match (SEO URLs) or GET (legacy)
+    book_slug = None
+    book = None
+    chapter = None
+    verse = None
     q = request.GET.get('q')
 
+    if request.resolver_match and request.resolver_match.kwargs:
+        book_slug = request.resolver_match.kwargs.get('book_slug')
+        chapter = request.resolver_match.kwargs.get('chapter')
+        verse = request.resolver_match.kwargs.get('verse')
+
+    if not book and book_slug:
+        book = slug_to_book(book_slug) or book_slug.replace('-', ' ').title()
+
+    if not book and request.GET:
+        book = request.GET.get('book')
+        chapter = request.GET.get('chapter')
+        verse = request.GET.get('verse')
+
     if book and chapter:
+        slug = book_slug or book_to_slug(book)
         if verse:
-            context['meta_title'] = f"{book} {chapter}:{verse} | Real Bible Translation Project"
-            context['meta_description'] = f"Read and study {book} {chapter}:{verse} with Greek and Hebrew interlinear data, comprehensive footnotes, and literal translations."
+            context['meta_title'] = f"{book} {chapter}:{verse} | Original Translation & Context | RBT"
+            context['meta_description'] = f"Read and study {book} {chapter}:{verse} with our deep original-language interlinear, rich footnotes, and accurate word-for-word translation."
             
-            # Canonical URL logic
-            params = urlencode({'book': book, 'chapter': chapter, 'verse': verse})
-            context['canonical_url'] = f"{request.build_absolute_uri('/')}?{params}"
+            if slug:
+                path = reverse('verse_seo_view', kwargs={'book_slug': slug, 'chapter': chapter, 'verse': verse})
+                context['canonical_url'] = request.build_absolute_uri(path)
+            else:
+                params = urlencode({'book': book, 'chapter': chapter, 'verse': verse})
+                context['canonical_url'] = f"{request.build_absolute_uri('/')}?{params}"
         else:
-            context['meta_title'] = f"{book} {chapter} | Real Bible Translation Project"
-            context['meta_description'] = f"Dive deep into {book} {chapter} through the Real Bible Translation project. Access literal Greek and Hebrew analysis with extensive footnotes."
+            context['meta_title'] = f"{book} {chapter} | Original Hebrew & Greek Interlinear | RBT"
+            context['meta_description'] = f"Dive deep into {book} {chapter} through the Real Bible Translation project. Access literal Greek and Hebrew analysis with extensive context and footnotes."
             
-            params = urlencode({'book': book, 'chapter': chapter})
-            context['canonical_url'] = f"{request.build_absolute_uri('/')}?{params}"
+            if slug:
+                path = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': chapter})
+                context['canonical_url'] = request.build_absolute_uri(path)
+            else:
+                params = urlencode({'book': book, 'chapter': chapter})
+                context['canonical_url'] = f"{request.build_absolute_uri('/')}?{params}"
 
     elif q:
         context['meta_title'] = f"Search Results for '{q}' | RBT"

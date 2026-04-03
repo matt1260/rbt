@@ -30,6 +30,7 @@ from translate.translator import (
     new_testament_books,
     load_json,
 )
+from search.seo_utils import book_to_slug, slug_to_book
 from search.rbt_titles import rbt_books
 from search.translation_utils import SUPPORTED_LANGUAGES
 from search.db_utils import execute_query
@@ -71,13 +72,26 @@ def search(request):
     elif query:
         return handle_keyword_search(request, query)
     
-    # Route 3: SINGLE VERSE
+    # Route 3: SINGLE VERSE (legacy query param -> 301 redirect)
     elif book and chapter_num and verse_num:
+        slug = book_to_slug(book)
+        if slug:
+            redirect_url = reverse('verse_seo_view', kwargs={'book_slug': slug, 'chapter': chapter_num, 'verse': verse_num})
+            if request.GET.get('lang'):
+                redirect_url += f"?lang={request.GET.get('lang')}"
+            return redirect(redirect_url, permanent=True)
         return handle_single_verse(request, book, chapter_num, verse_num, language)
     
-    # Route 4: SINGLE CHAPTER
+    # Route 4: SINGLE CHAPTER (legacy query param -> 301 redirect)
     elif book and chapter_num:
+        slug = book_to_slug(book)
+        if slug:
+            redirect_url = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': chapter_num})
+            if request.GET.get('lang'):
+                redirect_url += f"?lang={request.GET.get('lang')}"
+            return redirect(redirect_url, permanent=True)
         return handle_single_chapter(request, book, chapter_num, language)
+
     
     # Default: Show search input
     else:
@@ -283,3 +297,35 @@ def handle_single_chapter(request, book, chapter_num, language):
     except Exception as e:
         context = {'error': e}
         return render(request, 'search_input.html', context)
+
+
+def chapter_seo_view(request, book_slug, chapter, lang_code=None):
+    """
+    SEO-friendly route for single chapters (e.g., /genesis/1/ or /es/genesis/1/).
+    Extracts the canonical book name from the slug and forwards to handle_single_chapter.
+    """
+    book_name = slug_to_book(book_slug)
+    if not book_name:
+        # Invalid slug, fallback or 404
+        return render(request, 'search_input.html', {'error': 'Book not found.'})
+    
+    language = lang_code or request.GET.get('lang', 'en')
+    
+    # Optional: validate lang_code against SUPPORTED_LANGUAGES here if you want to strictly enforce it
+    # if lang_code and lang_code not in SUPPORTED_LANGUAGES:
+    #     return render(request, 'search_input.html', {'error': 'Unsupported language.'})
+
+    return handle_single_chapter(request, book_name, chapter, language)
+
+
+def verse_seo_view(request, book_slug, chapter, verse, lang_code=None):
+    """
+    SEO-friendly route for single verses (e.g., /genesis/1/1/ or /es/genesis/1/1/).
+    Extracts the canonical book name from the slug and forwards to handle_single_verse.
+    """
+    book_name = slug_to_book(book_slug)
+    if not book_name:
+        return render(request, 'search_input.html', {'error': 'Book not found.'})
+        
+    language = lang_code or request.GET.get('lang', 'en')
+    return handle_single_verse(request, book_name, chapter, verse, language)

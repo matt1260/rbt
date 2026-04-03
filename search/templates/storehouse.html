@@ -187,11 +187,19 @@ function hideTranslationLoading() {
 
 <div class="chapter-selector">
     <strong>Select a Chapter:</strong>
-    {% if chapters %}
-        {{ chapters|safe }}
-
-    {% endif %}
-
+    <div class="chapter-pill-list">
+        {% for number in chapter_list %}
+            {% if number == chapter_num %}
+                <span class="chapter-pill current">{{ number }}</span>
+            {% else %}
+                {% if current_language != 'en' %}
+                    <a class="chapter-pill" href="{% url 'aseneth_seo_view_lang' lang_code=current_language chapter_num=number %}">{{ number }}</a>
+                {% else %}
+                    <a class="chapter-pill" href="{% url 'aseneth_seo_view' chapter_num=number %}">{{ number }}</a>
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+    </div>
 </div>
 
 {% with title_prefix=book|title %}
@@ -282,19 +290,19 @@ function hideTranslationLoading() {
 
 <div class="chapter-selector bottom">
     <strong>Select a Chapter:</strong>
-    {% if chapters %}
-        {{ chapters|safe }}
-    {% else %}
-        <div class="chapter-pill-list">
-            {% for number in chapter_list %}
-                {% if number == chapter_num %}
-                    <span class="chapter-pill current">{{ number }}</span>
+    <div class="chapter-pill-list">
+        {% for number in chapter_list %}
+            {% if number == chapter_num %}
+                <span class="chapter-pill current">{{ number }}</span>
+            {% else %}
+                {% if current_language != 'en' %}
+                    <a class="chapter-pill" href="{% url 'aseneth_seo_view_lang' lang_code=current_language chapter_num=number %}">{{ number }}</a>
                 {% else %}
-                    <a class="chapter-pill" href="{% url 'storehouse' %}?chapter={{ number }}">{{ number }}</a>
+                    <a class="chapter-pill" href="{% url 'aseneth_seo_view' chapter_num=number %}">{{ number }}</a>
                 {% endif %}
-            {% endfor %}
-        </div>
-    {% endif %}
+            {% endif %}
+        {% endfor %}
+    </div>
 </div>
 
 <style>

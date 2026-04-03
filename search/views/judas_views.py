@@ -8,7 +8,8 @@ Notes (from the interlinear table), and Commentary.
 
 import re
 import logging
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.core.cache import cache
 
 from search.db_utils import get_db_connection
@@ -28,29 +29,57 @@ PANEL_MODES = {'greek', 'coptic', 'notes', 'commentary'}
 CACHE_VERSION = 'v3'
 
 
-def judas_view(request):
+def judas_view(request, codex_num=None, panel_code=None, lang_code=None):
     """
     Public reader for Gospel of Judas (Confessor) text.
 
     Displays codex-page-based view with prose translation, plus a
     toggleable right column for Greek, Coptic, Notes, or Commentary.
 
-    Query params:
-        codex : int   — Codex page number 33-58 (default: none → landing)
-        panel : str   — Right-column content: greek | coptic | notes | commentary
+    Path params (SEO):
+        codex_num : int   — Codex page number 33-58
+        panel_code : str  — Right-column content: greek|coptic|notes|commentary
     """
     book_name = "Gospel of Confessor (Judas)"
     internal_book_name = "Gospel of Judas"
 
-    codex_param = request.GET.get('codex')
-    panel = request.GET.get('panel', '')
+    # If it is a query param request, redirect to SEO route
+    if request.GET.get('codex') or request.GET.get('panel') or request.GET.get('lang'):
+        cx = request.GET.get('codex')
+        pl = request.GET.get('panel', '')
+        la = request.GET.get('lang', 'en')
+        if pl not in PANEL_MODES:
+            pl = ''
+        if not cx:
+            if la != 'en' and la in SUPPORTED_LANGUAGES:
+                return redirect(f"/{la}/judas/", permanent=True)
+            return redirect('/judas/', permanent=True)
+        
+        try:
+            cx_int = int(cx)
+        except ValueError:
+            cx_int = CODEX_MIN
+
+        if la != 'en' and la in SUPPORTED_LANGUAGES:
+            if pl:
+                return redirect('judas_seo_view_panel_lang', lang_code=la, codex_num=cx_int, panel_code=pl, permanent=True)
+            else:
+                return redirect('judas_seo_view_lang', lang_code=la, codex_num=cx_int, permanent=True)
+        else:
+            if pl:
+                return redirect('judas_seo_view_panel', codex_num=cx_int, panel_code=pl, permanent=True)
+            else:
+                return redirect('judas_seo_view', codex_num=cx_int, permanent=True)
+
+    panel = panel_code if panel_code else ''
     if panel not in PANEL_MODES:
         panel = ''
 
-    # Language support
-    language = request.GET.get('lang', 'en')
+    language = lang_code if lang_code else 'en'
     if language != 'en' and language not in SUPPORTED_LANGUAGES:
         language = 'en'
+        
+    codex_param = codex_num
 
     # No codex selected → show landing page
     if not codex_param:

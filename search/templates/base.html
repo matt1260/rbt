@@ -5,7 +5,7 @@
 	
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
-<title>{% block title %}{{ meta_title|default:'Real Bible Translation Project' }}{% endblock %}</title>
+<title>{% block title %}{{ meta_title|default:'Real Bible Translation Project | The Language of the Eternal One' }}{% endblock %}</title>
 
 <!-- Standard SEO -->
 <meta name="description" content="{% block meta_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, trustworthy translations of scripture using extensive tools and comprehensive linguistic workflows.' }}{% endblock %}">
@@ -18,14 +18,14 @@
 {% endif %}
 
 <!-- Open Graph / Social Media -->
-<meta property="og:title" content="{% block og_title %}{{ meta_title|default:'Real Bible Translation Project' }}{% endblock %}">
+<meta property="og:title" content="{% block og_title %}{{ meta_title|default:'Real Bible Translation Project | The Language of the Eternal One' }}{% endblock %}">
 <meta property="og:description" content="{% block og_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, trustworthy translations of scripture using extensive tools and comprehensive linguistic workflows.' }}{% endblock %}">
 <meta property="og:url" content="{% if canonical_url %}{{ canonical_url }}{% else %}{{ request.build_absolute_uri }}{% endif %}">
 <meta property="og:type" content="{% block og_type %}website{% endblock %}">
 
 <!-- Twitter Cards -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="{% block twitter_title %}{{ meta_title|default:'Real Bible Translation Project' }}{% endblock %}">
+<meta name="twitter:title" content="{% block twitter_title %}{{ meta_title|default:'Real Bible Translation Project | The Language of the Eternal One' }}{% endblock %}">
 <meta name="twitter:description" content="{% block twitter_description %}{{ meta_description|default:'The Real Bible Translation Project focuses on precise, trustworthy translations of scripture using extensive tools and comprehensive linguistic workflows.' }}{% endblock %}">
 
 <!-- JSON-LD Structured Data -->
@@ -49,6 +49,12 @@
 }
 {% endblock %}
 </script>
+{% if jsonld_schemas %}
+<script type="application/ld+json">
+{{ jsonld_schemas|safe }}
+</script>
+{% endif %}
+
 
 <link rel="profile" href="http://gmpg.org/xfn/11">
 <link rel="dns-prefetch" href="//fonts.googleapis.com">

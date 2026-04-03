@@ -99,7 +99,7 @@ function hideTranslationLoadingLocal(){const m=document.getElementById('translat
             {% if num == codex_num %}
                 <span class="sanctum-chapter-link">{{ num }}</span>
             {% else %}
-                <a class="sanctum-chapter-link" href="?codex={{ num }}{% if panel %}&panel={{ panel }}{% endif %}{% if current_language != 'en' %}&lang={{ current_language }}{% endif %}">{{ num }}</a>
+                <a class="sanctum-chapter-link" {% if current_language != 'en' %}{% if panel %}href="{% url 'judas_seo_view_panel_lang' lang_code=current_language codex_num=num panel_code=panel %}"{% else %}href="{% url 'judas_seo_view_lang' lang_code=current_language codex_num=num %}"{% endif %}{% else %}{% if panel %}href="{% url 'judas_seo_view_panel' codex_num=num panel_code=panel %}"{% else %}href="{% url 'judas_seo_view' codex_num=num %}"{% endif %}{% endif %}>{{ num }}</a>
             {% endif %}
         {% endfor %}
     </div>
@@ -167,7 +167,7 @@ function hideTranslationLoadingLocal(){const m=document.getElementById('translat
             {% if num == codex_num %}
                 <span class="sanctum-chapter-link">{{ num }}</span>
             {% else %}
-                <a class="sanctum-chapter-link" href="?codex={{ num }}{% if panel %}&panel={{ panel }}{% endif %}{% if current_language != 'en' %}&lang={{ current_language }}{% endif %}">{{ num }}</a>
+                <a class="sanctum-chapter-link" {% if current_language != 'en' %}{% if panel %}href="{% url 'judas_seo_view_panel_lang' lang_code=current_language codex_num=num panel_code=panel %}"{% else %}href="{% url 'judas_seo_view_lang' lang_code=current_language codex_num=num %}"{% endif %}{% else %}{% if panel %}href="{% url 'judas_seo_view_panel' codex_num=num panel_code=panel %}"{% else %}href="{% url 'judas_seo_view' codex_num=num %}"{% endif %}{% endif %}>{{ num }}</a>
             {% endif %}
         {% endfor %}
     </div>

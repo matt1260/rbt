@@ -71,6 +71,8 @@ from .search_dispatch_views import (
     handle_keyword_search,
     handle_single_verse,
     handle_single_chapter,
+    chapter_seo_view,
+    verse_seo_view,
 )
 
 # Chapter handlers (called by search dispatch)

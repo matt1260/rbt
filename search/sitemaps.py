@@ -2,6 +2,8 @@ from django.contrib.sitemaps import Sitemap
 from django.urls import reverse
 from urllib.parse import urlencode
 from translate.translator import old_testament_books, new_testament_books
+from search.seo_utils import book_to_slug
+from search.translation_utils import SUPPORTED_LANGUAGES
 import datetime
 
 class BibleChapterSitemap(Sitemap):
@@ -34,15 +36,29 @@ class BibleChapterSitemap(Sitemap):
         items = []
         for book, count in bible_chapter_counts.items():
             for chapter in range(1, count + 1):
-                items.append((book, chapter))
+                items.append((book, chapter, 'en'))
+                # Also index the top 10 most popular translations to save indexing budget
+                # rather than all 71 for every chapter immediately
+                popular_langs = ['es', 'pt', 'fr', 'de', 'ru', 'zh', 'ar', 'hi', 'ja', 'it']
+                for lang in popular_langs:
+                    if lang in dict(SUPPORTED_LANGUAGES):
+                        items.append((book, chapter, lang))
         return items
 
     def lastmod(self, item):
         return datetime.date.today()
 
     def location(self, item):
-        book, chapter = item
+        book, chapter, lang = item
+        slug = book_to_slug(book)
+        if slug:
+            if lang == 'en':
+                return reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': chapter})
+            return reverse('chapter_seo_view_lang', kwargs={'lang_code': lang, 'book_slug': slug, 'chapter': chapter})
+        # Fallback if slug conversion fails somehow
         params = urlencode({'book': book, 'chapter': chapter})
+        if lang != 'en':
+            params += f"&lang={lang}"
         return f"/?{params}"
 
 class StaticViewSitemap(Sitemap):

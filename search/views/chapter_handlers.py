@@ -18,6 +18,7 @@ from translate.translator import (
     new_testament_books,
 )
 from search.rbt_titles import rbt_books
+from search.seo_utils import generate_chapter_schema
 from search.translation_utils import SUPPORTED_LANGUAGES
 from search.db_utils import execute_query, get_db_connection
 from hebrewtool.debug_utils import set_debug_context, should_emit_debug
@@ -173,8 +174,18 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     original_book = book
 
     chapters = ""
+    from django.urls import reverse
+    from search.seo_utils import book_to_slug
+    slug = book_to_slug(original_book)
     for number in chapter_list:
-        chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" class="sanctum-chapter-link">{number}</a>'
+        if slug:
+            if language and language != 'en':
+                href = reverse('chapter_seo_view_lang', kwargs={'lang_code': language, 'book_slug': slug, 'chapter': number})
+            else:
+                href = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': number})
+        else:
+            href = f"?book={original_book}&chapter={number}&lang={language}"
+        chapters += f'<a href="{href}" class="sanctum-chapter-link">{number}</a>'
     notes_html = build_notes_html(notes_sources, source_book, chapter_num, translated_footnotes=translated_footnotes)
 
     # Transform book name for display
@@ -235,6 +246,8 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
         'has_failed_translations': has_failed_translations,
         'failed_translation_count': failed_translation_count,
     }
+    
+    context['jsonld_schemas'] = generate_chapter_schema(request, display_book, chapter_num, footnotes_collection)
     return render(request, 'chapter.html', {'page_title': page_title, **context})
 
 
@@ -418,8 +431,18 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     original_book = book
     
     chapters = ''
+    from django.urls import reverse
+    from search.seo_utils import book_to_slug
+    slug = book_to_slug(original_book)
     for number in chapter_list:
-        chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" class="sanctum-chapter-link">{number}</a>'
+        if slug:
+            if language and language != 'en':
+                href = reverse('chapter_seo_view_lang', kwargs={'lang_code': language, 'book_slug': slug, 'chapter': number})
+            else:
+                href = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': number})
+        else:
+            href = f"?book={original_book}&chapter={number}&lang={language}"
+        chapters += f'<a href="{href}" class="sanctum-chapter-link">{number}</a>'
 
     # Transform book name for display only
     display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
@@ -482,6 +505,8 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         'has_failed_translations': has_failed_translations,
         'failed_translation_count': failed_translation_count
     }
+    
+    context['jsonld_schemas'] = generate_chapter_schema(request, display_book, chapter_num, footnotes_collection)
     
     return render(request, 'nt_chapter.html', {'page_title': page_title, **context})
 
@@ -667,8 +692,18 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     original_book = book
     
     chapters = ''
+    from django.urls import reverse
+    from search.seo_utils import book_to_slug
+    slug = book_to_slug(original_book)
     for number in chapter_list:
-        chapters += f'<a href="?book={original_book}&chapter={number}&lang={language}" class="sanctum-chapter-link">{number}</a>'
+        if slug:
+            if language and language != 'en':
+                href = reverse('chapter_seo_view_lang', kwargs={'lang_code': language, 'book_slug': slug, 'chapter': number})
+            else:
+                href = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': number})
+        else:
+            href = f"?book={original_book}&chapter={number}&lang={language}"
+        chapters += f'<a href="{href}" class="sanctum-chapter-link">{number}</a>'
 
     # Transform book name for display
     display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
@@ -732,5 +767,8 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
         'failed_translation_count': failed_translation_count,
         'cache_hit': cached_hit,
     }
+    
+    context['jsonld_schemas'] = generate_chapter_schema(request, display_book, chapter_num, footnotes_collection)
+
     
     return render(request, 'chapter.html', {'page_title': page_title, **context})

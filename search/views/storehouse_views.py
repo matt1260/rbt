@@ -8,6 +8,8 @@ Supports multi-language translation via Gemini API.
 import re
 from django.shortcuts import render
 from django.core.cache import cache
+from django.urls import reverse
+from django.shortcuts import redirect
 
 from search.db_utils import get_db_connection
 from search.views.translation_views import INTERLINEAR_CACHE_VERSION
@@ -15,14 +17,14 @@ from search.translation_utils import SUPPORTED_LANGUAGES
 from search.models import VerseTranslation
 
 
-def storehouse_view(request):
+def storehouse_view(request, chapter_num=None, lang_code=None):
     """
     Public reader for Joseph and Aseneth text.
     
     Displays chapter-by-chapter view with English translation and Greek text.
     Includes chapter navigation, caching, and multi-language translation support.
     
-    Query params:
+    Query params (Legacy) or Path parameters:
     - chapter: Chapter number to display (default: 1)
     - lang: Language code for translation (default: 'en')
     
@@ -33,16 +35,20 @@ def storehouse_view(request):
     # Internal book name used for translation database lookups
     internal_book_name = "Joseph and Aseneth"
     
-    chapter_param = request.GET.get('chapter')
-    try:
-        chapter_num = int(chapter_param)
-        if chapter_num < 1:
-            chapter_num = 1
-    except (TypeError, ValueError):
+    # If this is a query parameter request, redirect to SEO route
+    if request.GET.get('chapter') or request.GET.get('lang'):
+        ch = request.GET.get('chapter', 1)
+        la = request.GET.get('lang', 'en')
+        if la and la != 'en' and la in SUPPORTED_LANGUAGES:
+            return redirect('aseneth_seo_view_lang', lang_code=la, chapter_num=ch, permanent=True)
+        else:
+            return redirect('aseneth_seo_view', chapter_num=ch, permanent=True)
+
+    if chapter_num is None:
         chapter_num = 1
 
     # Language support
-    language = request.GET.get('lang', 'en')
+    language = lang_code if lang_code else 'en'
     if language not in SUPPORTED_LANGUAGES and language != 'en':
         language = 'en'
 
@@ -118,10 +124,14 @@ def storehouse_view(request):
 
                 # Build chapter links with language parameter preserved
                 for number in chapter_list:
-                    lang_param = f'&lang={language}' if language != 'en' else ''
-                    chapters_markup += (
-                        f'<a href="?chapter={number}{lang_param}" class="sanctum-chapter-link">{number}</a>'
-                    )
+                    if number == chapter_num:
+                        chapters_markup += f'<span class="sanctum-chapter-link">{number}</span>'
+                    else:
+                        if language and language != 'en':
+                            href = reverse('aseneth_seo_view_lang', kwargs={'lang_code': language, 'chapter_num': number})
+                        else:
+                            href = reverse('aseneth_seo_view', kwargs={'chapter_num': number})
+                        chapters_markup += f'<a href="{href}" class="sanctum-chapter-link">{number}</a>'
 
                 cursor.execute(
                     """
@@ -241,6 +251,7 @@ def storehouse_view(request):
         'book': translated_book_name,
         'original_book': internal_book_name,  # For translation API
         'chapter_num': chapter_num,
+        'chapter_list': chapter_list,
         'chapters': chapters_markup,
         'paraphrase': paraphrase,
         'greek': greek_literal,
