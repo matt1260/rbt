@@ -6227,7 +6227,7 @@ def biblehub_proxy(request):
         )
 
 
-@login_required
+@login_required(login_url='/accounts/login/')
 def gemini_dashboard_view(request):
     if not request.user.is_superuser:
         return HttpResponse("Unauthorized", status=403)
