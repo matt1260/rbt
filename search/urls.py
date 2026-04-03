@@ -58,7 +58,7 @@ urlpatterns = [
 
     # SEO URLs
     path('<str:lang_code>/<str:book_slug>/<int:chapter>/', views.chapter_seo_view, name='chapter_seo_view_lang'),
-    path('<str:lang_code>/<str:book_slug>/<int:chapter>/<int:verse>/', views.verse_seo_view, name='verse_seo_view_lang'),
+    path('<str:lang_code>/<str:book_slug>/<int:chapter>/<str:verse>/', views.verse_seo_view, name='verse_seo_view_lang'),
     path('<str:book_slug>/<int:chapter>/', views.chapter_seo_view, name='chapter_seo_view'),
-    path('<str:book_slug>/<int:chapter>/<int:verse>/', views.verse_seo_view, name='verse_seo_view'),
+    path('<str:book_slug>/<int:chapter>/<str:verse>/', views.verse_seo_view, name='verse_seo_view'),
 ]
