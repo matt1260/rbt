@@ -1,3 +1,4 @@
+from django.urls import reverse
 """
 Chapter display handlers for different book types (Genesis, OT, NT).
 
