@@ -33,6 +33,8 @@ from translate.translator import (
     build_heb_interlinear, replace_words, greek_lookup,
     ot_prev_next_references, extract_footnote_references, load_json
 )
+from search.views.chapter_handlers import _get_verse_url
+from search.seo_utils import book_to_slug
 from search.rbt_titles import rbt_books
 
 # Cache version for interlinear data
@@ -615,7 +617,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                     footnote_content = get_footnote(footnote_id, book)
                     footnote_contents.append(footnote_content)
                 # Get previous and next verse references
-                prev_ref = f'?book={book}&chapter={chapter_num}&verse={verse_num}'
+                prev_ref = _get_verse_url(language, book, chapter_num, verse_num)
                 next_ref = prev_ref
 
                 if record_id is not None:
@@ -625,7 +627,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                         prev_chapter = prev_ref_qs.values_list('chapter', flat=True).first()
                         prev_verse = prev_ref_qs.values_list('verse', flat=True).first()
                         if prev_chapter is not None and prev_verse is not None:
-                            prev_ref = f'?book={book}&chapter={prev_chapter}&verse={prev_verse}'
+                            prev_ref = _get_verse_url(language, book, prev_chapter, prev_verse)
 
                     next_row_id = rbt_table.objects.filter(id__gt=record_id).aggregate(min_id=Min('id'))['min_id']
                     if next_row_id is not None:
@@ -633,7 +635,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                         next_chapter = next_ref_qs.values_list('chapter', flat=True).first()
                         next_verse = next_ref_qs.values_list('verse', flat=True).first()
                         if next_chapter is not None and next_verse is not None:
-                            next_ref = f'?book={book}&chapter={next_chapter}&verse={next_verse}'
+                            next_ref = _get_verse_url(language, book, next_chapter, next_verse)
                 
                 # Fetch Hebrew interlinear data
                 book_abbrev = book_abbreviations.get(book, book)
@@ -777,6 +779,14 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
   
                 ref = row_data[1]
                 prev_ref, next_ref = ot_prev_next_references(ref)
+                if prev_ref:
+                    p_match = re.search(r'\?book=(.*?)&chapter=(\d+)&verse=(\d+)', prev_ref)
+                    if p_match:
+                        prev_ref = _get_verse_url(language, p_match.group(1), p_match.group(2), p_match.group(3))
+                if next_ref:
+                    n_match = re.search(r'\?book=(.*?)&chapter=(\d+)&verse=(\d+)', next_ref)
+                    if n_match:
+                        next_ref = _get_verse_url(language, n_match.group(1), n_match.group(2), n_match.group(3))
     
                 if row_data[2] is not None:
                     rbt_paraphrase = row_data[2]
@@ -942,7 +952,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                     prev_book = convert_book_name(abbreviation) if abbreviation in nt_abbrev else None
                     if not prev_book:
                         prev_book = abbreviation
-                    prev_ref = f'?book={prev_book}&chapter={prev_record[1]}&verse={prev_record[2]}'
+                    prev_ref = _get_verse_url(language, prev_book, prev_record[1], prev_record[2])
                 
                 if next_record is not None:
                     abbreviation = next_record[0]
@@ -954,7 +964,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                     next_book = convert_book_name(abbreviation) if abbreviation in nt_abbrev else None
                     if not next_book:
                         next_book = abbreviation
-                    next_ref = f'?book={next_book}&chapter={next_record[1]}&verse={next_record[2]}'
+                    next_ref = _get_verse_url(language, next_book, next_record[1], next_record[2])
 
                 # GET GREEK INTERLINEAR
                 if book in book_abbreviations:

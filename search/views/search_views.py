@@ -22,6 +22,8 @@ from search.models import Genesis, GenesisFootnotes, VerseTranslation
 from search.db_utils import execute_query, get_db_connection
 from search.views.utils import detect_script, strip_hebrew_vowels, highlight_match
 from translate.translator import book_abbreviations, convert_book_name
+from search.views.chapter_handlers import _get_verse_url
+from search.seo_utils import book_to_slug
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +152,7 @@ def search_api(request):
                 'verse': row.verse,
                 'language': lang_code,
                 'text': highlight_match(row.verse_text or '', query),
-                'url': f'/?book={row.book}&chapter={row.chapter}&verse={row.verse}&lang={lang_code}'
+                'url': _get_verse_url(lang_code, row.book, row.chapter, row.verse)
             })
 
         return JsonResponse({
@@ -192,8 +194,7 @@ def search_api(request):
                     'book': book_name,
                     'chapter': ref.start_chapter,
                     'verse': ref.start_verse,
-                    'url': f'/?book={book_name}&chapter={ref.start_chapter}' + 
-                           (f'&verse={ref.start_verse}' if ref.start_verse else ''),
+                    'url': _get_verse_url(lang_code if 'lang_code' in locals() else 'en', book_name, ref.start_chapter, ref.start_verse) if ref.start_verse else f'/{book_to_slug(book_name)}/{ref.start_chapter}/',
                     'display': f'{book_name} {ref.start_chapter}' + 
                               (f':{ref.start_verse}' if ref.start_verse else '')
                 })
@@ -264,7 +265,7 @@ def search_api(request):
                         'verse': result.verse,
                         'text': highlight_match(text, query),
                         'version': version,
-                        'url': f'/?book=Genesis&chapter={result.chapter}&verse={result.verse}'
+                        'url': _get_verse_url('en', 'Genesis', result.chapter, result.verse)
                     })
                 
                 # Search in old_testament.ot
@@ -308,7 +309,7 @@ def search_api(request):
                         'verse': row[2],
                         'text': highlight_match(text, query),
                         'version': version,
-                        'url': f'/?book={book_name}&chapter={row[1]}&verse={row[2]}'
+                        'url': _get_verse_url('en', book_name, row[1], row[2])
                     })
                 
                 # Get count
@@ -365,7 +366,7 @@ def search_api(request):
                         'hebrew_niqqud': row[4],
                         'morphology': row[5],
                         'strongs': row[6],
-                        'url': f'/?book={book_name}&chapter={chapter}&verse={verse}' if book_name else None
+                        'url': _get_verse_url('en', book_name, chapter, verse) if book_name else None
                     })
                 
                 count_result = execute_query(
@@ -417,7 +418,7 @@ def search_api(request):
                         'verse': verse,
                         'hebrew': row[1],
                         'text': highlight_match(row[1], query_stripped),
-                        'url': f'/?book={book_name}&chapter={chapter}&verse={verse}'
+                        'url': _get_verse_url('en', book_name, chapter, verse)
                     })
                     
             except Exception as e:
@@ -454,7 +455,7 @@ def search_api(request):
                         'chapter': row[1],
                         'verse': row[2],
                         'text': highlight_match(text, query),
-                        'url': f'/?book={book_name}&chapter={row[1]}&verse={row[2]}'
+                        'url': _get_verse_url('en', book_name, row[1], row[2])
                     })
                 
                 count_result = execute_query(
@@ -506,7 +507,7 @@ def search_api(request):
                         'english': row[4],
                         'morphology': row[5],
                         'morph_desc': row[6],
-                        'url': f'/?book={book_name}&chapter={chapter_num}&verse={verse_part}'
+                        'url': _get_verse_url('en', book_name, chapter_num, verse_part)
                     })
                 
                 count_result = execute_query(
@@ -601,7 +602,7 @@ def search_api(request):
                         'chapter': chapter,
                         'verse': verse,
                         'text': highlight_match(row[1], query),
-                        'url': f'/?book={book_name}&chapter={chapter}&verse={verse}'
+                        'url': _get_verse_url('en', book_name, chapter, verse)
                     })
                 
                 # Search NT footnotes (all book_footnotes tables)
@@ -729,7 +730,7 @@ def search_api(request):
                         # Only include footnotes where we found the chapter and verse
                         # Skip footnotes with incomplete location information
                         if chapter and verse:
-                            url = f'/?book={book_name}&chapter={chapter}&verse={verse}'
+                            url = _get_verse_url('en', book_name, chapter, verse)
                             reference = f'{book_name} {chapter}:{verse}'
                             
                             results['footnotes'].append({
@@ -1010,8 +1011,7 @@ def search_suggestions(request):
             suggestions.append({
                 'type': 'reference',
                 'text': display,
-                'url': f'/?book={book_name}&chapter={ref.start_chapter}' + 
-                       (f'&verse={ref.start_verse}' if ref.start_verse else '')
+                'url': _get_verse_url(lang_code if 'lang_code' in locals() else 'en', book_name, ref.start_chapter, ref.start_verse) if ref.start_verse else f'/{book_to_slug(book_name)}/{ref.start_chapter}/'
             })
     except:
         pass
@@ -1043,7 +1043,7 @@ def search_suggestions(request):
             suggestions.append({
                 'type': 'book',
                 'text': book,
-                'url': f'/?book={book}&chapter=1'
+                'url': f'/{book_to_slug(book)}/1/'
             })
 
     for sbook, surl in storehouse_books:
