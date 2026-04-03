@@ -199,11 +199,14 @@ function hideTranslationLoadingLocal(){const m=document.getElementById('translat
 }
 
 .tooltip-container img, .tooltip-container video { width: 100% !important; height: auto !important; max-width: 500px; display: block; margin: 0 auto; background: #fff; }
+figure.wp-caption, figure { display: block; margin: 16px auto; text-align: center; }
+figure.wp-caption img, figure img { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+figcaption, .wp-caption-text { font-size: 0.85em; color: #6b5b4f; margin-top: 6px; }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Panel toggle buttons — navigate with URL params
+    // Panel toggle buttons — build SEO URLs directly
     const panelButtons = {
         'greekToggleButton': 'greek',
         'copticToggleButton': 'coptic',
@@ -211,19 +214,30 @@ document.addEventListener('DOMContentLoaded', function() {
         'commentaryToggleButton': 'commentary',
     };
     const currentPanel = '{{ panel }}';
+    const codexNum = '{{ codex_num }}';
+    const currentLang = '{{ current_language }}';
 
     Object.entries(panelButtons).forEach(([btnId, panelName]) => {
         const btn = document.getElementById(btnId);
         if (!btn) return;
         btn.addEventListener('click', function() {
-            const url = new URL(window.location.href);
+            let path;
             if (currentPanel === panelName) {
-                // Toggle off
-                url.searchParams.delete('panel');
+                // Toggle off — go to page without panel
+                if (currentLang && currentLang !== 'en') {
+                    path = '/' + currentLang + '/judas/' + codexNum + '/';
+                } else {
+                    path = '/judas/' + codexNum + '/';
+                }
             } else {
-                url.searchParams.set('panel', panelName);
+                // Toggle on — go to page with panel
+                if (currentLang && currentLang !== 'en') {
+                    path = '/' + currentLang + '/judas/' + codexNum + '/' + panelName + '/';
+                } else {
+                    path = '/judas/' + codexNum + '/' + panelName + '/';
+                }
             }
-            window.location.href = url.toString();
+            window.location.href = path;
         });
     });
 

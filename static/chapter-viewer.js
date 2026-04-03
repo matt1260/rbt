@@ -271,6 +271,23 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
+    function toggleH5Headers() {
+        const root = document.getElementById('container') || document.getElementById('mainTextArea') || document.body;
+        root.querySelectorAll('h5').forEach(function(el) {
+            el.style.display = isH5Visible ? 'none' : '';
+        });
+        isH5Visible = !isH5Visible;
+        if (h5ToggleButton) {
+            h5ToggleButton.innerHTML = isH5Visible
+                ? '<i class="fas fa-eye-slash"></i> Headers (H)'
+                : '<i class="fas fa-eye"></i> Headers (H)';
+        }
+    }
+
+    if (h5ToggleButton) {
+        h5ToggleButton.addEventListener("click", toggleH5Headers);
+    }
+
     if (imageToggleButton) {
         imageToggleButton.addEventListener("click", function() {
             const tooltipContainers = document.querySelectorAll(".tooltip-container");

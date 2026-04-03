@@ -12,8 +12,6 @@
 <style>
   /* Critical storehouse styles */
   #toggleButtonsContainer{display:flex; gap:6px; justify-content:flex-end; background:var(--sanctum-parchment,#faf7f2); border:1px solid var(--sanctum-rule,rgba(183,133,80,0.25)); border-radius:4px; padding:8px 12px; position:sticky; top:0; z-index:50;}
-  .chapter-selector{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
-  .chapter-pill{display:inline-flex;padding:4px 12px;border-radius:999px;border:1px solid #d3c0b2;color:#ba8666;text-decoration:none;font-size:14px;}
   .storehouse-container{display:flex;}
   .verse-card{background:#fffaf7;border:1px solid #e4d6cc;border-radius:8px;padding:16px;}
 </style>
@@ -185,21 +183,8 @@ function hideTranslationLoading() {
     });
 </script>
 
-<div class="chapter-selector">
-    <strong>Select a Chapter:</strong>
-    <div class="chapter-pill-list">
-        {% for number in chapter_list %}
-            {% if number == chapter_num %}
-                <span class="chapter-pill current">{{ number }}</span>
-            {% else %}
-                {% if current_language != 'en' %}
-                    <a class="chapter-pill" href="{% url 'aseneth_seo_view_lang' lang_code=current_language chapter_num=number %}">{{ number }}</a>
-                {% else %}
-                    <a class="chapter-pill" href="{% url 'aseneth_seo_view' chapter_num=number %}">{{ number }}</a>
-                {% endif %}
-            {% endif %}
-        {% endfor %}
-    </div>
+<div class="sanctum-chapters">
+    {{ chapters|safe }}
 </div>
 
 {% with title_prefix=book|title %}
@@ -288,30 +273,11 @@ function hideTranslationLoading() {
     {% endif %}
 </div>
 
-<div class="chapter-selector bottom">
-    <strong>Select a Chapter:</strong>
-    <div class="chapter-pill-list">
-        {% for number in chapter_list %}
-            {% if number == chapter_num %}
-                <span class="chapter-pill current">{{ number }}</span>
-            {% else %}
-                {% if current_language != 'en' %}
-                    <a class="chapter-pill" href="{% url 'aseneth_seo_view_lang' lang_code=current_language chapter_num=number %}">{{ number }}</a>
-                {% else %}
-                    <a class="chapter-pill" href="{% url 'aseneth_seo_view' chapter_num=number %}">{{ number }}</a>
-                {% endif %}
-            {% endif %}
-        {% endfor %}
-    </div>
+<div class="sanctum-chapters" style="margin-top: 24px;">
+    {{ chapters|safe }}
 </div>
 
 <style>
-.chapter-selector { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; margin-bottom: 16px; }
-.chapter-selector.bottom { margin-top: 24px; }
-.chapter-pill-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.chapter-pill { display: inline-flex; align-items: center; justify-content: center; padding: 4px 12px; border-radius: 999px; border: 1px solid #d3c0b2; color: #ba8666; text-decoration: none; font-size: 14px; transition: background 0.2s ease, color 0.2s ease; }
-.chapter-pill:hover { background: #f4ebe5; }
-.chapter-pill.current { background: #ba8666; color: #fff; border-color: #ba8666; cursor: default; }
 .cache-indicator { margin-left: 12px; font-size: 13px; color: #6f9b4b; background: #e7f4dc; padding: 3px 8px; border-radius: 4px; }
 
 #toggleButtonsContainer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; background: var(--sanctum-parchment,#faf7f2); border: 1px solid var(--sanctum-rule,rgba(183,133,80,0.25)); border-radius: 4px; padding: 8px 12px; margin-bottom: 15px; position: sticky; top: 0; z-index: 50; }

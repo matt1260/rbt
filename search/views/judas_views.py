@@ -48,8 +48,14 @@ def judas_view(request, codex_num=None, panel_code=None, lang_code=None):
         cx = request.GET.get('codex')
         pl = request.GET.get('panel', '')
         la = request.GET.get('lang', 'en')
+        # Also honour the path-based lang_code if query param is absent
+        if la == 'en' and lang_code and lang_code in SUPPORTED_LANGUAGES:
+            la = lang_code
         if pl not in PANEL_MODES:
             pl = ''
+        # Fall back to the path parameter if codex is not in query string
+        if not cx and codex_num is not None:
+            cx = str(codex_num)
         if not cx:
             if la != 'en' and la in SUPPORTED_LANGUAGES:
                 return redirect(f"/{la}/judas/", permanent=True)
