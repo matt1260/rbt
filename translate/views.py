@@ -39,6 +39,28 @@ def get_ipv4_transport():
     """Force HTTPX to bind over IPv4 exclusively to bypass DNS resolution stalls."""
     return httpx.HTTPTransport(local_address="0.0.0.0")
 
+def _seo_to_edit_url(seo_url: str) -> str:
+    """Convert absolute SEO semantic URLs back into relative query strings for edit mode links."""
+    if not seo_url:
+        return seo_url
+    if '?' in seo_url:
+        return seo_url # Already querystring format
+    try:
+        from django.urls import resolve
+        from search.seo_utils import slug_to_book
+        
+        match = resolve(seo_url)
+        if match.url_name in ['verse_seo_view', 'verse_seo_view_lang']:
+            bk = slug_to_book(match.kwargs['book_slug'])
+            ch = match.kwargs['chapter']
+            vs = match.kwargs.get('verse')
+            if vs:
+                bk_encoded = quote(bk)
+                return f'?book={bk_encoded}&chapter={ch}&verse={vs}'
+    except Exception:
+        pass
+    return seo_url
+
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY, http_options={'client_args': {'transport': get_ipv4_transport()}})
 
@@ -276,8 +298,8 @@ def get_context(book, chapter_num, verse_num):
         slt = results['slt']
         litv = results['litv']
         eng_lxx = results['eng_lxx']
-        previous_verse = results['prev_ref']
-        next_verse = results['next_ref']
+        previous_verse = _seo_to_edit_url(results['prev_ref'])
+        next_verse = _seo_to_edit_url(results['next_ref'])
         footnote_contents = results['footnote_content'] # footnote html rows
         chapter_list = results['chapter_list']
         interlinear = results['interlinear']
