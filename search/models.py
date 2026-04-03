@@ -264,3 +264,17 @@ class AeonChunk(models.Model):
 
     def __str__(self):
         return f"{self.source_id}#{self.chunk_index}"
+
+class GeminiUsageLog(models.Model):
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    api_key_abbrev = models.CharField(max_length=20)
+    request_type = models.CharField(max_length=50) # e.g. 'chapter', 'book_name', 'fallback'
+    language_code = models.CharField(max_length=10)
+    book = models.CharField(max_length=50, blank=True, null=True)
+    chapter = models.IntegerField(blank=True, null=True)
+    status_code = models.IntegerField(default=200) # 200 for success, 429 for rate limit, 500 for error
+    error_message = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'gemini_usage_logs'
+

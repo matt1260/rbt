@@ -6226,3 +6226,38 @@ def biblehub_proxy(request):
             status=502,
         )
 
+
+@login_required
+def gemini_dashboard_view(request):
+    if not request.user.is_superuser:
+        return HttpResponse("Unauthorized", status=403)
+        
+    from search.models import GeminiUsageLog
+    from django.db.models import Count, Q
+    
+    # 50 recent requests
+    logs = GeminiUsageLog.objects.all().order_by('-timestamp')[:50]
+    
+    # Summary by key over last 1000 requests
+    recent = GeminiUsageLog.objects.order_by('-timestamp')[:1000]
+    recent_ids = [r.id for r in recent]
+    
+    key_stats = GeminiUsageLog.objects.filter(id__in=recent_ids).values('api_key_abbrev').annotate(
+        success_count=Count('id', filter=Q(status_code=200)),
+        rate_limit_count=Count('id', filter=Q(status_code=429)),
+        error_count=Count('id', filter=Q(status_code=500)),
+    ).order_by('-success_count')
+    
+    # Target stats over last 500 requests
+    recent_500 = GeminiUsageLog.objects.order_by('-timestamp')[:500]
+    recent_500_ids = [r.id for r in recent_500]
+    
+    target_stats = GeminiUsageLog.objects.filter(id__in=recent_500_ids, status_code=200)\
+        .values('book', 'chapter', 'language_code').annotate(count=Count('id'))\
+        .order_by('-count')[:20]
+        
+    return render(request, 'gemini_dashboard.html', {
+        'logs': logs,
+        'key_stats': key_stats,
+        'target_stats': target_stats
+    })

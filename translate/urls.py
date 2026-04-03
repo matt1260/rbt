@@ -12,6 +12,7 @@ urlpatterns = [
     path('RBT/edit_footnote/', views.edit_footnote, name='edit_footnote'),
     path('RBT/edit/', views.edit, name='edit'),
     path('translate/', views.translate, name='translate'),
+    path('gemini/dashboard/', views.gemini_dashboard_view, name='gemini_dashboard'),
     path('find_replace_genesis/', views.find_replace_genesis, name='find_replace'),
     path('find_and_replace_nt/', views.find_and_replace_nt, name='find_and_replace_nt'),
     path('find_and_replace_ot/', views.find_and_replace_ot, name='find_and_replace_ot'),
