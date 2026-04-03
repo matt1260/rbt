@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from translate import views as translate_views
 
 urlpatterns = [
     path('', views.search, name='search'),
@@ -31,6 +32,7 @@ urlpatterns = [
     path('translation/retry-failed/', views.retry_failed_translations, name='retry_failed_translations'),
 
     # Aeon Bot API endpoints
+    path('gemini/dashboard/', translate_views.gemini_dashboard_view, name='gemini_dashboard'),
     path('aeon/status/', views.aeon_status, name='aeon_status'),
     path('aeon/dashboard/', views.aeon_dashboard, name='aeon_dashboard'),
     path('aeon/dashboard/view/', views.aeon_dashboard_page, name='aeon_dashboard_page'),
