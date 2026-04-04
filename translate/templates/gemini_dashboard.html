@@ -1,5 +1,11 @@
 {% extends 'base.html' %}
 {% block content %}
+<!-- Include jQuery and DataTables -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css"/>
+<script type="text/javascript" src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+
 <div class="container mt-4">
     <h2>Gemini Translation Dashboard</h2>
     <div class="row mt-4">
@@ -7,32 +13,40 @@
             <div class="card">
                 <div class="card-header">Recent Usage by Key</div>
                 <div class="card-body">
-                    <table class="table table-sm">
-                        <tr><th>API Key</th><th>Success (200)</th><th>Rate Limit (429)</th><th>Errors (500)</th></tr>
-                        {% for key in key_stats %}
-                        <tr>
-                            <td>{{ key.api_key_abbrev }}</td>
-                            <td>{{ key.success_count }}</td>
-                            <td>{{ key.rate_limit_count }}</td>
-                            <td>{{ key.error_count }}</td>
-                        </tr>
-                        {% endfor %}
+                    <table class="table table-sm sortable-table">
+                        <thead>
+                            <tr><th>API Key</th><th>Success (200)</th><th>Rate Limit (429)</th><th>Errors (500)</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for key in key_stats %}
+                            <tr>
+                                <td>{{ key.api_key_abbrev }}</td>
+                                <td>{{ key.success_count }}</td>
+                                <td>{{ key.rate_limit_count }}</td>
+                                <td>{{ key.error_count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
                     </table>
                 </div>
             </div>
         </div>
         <div class="col-md-6">
             <div class="card">
-                <div class="card-header">Target Summary (Last 500 requests)</div>
+                <div class="card-header">Target Summary (All Time Requests)</div>
                 <div class="card-body">
-                    <table class="table table-sm">
-                        <tr><th>Target Config</th><th>Requests</th></tr>
-                        {% for item in target_stats %}
-                        <tr>
-                            <td>{{ item.book }} {{ item.chapter }} ({{ item.language_code }})</td>
-                            <td>{{ item.count }}</td>
-                        </tr>
-                        {% endfor %}
+                    <table class="table table-sm sortable-table">
+                        <thead>
+                            <tr><th>Target Config</th><th>Requests</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for item in target_stats %}
+                            <tr>
+                                <td>{{ item.book }} {{ item.chapter|default:"" }} ({{ item.language_code }})</td>
+                                <td>{{ item.count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -43,23 +57,39 @@
         <div class="card-header">Last 50 Events</div>
         <div class="card-body">
             <table class="table table-sm table-striped">
-                <tr><th>Time</th><th>Key</th><th>Type</th><th>Target</th><th>Status</th><th>Error</th></tr>
-                {% for log in logs %}
-                <tr>
-                    <td>{{ log.timestamp|date:"M d H:i:s" }}</td>
-                    <td>{{ log.api_key_abbrev }}</td>
-                    <td>{{ log.request_type }}</td>
-                    <td>{{ log.book }} {{ log.chapter|default_if_none:"" }} ({{ log.language_code }})</td>
-                    <td>
-                        {% if log.status_code == 200 %}<span class="badge bg-success">200</span>
-                        {% elif log.status_code == 429 %}<span class="badge bg-warning">429</span>
-                        {% else %}<span class="badge bg-danger">{{ log.status_code }}</span>{% endif %}
-                    </td>
-                    <td class="small">{{ log.error_message|default:"" }}</td>
-                </tr>
-                {% endfor %}
+                <thead>
+                    <tr><th>Time</th><th>Key</th><th>Type</th><th>Target</th><th>Status</th><th>Error</th></tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>{{ log.timestamp|date:"M d H:i:s" }}</td>
+                        <td>{{ log.api_key_abbrev }}</td>
+                        <td>{{ log.request_type }}</td>
+                        <td>{{ log.book }} {{ log.chapter|default_if_none:"" }} ({{ log.language_code }})</td>
+                        <td>
+                            {% if log.status_code == 200 %}<span class="badge bg-success">200</span>
+                            {% elif log.status_code == 429 %}<span class="badge bg-warning">429</span>
+                            {% else %}<span class="badge bg-danger">{{ log.status_code }}</span>{% endif %}
+                        </td>
+                        <td class="small">{{ log.error_message|default:"" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
             </table>
         </div>
     </div>
 </div>
+
+<script>
+$(document).ready(function() {
+    $('.sortable-table').DataTable({
+        "order": [[1, "desc"]], // Default sort by the second column (count) descending
+        "pageLength": 10,
+        "bLengthChange": true,
+        "bFilter": true,
+        "bAutoWidth": false
+    });
+});
+</script>
 {% endblock %}

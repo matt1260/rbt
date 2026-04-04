@@ -649,7 +649,7 @@ class TranslationWorker:
             
             try:
                 print(f"[WORKER] Translating {book} {chapter_num} verses batch {i//batch_size + 1}/{(len(verse_items)-1)//batch_size + 1}")
-                translated = translate_chapter_batch(batch, language)
+                translated = translate_chapter_batch(batch, language, chapter=chapter_num)
                 
                 # Save each translation
                 for verse_num, translated_text in translated.items():

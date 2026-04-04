@@ -94,7 +94,7 @@ SUPPORTED_LANGUAGES = {
 }
 
 
-def translate_chapter_batch(verses_dict, target_language_code):
+def translate_chapter_batch(verses_dict, target_language_code, chapter=None):
     """Translate entire chapter at once for efficiency
     
     Args:
@@ -241,7 +241,7 @@ Return ONLY the translated verses with all HTML tags and <<<VERSE_N>>> markers p
             client = genai.Client(api_key=api_key)
             translated_text = _call_model(client, 'models/gemini-3-flash-preview', prompt)
             print(f"[TRANSLATION DEBUG] API Response received. Length: {len(translated_text)}")
-            _log_gemini_usage(api_key, 'chapter', language_code, book=book_name, chapter=list(verses_dict.keys())[0])
+            _log_gemini_usage(api_key, 'chapter', language_code, book=book_name, chapter=chapter)
             # print(f"[TRANSLATION DEBUG] Response preview: {translated_text[:100]}...")
             
             verse_results = _parse_verse_results(translated_text) if translated_text else {}
@@ -270,7 +270,7 @@ Return ONLY the translated verses with all HTML tags and <<<VERSE_N>>> markers p
             error_str = str(e).lower()
             last_error = e
             status_code = 429 if 'quota' in error_str or 'rate limit' in error_str or 'resource exhausted' in error_str else 500
-            _log_gemini_usage(api_key, 'chapter', language_code, book=book_name, chapter=list(verses_dict.keys())[0], status_code=status_code, error_message=str(e))
+            _log_gemini_usage(api_key, 'chapter', language_code, book=book_name, chapter=chapter, status_code=status_code, error_message=str(e))
             # Check for quota/rate limit errors - if so, try next key
             if 'quota' in error_str or 'rate limit' in error_str or 'resource exhausted' in error_str:
                 print(f"[TRANSLATION DEBUG] API key exhausted, trying next key...")

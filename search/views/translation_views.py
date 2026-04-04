@@ -151,7 +151,7 @@ def _translate_nt_chapter(book, chapter_num, language, results):
                 )
         print(f"[API DEBUG] Marked {len(verses_to_translate)} verses as 'processing'")
         
-        translated_results = translate_chapter_batch(verses_to_translate, language)
+        translated_results = translate_chapter_batch(verses_to_translate, language, chapter=chapter_num)
         
         if '__quota_exceeded__' in translated_results:
             raise Exception('Translation quota exceeded')
@@ -347,7 +347,7 @@ def _translate_ot_chapter(book, chapter_num, language, results):
                     defaults={'status': 'processing', 'verse_text': ''}
                 )
         
-        translated_results = translate_chapter_batch(verses_to_translate, language)
+        translated_results = translate_chapter_batch(verses_to_translate, language, chapter=chapter)
         
         if '__quota_exceeded__' in translated_results:
             raise Exception('Translation quota exceeded')

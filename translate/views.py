@@ -6248,13 +6248,9 @@ def gemini_dashboard_view(request):
         error_count=Count('id', filter=Q(status_code=500)),
     ).order_by('-success_count')
     
-    # Target stats over last 500 requests
-    recent_500 = GeminiUsageLog.objects.order_by('-timestamp')[:500]
-    recent_500_ids = [r.id for r in recent_500]
-    
-    target_stats = GeminiUsageLog.objects.filter(id__in=recent_500_ids, status_code=200)\
-        .values('book', 'chapter', 'language_code').annotate(count=Count('id'))\
-        .order_by('-count')[:20]
+    # Target stats all time (to show all chapters being requested)
+    target_stats = GeminiUsageLog.objects.filter(status_code=200)\
+        .values('book', 'chapter', 'language_code').annotate(count=Count('id'))
         
     return render(request, 'gemini_dashboard.html', {
         'logs': logs,
