@@ -72,5 +72,6 @@ media/
 # Environment files
 *.env
 .env
+.keys
 rbt-sanctum/style.css
 rbt-sanctum/react/sanctum.js

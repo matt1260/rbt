@@ -42,7 +42,7 @@ DEFAULT_CHARSET = 'utf-8'
 SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # Logeion (api.logeion.org) public API key - extracted from Logeion's own JS
-LOGEION_KEY = os.environ.get('LOGEION_KEY', 'AIzaSyCT5aVzk3Yx-m8FH8rmTpEgfVyVA3pYbqg')
+LOGEION_KEY = os.environ.get('LOGEION_KEY', '')
 
 # Coinbase Advanced Trade API (CDP)
 COINBASE_API_KEY_NAME = os.environ.get('COINBASE_API_KEY_NAME')
