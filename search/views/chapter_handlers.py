@@ -449,10 +449,10 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
     display_book = rbt_books.get(display_book, display_book)
     
-    # Apply translated book name if available
+    # Apply translated book name if available for page display only
     if language != 'en' and book_name_translation and book_name_translation.verse_text:
         display_book = book_name_translation.verse_text
-    page_title = f'{display_book} {chapter_num}'
+    page_title = f'{original_book} {chapter_num}'
     
     needs_translation = False
     has_failed_translations = False
@@ -507,7 +507,7 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         'failed_translation_count': failed_translation_count
     }
     
-    context['jsonld_schemas'] = generate_chapter_schema(request, display_book, chapter_num, footnotes_collection)
+    context['jsonld_schemas'] = generate_chapter_schema(request, original_book, chapter_num, footnotes_collection)
     
     return render(request, 'nt_chapter.html', {'page_title': page_title, **context})
 
@@ -708,11 +708,11 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
     display_book = rbt_books.get(display_book, display_book)
     
-    # Apply translated book name if available
+    # Apply translated book name if available for page display only
     if language != 'en' and book_name_translation and book_name_translation.verse_text:
         display_book = book_name_translation.verse_text
     
-    page_title = f'{display_book} {chapter_num}'
+    page_title = f'{original_book} {chapter_num}'
     notes_html = build_notes_html([paraphrase, hebrew_literal], source_book, chapter_num, translated_footnotes=translated_footnotes)
     
     # Determine if translation is needed
@@ -767,7 +767,7 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
         'cache_hit': cached_hit,
     }
     
-    context['jsonld_schemas'] = generate_chapter_schema(request, display_book, chapter_num, footnotes_collection)
+    context['jsonld_schemas'] = generate_chapter_schema(request, original_book, chapter_num, footnotes_collection)
 
     
     return render(request, 'chapter.html', {'page_title': page_title, **context})
