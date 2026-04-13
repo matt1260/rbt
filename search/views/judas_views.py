@@ -268,7 +268,7 @@ def judas_view(request, codex_num=None, panel_code=None, lang_code=None):
         'error_message': error_message,
         'cache_hit': False,
         'heading_prefix': heading_prefix,
-        'page_title': f"Gospel of Confessor {codex_num}",
+        'page_title': f"Gospel of Judas {codex_num}",
         'supported_languages': SUPPORTED_LANGUAGES,
         'current_language': language,
         'needs_translation': needs_translation,
