@@ -226,6 +226,21 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
         rbt_paraphrase = rbt_paraphrase or ''
         rbt = f'<strong>RBT Translation:</strong><div>{rbt}</div>'
 
+        from django.utils.html import strip_tags
+        is_nt = bool(has_nt_data)
+        lang_str = "Greek" if is_nt else "Hebrew"
+        
+        # Build clean snippet for description
+        clean_text = strip_tags(rbt_text or rbt_paraphrase or '')
+        snippet = f" '{clean_text[:120]}...'" if clean_text else ""
+        
+        if is_nt:
+            meta_title = f"{book} {chapter_num}:{verse_num} Greek Interlinear Translation | Parsing, Morphology, Logeion"
+            meta_description = f"Read the {book} {chapter_num}:{verse_num} Greek interlinear translation:{snippet} Featuring full morphological parsing, Strong's lexicon, and Logeion/Perseus study tools."
+        else:
+            meta_title = f"{book} {chapter_num}:{verse_num} Hebrew Interlinear Translation | Strongs, BDB, Parsing"
+            meta_description = f"Read the {book} {chapter_num}:{verse_num} Hebrew interlinear translation:{snippet} Featuring full morphological parsing, BDB, Fuerst, and Strong's Hebrew lexicon popups."
+
         context = {
             'previous_verse': previous_verse,
             'next_verse': next_verse,
@@ -248,9 +263,11 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
             'english_row': english_row,
             'hebrew_row': hebrew_row,
             'hebrew_clean': hebrew_clean,
-            'hebrew_interlinear_cards': hebrew_cards
+            'hebrew_interlinear_cards': hebrew_cards,
+            'meta_title': meta_title,
+            'meta_description': meta_description,
         }
-        page_title = f'{book} {chapter_num}:{verse_num}'
+        page_title = meta_title
         return render(request, 'verse.html', {'page_title': page_title, **context})
         
     except Exception as e:

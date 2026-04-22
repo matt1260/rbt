@@ -198,7 +198,9 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     if language != 'en' and book_name_translation and book_name_translation.verse_text:
         display_book = book_name_translation.verse_text
 
-    page_title = f'{display_book} {chapter_num}'
+    meta_title = f"{display_book} {chapter_num} Hebrew Interlinear | Strongs, BDB, Parsing"
+    meta_description = f"Read {display_book} {chapter_num} in the original Hebrew with interlinear translation, BDB, Fuerst & Strong's lexicons, and complete morphological parsing."
+    page_title = meta_title
     
     # Determine if translation is needed
     needs_translation = False
@@ -251,6 +253,8 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     }
     
     context['jsonld_schemas'] = generate_chapter_schema(request, display_book, chapter_num, footnotes_collection)
+    context['meta_title'] = meta_title
+    context['meta_description'] = meta_description
     return render(request, 'chapter.html', {'page_title': page_title, **context})
 
 
@@ -452,7 +456,10 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     # Apply translated book name if available for page display only
     if language != 'en' and book_name_translation and book_name_translation.verse_text:
         display_book = book_name_translation.verse_text
-    page_title = f'{original_book} {chapter_num}'
+        
+    meta_title = f"{display_book} {chapter_num} Greek Interlinear | Parsing, Morphology, Logeion"
+    meta_description = f"Read {display_book} {chapter_num} in the original Greek with interlinear translation, Strong's lexicon, and complete morphological parsing/Logeion links."
+    page_title = meta_title
     
     needs_translation = False
     has_failed_translations = False
@@ -508,6 +515,8 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     }
     
     context['jsonld_schemas'] = generate_chapter_schema(request, original_book, chapter_num, footnotes_collection)
+    context['meta_title'] = meta_title
+    context['meta_description'] = meta_description
     
     return render(request, 'nt_chapter.html', {'page_title': page_title, **context})
 
@@ -712,7 +721,10 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     if language != 'en' and book_name_translation and book_name_translation.verse_text:
         display_book = book_name_translation.verse_text
     
-    page_title = f'{original_book} {chapter_num}'
+    meta_title = f"{display_book} {chapter_num} Hebrew Interlinear | Strongs, BDB, Parsing"
+    meta_description = f"Read {display_book} {chapter_num} in the original Hebrew with interlinear translation, BDB, Fuerst & Strong's lexicons, and complete morphological parsing."
+    page_title = meta_title
+    
     notes_html = build_notes_html([paraphrase, hebrew_literal], source_book, chapter_num, translated_footnotes=translated_footnotes)
     
     # Determine if translation is needed
@@ -768,6 +780,7 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     }
     
     context['jsonld_schemas'] = generate_chapter_schema(request, original_book, chapter_num, footnotes_collection)
-
+    context['meta_title'] = meta_title
+    context['meta_description'] = meta_description
     
     return render(request, 'chapter.html', {'page_title': page_title, **context})
