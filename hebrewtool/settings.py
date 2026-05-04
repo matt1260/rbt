@@ -165,8 +165,8 @@ WSGI_APPLICATION = 'hebrewtool.wsgi.application'
 
 _db_config = dj_database_url.config(
     default=os.environ.get('DATABASE_URL'),
-    conn_max_age=600,  # Keep connections alive for 10 minutes
-    conn_health_checks=True  # Django 4.1+ health checks
+    conn_max_age=60,  # Reuse connections for 60s to avoid per-request SSL handshake overhead
+    conn_health_checks=True
 )
 # Set statement/lock timeouts at connection-creation time rather than per-query.
 # This eliminates 2 extra round-trips per DB call (critical for high-latency connections).
