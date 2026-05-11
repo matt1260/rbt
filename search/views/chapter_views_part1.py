@@ -116,6 +116,12 @@ def _get_recently_completed_chapters(days=365, limit=5):
 
     cutoff = datetime.now() - timedelta(days=days)
 
+    def _naive(dt):
+        """Strip timezone so naive/aware comparisons don't raise."""
+        if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+            return dt.replace(tzinfo=None)
+        return dt
+
     try:
         # -- Batch-fetch ALL entries (for first-save dating) --
         all_entries = list(
@@ -156,7 +162,7 @@ def _get_recently_completed_chapters(days=365, limit=5):
                 continue
             # Completion date = when the last verse was first saved
             completion_dt = max(first_saves.values())
-            if completion_dt < cutoff:
+            if _naive(completion_dt) < cutoff:
                 continue  # Completed too long ago; skip
             # Require at least 50% of verses to have an audit record so we
             # don't surface chapters that only have a handful of spot-edits
@@ -167,7 +173,8 @@ def _get_recently_completed_chapters(days=365, limit=5):
                 'book': display_name,
                 'chapter': chapter,
                 'total_verses': total,
-                'last_updated': completion_dt.date(),
+                'last_updated': _naive(completion_dt).date(),
+                '_sort_dt': _naive(completion_dt),
                 'testament': 'NT',
                 'url': f'?book={display_name.replace(" ", "_")}&chapter={chapter}&verse=1',
             })
@@ -187,7 +194,7 @@ def _get_recently_completed_chapters(days=365, limit=5):
             if not first_saves:
                 continue
             completion_dt = max(first_saves.values())
-            if completion_dt < cutoff:
+            if _naive(completion_dt) < cutoff:
                 continue
             # Lower audit-coverage threshold for OT due to [] bulk-edit data loss
             if len(first_saves) < total * 0.30:
@@ -197,15 +204,20 @@ def _get_recently_completed_chapters(days=365, limit=5):
                 'book': display_name,
                 'chapter': chapter,
                 'total_verses': total,
-                'last_updated': completion_dt.date(),
+                'last_updated': _naive(completion_dt).date(),
+                '_sort_dt': _naive(completion_dt),
                 'testament': 'OT',
                 'url': f'?book={display_name.replace(" ", "_")}&chapter={chapter}&verse=1',
             })
 
-        recently_completed.sort(
-            key=lambda x: x['last_updated'] or datetime.min.date(),
-            reverse=True,
-        )
+        def _sort_key(x):
+            dt = x['_sort_dt']
+            # Strip timezone if present so comparison is always naive
+            if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+                dt = dt.replace(tzinfo=None)
+            return dt
+
+        recently_completed.sort(key=_sort_key, reverse=True)
         return recently_completed[:limit]
 
     except Exception as e:
