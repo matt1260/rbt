@@ -238,7 +238,7 @@ def updates(request):
     date_param = request.GET.get('date', '')
     month_param = request.GET.get('month', '')
 
-    cache_key = f'updates_page_v2_{date_param}_{month_param}'
+    cache_key = f'updates_page_v3_{date_param}_{month_param}'
     cached_response = cache.get(cache_key)
     if cached_response is not None:
         return cached_response
