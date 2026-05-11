@@ -321,10 +321,10 @@ def updates(request):
             'url': url,
         })
 
-    completion_data = cache.get('recently_completed_chapters')
+    completion_data = cache.get('recently_completed_chapters_v2')
     if completion_data is None:
         completion_data = _get_recently_completed_chapters()
-        cache.set('recently_completed_chapters', completion_data, 12 * 60 * 60)
+        cache.set('recently_completed_chapters_v2', completion_data, 12 * 60 * 60)
 
     context = {
         'month': month_param if month_param else date_param if date_param else datetime.now().strftime('%B %Y'),
