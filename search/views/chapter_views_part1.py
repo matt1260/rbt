@@ -96,16 +96,18 @@ def _parse_ref_verse_num(ref_str):
     return None
 
 
-def _get_recently_completed_chapters(days=30, limit=5):
+def _get_recently_completed_chapters(days=365, limit=5):
     """Return the most recently completed chapters across OT and NT.
 
-    A chapter is "recently completed" if a significant portion of its verses
-    were edited within the lookback window:
-    - NT: distinct verse edits / total verses >= 70%
-    - OT: same, or >= 10% when bulk [] entries exist on the same dates
-      (the [] bug caused OT verse edits to lose their reference)
+    A chapter is "recently completed" if its last verse was *first* saved
+    within the lookback window.  This prevents re-editing old chapters from
+    surfacing them as newly completed.
 
-    The completion date is the date the last verse was *first* saved.
+    Qualification:
+    - NT: all verses filled in DB AND completion_date within lookback window
+          AND at least 50% of verses have an audit record
+    - OT: same criteria, but audit coverage threshold is 30% due to the []
+          bulk-edit bug that caused some OT refs to be lost
     """
     abbrev_to_name = {}
     for name, abbrev in book_abbreviations.items():
@@ -115,35 +117,6 @@ def _get_recently_completed_chapters(days=30, limit=5):
     cutoff = datetime.now() - timedelta(days=days)
 
     try:
-        # -- Batch-fetch recent entries (for coverage filter) --
-        recent_entries = list(
-            TranslationUpdates.objects.filter(date__gte=cutoff)
-            .exclude(reference='[]')
-            .values_list('reference', 'date')
-        )
-        chapter_edits = {}
-        for ref_str, dt in recent_entries:
-            parsed = _parse_ref_to_chapter(ref_str)
-            if not parsed:
-                continue
-            key = parsed
-            if key not in chapter_edits:
-                chapter_edits[key] = {'refs': set(), 'dates': set()}
-            chapter_edits[key]['refs'].add(ref_str)
-            chapter_edits[key]['dates'].add(dt.date())
-
-        # -- Bracket-entry counts per date (OT heuristic) --
-        bracket_by_date = {}
-        for dt in (
-            TranslationUpdates.objects.filter(
-                date__gte=cutoff,
-                reference='[]',
-                version__in=['Paraphrase', 'Hebrew Literal'],
-            ).values_list('date', flat=True)
-        ):
-            d = dt.date()
-            bracket_by_date[d] = bracket_by_date.get(d, 0) + 1
-
         # -- Batch-fetch ALL entries (for first-save dating) --
         all_entries = list(
             TranslationUpdates.objects
@@ -178,21 +151,23 @@ def _get_recently_completed_chapters(days=30, limit=5):
             if total == 0 or filled < total:
                 continue
             chapter = int(chapter)
-            edits = chapter_edits.get((book_abbrev, chapter))
-            if not edits:
-                continue
-            coverage = len(edits['refs']) / total
-            if coverage < 0.70:
+            first_saves = verse_first_save.get((book_abbrev, chapter), {})
+            if not first_saves:
                 continue
             # Completion date = when the last verse was first saved
-            first_saves = verse_first_save.get((book_abbrev, chapter), {})
-            completion_date = max(first_saves.values()).date() if first_saves else None
+            completion_dt = max(first_saves.values())
+            if completion_dt < cutoff:
+                continue  # Completed too long ago; skip
+            # Require at least 50% of verses to have an audit record so we
+            # don't surface chapters that only have a handful of spot-edits
+            if len(first_saves) < total * 0.50:
+                continue
             display_name = abbrev_to_name.get(book_abbrev, book_abbrev)
             recently_completed.append({
                 'book': display_name,
                 'chapter': chapter,
                 'total_verses': total,
-                'last_updated': completion_date,
+                'last_updated': completion_dt.date(),
                 'testament': 'NT',
                 'url': f'?book={display_name.replace(" ", "_")}&chapter={chapter}&verse=1',
             })
@@ -208,30 +183,21 @@ def _get_recently_completed_chapters(days=30, limit=5):
             if total == 0 or filled < total:
                 continue
             chapter = int(chapter)
-            edits = chapter_edits.get((book_abbrev, chapter))
-            if not edits:
-                continue
-            distinct_refs = len(edits['refs'])
-            coverage = distinct_refs / total
-
-            is_completed = coverage >= 0.40
-            # Secondary: lower coverage + bulk [] entries on same dates
-            if not is_completed and coverage >= 0.10 and distinct_refs >= 3:
-                bracket_volume = sum(
-                    bracket_by_date.get(d, 0) for d in edits['dates']
-                )
-                is_completed = bracket_volume > 0
-            if not is_completed:
-                continue
-
             first_saves = verse_first_save.get((book_abbrev, chapter), {})
-            completion_date = max(first_saves.values()).date() if first_saves else None
+            if not first_saves:
+                continue
+            completion_dt = max(first_saves.values())
+            if completion_dt < cutoff:
+                continue
+            # Lower audit-coverage threshold for OT due to [] bulk-edit data loss
+            if len(first_saves) < total * 0.30:
+                continue
             display_name = abbrev_to_name.get(book_abbrev, book_abbrev)
             recently_completed.append({
                 'book': display_name,
                 'chapter': chapter,
                 'total_verses': total,
-                'last_updated': completion_date,
+                'last_updated': completion_dt.date(),
                 'testament': 'OT',
                 'url': f'?book={display_name.replace(" ", "_")}&chapter={chapter}&verse=1',
             })
