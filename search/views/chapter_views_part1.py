@@ -238,7 +238,7 @@ def updates(request):
     date_param = request.GET.get('date', '')
     month_param = request.GET.get('month', '')
 
-    cache_key = f'updates_page_v3_{date_param}_{month_param}'
+    cache_key = f'updates_page_v4_{date_param}_{month_param}'
     cached_response = cache.get(cache_key)
     if cached_response is not None:
         return cached_response
@@ -333,10 +333,10 @@ def updates(request):
             'url': url,
         })
 
-    completion_data = cache.get('recently_completed_chapters_v2')
+    completion_data = cache.get('recently_completed_chapters_v3')
     if completion_data is None:
         completion_data = _get_recently_completed_chapters()
-        cache.set('recently_completed_chapters_v2', completion_data, 12 * 60 * 60)
+        cache.set('recently_completed_chapters_v3', completion_data, 12 * 60 * 60)
 
     context = {
         'month': month_param if month_param else date_param if date_param else datetime.now().strftime('%B %Y'),
