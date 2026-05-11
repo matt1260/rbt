@@ -144,6 +144,20 @@ def _get_recently_completed_chapters(days=365, limit=5):
             if v not in verse_first_save[key] or dt < verse_first_save[key][v]:
                 verse_first_save[key][v] = dt
 
+        def _completion_dt(first_saves, total):
+            """Return the datetime when a chapter was effectively completed.
+
+            Chapters are worked sequentially, so the completion date is the
+            first-save date of the highest-numbered verse that has an audit
+            record.  Using max(values()) would be wrong because a later spot-
+            edit to an early verse (e.g. Acts 21:7 on Apr 8 when the chapter
+            was really done Mar 23) would incorrectly push the date forward.
+            """
+            if not first_saves:
+                return None
+            highest_verse = max(first_saves.keys())
+            return first_saves[highest_verse]
+
         recently_completed = []
 
         # -- NT completed chapters --
@@ -160,8 +174,8 @@ def _get_recently_completed_chapters(days=365, limit=5):
             first_saves = verse_first_save.get((book_abbrev, chapter), {})
             if not first_saves:
                 continue
-            # Completion date = when the last verse was first saved
-            completion_dt = max(first_saves.values())
+            # Completion date = first-save of highest-numbered verse in chapter
+            completion_dt = _completion_dt(first_saves, total)
             if _naive(completion_dt) < cutoff:
                 continue  # Completed too long ago; skip
             # Require at least 50% of verses to have an audit record so we
@@ -193,7 +207,7 @@ def _get_recently_completed_chapters(days=365, limit=5):
             first_saves = verse_first_save.get((book_abbrev, chapter), {})
             if not first_saves:
                 continue
-            completion_dt = max(first_saves.values())
+            completion_dt = _completion_dt(first_saves, total)
             if _naive(completion_dt) < cutoff:
                 continue
             # Lower audit-coverage threshold for OT due to [] bulk-edit data loss
@@ -238,7 +252,7 @@ def updates(request):
     date_param = request.GET.get('date', '')
     month_param = request.GET.get('month', '')
 
-    cache_key = f'updates_page_v4_{date_param}_{month_param}'
+    cache_key = f'updates_page_v5_{date_param}_{month_param}'
     cached_response = cache.get(cache_key)
     if cached_response is not None:
         return cached_response
@@ -333,10 +347,10 @@ def updates(request):
             'url': url,
         })
 
-    completion_data = cache.get('recently_completed_chapters_v3')
+    completion_data = cache.get('recently_completed_chapters_v4')
     if completion_data is None:
         completion_data = _get_recently_completed_chapters()
-        cache.set('recently_completed_chapters_v3', completion_data, 12 * 60 * 60)
+        cache.set('recently_completed_chapters_v4', completion_data, 12 * 60 * 60)
 
     context = {
         'month': month_param if month_param else date_param if date_param else datetime.now().strftime('%B %Y'),
