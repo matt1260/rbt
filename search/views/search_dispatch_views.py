@@ -234,12 +234,14 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
         clean_text = strip_tags(rbt_text or rbt_paraphrase or '')
         snippet = f" '{clean_text[:120]}...'" if clean_text else ""
         
+        standard_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
+
         if is_nt:
-            meta_title = f"{book} {chapter_num}:{verse_num} Greek Interlinear Translation | Parsing, Morphology, Logeion"
-            meta_description = f"Read the {book} {chapter_num}:{verse_num} Greek interlinear translation:{snippet} Featuring full morphological parsing, Strong's lexicon, and Logeion/Perseus study tools."
+            meta_title = f"{standard_book} {chapter_num}:{verse_num} Greek Interlinear Translation | Gospel of the Queen"
+            meta_description = f"Read the {standard_book} {chapter_num}:{verse_num} Greek interlinear translation:{snippet} Featuring full morphological parsing, Strong's lexicon, and Logeion/Perseus study tools."
         else:
-            meta_title = f"{book} {chapter_num}:{verse_num} Hebrew Interlinear Translation | Strongs, BDB, Parsing"
-            meta_description = f"Read the {book} {chapter_num}:{verse_num} Hebrew interlinear translation:{snippet} Featuring full morphological parsing, BDB, Fuerst, and Strong's Hebrew lexicon popups."
+            meta_title = f"{standard_book} {chapter_num}:{verse_num} Hebrew Interlinear Translation | Gospel of the Queen"
+            meta_description = f"Read the {standard_book} {chapter_num}:{verse_num} Hebrew interlinear translation:{snippet} Featuring full morphological parsing, BDB, Fuerst, and Strong's Hebrew lexicon popups."
 
         context = {
             'previous_verse': previous_verse,

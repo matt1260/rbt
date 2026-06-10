@@ -198,8 +198,9 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     if language != 'en' and book_name_translation and book_name_translation.verse_text:
         display_book = book_name_translation.verse_text
 
-    meta_title = f"{display_book} {chapter_num} Hebrew Interlinear | Strongs, BDB, Parsing"
-    meta_description = f"Read {display_book} {chapter_num} in the original Hebrew with interlinear translation, BDB, Fuerst & Strong's lexicons, and complete morphological parsing."
+    standard_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
+    meta_title = f"{standard_book} {chapter_num} Hebrew Interlinear | Gospel of the Queen"
+    meta_description = f"Read {standard_book} {chapter_num} in the original Hebrew with interlinear translation, BDB, Fuerst & Strong's lexicons, and complete morphological parsing."
     page_title = meta_title
     
     # Determine if translation is needed
@@ -450,15 +451,15 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         chapters += f'<a href="{href}" class="sanctum-chapter-link">{number}</a>'
 
     # Transform book name for display only
-    display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
-    display_book = rbt_books.get(display_book, display_book)
+    standard_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
+    display_book = rbt_books.get(standard_book, standard_book)
     
     # Apply translated book name if available for page display only
     if language != 'en' and book_name_translation and book_name_translation.verse_text:
         display_book = book_name_translation.verse_text
         
-    meta_title = f"{display_book} {chapter_num} Greek Interlinear | Parsing, Morphology, Logeion"
-    meta_description = f"Read {display_book} {chapter_num} in the original Greek with interlinear translation, Strong's lexicon, and complete morphological parsing/Logeion links."
+    meta_title = f"{standard_book} {chapter_num} Greek Interlinear | Gospel of the Queen"
+    meta_description = f"Read {standard_book} {chapter_num} in the original Greek with interlinear translation, Strong's lexicon, and complete morphological parsing/Logeion links."
     page_title = meta_title
     
     needs_translation = False
@@ -714,15 +715,15 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
         chapters += f'<a href="{href}" class="sanctum-chapter-link">{number}</a>'
 
     # Transform book name for display
-    display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
-    display_book = rbt_books.get(display_book, display_book)
+    standard_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
+    display_book = rbt_books.get(standard_book, standard_book)
     
     # Apply translated book name if available for page display only
     if language != 'en' and book_name_translation and book_name_translation.verse_text:
         display_book = book_name_translation.verse_text
     
-    meta_title = f"{display_book} {chapter_num} Hebrew Interlinear | Strongs, BDB, Parsing"
-    meta_description = f"Read {display_book} {chapter_num} in the original Hebrew with interlinear translation, BDB, Fuerst & Strong's lexicons, and complete morphological parsing."
+    meta_title = f"{standard_book} {chapter_num} Hebrew Interlinear | Gospel of the Queen"
+    meta_description = f"Read {standard_book} {chapter_num} in the original Hebrew with interlinear translation, BDB, Fuerst & Strong's lexicons, and complete morphological parsing."
     page_title = meta_title
     
     notes_html = build_notes_html([paraphrase, hebrew_literal], source_book, chapter_num, translated_footnotes=translated_footnotes)
