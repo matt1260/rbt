@@ -758,6 +758,13 @@ Cached: {{ cached_hit }}
         <button type="button" class="gemini-trigger" id="greekGeminiOpen">
             Gemini Suggestion
         </button>
+        <button type="button" class="chatgpt-trigger" id="greekChatGPTOpen" style="background-color: #10a37f; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 5px;">
+            ChatGPT Suggestion
+        </button>
+        <button type="button" class="chatgpt-trigger" id="greekChatGPTManualOpen" title="Copy full ChatGPT request to clipboard" style="background-color: #747474; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 5px;">
+            ChatGPT Manual Request
+        </button>
+        <span id="greekChatGPTManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
         <button type="button" class="gemini-trigger" id="greekGeminiManualOpen" title="Copy full LLM request to clipboard">
             Manual LLM Request
         </button>
@@ -772,6 +779,15 @@ Cached: {{ cached_hit }}
         data-translation-type="greek"
         data-default-model="{{ default_gemini_model }}"
         data-save-endpoint="{% url 'gemini_save_preferences' %}"
+        hidden></div>
+
+    <div id="chatgpt-config"
+        data-book="{{ book2|default:book }}"
+        data-chapter="{{ chapter_num }}"
+        data-verse="{{ verse_num }}"
+        data-endpoint="{% url 'chatgpt_translate_api' %}"
+        data-translation-type="greek"
+        data-default-model="gpt-4o"
         hidden></div>
 
     <div class="gemini-modal" id="greekGeminiModal" aria-hidden="true">
@@ -1266,6 +1282,98 @@ Cached: {{ cached_hit }}
                         openButton.disabled = false;
                     }
                 });
+
+                // ChatGPT Integration
+                const chatgptConfig = document.getElementById('chatgpt-config');
+                const chatgptBtn = document.getElementById('greekChatGPTOpen');
+                if (chatgptBtn && chatgptConfig) {
+                    chatgptBtn.addEventListener('click', async () => {
+                        chatgptBtn.disabled = true;
+                        const originalText = chatgptBtn.textContent;
+                        chatgptBtn.textContent = 'Requesting...';
+                        
+                        try {
+                            const response = await fetch(chatgptConfig.dataset.endpoint, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': getCsrfToken(),
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                                body: JSON.stringify({
+                                    translation_type: chatgptConfig.dataset.translationType,
+                                    book: chatgptConfig.dataset.book,
+                                    chapter: chatgptConfig.dataset.chapter,
+                                    verse: chatgptConfig.dataset.verse,
+                                    model: chatgptConfig.dataset.defaultModel,
+                                }),
+                            });
+
+                            const data = await response.json();
+                            if (data.error) throw new Error(data.error);
+                            
+                            if (targetTextarea && data.suggestion) {
+                                targetTextarea.value = data.suggestion;
+                                if (typeof updateReader === 'function') {
+                                    updateReader(targetTextarea.value);
+                                }
+                            }
+                        } catch (error) {
+                            alert('ChatGPT Error: ' + error.message);
+                        } finally {
+                            chatgptBtn.disabled = false;
+                            chatgptBtn.textContent = originalText;
+                        }
+                    });
+                }
+
+                // ChatGPT Manual Request
+                const chatgptManualBtn = document.getElementById('greekChatGPTManualOpen');
+                const chatgptManualStatus = document.getElementById('greekChatGPTManualStatusInline');
+                if (chatgptManualBtn && chatgptConfig) {
+                    chatgptManualBtn.addEventListener('click', async () => {
+                        try {
+                            const response = await fetch(chatgptConfig.dataset.endpoint, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': getCsrfToken(),
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                                body: JSON.stringify({
+                                    translation_type: chatgptConfig.dataset.translationType,
+                                    book: chatgptConfig.dataset.book,
+                                    chapter: chatgptConfig.dataset.chapter,
+                                    verse: chatgptConfig.dataset.verse,
+                                    model: chatgptConfig.dataset.defaultModel,
+                                    assemble_only: true,
+                                }),
+                            });
+
+                            const data = await response.json();
+                            if (data.error) throw new Error(data.error);
+
+                            if (data.assembled) {
+                                if (navigator.clipboard && navigator.clipboard.writeText) {
+                                    await navigator.clipboard.writeText(data.assembled);
+                                } else {
+                                    const ta = document.createElement('textarea');
+                                    ta.value = data.assembled;
+                                    document.body.appendChild(ta);
+                                    ta.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(ta);
+                                }
+                                if (chatgptManualStatus) {
+                                    chatgptManualStatus.style.display = 'inline';
+                                    setTimeout(() => { chatgptManualStatus.style.display = 'none'; }, 2000);
+                                }
+                            }
+                        } catch (error) {
+                            alert('ChatGPT Manual Error: ' + error.message);
+                        }
+                    });
+                }
 
                 // Manual LLM Request: fetch assembled request and copy directly to clipboard
                 const manualOpen = document.getElementById('greekGeminiManualOpen');

@@ -16,6 +16,7 @@ urlpatterns = [
     path('find_and_replace_nt/', views.find_and_replace_nt, name='find_and_replace_nt'),
     path('find_and_replace_ot/', views.find_and_replace_ot, name='find_and_replace_ot'),
     path('gemini/translate/', views.request_gemini_translation, name='gemini_translate_api'),
+    path('chatgpt/translate/', views.request_chatgpt_translation, name='chatgpt_translate_api'),
     path('gemini/preferences/', views.save_gemini_preferences, name='gemini_save_preferences'),
     path('undo_replacements/', views.undo_replacements_view, name='undo_replacements'),
     path('search_footnotes/', views.search_footnotes, name='search_footnotes'),

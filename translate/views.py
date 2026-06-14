@@ -24,6 +24,7 @@ import csv
 import json
 import time
 from google import genai
+from openai import OpenAI
 #import google.generativeai as genai
 from .db_utils import get_db_connection, get_aseneth_connection, get_judas_connection, execute_query, table_has_column
 import psycopg2
@@ -63,6 +64,9 @@ def _seo_to_edit_url(seo_url: str) -> str:
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY, http_options={'client_args': {'transport': get_ipv4_transport()}})
+
+CHATGPT_KEY = os.getenv('CHATGPT_KEY')
+openai_client = OpenAI(api_key=CHATGPT_KEY) if CHATGPT_KEY else None
 
 DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash-preview')
 MODEL_NAME_PATTERN = re.compile(r'^[\w\-.:+]+$')
@@ -712,6 +716,184 @@ def _save_gemini_prefs(request, model_name: str, prompt_override: str | None, tr
         session[f'gemini_prompt_{translation_type}'] = prompt_override
     session['gemini_model'] = model_name
     session.modified = True
+
+
+def _request_chatgpt_response(prompt: str, model_name: str | None = None, api_key: str | None = None, instructions: str | None = None) -> str:
+    """Helper to request a response from ChatGPT completions API."""
+    # Default to gpt-4o for best results
+    model_to_use = model_name or "gpt-4o"
+    
+    use_client = openai_client
+    if api_key:
+        if not isinstance(api_key, str) or ' ' in api_key or len(api_key) < 10 or len(api_key) > 1024:
+            return 'Error: Invalid API key format.'
+        try:
+            from openai import OpenAI
+            use_client = OpenAI(api_key=api_key)
+        except Exception as exc:
+            logger.exception('Failed to initialize OpenAI client with provided API key')
+            return 'Error: Provided API key is invalid or client initialization failed.'
+    
+    if not use_client:
+        logger.error('ChatGPT API key is not configured (CHATGPT_KEY missing)')
+        return "Error: ChatGPT API key is not configured."
+    
+    try:
+        messages = []
+        if instructions:
+            messages.append({"role": "system", "content": instructions})
+        messages.append({"role": "user", "content": prompt})
+        
+        response = use_client.chat.completions.create(
+            model=model_to_use,
+            messages=messages,
+            timeout=30
+        )
+        content = response.choices[0].message.content
+        return content.replace('```html', '').replace('```', '').strip()
+    except Exception as exc:
+        logger.exception('ChatGPT API call failed: %s', exc)
+        return f"Error: ChatGPT API call failed: {exc}"
+
+
+def chatgpt_translate(entries, prompt_instructions: str | None = None, model_name: str | None = None, api_key: str | None = None):
+    """Translate Greek entries into a formatted English sentence via ChatGPT."""
+    if not isinstance(entries, list) or not entries:
+        return "Error: Invalid entries data"
+
+    greek_words: list[str] = []
+    english_words: list[str] = []
+    morphology_data: list[str] = []
+
+    for entry in entries:
+        required_fields = ['lemma', 'english', 'morph_description']
+        if not all(field in entry for field in required_fields):
+            return f"Error: Missing required fields in entry: {entry}"
+
+        greek_words.append(entry['lemma'])
+        english_words.append(entry['english'])
+        morphology_data.append(f"{entry['morph_description']} ({entry.get('morph', 'Unknown')})")
+
+    greek_text = ' '.join(greek_words)
+    interlinear_english = ' '.join(english_words)
+    morphology_info = ' | '.join(morphology_data)
+
+    instructions = _resolve_prompt_text(prompt_instructions, DEFAULT_GREEK_GEMINI_PROMPT)
+    mapping_lines = [f"{e.get('lemma','')} | {e.get('english','')} | {e.get('morph_description','')} ({e.get('morph','Unknown')})" for e in entries]
+    prompt = (
+        "MAPPING (one per line: GREEK | ENGLISH | MORPHOLOGY):\n"
+        + "\n".join(mapping_lines) + "\n\n"
+        f"GREEK TEXT: {greek_text}\n"
+        f"ENGLISH WORDS: {interlinear_english}\n"
+        f"MORPHOLOGY: {morphology_info}\n"
+    )
+
+    return _request_chatgpt_response(prompt, model_name, api_key, instructions=instructions)
+
+
+def chatgpt_translate_hebrew(
+    hebrew_text: str | None,
+    linear_english: str | None,
+    prompt_instructions: str | None = None,
+    model_name: str | None = None,
+    api_key: str | None = None,
+) -> str:
+    """Translate Hebrew content using ChatGPT with editable prompt instructions."""
+    if not hebrew_text and not linear_english:
+        return "Error: Missing Hebrew data for this verse"
+
+    instructions = _resolve_prompt_text(prompt_instructions, DEFAULT_HEBREW_GEMINI_PROMPT)
+    hebrew_plain = _strip_html_text(hebrew_text)
+    english_plain = (linear_english or '').strip() or 'Not provided'
+
+    prompt = (
+        f"HEBREW TEXT: {hebrew_plain}\n"
+        f"LINEAR ENGLISH: {english_plain}\n"
+    )
+
+    return _request_chatgpt_response(prompt, model_name, api_key, instructions=instructions)
+
+
+@require_POST
+def request_chatgpt_translation(request):
+    """Serve ChatGPT suggestions on-demand for both Greek and Hebrew verses."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required. Please log in.'}, status=401)
+    
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid JSON payload.'}, status=400)
+
+    translation_type = payload.get('translation_type')
+    book = payload.get('book')
+    chapter = payload.get('chapter')
+    verse = payload.get('verse')
+    prompt_override = payload.get('prompt')
+    model_override = payload.get('model')
+    api_key = payload.get('api_key')
+    assemble_only = payload.get('assemble_only')
+
+    if not all([translation_type, book, chapter, verse]):
+        return JsonResponse({'error': 'Missing required parameters.'}, status=400)
+
+    try:
+        context = get_context(book, chapter, verse)
+        
+        if translation_type == 'greek':
+            entries = context.get('entries') or []
+            if not entries:
+                return JsonResponse({'error': 'Interlinear entries unavailable for this verse.'}, status=404)
+            
+            if assemble_only:
+                instructions = _resolve_prompt_text(prompt_override, DEFAULT_GREEK_GEMINI_PROMPT)
+                mapping_lines = [f"{e.get('lemma','')} | {e.get('english','')} | {e.get('morph_description','')} ({e.get('morph','Unknown')})" for e in entries]
+                greek_words = ' '.join([e.get('lemma', '') for e in entries])
+                interlinear_english = ' '.join([e.get('english', '') for e in entries])
+                morphology = ' | '.join([f"{e.get('morph_description','')} ({e.get('morph','Unknown')})" for e in entries])
+                assembled = (
+                    f"{instructions}\n\n"
+                    "MAPPING (one per line: GREEK | ENGLISH | MORPHOLOGY):\n"
+                    + "\n".join(mapping_lines) + "\n\n"
+                    f"GREEK TEXT: {greek_words}\n"
+                    f"ENGLISH WORDS: {interlinear_english}\n"
+                    f"MORPHOLOGY: {morphology}\n"
+                )
+                return JsonResponse({
+                    'assembled': assembled,
+                    'model': model_override or 'gpt-4o',
+                    'meta': {'book': book, 'chapter': chapter, 'verse': verse}
+                })
+
+            suggestion = chatgpt_translate(entries, prompt_override, model_override, api_key)
+        elif translation_type == 'hebrew':
+            hebrew_text = context.get('hebrew')
+            linear_english = context.get('linear_english')
+            
+            if assemble_only:
+                instructions = _resolve_prompt_text(prompt_override, DEFAULT_HEBREW_GEMINI_PROMPT)
+                hebrew_plain = _strip_html_text(hebrew_text)
+                english_plain = (linear_english or '').strip() or 'Not provided'
+                assembled = (
+                    f"{instructions}\n\n"
+                    f"HEBREW TEXT: {hebrew_plain}\n"
+                    f"LINEAR ENGLISH: {english_plain}\n"
+                )
+                return JsonResponse({
+                    'assembled': assembled,
+                    'model': model_override or 'gpt-4o',
+                    'meta': {'book': book, 'chapter': chapter, 'verse': verse}
+                })
+
+            suggestion = chatgpt_translate_hebrew(hebrew_text, linear_english, prompt_override, model_override, api_key)
+        
+        if suggestion and suggestion.startswith('Error:'):
+            return JsonResponse({'error': suggestion}, status=502)
+            
+        return JsonResponse({'suggestion': suggestion})
+    except Exception as exc:
+        logger.exception('Unhandled exception in request_chatgpt_translation: %s', exc)
+        return JsonResponse({'error': f'Internal server error: {exc}'}, status=500)
 
 
 @require_POST
