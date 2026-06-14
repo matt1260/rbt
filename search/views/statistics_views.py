@@ -292,12 +292,15 @@ def visitor_locations_api(request):
         # Get locations from the last 30 days
         thirty_days_ago = datetime.now() - timedelta(days=30)
         
+        # Filter out extreme bot anomalies that skew analytics
+        excluded_countries = ['Vietnam', 'China', 'Singapore', 'Bangladesh', 'Hong Kong', 'Russia']
+
         locations = VisitorLocation.objects.filter(
             timestamp__gte=thirty_days_ago,
             is_bot=False,
             latitude__isnull=False,
             longitude__isnull=False
-        ).values('latitude', 'longitude').annotate(count=Count('id'))
+        ).exclude(country__in=excluded_countries).values('latitude', 'longitude').annotate(count=Count('id'))
         
         data = [
             [loc['latitude'], loc['longitude'], loc['count']]
@@ -309,7 +312,7 @@ def visitor_locations_api(request):
             timestamp__gte=thirty_days_ago,
             is_bot=False,
             country__isnull=False
-        ).values('country').annotate(count=Count('id')).order_by('-count')[:10])
+        ).exclude(country__in=excluded_countries).values('country').annotate(count=Count('id')).order_by('-count')[:10])
         
         return JsonResponse({
             'locations': data,

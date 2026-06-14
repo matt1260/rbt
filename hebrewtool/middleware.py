@@ -511,6 +511,9 @@ class VisitorTrackingMiddleware:
                     data = res.json()
                     if data.get('status') == 'success':
                         is_bot_network = data.get('proxy', False) or data.get('hosting', False)
+                        # Filter out extreme bot traffic from typical scraping countries if they are abnormally high
+                        if data.get('country') in ['Vietnam', 'China', 'Singapore', 'Bangladesh', 'Hong Kong', 'Russia']:
+                            is_bot_network = True
                         geo_data = {
                             'country': data.get('country'),
                             'city': data.get('city'),
