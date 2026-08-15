@@ -106,22 +106,21 @@ Use that alignment to determine which morphology belongs to which Greek word (i.
 4. Properly place conjunctions such as δὲ "and". If it is the second word, use "And" at the beginning of the sentence.
 5. Add "of" for genitive constructions, or "while/as" if genitive absolute
 6. Choose the most ideal word if multiple English options are given (separated by slashes)
-7. Wrap blue color (<span style="color: blue;">) on masculine words, pink color (<span style="color: #ff00aa;">) on feminine words
-8. Include any definite articles in the coloring
-9. Always render participles with who/which/that (e.g., "the one who", "the ones who", "that which", "he who", "she who")
-10. Render personal/possessive pronouns with -self or -selves (e.g., "himself", "themselves")
-11. If there are articular infinitives or substantive clauses, capitalize and substantivize (e.g., "the Journeying of Himself", "the Fearing of the Water")
-12. Render any intensive pronouns with verbs as "You, yourselves are" or "I, myself am"
-13. Return ONLY the HTML sentence with proper span tags for colors
+7. Do NOT manually color words. Leave plain English HTML without explicit span tags; grammatical coloring will be applied automatically after translation.
+8. Always render participles with who/which/that (e.g., "the one who", "the ones who", "that which", "he who", "she who")
+9. Render personal/possessive pronouns with -self or -selves (e.g., "himself", "themselves")
+10. If there are articular infinitives or substantive clauses, capitalize and substantivize (e.g., "the Journeying of Himself", "the Fearing of the Water")
+11. Render any intensive pronouns with verbs as "You, yourselves are" or "I, myself am"
+12. Return ONLY the HTML sentence with no manual color spans
 
 Example mapping (one per line):
 ἄνθρωπος | man | noun, nominative, singular
 καί | and | conjunction
 ἔλεγον | said | verb, imperfect, indicative, active, 3rd person plural
 
-Example 1: he asked close beside <span style="color: blue;">himself</span> for epistles into <span style="color: #ff00aa;">Fertile Land</span> ("<span style="color: #ff00aa;">Damascus</span>") toward <span style="color: #ff00aa;">the Congregations</span> in such a manner that if he found <span style="color: blue;">anyone</span> who are being of <span style="color: #ff00aa;">the Road</span>, both men and women, he might lead those who have been bound into <span style="color: #ff00aa;">Foundation of Peace</span>. And <span style="color: blue;">a certain man</span>, he who is presently existing as <span style="color: blue;">a limping one</span> from out of <span style="color: #ff00aa;">a belly</span> of <span style="color: #ff00aa;">a mother</span> of <span style="color: blue;">himself</span>, kept being carried, him whom they were placing according to <span style="color: #ff00aa;">a day</span> toward <span style="color: #ff00aa;">the Doorway</span> of the Sacred Place, <span style="color: #ff00aa;">the one who is being called</span> '<span style="color: #ff00aa;">Seasonable</span>,' of the Begging for Mercy close beside the ones who were leading into the Sacred Place.
+Example 1: he asked close beside himself for epistles into Fertile Land ("Damascus") toward the Congregations in such a manner that if he found anyone who are being of the Road, both men and women, he might lead those who have been bound into Foundation of Peace. And a certain man, he who is presently existing as a limping one from out of a belly of a mother of himself, kept being carried, him whom they were placing according to a day toward the Doorway of the Sacred Place, the one who is being called 'Seasonable,' of the Begging for Mercy close beside the ones who were leading into the Sacred Place.
 
-Example 2: And he is bringing to light, "<span style="color: blue;">Little Horn</span>, <span style="color: #ff00aa;">the Prayer</span> of <span style="color: blue;">yourself</span> has been heard and <span style="color: #ff00aa;">the Charities</span> of <span style="color: blue;">yourself</span> have been remembered in the eye of <span style="color: blue;">the God</span>. Return only the formatted HTML sentence.
+Example 2: And he is bringing to light, "Little Horn, the Prayer of yourself has been heard and the Charities of yourself have been remembered in the eye of the God." Return only the formatted HTML sentence.
 """.strip()
 
 DEFAULT_HEBREW_GEMINI_PROMPT = """
@@ -680,7 +679,10 @@ def gemini_translate(entries, prompt_instructions: str | None = None, model_name
         f"MORPHOLOGY: {morphology_info}\n"
     )
 
-    return _request_gemini_response(prompt, model_name, api_key, instructions=instructions)
+    response = _request_gemini_response(prompt, model_name, api_key, instructions=instructions)
+    if response.startswith('Error:'):
+        return response
+    return apply_gender_colors_to_html(response, entries)
 
 
 
@@ -788,7 +790,10 @@ def chatgpt_translate(entries, prompt_instructions: str | None = None, model_nam
         f"MORPHOLOGY: {morphology_info}\n"
     )
 
-    return _request_chatgpt_response(prompt, model_name, api_key, instructions=instructions)
+    response = _request_chatgpt_response(prompt, model_name, api_key, instructions=instructions)
+    if response.startswith('Error:'):
+        return response
+    return apply_gender_colors_to_html(response, entries)
 
 
 def chatgpt_translate_hebrew(
@@ -4435,6 +4440,96 @@ def edit_aseneth(request):
     }
     return render(request, 'edit_aseneth_input.html', context)
 
+def _infer_gender_from_morph(morph_description: str | None, morph_code: str | None = None) -> str | None:
+    """Return a canonical gender code: m, f, n, or None."""
+    if not morph_description and not morph_code:
+        return None
+
+    combined = ' '.join(filter(None, [morph_description or '', morph_code or ''])).lower()
+    if not combined:
+        return None
+
+    if any(token in combined for token in ('neuter', 'neut')):
+        return 'n'
+    if any(token in combined for token in ('feminine', 'fem')):
+        return 'f'
+    if any(token in combined for token in ('masculine', 'masc')):
+        return 'm'
+
+    if combined in {'m', 'male'}:
+        return 'm'
+    if combined in {'f', 'female'}:
+        return 'f'
+    if combined in {'n', 'neutral'}:
+        return 'n'
+
+    return None
+
+
+def _gender_color_for_code(gender: str | None) -> str:
+    color_map = {'m': 'blue', 'f': '#ff00aa', 'n': '#6b7280'}
+    return color_map.get((gender or '').lower(), 'inherit')
+
+
+def apply_gender_colors_to_html(html_text: str | None, entries: list[dict] | None = None) -> str:
+    """Apply deterministic grammatical-coloring to translated HTML using morphology data."""
+    if not html_text:
+        return ''
+
+    if not entries:
+        return html_text
+
+    patterns: list[tuple[str, str, int]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for entry in entries:
+        gender = _infer_gender_from_morph(entry.get('morph_description'), entry.get('morph'))
+        if not gender:
+            continue
+
+        raw_glosses = entry.get('english') or ''
+        for gloss in str(raw_glosses).split('/'):
+            cleaned = re.sub(r'^[^A-Za-z]+|[^A-Za-z]+$', '', gloss.strip())
+            if not cleaned:
+                continue
+            canon = cleaned.lower()
+            if canon in {'the', 'a', 'an'}:
+                continue
+
+            color = _gender_color_for_code(gender)
+            key = (canon, color)
+            if key in seen:
+                continue
+            seen.add(key)
+            patterns.append((canon, color, len(canon.split())))
+
+    if not patterns:
+        return html_text
+
+    patterns.sort(key=lambda item: item[2], reverse=True)
+
+    try:
+        soup = BeautifulSoup(html_text, 'html.parser')
+    except Exception:
+        return html_text
+
+    text_nodes = list(soup.find_all(string=True))
+    for node in text_nodes:
+        if not node.strip() or node.parent and node.parent.name in {'script', 'style'}:
+            continue
+
+        original = str(node)
+        updated = original
+        for phrase, color, _ in patterns:
+            pattern = re.compile(rf'(?<![A-Za-z]){re.escape(phrase)}(?![A-Za-z])', re.IGNORECASE)
+            updated = pattern.sub(lambda m: f'<span style="color: {color};">{m.group(0)}</span>', updated)
+
+        if updated != original:
+            node.replace_with(BeautifulSoup(updated, 'html.parser'))
+
+    return str(soup)
+
+
 def get_word_entries(words, conn):
     """
     Given a list of words, return a dict of lemma → {english, morph_desc}.
@@ -4511,7 +4606,13 @@ def get_gpt_translation(greek_text, conn):
     #     return result['choices'][0]['message']['content'].strip()
     # else:
     #     return "Translation error"
-    
+
+    if not lexicon_str:
+        return ""
+
+    return ""
+
+
 def get_aseneth_context(chapter_num, verse_num):
     """
     Get context data for a specific verse in Joseph and Aseneth,
