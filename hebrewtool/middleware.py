@@ -382,7 +382,7 @@ class BotFilterMiddleware:
         # Skip bot filtering for API endpoints called by server-side proxies
         # (e.g. WordPress wp_remote_get sends a UA containing 'https://' which
         #  matches the broad 'http' blocked pattern)
-        skip_paths = ('/update_count/', '/health', '/robots.txt', '/sitemap.xml')
+        skip_paths = ('/update_count/', '/stats/', '/health', '/robots.txt', '/sitemap.xml')
         if request.path in skip_paths or request.path.startswith('/api/'):
             return self.get_response(request)
 
