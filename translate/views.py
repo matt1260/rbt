@@ -4441,7 +4441,10 @@ def edit_aseneth(request):
     return render(request, 'edit_aseneth_input.html', context)
 
 def _infer_gender_from_morph(morph_description: str | None, morph_code: str | None = None) -> str | None:
-    """Return a canonical gender code: m, f, n, or None."""
+    """Return a canonical gender code for colored grammatical gender only.
+
+    Neutral forms are intentionally ignored; the editor should not auto-color neuter nouns.
+    """
     if not morph_description and not morph_code:
         return None
 
@@ -4449,8 +4452,8 @@ def _infer_gender_from_morph(morph_description: str | None, morph_code: str | No
     if not combined:
         return None
 
-    if any(token in combined for token in ('neuter', 'neut')):
-        return 'n'
+    if any(token in combined for token in ('neuter', 'neut', 'neutral')):
+        return None
     if any(token in combined for token in ('feminine', 'fem')):
         return 'f'
     if any(token in combined for token in ('masculine', 'masc')):
@@ -4460,14 +4463,12 @@ def _infer_gender_from_morph(morph_description: str | None, morph_code: str | No
         return 'm'
     if combined in {'f', 'female'}:
         return 'f'
-    if combined in {'n', 'neutral'}:
-        return 'n'
 
     return None
 
 
 def _gender_color_for_code(gender: str | None) -> str:
-    color_map = {'m': 'blue', 'f': '#ff00aa', 'n': '#6b7280'}
+    color_map = {'m': 'blue', 'f': '#ff00aa'}
     return color_map.get((gender or '').lower(), 'inherit')
 
 
