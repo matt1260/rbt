@@ -3233,19 +3233,38 @@ def chapter_editor(request):
         return render(request, 'edit_chapter.html', {'unique_books': unique_books})
     
 def _build_nt_search_pattern(find_text: str, exact: bool = False, allow_html: bool = False) -> str:
-    """Return a literal regex pattern (escaped) for the given find_text.
+    """Return a regex for matching text, tolerating HTML wrappers unless HTML mode is requested.
 
-    If exact is True and allow_html is False, wrap with word boundaries so that
-    exact word matches are enforced. If allow_html is True, we treat the find
-    text as a literal substring (do not apply word boundaries).
+    Plain-text searches should still find matches inside HTML fragments such as
+    "Learners of <span>himself</span>" when the user types "Learners of himself".
     """
     if not find_text:
         return ''
 
-    escaped = re.escape(find_text)
-    if exact and not allow_html:
-        return r'\b' + escaped + r'\b'
-    return escaped
+    if allow_html:
+        escaped = re.escape(find_text)
+        if exact:
+            return r'\b' + escaped + r'\b'
+        return escaped
+
+    # Plain-text mode: allow optional HTML tags between words so styles like
+    # <span ...>himself</span> do not block a match.
+    tokens = re.findall(r'\S+', find_text)
+    if not tokens:
+        return re.escape(find_text)
+
+    parts: list[str] = []
+    for i, token in enumerate(tokens):
+        escaped = re.escape(token)
+        if exact:
+            escaped = rf'(?<![\w]){escaped}(?![\w])'
+        parts.append(rf'(?:<[^>]+>)?{escaped}(?:</[^>]+>)?')
+        if i < len(tokens) - 1:
+            parts.append(r'(?:\s|<[^>]+>|</[^>]+>)*')
+
+    if exact:
+        return rf'(?<!\w){"".join(parts)}(?!\w)'
+    return ''.join(parts)
 
 
 def _build_nt_greek_lemma_sql_regex(greek_lemma: str) -> str:
