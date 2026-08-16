@@ -13,6 +13,31 @@
   }
 </style>
 
+<style>
+  .review-results-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: 16px;
+  }
+
+  .review-results-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .review-results-table th,
+  .review-results-table td {
+    vertical-align: top;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    max-width: 260px;
+  }
+</style>
+
 <div class="container">
   <h4>Review and Approve Replacements</h4>
   <p><strong>Total results:</strong> {{ replacements|length }}</p>
@@ -20,34 +45,36 @@
     {% csrf_token %}
     <input type="hidden" name="greek_lemma" value="{{ greek_lemma|default_if_none:'' }}">
 
-    <table class="table">
-      <thead>
-        <tr>
-          <th>
-            <input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"> Select All
-          </th>
-          <th>Verse ID</th>
-          {% if greek_lemma %}<th>Greek</th>{% endif %}
-          <th>Original Text</th>
-          <th>Updated Text</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for replacement in replacements %}
-        <tr>
-          <td>
-            <input type="checkbox" name="approve_replacements" value="{{ replacement.verse_id }}" class="replacement-checkbox">
-          </td>
-          <td><a href="{{ replacement.verse_link }}" target="_blank">{{ replacement.verse_id }}</a></td>
-          {% if greek_lemma %}<td>{{ replacement.greek_text|safe }}</td>{% endif %}
-          <td>{{ replacement.old_text|safe }}</td>
-          <td>{{ replacement.new_text|safe }}</td>
-          <input type="hidden" name="old_text_{{ replacement.verse_id }}" value="{{ replacement.old_text }}">
-          <input type="hidden" name="new_text_{{ replacement.verse_id }}" value="{{ replacement.new_text_raw }}">
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="review-results-wrap">
+      <table class="table review-results-table">
+        <thead>
+          <tr>
+            <th>
+              <input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"> Select All
+            </th>
+            <th>Verse ID</th>
+            {% if greek_lemma %}<th>Greek</th>{% endif %}
+            <th>Original Text</th>
+            <th>Updated Text</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for replacement in replacements %}
+          <tr>
+            <td>
+              <input type="checkbox" name="approve_replacements" value="{{ replacement.verse_id }}" class="replacement-checkbox">
+            </td>
+            <td><a href="{{ replacement.verse_link }}" target="_blank">{{ replacement.verse_id }}</a></td>
+            {% if greek_lemma %}<td>{{ replacement.greek_text|safe }}</td>{% endif %}
+            <td>{{ replacement.old_text|safe }}</td>
+            <td>{{ replacement.new_text|safe }}</td>
+            <input type="hidden" name="old_text_{{ replacement.verse_id }}" value="{{ replacement.old_text }}">
+            <input type="hidden" name="new_text_{{ replacement.verse_id }}" value="{{ replacement.new_text_raw }}">
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     <input type="submit" value="Apply Selected Replacements">
   </form>
 </div>

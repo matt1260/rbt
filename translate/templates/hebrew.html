@@ -42,10 +42,25 @@
     max-width: 100% !important;
 }
 
+.hebrew-interlinear-section,
+.hebrew-interlinear-grid,
+.editor-layout,
+.edit-table-container,
+.table-scroll-wrapper,
+.paraphrase-editor-container,
+.interlinear-card,
+.hebrew-no-niqqud,
+.hebrew-with-niqqud,
+.heb {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
 /* Editor Layout - Two Column */
 .editor-layout {
     display: grid;
-    grid-template-columns: 1fr 500px;
+    grid-template-columns: minmax(0, 1fr) 500px;
     gap: 30px;
     margin: 30px 0;
     overflow: visible;
@@ -99,6 +114,7 @@
 /* Edit Table Styling */
 .hebrewTable {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 14px;
     position: relative;
@@ -111,10 +127,19 @@
     vertical-align: middle;
     position: relative;
     overflow: visible;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.hebrewTable .ref-cell {
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 .hebrewTable input[type="text"] {
     width: 100%;
+    min-width: 0;
     padding: 6px 8px !important;
     border: 1px solid #ddd !important;
     border-radius: 4px !important;
@@ -1671,7 +1696,7 @@
         <tbody>
           {% for id, ref_data, eng_data, unique, heb_data, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote, morphology_raw, morph_display in edit_table_data %}
           <tr>
-            <td style="white-space: nowrap;">{{ ref_data }}</td>
+            <td class="ref-cell">{{ ref_data }}</td>
             <td>
               <input type="text" name="eng_data" autocomplete="off" value="{{ eng_data }}" class="edit-input" style="width: 150px;">
               <input type="hidden" name="eng_id" value="{{ id }}">
