@@ -24,6 +24,31 @@
     margin-bottom: 5px;
     color: #333;
 }
+.review-results-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: 12px;
+}
+.review-results-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+.review-results-table th,
+.review-results-table td {
+    max-width: 260px;
+    vertical-align: top;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+.review-results-table td a {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
 </style>
 
 <div class="container">
@@ -32,30 +57,32 @@
         {% csrf_token %}
         <input type="hidden" name="form_type" value="{{ form_type|default:'ot' }}">
         <input type="hidden" name="replacements_key" value="{{ replacements_key|default:'' }}">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>
-                        <input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"> Select All
-                    </th>
-                    <th>Reference</th>
-                    <th>Original Text</th>
-                    <th>Updated Text</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for replacement in replacements %}
-                <tr {% if 'footnote' in replacement.record_key %}class="footnote-row"{% endif %}>
-                    <td>
-                        <input type="checkbox" name="approve_replacements" value="{{ replacement.record_key }}" class="replacement-checkbox">
-                    </td>
-                    <td><a href="{{ replacement.verse_link }}" target="_blank">{{ replacement.reference }}</a></td>
-                    <td>{{ replacement.old_text_display|safe }}</td>
-                    <td>{{ replacement.new_text_display|safe }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="review-results-wrap">
+            <table class="table review-results-table">
+                <thead>
+                    <tr>
+                        <th>
+                            <input type="checkbox" id="select-all" onclick="toggleSelectAll(this)"> Select All
+                        </th>
+                        <th>Reference</th>
+                        <th>Original Text</th>
+                        <th>Updated Text</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for replacement in replacements %}
+                    <tr {% if 'footnote' in replacement.record_key %}class="footnote-row"{% endif %}>
+                        <td>
+                            <input type="checkbox" name="approve_replacements" value="{{ replacement.record_key }}" class="replacement-checkbox">
+                        </td>
+                        <td><a href="{{ replacement.verse_link }}" target="_blank">{{ replacement.reference }}</a></td>
+                        <td>{{ replacement.old_text_display|safe }}</td>
+                        <td>{{ replacement.new_text_display|safe }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         <input type="submit" value="Apply Selected Replacements">
     </form>
 </div>
