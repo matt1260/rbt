@@ -315,6 +315,45 @@
         margin-top: 1px;
     }
 
+    .verse-share {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: -6px 0 18px;
+    }
+
+    .verse-share-label {
+        color: #666;
+        font-size: 13px;
+        margin-right: 2px;
+    }
+
+    .verse-share-button {
+        align-items: center;
+        background: #fff;
+        border: 1px solid #cfcfcf;
+        border-radius: 4px;
+        color: #222;
+        cursor: pointer;
+        display: inline-flex;
+        font-size: 13px;
+        gap: 6px;
+        padding: 6px 10px;
+        text-decoration: none;
+    }
+
+    .verse-share-button:hover,
+    .verse-share-button:focus-visible {
+        border-color: #555;
+        color: #000;
+    }
+
+    .verse-share-status {
+        color: #666;
+        font-size: 12px;
+    }
+
     /* Toggle switches UI */
     .toggles-container {
         display: flex;
@@ -897,6 +936,19 @@ Wescott & Hort Greek NT:
             <span id="englishReader">{{ rbt|safe }}
             </span>
         </div>
+        <div class="verse-share" aria-label="Share this verse">
+            <span class="verse-share-label">Share this verse:</span>
+            <a class="verse-share-button" id="shareOnX" href="#" target="_blank" rel="noopener noreferrer">
+                <i class="fa-brands fa-x-twitter" aria-hidden="true"></i> X
+            </a>
+            <button class="verse-share-button" id="nativeShare" type="button">
+                <i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share
+            </button>
+            <button class="verse-share-button" id="copyVerseLink" type="button">
+                <i class="fa-solid fa-link" aria-hidden="true"></i> Copy link
+            </button>
+            <span class="verse-share-status" id="verseShareStatus" role="status" aria-live="polite"></span>
+        </div>
         <div id="inputText" style="display: none; width: 100%;" oninput="updateEnglishReader(this.value)">{{ rbt_text }}</div>
         
         {% if rbt_paraphrase %}
@@ -925,6 +977,42 @@ Wescott & Hort Greek NT:
         <p>No verses found for chapter {{ chapter_num }}.</p>
     {% endif %}
 <script>
+    (function () {
+        var verseShareUrl = window.location.href.split('#')[0];
+        var verseReference = '{{ book|escapejs }} {{ chapter_num|escapejs }}:{{ verse_num|escapejs }}';
+        var verseText = document.getElementById('englishReader')?.textContent.trim() || '';
+        var shareText = verseReference + (verseText ? ': "' + verseText.slice(0, 240) + (verseText.length > 240 ? '…' : '') + '"' : '');
+        var status = document.getElementById('verseShareStatus');
+        var shareButton = document.getElementById('nativeShare');
+        var copyButton = document.getElementById('copyVerseLink');
+        var xButton = document.getElementById('shareOnX');
+
+        if (!status || !shareButton || !copyButton || !xButton) return;
+
+        xButton.href = 'https://x.com/intent/post?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(verseShareUrl);
+
+        if (!navigator.share) {
+            shareButton.hidden = true;
+        } else {
+            shareButton.addEventListener('click', function () {
+                navigator.share({ title: verseReference, text: shareText, url: verseShareUrl }).catch(function () {});
+            });
+        }
+
+        copyButton.addEventListener('click', function () {
+            if (!navigator.clipboard) {
+                status.textContent = 'Copy unavailable. Select the page URL instead.';
+                return;
+            }
+            navigator.clipboard.writeText(verseShareUrl).then(function () {
+                status.textContent = 'Link copied.';
+                window.setTimeout(function () { status.textContent = ''; }, 2500);
+            }).catch(function () {
+                status.textContent = 'Copy unavailable. Select the page URL instead.';
+            });
+        });
+    })();
+
     function updateEnglishReader(text) {
         var englishReader = document.getElementById('englishReader');
         englishReader.innerHTML = text;
