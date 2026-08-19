@@ -986,17 +986,20 @@ Wescott & Hort Greek NT:
         var shareButton = document.getElementById('nativeShare');
         var copyButton = document.getElementById('copyVerseLink');
         var xButton = document.getElementById('shareOnX');
+        var xShareUrl;
 
         if (!status || !shareButton || !copyButton || !xButton) return;
 
-        xButton.href = 'https://x.com/intent/post?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(verseShareUrl);
+        xShareUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(verseShareUrl);
+        xButton.href = xShareUrl;
 
-        if (!navigator.share) {
-            shareButton.hidden = true;
-        } else {
-            shareButton.addEventListener('click', function () {
+        shareButton.addEventListener('click', function () {
+            if (!navigator.share) {
+                window.open(xShareUrl, '_blank', 'noopener,noreferrer');
+                return;
+            }
+
                 navigator.share({ title: verseReference, text: shareText, url: verseShareUrl }).catch(function () {});
-            });
         }
 
         copyButton.addEventListener('click', function () {
