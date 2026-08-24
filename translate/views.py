@@ -4541,7 +4541,10 @@ def apply_gender_colors_to_html(html_text: str | None, entries: list[dict] | Non
         original = str(node)
         updated = original
         for phrase, color, _ in patterns:
-            pattern = re.compile(rf'(?<![A-Za-z]){re.escape(phrase)}(?![A-Za-z])', re.IGNORECASE)
+            pattern = re.compile(
+                rf'(?<![A-Za-z])(?:(?:the|a|an)\s+)?{re.escape(phrase)}(?![A-Za-z])',
+                re.IGNORECASE,
+            )
             updated = pattern.sub(lambda m: f'<span style="color: {color};">{m.group(0)}</span>', updated)
 
         if updated != original:
