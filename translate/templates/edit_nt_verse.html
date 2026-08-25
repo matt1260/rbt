@@ -2,7 +2,35 @@
 {% load custom_tags %}
 {% load static %}
 {% block content %}
-<p><a href="./">Back to Edit Search</a></p>
+<p>
+    <a href="./">Back to Edit Search</a>
+    <button type="button" id="night-mode-toggle" aria-pressed="false" title="Toggle night mode">
+        <i class="fas fa-moon" aria-hidden="true"></i><span>Night mode</span>
+    </button>
+</p>
+
+<script>
+    (function () {
+        const storageKey = 'rbt-verse-editor-night-mode';
+        const toggle = document.getElementById('night-mode-toggle');
+        const savedMode = localStorage.getItem(storageKey) === 'true';
+
+        function setNightMode(enabled) {
+            document.body.classList.toggle('editor-night', enabled);
+            toggle.setAttribute('aria-pressed', String(enabled));
+            toggle.title = enabled ? 'Switch to day mode' : 'Switch to night mode';
+            toggle.innerHTML = enabled
+                ? '<i class="fas fa-sun" aria-hidden="true"></i><span>Day mode</span>'
+                : '<i class="fas fa-moon" aria-hidden="true"></i><span>Night mode</span>';
+            localStorage.setItem(storageKey, String(enabled));
+        }
+
+        setNightMode(savedMode);
+        toggle.addEventListener('click', function () {
+            setNightMode(!document.body.classList.contains('editor-night'));
+        });
+    })();
+</script>
 
 <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -51,6 +79,115 @@
     .gemini-trigger:disabled {
         opacity: 0.6;
         cursor: not-allowed;
+    }
+
+    #night-mode-toggle {
+        float: right;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #c8d0dc;
+        border-radius: 6px;
+        padding: 6px 10px;
+        background: #fff;
+        color: #17324f;
+        cursor: pointer;
+        font-size: 13px;
+    }
+    #night-mode-toggle:hover { background: #f1f4f9; }
+
+    body.editor-night {
+        background: #111827;
+        color: #e5e7eb;
+    }
+    body.editor-night .neve-main,
+    body.editor-night .single-page-container,
+    body.editor-night .entry-content,
+    body.editor-night .wpb_wrapper {
+        background: #111827;
+        color: #e5e7eb;
+    }
+    body.editor-night a { color: #93c5fd; }
+    body.editor-night #night-mode-toggle {
+        border-color: #475569;
+        background: #1f2937;
+        color: #f8fafc;
+    }
+    body.editor-night #night-mode-toggle:hover { background: #334155; }
+    body.editor-night .single_verse,
+    body.editor-night .greek_interlinear,
+    body.editor-night #editor-texto {
+        background: #1f2937;
+        color: #f3f4f6;
+        border-color: #475569;
+    }
+    body.editor-night .tablefloat td {
+        background: #1f2937;
+        color: #f3f4f6;
+        border-color: #475569;
+    }
+    body.editor-night button:not([style*="background"]),
+    body.editor-night input:not([type="hidden"]) {
+        background: #334155;
+        color: #f3f4f6;
+        border-color: #64748b;
+    }
+    body.editor-night #chapter-panel,
+    body.editor-night #lexicon-panel {
+        background: #172033;
+        color: #e5e7eb;
+        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.45);
+    }
+    body.editor-night #chapter-content,
+    body.editor-night #lexicon-content {
+        background: #172033;
+        color: #e5e7eb;
+    }
+    body.editor-night #chapter-content strong { color: #93c5fd; }
+    body.editor-night #lexicon-content [style*="background"] {
+        background: #283548 !important;
+    }
+    body.editor-night #lexicon-content [style*="color"] {
+        color: #cbd5e1 !important;
+    }
+    body.editor-night #chat-toolbar,
+    body.editor-night #chat-input-row {
+        background: #1e293b;
+        border-color: #334155;
+        color: #e5e7eb;
+    }
+    body.editor-night #chat-model-select,
+    body.editor-night #chat-input-text {
+        background: #111827;
+        color: #f3f4f6;
+        border-color: #475569;
+    }
+    body.editor-night .chat-msg.user {
+        background: #1e3a5f;
+        color: #dbeafe;
+    }
+    body.editor-night .chat-msg.ai {
+        background: #283548;
+        color: #e5e7eb;
+    }
+    body.editor-night #chat-clear-btn {
+        border-color: #64748b !important;
+        color: #cbd5e1 !important;
+    }
+    body.editor-night .gemini-modal__content {
+        background: #172033;
+        color: #e5e7eb;
+    }
+    body.editor-night .gemini-modal__content textarea,
+    body.editor-night .gemini-modal__field input {
+        background: #111827;
+        color: #f3f4f6;
+        border-color: #475569;
+    }
+    body.editor-night .gemini-modal__field label { color: #cbd5e1; }
+    body.editor-night .gemini-modal__actions .secondary {
+        background: #334155;
+        color: #f3f4f6;
     }
 
     /* ---- Lexicon sliding panel (right side) ---- */
