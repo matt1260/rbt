@@ -2220,7 +2220,99 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
   color: #fff;
   border-color: var(--sanctum-gold);
 }
+
+/* ── Explicit night theme ── */
+html[data-rbt-theme="dark"] {
+  color-scheme: dark;
+  --sanctum-parchment: #17191d;
+  --sanctum-ink: #f1eee8;
+  --sanctum-ink-soft: #c5c0b8;
+  --sanctum-stone: #aaa39a;
+  --sanctum-cream: #25282e;
+  --sanctum-rule: rgba(212, 169, 106, 0.28);
+}
+
+html[data-rbt-theme="dark"] body#neve_body {
+  background: #111317;
+  color: var(--sanctum-ink);
+}
+
+html[data-rbt-theme="dark"] .rbt-sanctum-nav {
+  background: rgba(23, 25, 29, 0.96);
+}
+
+html[data-rbt-theme="dark"] .rbt-sanctum-nav-links a,
+html[data-rbt-theme="dark"] .rbt-sanctum-brand,
+html[data-rbt-theme="dark"] .rbt-sanctum-drawer ul a {
+  color: var(--sanctum-ink-soft);
+}
+
+html[data-rbt-theme="dark"] .rbt-sanctum-nav-links a:hover,
+html[data-rbt-theme="dark"] .rbt-sanctum-drawer ul a:hover {
+  color: var(--sanctum-gold-light);
+}
+
+.rbt-theme-toggle {
+  border: 1px solid var(--sanctum-rule);
+  background: transparent;
+  color: var(--sanctum-ink-soft);
+  padding: 0.35rem 0.65rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.rbt-theme-toggle:hover,
+.rbt-theme-toggle:focus-visible {
+  color: var(--sanctum-gold-light);
+  border-color: var(--sanctum-gold);
+}
+
+html[data-rbt-theme="dark"] .rbt-sanctum-drawer {
+  background: #17191d;
+}
+
+html[data-rbt-theme="dark"] .rbt-sanctum-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
 </style>
+
+<script>
+(function () {
+  const KEY = 'rbtTheme';
+  const root = document.documentElement;
+  let theme = 'light';
+  try {
+    theme = localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light';
+  } catch (e) { /* use light fallback */ }
+  root.dataset.rbtTheme = theme;
+
+  function updateControls() {
+    const dark = root.dataset.rbtTheme === 'dark';
+    document.querySelectorAll('.rbt-theme-toggle').forEach((button) => {
+      button.setAttribute('aria-pressed', String(dark));
+      button.textContent = dark ? 'Light mode' : 'Night mode';
+      button.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to night mode');
+    });
+  }
+
+  function toggleTheme() {
+    const next = root.dataset.rbtTheme === 'dark' ? 'light' : 'dark';
+    root.dataset.rbtTheme = next;
+    try { localStorage.setItem(KEY, next); } catch (e) { /* ignore storage failures */ }
+    updateControls();
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.rbt-theme-toggle').forEach((button) => {
+      button.addEventListener('click', toggleTheme);
+    });
+    updateControls();
+  });
+})();
+</script>
 
 </head>
 
@@ -2267,6 +2359,7 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
       <li><a href="#" id="helpNavLink" onclick="openHelpModal(event)">Help</a></li>
     </ul>
     <a href="https://read.realbible.tech/" class="rbt-sanctum-cta">Search</a>
+    <button type="button" class="rbt-theme-toggle" aria-pressed="false">Night mode</button>
     <button class="rbt-sanctum-hamburger" id="rbtMenuToggle" aria-label="Toggle navigation" aria-expanded="false">
       <span></span><span></span><span></span>
     </button>
@@ -2280,6 +2373,7 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
       <li><a href="https://www.realbible.tech/methodology/">Methodology</a></li>
       <li><a href="https://www.realbible.tech/about/">About</a></li>
       <li><a href="#" onclick="openHelpModal(event)">Help</a></li>
+      <li><button type="button" class="rbt-theme-toggle" aria-pressed="false">Night mode</button></li>
     </ul>
   </div>
   <div class="rbt-sanctum-overlay" id="rbtOverlay"></div>
