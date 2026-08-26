@@ -1700,6 +1700,9 @@ Cached: {{ cached_hit }}
         }
 
         function getCsrfToken() {
+            const inputToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (inputToken && inputToken.value) return inputToken.value;
+
             const name = 'csrftoken=';
             for (let c of document.cookie.split(';')) {
                 c = c.trim();
@@ -1797,7 +1800,16 @@ Cached: {{ cached_hit }}
                         model: modelSelect ? modelSelect.value : 'gemini-3-flash-preview',
                     }),
                 });
-                const data = await resp.json();
+                const responseText = await resp.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    throw new Error(`Lexicon chat request failed (${resp.status}).`);
+                }
+                if (!resp.ok) {
+                    throw new Error(data.error || `Lexicon chat request failed (${resp.status}).`);
+                }
                 if (data.error) throw new Error(data.error);
                 addMessage('ai', data.reply);
                 chatHistory.push({ role: 'assistant', content: data.reply });
