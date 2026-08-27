@@ -2284,21 +2284,6 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
   </div>
   <div class="rbt-sanctum-overlay" id="rbtOverlay"></div>
 
-  {% if not user.is_authenticated %}
-  <div class="funding-notice-backdrop" id="fundingNoticeBackdrop" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="fundingNoticeTitle">
-    <div class="funding-notice" role="document">
-      <button class="funding-notice-close" id="fundingNoticeClose" aria-label="Close funding notice">&times;</button>
-      <h2 id="fundingNoticeTitle">This work needs support to continue</h2>
-      <p>The Real Bible Translation Project is independently funded and maintained by a very small team. Translating, checking, and keeping this resource available requires sustained time and operating costs.</p>
-      <p>If this project has helped you, please consider contributing. Even a small recurring gift helps make more translation time possible.</p>
-      <div class="funding-notice-actions">
-        <button class="funding-notice-support" id="fundingNoticeSupport">Support the project</button>
-        <button class="funding-notice-continue" id="fundingNoticeContinue">Continue reading</button>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
   <!-- Help / Support Modal -->
   <div class="help-modal-backdrop" id="helpModalBackdrop" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
     <div class="help-modal">
@@ -2767,77 +2752,6 @@ function toggleAriaClick() { function toggleAriaExpanded(toggle = 'true') { docu
 </script>
 
 <script>
-// Funding campaign notice
-(function() {
-  var storageKey = 'rbtFundingNotice:v2';
-  var reminderMs = 30 * 24 * 60 * 60 * 1000;
-
-  function closeFundingNotice() {
-    var backdrop = document.getElementById('fundingNoticeBackdrop');
-    if (!backdrop) return;
-    backdrop.classList.remove('open');
-    backdrop.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
-  }
-
-  function rememberFundingNotice() {
-    try { localStorage.setItem(storageKey, String(Date.now())); } catch (err) {}
-  }
-
-  function openFundingNotice() {
-    var backdrop = document.getElementById('fundingNoticeBackdrop');
-    if (!backdrop) return;
-    backdrop.classList.add('open');
-    backdrop.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-    var closeBtn = document.getElementById('fundingNoticeClose');
-    if (closeBtn) closeBtn.focus();
-  }
-
-  document.addEventListener('DOMContentLoaded', function() {
-    var backdrop = document.getElementById('fundingNoticeBackdrop');
-    if (!backdrop) return;
-    var closeBtn = document.getElementById('fundingNoticeClose');
-    var continueBtn = document.getElementById('fundingNoticeContinue');
-    var supportBtn = document.getElementById('fundingNoticeSupport');
-    var shouldShow = true;
-    try {
-      var lastShown = parseInt(localStorage.getItem(storageKey), 10);
-      shouldShow = !lastShown || (Date.now() - lastShown) >= reminderMs;
-    } catch (err) {}
-
-    if (closeBtn) closeBtn.addEventListener('click', function() {
-      rememberFundingNotice();
-      closeFundingNotice();
-    });
-    if (continueBtn) continueBtn.addEventListener('click', function() {
-      rememberFundingNotice();
-      closeFundingNotice();
-    });
-    if (supportBtn) supportBtn.addEventListener('click', function() {
-      rememberFundingNotice();
-      closeFundingNotice();
-      openHelpModal();
-    });
-    backdrop.addEventListener('click', function(e) {
-      if (e.target === backdrop) {
-        rememberFundingNotice();
-        closeFundingNotice();
-      }
-    });
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && backdrop.classList.contains('open')) {
-        rememberFundingNotice();
-        closeFundingNotice();
-      }
-    });
-    if (shouldShow) {
-      rememberFundingNotice();
-      openFundingNotice();
-    }
-  });
-})();
-
 // Help / Support Modal
 function openHelpModal(e) {
   if (e) e.preventDefault();
