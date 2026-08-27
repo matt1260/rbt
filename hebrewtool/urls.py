@@ -17,9 +17,9 @@ from django.contrib import admin
 from django.urls import include, path
 from django.contrib.auth import views as auth_views
 from django.http import HttpResponse
-from django.contrib.sitemaps.views import sitemap
 from django.conf import settings
 from search.sitemaps import BibleChapterSitemap, StaticViewSitemap
+from search.views.sitemap_views import sitemap_xml
 
 from translate import views
 from search.views import update_count
@@ -46,7 +46,7 @@ sitemaps_dict = {
 
 urlpatterns = [
     path('health', health_check, name='health_check'),
-    path('sitemap.xml', sitemap, {'sitemaps': sitemaps_dict}, name='django.contrib.sitemaps.views.sitemap'),
+    path('sitemap.xml', sitemap_xml, name='sitemap_xml'),
     path('robots.txt', robots_txt, name='robots_txt'),
     path('admin/', admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),
