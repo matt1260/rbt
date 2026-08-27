@@ -42,7 +42,11 @@ def seo_context(request):
             context['meta_description'] = f"Read and study {book} {chapter}:{verse} with our deep original-language interlinear, rich footnotes, and accurate word-for-word translation."
             
             if slug:
-                path = reverse('verse_seo_view', kwargs={'book_slug': slug, 'chapter': chapter, 'verse': verse})
+                route_name = 'verse_seo_view_lang' if lang_code and lang_code != 'en' else 'verse_seo_view'
+                kwargs = {'book_slug': slug, 'chapter': chapter, 'verse': verse}
+                if route_name.endswith('_lang'):
+                    kwargs['lang_code'] = lang_code
+                path = reverse(route_name, kwargs=kwargs)
                 context['canonical_url'] = request.build_absolute_uri(path)
             else:
                 params = urlencode({'book': book, 'chapter': chapter, 'verse': verse})
@@ -52,7 +56,11 @@ def seo_context(request):
             context['meta_description'] = f"Dive deep into {book} {chapter} through the Real Bible Translation project. Access literal Greek and Hebrew analysis with extensive context and footnotes."
             
             if slug:
-                path = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': chapter})
+                route_name = 'chapter_seo_view_lang' if lang_code and lang_code != 'en' else 'chapter_seo_view'
+                kwargs = {'book_slug': slug, 'chapter': chapter}
+                if route_name.endswith('_lang'):
+                    kwargs['lang_code'] = lang_code
+                path = reverse(route_name, kwargs=kwargs)
                 context['canonical_url'] = request.build_absolute_uri(path)
             else:
                 params = urlencode({'book': book, 'chapter': chapter})

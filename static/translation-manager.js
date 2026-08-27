@@ -12,7 +12,17 @@ function changeLanguage(langCode) {
     }
 
     const url = new URL(window.location);
-    url.searchParams.set('lang', langCode);
+    const segments = url.pathname.split('/').filter(Boolean);
+    const languagePrefixes = new Set(['es', 'pt', 'fr', 'de', 'it', 'ru', 'uk', 'el', 'sv', 'da', 'no', 'fi', 'cs', 'sk', 'hr', 'sr', 'bg', 'ca', 'zh', 'zh-TW', 'ja', 'ko', 'mn', 'ar', 'hi', 'bn', 'pa', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'ur', 'fa', 'ps', 'nl', 'pl', 'tr', 'vi', 'th', 'id', 'ms', 'tl', 'km', 'lo', 'my', 'ceb', 'jv', 'ro', 'hu', 'sw', 'ha', 'yo', 'ig', 'am', 'om', 'zu', 'af', 'su', 'mad', 'hmn', 'az', 'ku', 'uz', 'kk', 'ka', 'lt', 'lv', 'et', 'sl']);
+    const hasLanguagePrefix = segments.length >= 3 && languagePrefixes.has(segments[0]);
+    const contentSegments = hasLanguagePrefix ? segments.slice(1) : segments;
+
+    if (contentSegments.length >= 2 && langCode !== 'en') {
+        url.pathname = '/' + [langCode, ...contentSegments].join('/') + '/';
+    } else if (contentSegments.length >= 2) {
+        url.pathname = '/' + contentSegments.join('/') + '/';
+    }
+    url.searchParams.delete('lang');
     window.location.href = url.toString();
 }
 

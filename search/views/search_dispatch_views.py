@@ -76,9 +76,12 @@ def search(request):
     elif book and chapter_num and verse_num:
         slug = book_to_slug(book)
         if slug:
-            redirect_url = reverse('verse_seo_view', kwargs={'book_slug': slug, 'chapter': chapter_num, 'verse': verse_num})
-            if request.GET.get('lang'):
-                redirect_url += f"?lang={request.GET.get('lang')}"
+            language = request.GET.get('lang', 'en')
+            route_name = 'verse_seo_view_lang' if language != 'en' else 'verse_seo_view'
+            kwargs = {'book_slug': slug, 'chapter': chapter_num, 'verse': verse_num}
+            if route_name.endswith('_lang'):
+                kwargs['lang_code'] = language
+            redirect_url = reverse(route_name, kwargs=kwargs)
             return redirect(redirect_url, permanent=True)
         return handle_single_verse(request, book, chapter_num, verse_num, language)
     
@@ -86,9 +89,12 @@ def search(request):
     elif book and chapter_num:
         slug = book_to_slug(book)
         if slug:
-            redirect_url = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': chapter_num})
-            if request.GET.get('lang'):
-                redirect_url += f"?lang={request.GET.get('lang')}"
+            language = request.GET.get('lang', 'en')
+            route_name = 'chapter_seo_view_lang' if language != 'en' else 'chapter_seo_view'
+            kwargs = {'book_slug': slug, 'chapter': chapter_num}
+            if route_name.endswith('_lang'):
+                kwargs['lang_code'] = language
+            redirect_url = reverse(route_name, kwargs=kwargs)
             return redirect(redirect_url, permanent=True)
         return handle_single_chapter(request, book, chapter_num, language)
 
