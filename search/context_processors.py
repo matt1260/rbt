@@ -24,6 +24,7 @@ def seo_context(request):
 
     if request.resolver_match and request.resolver_match.kwargs:
         book_slug = request.resolver_match.kwargs.get('book_slug')
+        lang_code = request.resolver_match.kwargs.get('lang_code')
         chapter = request.resolver_match.kwargs.get('chapter')
         verse = request.resolver_match.kwargs.get('verse')
 
