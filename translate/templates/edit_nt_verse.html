@@ -589,6 +589,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 4px;
+    min-height: 30px;
 }
 
 /* Separator between clusters */
@@ -671,6 +672,46 @@
     font-size: 12px;
 }
 .tb-btn--ghost:hover { background: #ececf1; border-style: solid; }
+
+/* ChatGPT split control: instant run + gear for model/prompt config */
+.tb-split {
+    display: inline-flex;
+    align-items: center;
+}
+
+.tb-btn--split-main {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.tb-btn--split-cfg {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.35);
+    min-width: 28px;
+    padding: 0 8px;
+}
+
+.tb-btn--split-cfg i { font-size: 12px; }
+
+/* Status text sits on the flex baseline with the buttons rather than
+   introducing its own line box height. */
+.gemini-manual-status {
+    align-self: center;
+    font-size: 12px;
+}
+
+.gemini-modal__note {
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: #666;
+}
+
+.gemini-modal__note code {
+    background: #eee;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
 
 .toolbar-divider {
     width: 1px;
@@ -885,12 +926,16 @@ Cached: {{ cached_hit }}
 
             <div class="toolbar-group" role="group" aria-label="AI suggestions">
                 <span class="toolbar-group__label">AI</span>
-                <button type="button" class="tb-btn tb-btn--ai tb-btn--gemini gemini-trigger" id="greekGeminiOpen">Gemini</button>
-                <button type="button" class="tb-btn tb-btn--ai tb-btn--chatgpt chatgpt-trigger" id="greekChatGPTOpen">ChatGPT</button>
+                <button type="button" class="tb-btn tb-btn--ai tb-btn--gemini" id="greekGeminiOpen">Gemini</button>
+                <span class="tb-split">
+                    <button type="button" class="tb-btn tb-btn--ai tb-btn--chatgpt tb-btn--split-main" id="greekChatGPTOpen">ChatGPT</button>
+                    <button type="button" class="tb-btn tb-btn--ai tb-btn--chatgpt tb-btn--split-cfg" id="greekChatGPTConfig"
+                            title="ChatGPT model &amp; prompt settings" aria-label="ChatGPT settings"><i class="fas fa-cog"></i></button>
+                </span>
                 <span class="toolbar-divider" aria-hidden="true"></span>
-                <button type="button" class="tb-btn tb-btn--ghost gemini-trigger" id="greekGeminiManualOpen" title="Copy full Gemini request to clipboard">Copy Gemini request</button>
+                <button type="button" class="tb-btn tb-btn--ghost" id="greekGeminiManualOpen" title="Copy full Gemini request to clipboard">Copy Gemini request</button>
                 <span id="greekGeminiManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
-                <button type="button" class="tb-btn tb-btn--ghost chatgpt-trigger" id="greekChatGPTManualOpen" title="Copy full ChatGPT request to clipboard">Copy ChatGPT request</button>
+                <button type="button" class="tb-btn tb-btn--ghost" id="greekChatGPTManualOpen" title="Copy full ChatGPT request to clipboard">Copy ChatGPT request</button>
                 <span id="greekChatGPTManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
             </div>
         </div>
@@ -967,11 +1012,7 @@ Cached: {{ cached_hit }}
                 <label for="greekChatGPTCustomModel">Custom model id</label>
                 <input id="greekChatGPTCustomModel" type="text" placeholder="e.g. gpt-5.6-terra" autocomplete="off">
             </div>
-            <div class="gemini-modal__field">
-                <label for="greekChatGPTApiKey">OpenAI API Key (optional)</label>
-                <input id="greekChatGPTApiKey" type="password" placeholder="Insert OpenAI API key for this request" autocomplete="off">
-                <small style="color:#666;">This key will be used only for this request and will not be saved to the server.</small>
-            </div>
+            <p class="gemini-modal__note">Requests use the server's <code>CHATGPT_KEY</code>.</p>
             <textarea id="greekChatGPTPrompt" spellcheck="false"></textarea>
             <div class="gemini-modal__actions">
                 <button type="button" class="secondary" id="greekChatGPTReset">Reset</button>
@@ -1443,14 +1484,14 @@ Cached: {{ cached_hit }}
                     }
                 });
 
-                // ChatGPT Integration — model picker + prompt modal
+                // ChatGPT Integration — instant run, gear opens model/prompt config
                 const chatgptConfig = document.getElementById('chatgpt-config');
                 const chatgptBtn = document.getElementById('greekChatGPTOpen');
+                const chatgptCfgBtn = document.getElementById('greekChatGPTConfig');
                 const chatgptModal = document.getElementById('greekChatGPTModal');
                 const chatgptModelSelect = document.getElementById('greekChatGPTModel');
                 const chatgptCustomField = document.getElementById('greekChatGPTCustomModelField');
                 const chatgptCustomModel = document.getElementById('greekChatGPTCustomModel');
-                const chatgptApiKey = document.getElementById('greekChatGPTApiKey');
                 const chatgptPrompt = document.getElementById('greekChatGPTPrompt');
                 const chatgptStatus = document.getElementById('greekChatGPTStatus');
                 const chatgptRun = document.getElementById('greekChatGPTRun');
@@ -1484,7 +1525,6 @@ Cached: {{ cached_hit }}
                 if (chatgptModal) {
                     chatgptModal.querySelectorAll('[data-action="close"]').forEach((btn) => {
                         btn.addEventListener('click', () => {
-                            if (chatgptApiKey) chatgptApiKey.value = '';
                             toggleChatgptModal(false);
                         });
                     });
@@ -1496,13 +1536,58 @@ Cached: {{ cached_hit }}
                     });
                 }
 
-                if (chatgptBtn && chatgptConfig && chatgptModal) {
-                    chatgptBtn.addEventListener('click', () => {
+                if (chatgptCfgBtn && chatgptModal) {
+                    chatgptCfgBtn.addEventListener('click', () => {
                         if (chatgptPrompt && !chatgptPrompt.value.trim()) {
                             chatgptPrompt.value = defaultPrompt;
                         }
                         if (chatgptStatus) chatgptStatus.textContent = '';
                         toggleChatgptModal(true);
+                    });
+                }
+
+                // Shared request path: used by the instant button and by Run & Load.
+                // The server signs requests with its own CHATGPT_KEY.
+                async function runChatgpt(model) {
+                    const response = await fetch(chatgptConfig.dataset.endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken(),
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({
+                            translation_type: chatgptConfig.dataset.translationType,
+                            book: chatgptConfig.dataset.book,
+                            chapter: chatgptConfig.dataset.chapter,
+                            verse: chatgptConfig.dataset.verse,
+                            model: model,
+                            prompt: (chatgptPrompt && chatgptPrompt.value.trim()) || undefined,
+                        }),
+                    });
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    if (targetTextarea && data.suggestion) {
+                        targetTextarea.value = data.suggestion;
+                        if (typeof updateReader === 'function') {
+                            updateReader(targetTextarea.value);
+                        }
+                    }
+                }
+
+                if (chatgptBtn && chatgptConfig) {
+                    chatgptBtn.addEventListener('click', async () => {
+                        const originalText = chatgptBtn.textContent;
+                        chatgptBtn.disabled = true;
+                        chatgptBtn.textContent = 'Requesting…';
+                        try {
+                            await runChatgpt(chatgptSelectedModel() || chatgptConfig.dataset.defaultModel);
+                        } catch (error) {
+                            alert('ChatGPT Error: ' + error.message);
+                        } finally {
+                            chatgptBtn.disabled = false;
+                            chatgptBtn.textContent = originalText;
+                        }
                     });
                 }
 
@@ -1514,37 +1599,9 @@ Cached: {{ cached_hit }}
                             return;
                         }
                         chatgptRun.disabled = true;
-                        if (chatgptStatus) chatgptStatus.textContent = 'Requesting ' + model + '…';
-
+                        if (chatgptStatus) chatgptStatus.textContent = 'Requesting ' + model + '\u2026';
                         try {
-                            const response = await fetch(chatgptConfig.dataset.endpoint, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRFToken': getCsrfToken(),
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                },
-                                body: JSON.stringify({
-                                    translation_type: chatgptConfig.dataset.translationType,
-                                    book: chatgptConfig.dataset.book,
-                                    chapter: chatgptConfig.dataset.chapter,
-                                    verse: chatgptConfig.dataset.verse,
-                                    model: model,
-                                    prompt: chatgptPrompt ? chatgptPrompt.value : undefined,
-                                    api_key: (chatgptApiKey && chatgptApiKey.value.trim()) || undefined,
-                                }),
-                            });
-
-                            const data = await response.json();
-                            if (data.error) throw new Error(data.error);
-
-                            if (targetTextarea && data.suggestion) {
-                                targetTextarea.value = data.suggestion;
-                                if (typeof updateReader === 'function') {
-                                    updateReader(targetTextarea.value);
-                                }
-                            }
-                            if (chatgptApiKey) chatgptApiKey.value = '';
+                            await runChatgpt(model);
                             toggleChatgptModal(false);
                         } catch (error) {
                             if (chatgptStatus) chatgptStatus.textContent = 'ChatGPT Error: ' + error.message;
