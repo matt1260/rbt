@@ -2692,7 +2692,7 @@ def translate(request):
                 foot_ref = ref.replace(".", "-") # type: ignore
                 footnote_code = f'<a class="sdfootnoteanc" href="?footnote={foot_ref}"><sup>num</sup></a>'
                 footnote = f'''
-                <td colspan="14" class="footnotes-{row_id_str}" style="display: none;">
+                <div class="footnote-panel footnotes-{row_id_str}" style="display: none;">
                     {footnote}<br>
                     <textarea class="my-tinymce" name="footnote-{row_id_str}" id="footnote-{row_id_str}" autocomplete="off" style="width: 100%;" rows="6">{footnote}</textarea><br>
                     <input type="hidden" name="old_footnote-{row_id_str}" value="does not work">
@@ -2705,7 +2705,7 @@ def translate(request):
                             📋 Copy
                         </button>
                     </div>
-                </td>
+                </div>
                 '''
 
             else:
@@ -2732,7 +2732,7 @@ def translate(request):
                 foot_ref = ref.replace(".", "-") # type: ignore
                 footnote_code = f'<a class="sdfootnoteanc" href="?footnote={foot_ref}"><sup>num</sup></a>'
                 footnote = f'''
-                <td colspan="14" class="footnotes-{row_id_str}" style="display: none;">
+                <div class="footnote-panel footnotes-{row_id_str}" style="display: none;">
                     No footnote<br>
                     <textarea class="my-tinymce" name="footnote-{row_id_str}" id="footnote-{row_id_str}" autocomplete="off" style="width: 100%;" rows="6"></textarea><br>
                     <input type="hidden" name="old_footnote-{row_id_str}" value="">
@@ -2745,7 +2745,7 @@ def translate(request):
                             📋 Copy
                         </button>
                     </div>
-                </td>
+                </div>
                 '''
             # Append all data to edit_table_data
             edit_table_data.append((id, ref, eng, unique, combined_hebrew, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote, morphology_raw, morph_display))

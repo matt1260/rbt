@@ -76,16 +76,10 @@
 }
 
 .table-scroll-wrapper {
-    overflow-x: auto;
-    overflow-y: visible;
-    margin: 0 -20px;
-    padding: 0 20px;
-    position: relative;
-}
-
-/* Prevent scroll-locking when hovering popups */
-.table-scroll-wrapper:has(.popup-container:hover) {
+    /* Token cards reflow instead of scrolling, so nothing needs to be clipped
+       here — leaving it visible lets hover popups escape the container. */
     overflow: visible;
+    position: relative;
 }
 
 /* Ensure popups can escape containers */
@@ -111,33 +105,155 @@
     overflow: visible;
 }
 
-/* Edit Table Styling */
-.hebrewTable {
-    width: 100%;
-    table-layout: fixed;
-    border-collapse: collapse;
+/* ---- Verse Editor: token cards ------------------------------------- */
+.token-editor-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     font-size: 14px;
     position: relative;
     z-index: 1;
 }
 
-.hebrewTable td {
-    padding: 10px 8px;
-    border-bottom: 1px solid #eee;
-    vertical-align: middle;
-    position: relative;
+.token-card {
+    border: 1px solid #e2d6c4;
+    border-radius: 8px;
+    background: #fff;
     overflow: visible;
-    word-break: break-word;
-    overflow-wrap: anywhere;
+    transition: border-color .15s ease, box-shadow .15s ease;
 }
 
-.hebrewTable .ref-cell {
-    white-space: normal;
-    word-break: break-word;
-    overflow-wrap: anywhere;
+.token-card:focus-within {
+    border-color: #b78550;
+    box-shadow: 0 0 0 3px rgba(183, 133, 80, 0.12);
 }
 
-.hebrewTable input[type="text"] {
+/* Header strip: reference on the left, per-token actions on the right */
+.token-card__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    background: #faf4ea;
+    border-bottom: 1px solid #efe4d4;
+    border-radius: 7px 7px 0 0;
+}
+
+.token-ref {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    color: #6b4f2a;
+    white-space: nowrap;
+}
+
+.token-card__tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.token-card__tools select {
+    font-size: 12px;
+    padding: 3px 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    color: #333;
+    min-width: 0;
+    width: auto;
+}
+
+.token-unique {
+    font-size: 11px;
+    color: #8a7355;
+    background: #f1e7d8;
+    border-radius: 10px;
+    padding: 1px 7px;
+}
+
+/* Scale down the server-rendered round footnote button */
+.token-card__tools .toggleButton {
+    width: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    font-size: 14px !important;
+    flex: none;
+}
+
+.token-card__tools .map-lexicon-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+/* Body: Hebrew rail + editable fields */
+.token-card__body {
+    display: grid;
+    grid-template-columns: minmax(0, 168px) minmax(0, 1fr);
+    align-items: stretch;
+}
+
+.token-hebrew {
+    text-align: right;
+    direction: rtl;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    padding: 9px 12px;
+    background: #fdfbf7;
+    border-right: 1px solid #f1e8da;
+}
+
+.token-hebrew__niqqud {
+    font-size: 24px;
+    line-height: 1.5;
+}
+
+.token-hebrew__plain {
+    font-size: 17px;
+    line-height: 1.5;
+    color: #7a6a55;
+}
+
+.token-hebrew a {
+    font-size: 12px;
+    text-decoration: none;
+    color: #b0a08a;
+    margin-inline-start: 4px;
+    vertical-align: middle;
+}
+
+.token-hebrew a:hover { color: #b78550; }
+
+.token-fields {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    padding: 9px 12px;
+    align-content: start;
+}
+
+.token-field {
+    display: block;
+    min-width: 0;
+}
+
+.token-field__label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #9a8b76;
+    margin-bottom: 3px;
+}
+
+.token-card input[type="text"] {
     width: 100%;
     min-width: 0;
     padding: 6px 8px !important;
@@ -151,10 +267,56 @@
     min-height: auto !important;
 }
 
-.hebrewTable input[type="text"]:focus {
+.token-card input[type="text"]:focus {
     outline: none;
     border-color: #b78550;
     box-shadow: 0 0 0 2px rgba(183, 133, 80, 0.1);
+}
+
+.token-morph-display {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #555;
+    margin-top: -4px;
+    padding-left: 2px;
+}
+
+/* Footer: Strong's data, full card width so it never breaks per-character */
+.token-card__strongs {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 7px 10px;
+    border-top: 1px dashed #eee3d3;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #5a5044;
+    overflow-wrap: anywhere;
+}
+
+.token-card__strongs .token-field__label {
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+.token-strongs-value { min-width: 0; }
+
+/* Footnote drawer (rendered server-side, hidden until toggled) */
+.footnote-panel {
+    padding: 10px;
+    border-top: 1px solid #efe4d4;
+    background: #fcfaf6;
+    border-radius: 0 0 7px 7px;
+}
+
+@media (max-width: 900px) {
+    .token-card__body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .token-hebrew {
+        border-right: none;
+        border-bottom: 1px solid #f1e8da;
+    }
 }
 
 /* Paraphrase Editor */
@@ -701,7 +863,7 @@
   }
 
   function showFootnote(target) {
-    document.querySelector(`.${target}`).style.display = 'table-cell';
+    document.querySelector(`.${target}`).style.display = 'block';
   }
 
 </script>
@@ -1692,55 +1854,63 @@
       Verse Editor
     </h4>
     <div class="table-scroll-wrapper">
-      <table class="hebrewTable">
-        <tbody>
-          {% for id, ref_data, eng_data, unique, heb_data, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote, morphology_raw, morph_display in edit_table_data %}
-          <tr>
-            <td class="ref-cell">{{ ref_data }}</td>
-            <td>
-              <input type="text" name="eng_data" autocomplete="off" value="{{ eng_data }}" class="edit-input" style="width: 150px;">
-              <input type="hidden" name="eng_id" value="{{ id }}">
-              <input type="hidden" name="original_eng" value="{{ eng_data }}">
-              <input type="hidden" name="combined_heb" value="{{ combined_heb }}">
-              <input type="hidden" name="combined_heb_niqqud" value="{{ combined_heb_niqqud }}">
-            </td>
-            <td style="font-size: 20px; text-align: right;">
-              <span class="heb">{{ combined_heb }}</span>
-              {{ search_count2|safe }}
-            </td>
-            <td class="morph-cell" style="font-size: 12px; width: 185px;">
-              <input type="text" name="morphology" autocomplete="off" value="{{ morphology_raw }}" class="edit-input" style="width: 180px;">
-              <input type="hidden" name="morph_id" value="{{ id }}">
-              <input type="hidden" name="original_morphology" value="{{ morphology_raw }}">
-              <div style="margin-top: 4px;">{{ morph_display|safe }}</div>
-            </td>
-            <td style="font-size: 12px;">
-              {{ formatted_strongs_list|safe }}
-            </td>
-            <td>
+      <div class="token-editor-list">
+        {% for id, ref_data, eng_data, unique, heb_data, color, search_count, search_count2, strongs, formatted_strongs_list, morph, combined_heb_niqqud, combined_heb, footnote_btn, footnote, morphology_raw, morph_display in edit_table_data %}
+        <article class="token-card">
+
+          <header class="token-card__bar">
+            <span class="token-ref">{{ ref_data }}</span>
+            <div class="token-card__tools">
+              {{ color|safe }}
+              {% if unique %}<span class="token-unique">{{ unique|safe }}</span>{% endif %}
               {{ footnote_btn|safe }}
-            </td>
-            <td>{{ color|safe }}{{ unique|safe }}</td>
-            <td>
-              <span class="heb">{{ combined_heb_niqqud }}</span>
-              {{ search_count|safe }}
-            </td>
-            <td>
-              <button type="button" class="map-lexicon-btn" 
-                      data-hebrew-niqqud="{{ combined_heb_niqqud }}" 
-                      data-hebrew-consonantal="{{ combined_heb }}" 
+              <button type="button" class="map-lexicon-btn"
+                      data-hebrew-niqqud="{{ combined_heb_niqqud }}"
+                      data-hebrew-consonantal="{{ combined_heb }}"
                       data-strongs="{{ strongs }}"
                       onclick="openMappingModal(this)">
                 MAP LEXICON
               </button>
-            </td>
-          </tr>
-          <tr>
-            {{ footnote|safe }}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+            </div>
+          </header>
+
+          <div class="token-card__body">
+            <aside class="token-hebrew">
+              <div class="token-hebrew__niqqud"><span class="heb">{{ combined_heb_niqqud }}</span>{{ search_count|safe }}</div>
+              <div class="token-hebrew__plain"><span class="heb">{{ combined_heb }}</span>{{ search_count2|safe }}</div>
+            </aside>
+
+            <div class="token-fields">
+              <label class="token-field">
+                <span class="token-field__label">Gloss</span>
+                <input type="text" name="eng_data" autocomplete="off" value="{{ eng_data }}" class="edit-input">
+              </label>
+              <input type="hidden" name="eng_id" value="{{ id }}">
+              <input type="hidden" name="original_eng" value="{{ eng_data }}">
+              <input type="hidden" name="combined_heb" value="{{ combined_heb }}">
+              <input type="hidden" name="combined_heb_niqqud" value="{{ combined_heb_niqqud }}">
+
+              <label class="token-field">
+                <span class="token-field__label">Morphology</span>
+                <input type="text" name="morphology" autocomplete="off" value="{{ morphology_raw }}" class="edit-input">
+              </label>
+              <input type="hidden" name="morph_id" value="{{ id }}">
+              <input type="hidden" name="original_morphology" value="{{ morphology_raw }}">
+              <div class="token-morph-display">{{ morph_display|safe }}</div>
+            </div>
+          </div>
+
+          {% if formatted_strongs_list %}
+          <div class="token-card__strongs">
+            <span class="token-field__label">Strong&#39;s</span>
+            <span class="token-strongs-value">{{ formatted_strongs_list|safe }}</span>
+          </div>
+          {% endif %}
+
+          {{ footnote|safe }}
+        </article>
+        {% endfor %}
+      </div>
     </div>
   </div>
 
