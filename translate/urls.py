@@ -23,7 +23,9 @@ urlpatterns = [
     path('edit_footnote/', views.edit_footnote, name='edit_footnote'),
     path('edit/', views.edit, name='edit'),
     path('edit_nt_chapter/', views.edit_nt_chapter, name='edit_nt_chapter'),
-    path('accounts/', include('django.contrib.auth.urls')),
+    # Auth lives only at the project root (/accounts/). Re-including it here
+    # re-registered the 'login' name, so reverse('login') returned
+    # /translate/accounts/login/ instead of /accounts/login/.
     path('chapter_editor/', views.chapter_editor, name='chapter_editor'),
     path('api/add-manual-lexicon-mapping/', views.add_manual_lexicon_mapping, name='add_manual_lexicon_mapping'),
     path('api/get-lexicon-strongs/', views.get_lexicon_strongs, name='get_lexicon_strongs'),

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en-US" class=" no-applicationcache geolocation history postmessage svg websockets localstorage sessionstorage no-websqldatabase svgfilters webworkers hashchange audio canvas canvastext video webgl cssgradients multiplebgs opacity rgba inlinesvg hsla supports svgclippaths smil no-touchevents fontface generatedcontent textshadow cssanimations backgroundsize bgsizecover borderimage borderradius boxshadow csscolumns csscolumns-width csscolumns-span csscolumns-fill csscolumns-gap csscolumns-rule csscolumns-rulecolor csscolumns-rulestyle csscolumns-rulewidth no-csscolumns-breakbefore no-csscolumns-breakafter no-csscolumns-breakinside flexbox no-cssreflections csstransforms csstransforms3d preserve3d csstransitions indexeddb indexeddb-deletedatabase requestanimationframe raf js_active  vc_desktop  vc_transform  vc_transform  vc_transform  rhkmnktbp idc0_349">
+<html lang="{{ page_lang|default:'en' }}" dir="{{ page_dir|default:'ltr' }}" class=" no-applicationcache geolocation history postmessage svg websockets localstorage sessionstorage no-websqldatabase svgfilters webworkers hashchange audio canvas canvastext video webgl cssgradients multiplebgs opacity rgba inlinesvg hsla supports svgclippaths smil no-touchevents fontface generatedcontent textshadow cssanimations backgroundsize bgsizecover borderimage borderradius boxshadow csscolumns csscolumns-width csscolumns-span csscolumns-fill csscolumns-gap csscolumns-rule csscolumns-rulecolor csscolumns-rulestyle csscolumns-rulewidth no-csscolumns-breakbefore no-csscolumns-breakafter no-csscolumns-breakinside flexbox no-cssreflections csstransforms csstransforms3d preserve3d csstransitions indexeddb indexeddb-deletedatabase requestanimationframe raf js_active  vc_desktop  vc_transform  vc_transform  vc_transform  rhkmnktbp idc0_349">
 <head>
 {% load static %}
 	
@@ -16,6 +16,14 @@
 {% else %}
 <link rel="canonical" href="{{ request.build_absolute_uri }}">
 {% endif %}
+
+{% comment %}
+Translated chapters/verses live at /<lang>/<book>/<chapter>/ and are genuinely
+translated, but without these annotations Google read them as duplicates of the
+English page. Every page in a cluster lists every language plus x-default.
+{% endcomment %}
+{% for alt in hreflang_alternates %}<link rel="alternate" hreflang="{{ alt.hreflang }}" href="{{ request.scheme }}://{{ request.get_host }}{{ alt.path }}">
+{% endfor %}
 
 <!-- Open Graph / Social Media -->
 <meta property="og:title" content="{% block og_title %}{{ meta_title|default:'Real Bible Translation Project | The Language of the Eternal One' }}{% endblock %}">

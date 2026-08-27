@@ -96,7 +96,10 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 
-LOGIN_URL = 'accounts/login/'
+# Must be absolute. A relative value resolved against whatever path the user hit,
+# so @login_required on e.g. /edit_footnote/ redirected to /edit_footnote/accounts/login/
+# -- a route that does not exist, producing 404s that Google indexed.
+LOGIN_URL = '/accounts/login/'
 
 # Increase field limits for bulk editing forms (e.g., find_and_replace)
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000  # Default is 1000

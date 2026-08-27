@@ -253,7 +253,10 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
         'failed_translation_count': failed_translation_count,
     }
     
-    context['jsonld_schemas'] = generate_chapter_schema(request, display_book, chapter_num, footnotes_collection)
+    context['jsonld_schemas'] = generate_chapter_schema(
+        request, display_book, chapter_num, footnotes_collection,
+        url_book=original_book, language=language,
+    )
     context['meta_title'] = meta_title
     context['meta_description'] = meta_description
     return render(request, 'chapter.html', {'page_title': page_title, **context})
@@ -515,7 +518,10 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         'failed_translation_count': failed_translation_count
     }
     
-    context['jsonld_schemas'] = generate_chapter_schema(request, original_book, chapter_num, footnotes_collection)
+    context['jsonld_schemas'] = generate_chapter_schema(
+        request, original_book, chapter_num, footnotes_collection,
+        url_book=original_book, language=language,
+    )
     context['meta_title'] = meta_title
     context['meta_description'] = meta_description
     
@@ -780,7 +786,10 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
         'cache_hit': cached_hit,
     }
     
-    context['jsonld_schemas'] = generate_chapter_schema(request, original_book, chapter_num, footnotes_collection)
+    context['jsonld_schemas'] = generate_chapter_schema(
+        request, original_book, chapter_num, footnotes_collection,
+        url_book=original_book, language=language,
+    )
     context['meta_title'] = meta_title
     context['meta_description'] = meta_description
     

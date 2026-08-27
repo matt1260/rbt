@@ -32,9 +32,26 @@ def robots_txt(request):
     lines = [
         "User-agent: *",
         "Disallow: /admin/",
+        "Disallow: /accounts/",
+        # Every login-gated editor route. These answer with a redirect to the login
+        # page, which Google was crawling and filing under "Page with redirect" /
+        # "Not found (404)" -- pure crawl-budget waste on pages no bot should see.
         "Disallow: /edit/",
+        "Disallow: /edit_footnote/",
+        "Disallow: /edit_search/",
         "Disallow: /edit_nt_chapter/",
+        "Disallow: /edit_aseneth/",
+        "Disallow: /edit_judas/",
+        "Disallow: /chapter_editor/",
+        "Disallow: /find_and_replace_nt/",
+        "Disallow: /find_and_replace_ot",
+        "Disallow: /search_footnotes/",
+        "Disallow: /update-hebrew-data/",
+        "Disallow: /update_count/",
         "Disallow: /translate/",
+        # Internal search results: infinite URL space, no unique indexable content.
+        "Disallow: /search/results/",
+        "Disallow: /*?q=",
         "Sitemap: https://read.realbible.tech/sitemap.xml"
     ]
     return HttpResponse("\n".join(lines), content_type="text/plain")
@@ -49,18 +66,15 @@ urlpatterns = [
     path('sitemap.xml', sitemap_xml, name='sitemap_xml'),
     path('robots.txt', robots_txt, name='robots_txt'),
     path('admin/', admin.site.urls),
+    # The single auth URL root. Do not re-include this under other prefixes:
+    # each copy re-registers the 'login' name (last one wins in reverse()) and
+    # creates another duplicate login page for crawlers. LOGIN_URL is absolute.
     path('accounts/', include('django.contrib.auth.urls')),
     path('api/', include('search.urls')),
     path('update_count/', update_count, name='update_count'),
-    path('edit/accounts/', include('django.contrib.auth.urls')),
-    path('edit_nt_chapter/accounts/', include('django.contrib.auth.urls')),
-    path('translate/accounts/', include('django.contrib.auth.urls')),
-    path('translate/update-hebrew-data/accounts/', include('django.contrib.auth.urls')),
     path('update-hebrew-data/', views.update_hebrew_data, name='update_hebrew_data'),
     path('find_and_replace_nt/', views.find_and_replace_nt, name='find_and_replace_nt'),
-    path('find_and_replace_nt/accounts/', include('django.contrib.auth.urls')),
     path('find_and_replace_ot', views.find_and_replace_ot, name='find_and_replace_ot'),
-    path('find_and_replace_ot/accounts/', include('django.contrib.auth.urls')),
     path('lexicon/<str:lexicon_type>/<str:page>', views.lexicon_viewer, name='lexicon_viewer'),
     path('translate/', include('translate.urls')),
     path('search_footnotes/', views.search_footnotes, name='search_footnotes'),
@@ -77,9 +91,7 @@ urlpatterns = [
     path('__human_challenge/', human_challenge, name='human_challenge'),
     path('__human_verify/', human_verify, name='human_verify'),
     path('edit_aseneth/', views.edit_aseneth, name='edit_aseneth'),
-    path('edit_aseneth/accounts/', include('django.contrib.auth.urls')),
     path('edit_judas/', views.edit_judas, name='edit_judas'),
-    path('edit_judas/accounts/', include('django.contrib.auth.urls')),
 
 ]
 

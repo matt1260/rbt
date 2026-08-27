@@ -2,7 +2,7 @@ from django.contrib.sitemaps import Sitemap
 from django.urls import reverse
 from urllib.parse import urlencode
 from translate.translator import old_testament_books, new_testament_books
-from search.seo_utils import book_to_slug
+from search.seo_utils import book_to_slug, SEO_LANGUAGES
 from search.translation_utils import SUPPORTED_LANGUAGES
 import datetime
 
@@ -38,15 +38,21 @@ class BibleChapterSitemap(Sitemap):
             for chapter in range(1, count + 1):
                 items.append((book, chapter, 'en'))
                 # Also index the top 10 most popular translations to save indexing budget
-                # rather than all 71 for every chapter immediately
-                popular_langs = ['es', 'pt', 'fr', 'de', 'ru', 'zh', 'ar', 'hi', 'ja', 'it']
-                for lang in popular_langs:
+                # rather than all 71 for every chapter immediately.
+                # Shared with the hreflang cluster in seo_utils.SEO_LANGUAGES -- the two
+                # lists must not drift, or we advertise alternates we never submit.
+                for lang in SEO_LANGUAGES:
                     if lang in dict(SUPPORTED_LANGUAGES):
                         items.append((book, chapter, lang))
         return items
 
+    # Stable content date. Returning date.today() here (the previous behaviour)
+    # claimed all ~13k URLs changed every single day, which makes Google discount
+    # lastmod entirely and slows re-crawling.
+    CONTENT_LASTMOD = datetime.date(2026, 8, 26)
+
     def lastmod(self, item):
-        return datetime.date.today()
+        return self.CONTENT_LASTMOD
 
     def location(self, item):
         book, chapter, lang = item
