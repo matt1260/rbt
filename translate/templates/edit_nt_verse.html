@@ -570,6 +570,122 @@
         font-size: 12px;
         color: #4b5563;
     }
+
+/* ---- Editor toolbar ------------------------------------------------- */
+.editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    margin: 8px 0 12px;
+    padding: 8px 10px;
+    background: #f7f7f9;
+    border: 1px solid #e3e3e8;
+    border-radius: 8px;
+}
+
+.toolbar-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Separator between clusters */
+.toolbar-group + .toolbar-group {
+    border-left: 1px solid #dcdce3;
+    padding-left: 14px;
+}
+
+.toolbar-group__label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: #8a8a97;
+    margin-right: 2px;
+    user-select: none;
+}
+
+.tb-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 9px;
+    font-size: 13px;
+    line-height: 1;
+    color: #33333b;
+    background: #fff;
+    border: 1px solid #d3d3db;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background .12s ease, border-color .12s ease;
+}
+
+.tb-btn:hover { background: #ececf1; border-color: #b9b9c4; }
+.tb-btn:active { background: #e0e0e8; }
+.tb-btn:focus-visible { outline: 2px solid #4a90e2; outline-offset: 1px; }
+
+.tb-btn--save {
+    background: #2f7d4f;
+    border-color: #2f7d4f;
+    color: #fff;
+    font-weight: 700;
+    padding: 0 16px;
+}
+.tb-btn--save:hover { background: #276741; border-color: #276741; }
+
+/* Colour swatches keep the ink colour on the dot, not the button */
+.tb-btn--swatch { padding: 0 8px; }
+.tb-btn--pink i { color: #ff00aa; font-size: 15px; }
+.tb-btn--blue i { color: #3a93c6; font-size: 15px; }
+
+.tb-btn__text { font-size: 11px; }
+
+.tb-input {
+    height: 30px;
+    padding: 0 8px;
+    font-size: 12px;
+    border: 1px solid #d3d3db;
+    border-radius: 5px;
+    background: #fff;
+    min-width: 0;
+    width: 150px;
+}
+.tb-input:focus { outline: none; border-color: #4a90e2; }
+
+/* AI cluster: suggestion buttons read as primary, copy actions as ghosts */
+.tb-btn--ai { font-weight: 700; color: #fff; }
+.tb-btn--gemini  { background: #4a6cf7; border-color: #4a6cf7; }
+.tb-btn--gemini:hover  { background: #3a58d4; border-color: #3a58d4; }
+.tb-btn--chatgpt { background: #10a37f; border-color: #10a37f; }
+.tb-btn--chatgpt:hover { background: #0d8568; border-color: #0d8568; }
+
+.tb-btn--ghost {
+    background: transparent;
+    border-style: dashed;
+    color: #5c5c68;
+    font-size: 12px;
+}
+.tb-btn--ghost:hover { background: #ececf1; border-style: solid; }
+
+.toolbar-divider {
+    width: 1px;
+    height: 20px;
+    background: #dcdce3;
+    margin: 0 4px;
+}
+
+@media (max-width: 700px) {
+    .toolbar-group + .toolbar-group {
+        border-left: none;
+        padding-left: 0;
+    }
+    .tb-input { width: 110px; }
+}
 </style>
 
 
@@ -727,52 +843,57 @@ Cached: {{ cached_hit }}
         <input type="hidden" name="verse_id" id="verse_id" value="{{ verse_id }}">
         <input type="hidden" name="book" id="book" value="{{ book2 }}">
         <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
-        <input type="hidden" name="verse" id="verse" value="{{ verse_num }}"><br>
-        <button type="submit" id="save-button">Save</button>
-        <button type="button"
-            onclick="applyHayahStyle('hayah'); updateReader(document.getElementById('editor-texto').value)"><i>היה</i></button>
-        <button type="button"
-            onclick="applyh5Style(); updateReader(document.getElementById('editor-texto').value)">h5</button>
-        <button type="button"
-            onclick="applyBoldStyle(); updateReader(document.getElementById('editor-texto').value)"><b>B</b></button>
-        <button type="button" title="Hebrew header" aria-label="Hebrew header" onclick="applyHebrewHeaderStyle(); updateReader(document.getElementById('editor-texto').value)"><span class="hdr-icon hebrew">א</span></button>
-        <button type="button" title="Greek header" aria-label="Greek header" onclick="applyGreekHeaderStyle(); updateReader(document.getElementById('editor-texto').value)"><span class="hdr-icon greek">Ω</span></button>
-        <button type="button" style="background-color: #ff00aa;"
-            onclick="applyFontColor('#ff00aa'); updateReader(document.getElementById('editor-texto').value)"><i
-                class="fas fa-circle" style="font-size: 18px; color: pink;"></i></button> 
-        <button type="button" style="background-color: blue;"
-            onclick="applyFontColor('blue'); updateReader(document.getElementById('editor-texto').value)"><i
-                class="fas fa-circle" style="font-size: 18px; color: rgb(58, 147, 198);"></i></button>
-        <button type="button" onclick="applyCenterStyle(); updateReader(document.getElementById('editor-texto').value)">
-            <i class="fas fa-align-center" style="font-size: 18px;"></i>
-        </button>
-        <button type="button"
-            onclick="applyLastCenterStyle(); updateReader(document.getElementById('editor-texto').value)">
-            <i class="fas fa-align-center" style="font-size: 18px;"></i> Last
-        </button>
-        <button type="button"
-            onclick="applySunStyle(); updateReader(document.getElementById('editor-texto').value)">☀️</button>
-        <button type="button" id="copy-linear">Copy Eng</button>
-        <br>
-        <input type="text" id="imageUrlInput" placeholder="Enter Image URL">
-        <button type="button" id="generate-code-button">Insert Image URL</button>
-        <input type="text" id="videoUrlInput" placeholder="Enter Video URL">
-        <button type="button" id="generate-video-button">Insert Video URL</button>
-        <br>
-        <button type="button" class="gemini-trigger" id="greekGeminiOpen">
-            Gemini Suggestion
-        </button>
-        <button type="button" class="chatgpt-trigger" id="greekChatGPTOpen" style="background-color: #10a37f; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 5px;">
-            ChatGPT Suggestion
-        </button>
-        <button type="button" class="chatgpt-trigger" id="greekChatGPTManualOpen" title="Copy full ChatGPT request to clipboard" style="background-color: #747474; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 5px;">
-            ChatGPT Manual Request
-        </button>
-        <span id="greekChatGPTManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
-        <button type="button" class="gemini-trigger" id="greekGeminiManualOpen" title="Copy full LLM request to clipboard">
-            Manual LLM Request
-        </button>
-        <span id="greekGeminiManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
+        <input type="hidden" name="verse" id="verse" value="{{ verse_num }}">
+
+        <div class="editor-toolbar">
+            <div class="toolbar-group">
+                <button type="submit" id="save-button" class="tb-btn tb-btn--save">Save</button>
+            </div>
+
+            <div class="toolbar-group" role="group" aria-label="Formatting">
+                <span class="toolbar-group__label">Format</span>
+                <button type="button" class="tb-btn" title="Bold" aria-label="Bold"
+                    onclick="applyBoldStyle(); updateReader(document.getElementById('editor-texto').value)"><b>B</b></button>
+                <button type="button" class="tb-btn" title="Hayah" aria-label="Hayah"
+                    onclick="applyHayahStyle('hayah'); updateReader(document.getElementById('editor-texto').value)"><i>היה</i></button>
+                <button type="button" class="tb-btn" title="Heading 5" aria-label="Heading 5"
+                    onclick="applyh5Style(); updateReader(document.getElementById('editor-texto').value)">h5</button>
+                <button type="button" class="tb-btn" title="Hebrew header" aria-label="Hebrew header"
+                    onclick="applyHebrewHeaderStyle(); updateReader(document.getElementById('editor-texto').value)"><span class="hdr-icon hebrew">א</span></button>
+                <button type="button" class="tb-btn" title="Greek header" aria-label="Greek header"
+                    onclick="applyGreekHeaderStyle(); updateReader(document.getElementById('editor-texto').value)"><span class="hdr-icon greek">Ω</span></button>
+                <button type="button" class="tb-btn tb-btn--swatch tb-btn--pink" title="Pink text" aria-label="Pink text"
+                    onclick="applyFontColor('#ff00aa'); updateReader(document.getElementById('editor-texto').value)"><i class="fas fa-circle"></i></button>
+                <button type="button" class="tb-btn tb-btn--swatch tb-btn--blue" title="Blue text" aria-label="Blue text"
+                    onclick="applyFontColor('blue'); updateReader(document.getElementById('editor-texto').value)"><i class="fas fa-circle"></i></button>
+                <button type="button" class="tb-btn" title="Center" aria-label="Center"
+                    onclick="applyCenterStyle(); updateReader(document.getElementById('editor-texto').value)"><i class="fas fa-align-center"></i></button>
+                <button type="button" class="tb-btn" title="Center last line" aria-label="Center last line"
+                    onclick="applyLastCenterStyle(); updateReader(document.getElementById('editor-texto').value)"><i class="fas fa-align-center"></i><span class="tb-btn__text">Last</span></button>
+                <button type="button" class="tb-btn" title="Sun" aria-label="Sun"
+                    onclick="applySunStyle(); updateReader(document.getElementById('editor-texto').value)">☀️</button>
+                <button type="button" class="tb-btn" id="copy-linear" title="Copy interlinear English">Copy Eng</button>
+            </div>
+
+            <div class="toolbar-group" role="group" aria-label="Insert media">
+                <span class="toolbar-group__label">Insert</span>
+                <input type="text" id="imageUrlInput" class="tb-input" placeholder="Image URL">
+                <button type="button" class="tb-btn" id="generate-code-button">Add image</button>
+                <input type="text" id="videoUrlInput" class="tb-input" placeholder="Video URL">
+                <button type="button" class="tb-btn" id="generate-video-button">Add video</button>
+            </div>
+
+            <div class="toolbar-group" role="group" aria-label="AI suggestions">
+                <span class="toolbar-group__label">AI</span>
+                <button type="button" class="tb-btn tb-btn--ai tb-btn--gemini gemini-trigger" id="greekGeminiOpen">Gemini</button>
+                <button type="button" class="tb-btn tb-btn--ai tb-btn--chatgpt chatgpt-trigger" id="greekChatGPTOpen">ChatGPT</button>
+                <span class="toolbar-divider" aria-hidden="true"></span>
+                <button type="button" class="tb-btn tb-btn--ghost gemini-trigger" id="greekGeminiManualOpen" title="Copy full Gemini request to clipboard">Copy Gemini request</button>
+                <span id="greekGeminiManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
+                <button type="button" class="tb-btn tb-btn--ghost chatgpt-trigger" id="greekChatGPTManualOpen" title="Copy full ChatGPT request to clipboard">Copy ChatGPT request</button>
+                <span id="greekChatGPTManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
+            </div>
+        </div>
     </form>
 
     <div id="gemini-config"
@@ -791,7 +912,7 @@ Cached: {{ cached_hit }}
         data-verse="{{ verse_num }}"
         data-endpoint="{% url 'chatgpt_translate_api' %}"
         data-translation-type="greek"
-        data-default-model="gpt-4o"
+        data-default-model="{{ default_chatgpt_model }}"
         hidden></div>
 
     <div class="gemini-modal" id="greekGeminiModal" aria-hidden="true">
@@ -823,6 +944,41 @@ Cached: {{ cached_hit }}
                 <button type="button" class="primary" id="greekGeminiRun">Run &amp; Load</button>
             </div>
             <div class="gemini-modal__status" id="greekGeminiStatus"></div>
+        </div>
+    </div>
+
+    <div class="gemini-modal" id="greekChatGPTModal" aria-hidden="true">
+        <div class="gemini-modal__content">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin:0;">ChatGPT Prompt</h3>
+                <button type="button" class="secondary" data-action="close">&times;</button>
+            </div>
+            <div class="gemini-modal__field">
+                <label for="greekChatGPTModel">Model</label>
+                <select id="greekChatGPTModel" autocomplete="off">
+                    {% for model_choice in chatgpt_model_choices %}
+                    <option value="{{ model_choice }}"{% if model_choice == default_chatgpt_model %} selected{% endif %}>{{ model_choice }}</option>
+                    {% endfor %}
+                    <option value="__custom__">Other (specify below)…</option>
+                </select>
+                <small style="color:#666;">Edit the list with the <code>CHATGPT_MODEL_CHOICES</code> env var.</small>
+            </div>
+            <div class="gemini-modal__field" id="greekChatGPTCustomModelField" style="display:none;">
+                <label for="greekChatGPTCustomModel">Custom model id</label>
+                <input id="greekChatGPTCustomModel" type="text" placeholder="e.g. gpt-5.6-terra" autocomplete="off">
+            </div>
+            <div class="gemini-modal__field">
+                <label for="greekChatGPTApiKey">OpenAI API Key (optional)</label>
+                <input id="greekChatGPTApiKey" type="password" placeholder="Insert OpenAI API key for this request" autocomplete="off">
+                <small style="color:#666;">This key will be used only for this request and will not be saved to the server.</small>
+            </div>
+            <textarea id="greekChatGPTPrompt" spellcheck="false"></textarea>
+            <div class="gemini-modal__actions">
+                <button type="button" class="secondary" id="greekChatGPTReset">Reset</button>
+                <button type="button" class="secondary" data-action="close">Cancel</button>
+                <button type="button" class="primary" id="greekChatGPTRun">Run &amp; Load</button>
+            </div>
+            <div class="gemini-modal__status" id="greekChatGPTStatus"></div>
         </div>
     </div>
 
@@ -1287,15 +1443,79 @@ Cached: {{ cached_hit }}
                     }
                 });
 
-                // ChatGPT Integration
+                // ChatGPT Integration — model picker + prompt modal
                 const chatgptConfig = document.getElementById('chatgpt-config');
                 const chatgptBtn = document.getElementById('greekChatGPTOpen');
-                if (chatgptBtn && chatgptConfig) {
-                    chatgptBtn.addEventListener('click', async () => {
-                        chatgptBtn.disabled = true;
-                        const originalText = chatgptBtn.textContent;
-                        chatgptBtn.textContent = 'Requesting...';
-                        
+                const chatgptModal = document.getElementById('greekChatGPTModal');
+                const chatgptModelSelect = document.getElementById('greekChatGPTModel');
+                const chatgptCustomField = document.getElementById('greekChatGPTCustomModelField');
+                const chatgptCustomModel = document.getElementById('greekChatGPTCustomModel');
+                const chatgptApiKey = document.getElementById('greekChatGPTApiKey');
+                const chatgptPrompt = document.getElementById('greekChatGPTPrompt');
+                const chatgptStatus = document.getElementById('greekChatGPTStatus');
+                const chatgptRun = document.getElementById('greekChatGPTRun');
+                const chatgptReset = document.getElementById('greekChatGPTReset');
+
+                // Resolve the model to send: either the picked option or the free-text id.
+                function chatgptSelectedModel() {
+                    if (!chatgptModelSelect) {
+                        return chatgptConfig ? (chatgptConfig.dataset.defaultModel || '') : '';
+                    }
+                    if (chatgptModelSelect.value === '__custom__') {
+                        return chatgptCustomModel ? chatgptCustomModel.value.trim() : '';
+                    }
+                    return chatgptModelSelect.value;
+                }
+
+                if (chatgptModelSelect && chatgptCustomField) {
+                    chatgptModelSelect.addEventListener('change', () => {
+                        const isCustom = chatgptModelSelect.value === '__custom__';
+                        chatgptCustomField.style.display = isCustom ? '' : 'none';
+                        if (isCustom && chatgptCustomModel) chatgptCustomModel.focus();
+                    });
+                }
+
+                function toggleChatgptModal(show) {
+                    if (!chatgptModal) return;
+                    chatgptModal.classList.toggle('is-visible', !!show);
+                    chatgptModal.setAttribute('aria-hidden', String(!show));
+                }
+
+                if (chatgptModal) {
+                    chatgptModal.querySelectorAll('[data-action="close"]').forEach((btn) => {
+                        btn.addEventListener('click', () => {
+                            if (chatgptApiKey) chatgptApiKey.value = '';
+                            toggleChatgptModal(false);
+                        });
+                    });
+                }
+
+                if (chatgptReset && chatgptPrompt) {
+                    chatgptReset.addEventListener('click', () => {
+                        chatgptPrompt.value = defaultPrompt;
+                    });
+                }
+
+                if (chatgptBtn && chatgptConfig && chatgptModal) {
+                    chatgptBtn.addEventListener('click', () => {
+                        if (chatgptPrompt && !chatgptPrompt.value.trim()) {
+                            chatgptPrompt.value = defaultPrompt;
+                        }
+                        if (chatgptStatus) chatgptStatus.textContent = '';
+                        toggleChatgptModal(true);
+                    });
+                }
+
+                if (chatgptRun && chatgptConfig) {
+                    chatgptRun.addEventListener('click', async () => {
+                        const model = chatgptSelectedModel();
+                        if (!model) {
+                            if (chatgptStatus) chatgptStatus.textContent = 'Choose a model or enter a custom model id.';
+                            return;
+                        }
+                        chatgptRun.disabled = true;
+                        if (chatgptStatus) chatgptStatus.textContent = 'Requesting ' + model + '…';
+
                         try {
                             const response = await fetch(chatgptConfig.dataset.endpoint, {
                                 method: 'POST',
@@ -1309,24 +1529,27 @@ Cached: {{ cached_hit }}
                                     book: chatgptConfig.dataset.book,
                                     chapter: chatgptConfig.dataset.chapter,
                                     verse: chatgptConfig.dataset.verse,
-                                    model: chatgptConfig.dataset.defaultModel,
+                                    model: model,
+                                    prompt: chatgptPrompt ? chatgptPrompt.value : undefined,
+                                    api_key: (chatgptApiKey && chatgptApiKey.value.trim()) || undefined,
                                 }),
                             });
 
                             const data = await response.json();
                             if (data.error) throw new Error(data.error);
-                            
+
                             if (targetTextarea && data.suggestion) {
                                 targetTextarea.value = data.suggestion;
                                 if (typeof updateReader === 'function') {
                                     updateReader(targetTextarea.value);
                                 }
                             }
+                            if (chatgptApiKey) chatgptApiKey.value = '';
+                            toggleChatgptModal(false);
                         } catch (error) {
-                            alert('ChatGPT Error: ' + error.message);
+                            if (chatgptStatus) chatgptStatus.textContent = 'ChatGPT Error: ' + error.message;
                         } finally {
-                            chatgptBtn.disabled = false;
-                            chatgptBtn.textContent = originalText;
+                            chatgptRun.disabled = false;
                         }
                     });
                 }
@@ -1349,7 +1572,7 @@ Cached: {{ cached_hit }}
                                     book: chatgptConfig.dataset.book,
                                     chapter: chatgptConfig.dataset.chapter,
                                     verse: chatgptConfig.dataset.verse,
-                                    model: chatgptConfig.dataset.defaultModel,
+                                    model: chatgptSelectedModel() || chatgptConfig.dataset.defaultModel,
                                     assemble_only: true,
                                 }),
                             });

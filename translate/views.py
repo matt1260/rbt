@@ -71,6 +71,19 @@ openai_client = OpenAI(api_key=CHATGPT_KEY) if CHATGPT_KEY else None
 DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash-preview')
 MODEL_NAME_PATTERN = re.compile(r'^[\w\-.:+]+$')
 
+DEFAULT_CHATGPT_MODEL = os.getenv('CHATGPT_MODEL_NAME', 'gpt-5.6-terra')
+# Models offered in the editor's ChatGPT picker. Override with a comma-separated
+# CHATGPT_MODEL_CHOICES env var so adding a model needs no code change; the picker
+# also takes a free-text model id for anything not in this list.
+CHATGPT_MODEL_CHOICES = [
+    name.strip()
+    for name in os.getenv(
+        'CHATGPT_MODEL_CHOICES',
+        'gpt-5.6-terra,gpt-5.6-luna,gpt-4o,gpt-4.1',
+    ).split(',')
+    if name.strip()
+]
+
 logger = logging.getLogger(__name__)
 
 
@@ -409,6 +422,8 @@ def _apply_gemini_preferences(request, context):
     context['default_greek_prompt'] = _pref('gemini_prompt_greek', DEFAULT_GREEK_GEMINI_PROMPT)
     context['default_hebrew_prompt'] = _pref('gemini_prompt_hebrew', DEFAULT_HEBREW_GEMINI_PROMPT)
     context['default_gemini_model'] = _pref('gemini_model', DEFAULT_GEMINI_MODEL)
+    context['default_chatgpt_model'] = _pref('chatgpt_model', DEFAULT_CHATGPT_MODEL)
+    context['chatgpt_model_choices'] = CHATGPT_MODEL_CHOICES
     context['gemini_prompt_is_default'] = {
         'greek': context['default_greek_prompt'] == DEFAULT_GREEK_GEMINI_PROMPT,
         'hebrew': context['default_hebrew_prompt'] == DEFAULT_HEBREW_GEMINI_PROMPT,
@@ -722,8 +737,9 @@ def _save_gemini_prefs(request, model_name: str, prompt_override: str | None, tr
 
 def _request_chatgpt_response(prompt: str, model_name: str | None = None, api_key: str | None = None, instructions: str | None = None) -> str:
     """Helper to request a response from ChatGPT completions API."""
-    # Default to gpt-4o for best results
-    model_to_use = model_name or "gpt-4o"
+    model_to_use = (model_name or '').strip() or DEFAULT_CHATGPT_MODEL
+    if not MODEL_NAME_PATTERN.match(model_to_use):
+        return 'Error: Invalid model name.'
     
     use_client = openai_client
     if api_key:
@@ -866,7 +882,7 @@ def request_chatgpt_translation(request):
                 )
                 return JsonResponse({
                     'assembled': assembled,
-                    'model': model_override or 'gpt-4o',
+                    'model': model_override or DEFAULT_CHATGPT_MODEL,
                     'meta': {'book': book, 'chapter': chapter, 'verse': verse}
                 })
 
@@ -886,7 +902,7 @@ def request_chatgpt_translation(request):
                 )
                 return JsonResponse({
                     'assembled': assembled,
-                    'model': model_override or 'gpt-4o',
+                    'model': model_override or DEFAULT_CHATGPT_MODEL,
                     'meta': {'book': book, 'chapter': chapter, 'verse': verse}
                 })
 
