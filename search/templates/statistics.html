@@ -614,12 +614,16 @@ function updateReferenceList(data) {
     data.forEach((ref, index) => {
         const item = document.createElement('div');
         item.className = 'reference-item';
+        // ref.link is null for references we cannot resolve to a verse page
+        // (malformed entries like "Mat-3" or "Eze.16.4 - 11"). Without this
+        // guard the template literal rendered href="None" and 404'd.
+        const label = ref.link
+            ? `<a href="${ref.link}" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">${ref.reference}</a>`
+            : `<span style="color: inherit;">${ref.reference}</span>`;
         item.innerHTML = `
             <span class="reference-name">
                 #${index + 1}
-                <a href="${ref.link}" target="_blank" style="color: inherit; text-decoration: underline;">
-                    ${ref.reference}
-                </a>
+                ${label}
             </span>
             <span class="reference-count">${ref.count}</span>
         `;

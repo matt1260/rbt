@@ -6,7 +6,6 @@ import re
 import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta
-from urllib.parse import urlencode
 
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -18,6 +17,7 @@ from dateutil.relativedelta import relativedelta
 
 from search.models import TranslationUpdates, GenesisFootnotes
 from search.db_utils import execute_query
+from search.seo_utils import _get_verse_url
 from translate.translator import convert_book_name
 
 
@@ -125,23 +125,32 @@ def update_statistics_api(request):
             .order_by('-count')[:100]
         )
 
-        # Generate links for each reference (Format A only)
-        base_url = "https://rbtproject.up.railway.app"
+        # Generate links for each reference.
+        # Build canonical /<book>/<chapter>/<verse>/ URLs on the requesting host.
+        # This previously hardcoded the Railway subdomain and emitted the
+        # ?book=&chapter=&verse= form, so every link pointed at the wrong site
+        # AND took a 301 to reach the real page.
         for item in top_references:
             reference = item['reference']
+            item['link'] = None
             try:
-                parts = reference.strip().split()
-                if len(parts) == 2:
-                    book = parts[0]
-                    chapter, verse = parts[1].split(':')
-                    query_params = urlencode({
-                        'book': book,
-                        'chapter': chapter,
-                        'verse': verse
-                    })
-                    item['link'] = f"{base_url}?{query_params}"
-                else:
-                    item['link'] = None
+                # Footnote-scoped refs arrive as "Matthew 19:5 - Mat-37b"; the
+                # verse half is still a valid target, so drop the suffix.
+                ref_text = reference.strip().split(' - ', 1)[0].strip()
+                # rsplit so multi-word books ("1 Samuel 3:4") keep their name intact.
+                parts = ref_text.rsplit(None, 1)
+                if len(parts) != 2 or ':' not in parts[1]:
+                    continue
+                book, chapter_verse = parts
+                chapter, verse = chapter_verse.split(':', 1)
+                if not (chapter.strip().isdigit() and verse.strip()):
+                    continue
+                path = _get_verse_url('en', book, chapter.strip(), verse.strip())
+                if not path.startswith('/'):
+                    # book_to_slug could not resolve the name; skip rather than
+                    # emit the legacy query-string form.
+                    continue
+                item['link'] = request.build_absolute_uri(path)
             except Exception:
                 item['link'] = None
 
