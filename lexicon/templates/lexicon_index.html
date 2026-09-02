@@ -9,6 +9,61 @@
     padding: 24px 20px 60px;
     font-family: 'Inter', -apple-system, sans-serif;
     color: var(--sanctum-ink);
+    --lex-heb-font: "SBL Hebrew", "David", "Noto Serif Hebrew", serif;
+}
+.lex-index.lex-paleo {
+    --lex-heb-font: 'siloam_hebrew', "SBL Hebrew", "David", serif;
+}
+
+.lex-font-toggle {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 0.6rem;
+}
+.toggle-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+.toggle-switch input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+.toggle-switch .slider {
+    width: 36px;
+    height: 14px;
+    background: #d3d3d3;
+    border-radius: 999px;
+    position: relative;
+    transition: background 0.18s ease;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);
+}
+.toggle-switch .slider::after {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: 1px;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+    transition: transform 0.18s ease;
+}
+.toggle-switch input:checked + .slider {
+    background: linear-gradient(90deg, var(--sanctum-gold-light), var(--sanctum-gold));
+}
+.toggle-switch input:checked + .slider::after {
+    transform: translateX(20px);
+}
+.toggle-switch .label-text {
+    font-size: 0.78rem;
+    color: var(--sanctum-stone);
 }
 
 .lex-hero {
@@ -65,7 +120,7 @@
 }
 .lex-search-result:hover { background: var(--sanctum-parchment); }
 .lex-search-result .lex-sr-heb {
-    font-family: 'siloam_hebrew', "SBL Hebrew", "David", serif;
+    font-family: var(--lex-heb-font);
     font-size: 1.1rem;
     margin-right: 0.5rem;
 }
@@ -86,7 +141,7 @@
     border: 1px solid var(--sanctum-rule);
     text-decoration: none;
     color: var(--sanctum-ink-soft);
-    font-family: 'siloam_hebrew', "SBL Hebrew", "David", serif;
+    font-family: var(--lex-heb-font);
     font-size: 1.1rem;
 }
 .lex-letter:hover, .lex-letter.active { border-color: var(--sanctum-gold); color: var(--sanctum-gold); }
@@ -106,7 +161,7 @@
 }
 .lex-word-card:hover { border-color: var(--sanctum-gold); }
 .lex-word-card .lex-wc-heb {
-    font-family: 'siloam_hebrew', "SBL Hebrew", "David", serif;
+    font-family: var(--lex-heb-font);
     font-size: 1.3rem;
     margin-right: 0.5rem;
 }
@@ -147,10 +202,18 @@
 .lex-pagination .current { background: var(--sanctum-gold); color: #fff; border-color: var(--sanctum-gold); }
 </style>
 
-<div class="lex-index">
+<div class="lex-index" id="lexIndexPage">
     <div class="lex-hero">
         <h1>Hebrew Lexicon</h1>
         <p>{{ total_words }} words — Strong's, BDB, Fürst &amp; Gesenius entries with scanned dictionary pages and Bible occurrences.</p>
+    </div>
+
+    <div class="lex-font-toggle">
+        <label class="toggle-switch" title="Toggle Paleo Hebrew script">
+            <input id="lexToggleHebrewFont" type="checkbox" aria-checked="false" />
+            <span class="slider" role="switch" aria-labelledby="lexToggleHebrewFontLabel"></span>
+            <span class="label-text" id="lexToggleHebrewFontLabel">Paleo Hebrew</span>
+        </label>
     </div>
 
     <div class="lex-search-box">
@@ -224,6 +287,27 @@
         if (!results.contains(e.target) && e.target !== input) {
             results.classList.remove('open');
         }
+    });
+})();
+
+(function () {
+    var KEY = 'lexiconPaleoHebrew';
+    var page = document.getElementById('lexIndexPage');
+    var checkbox = document.getElementById('lexToggleHebrewFont');
+    if (!page || !checkbox) return;
+
+    function apply(checked) {
+        page.classList.toggle('lex-paleo', !!checked);
+        checkbox.checked = !!checked;
+    }
+
+    var stored = null;
+    try { stored = localStorage.getItem(KEY); } catch (e) {}
+    apply(stored === '1');
+
+    checkbox.addEventListener('change', function () {
+        try { localStorage.setItem(KEY, this.checked ? '1' : '0'); } catch (e) {}
+        apply(this.checked);
     });
 })();
 </script>
