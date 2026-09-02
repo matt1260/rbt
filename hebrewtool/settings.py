@@ -118,6 +118,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'search',
     'translate',
+    'lexicon',
     'rest_framework',
 ]
 
@@ -189,7 +190,11 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
         'LOCATION': 'django_cache_table',
         'OPTIONS': {
-            'MAX_ENTRIES': 10000,
+            # Raised from 10000: the Hebrew lexicon alone can cache one entry per
+            # Strong's number (~8.7k) as word pages get visited/crawled, which was
+            # close enough to the old cap to start culling unrelated site caches
+            # (verse/chapter renders, rate limiting) once lexicon traffic ramped up.
+            'MAX_ENTRIES': 30000,
             'CULL_FREQUENCY': 4,  # When full, delete 1/4 of entries
         }
     }

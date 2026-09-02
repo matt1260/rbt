@@ -171,6 +171,55 @@ def generate_chapter_schema(request, book_name: str, chapter_num: int, footnotes
     return json.dumps(schemas).replace('</', '<\\/')
 
 
+def generate_lexicon_schema(request, word: dict) -> str:
+    """Build the JSON-LD for a Hebrew lexicon word page: a BreadcrumbList plus a
+    DefinedTerm entry (schema.org's type for dictionary/glossary content)."""
+    word_url = request.build_absolute_uri(f"/lexicon/hebrew/{word['slug']}/")
+    short_def = (word.get('strongs_def') or word.get('kjv_def') or '')[:300]
+
+    schemas = [
+        {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {
+                    "@type": "ListItem",
+                    "position": 1,
+                    "name": "Lexicon",
+                    "item": request.build_absolute_uri('/lexicon/hebrew/')
+                },
+                {
+                    "@type": "ListItem",
+                    "position": 2,
+                    "name": "Hebrew",
+                    "item": request.build_absolute_uri('/lexicon/hebrew/')
+                },
+                {
+                    "@type": "ListItem",
+                    "position": 3,
+                    "name": f"{word['lemma']} ({word['strong_number']})",
+                    "item": word_url
+                }
+            ]
+        },
+        {
+            "@context": "https://schema.org",
+            "@type": "DefinedTerm",
+            "name": word['lemma'],
+            "termCode": word['strong_number'],
+            "description": short_def,
+            "url": word_url,
+            "inDefinedTermSet": {
+                "@type": "DefinedTermSet",
+                "name": "Hebrew Lexicon — Real Bible Translation Project",
+                "url": request.build_absolute_uri('/lexicon/hebrew/')
+            }
+        }
+    ]
+
+    return json.dumps(schemas).replace('</', '<\\/')
+
+
 def _get_verse_url(language, book, chapter_num, verse):
     from django.urls import reverse
     slug = book_to_slug(book)

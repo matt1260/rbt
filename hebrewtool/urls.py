@@ -75,6 +75,7 @@ urlpatterns = [
     path('update-hebrew-data/', views.update_hebrew_data, name='update_hebrew_data'),
     path('find_and_replace_nt/', views.find_and_replace_nt, name='find_and_replace_nt'),
     path('find_and_replace_ot', views.find_and_replace_ot, name='find_and_replace_ot'),
+    path('lexicon/', include('lexicon.urls')),
     path('lexicon/<str:lexicon_type>/<str:page>', views.lexicon_viewer, name='lexicon_viewer'),
     path('translate/', include('translate.urls')),
     path('search_footnotes/', views.search_footnotes, name='search_footnotes'),

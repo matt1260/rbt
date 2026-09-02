@@ -1,0 +1,287 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+
+<style>
+.lex-page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--sanctum-ink);
+}
+
+.lex-breadcrumb {
+    font-size: 0.78rem;
+    color: var(--sanctum-stone);
+    margin-bottom: 1.5rem;
+    letter-spacing: 0.02em;
+}
+.lex-breadcrumb a { color: var(--sanctum-stone); text-decoration: none; }
+.lex-breadcrumb a:hover { color: var(--sanctum-gold); }
+
+.lex-headword {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    border-bottom: 1px solid var(--sanctum-rule);
+    padding-bottom: 1.4rem;
+    margin-bottom: 1.6rem;
+}
+.lex-hebrew {
+    font-family: 'siloam_hebrew', "SBL Hebrew", "David", serif;
+    font-size: 3rem;
+    line-height: 1;
+    color: var(--sanctum-ink);
+}
+.lex-xlit {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-style: italic;
+    font-size: 1.5rem;
+    color: var(--sanctum-ink-soft);
+}
+.lex-pron { font-size: 0.95rem; color: var(--sanctum-stone); }
+.lex-badge {
+    margin-left: auto;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--sanctum-ink);
+    border: 1px solid var(--sanctum-gold);
+    padding: 0.3rem 0.7rem;
+}
+
+.lex-section { margin-bottom: 2rem; }
+.lex-section h2 {
+    font-size: 1.15rem !important;
+    margin: 0 0 0.8rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--sanctum-rule);
+}
+.lex-dl { margin: 0; }
+.lex-dl dt {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--sanctum-gold);
+    margin-top: 0.9rem;
+}
+.lex-dl dd { margin: 0.25rem 0 0; line-height: 1.6; }
+
+.lex-citation {
+    margin-top: 1rem;
+    font-size: 0.82rem;
+    color: var(--sanctum-stone);
+}
+.lex-citation a { color: var(--sanctum-gold); text-decoration: none; }
+.lex-citation a:hover { text-decoration: underline; }
+
+.lex-entry {
+    border: 1px solid var(--sanctum-rule);
+    padding: 1.1rem 1.3rem;
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 1.2rem;
+    align-items: flex-start;
+}
+.lex-entry-body { flex: 1; min-width: 0; }
+.lex-entry-meta {
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--sanctum-stone);
+    margin-bottom: 0.4rem;
+}
+.lex-entry-hebrew {
+    font-family: 'siloam_hebrew', "SBL Hebrew", "David", serif;
+    font-size: 1.4rem;
+    margin-right: 0.5rem;
+}
+.lex-entry-def { line-height: 1.6; }
+.lex-scan {
+    flex-shrink: 0;
+    display: block;
+    width: 90px;
+    text-align: center;
+}
+.lex-scan img {
+    width: 90px;
+    height: 120px;
+    object-fit: cover;
+    object-position: top;
+    border: 1px solid var(--sanctum-rule);
+    display: block;
+}
+.lex-scan span {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--sanctum-stone);
+    margin-top: 0.3rem;
+}
+
+.lex-bdb {
+    border: 1px solid var(--sanctum-rule);
+    padding: 1.1rem 1.3rem;
+    line-height: 1.6;
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+.lex-related {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+.lex-related a {
+    border: 1px solid var(--sanctum-rule);
+    padding: 0.4rem 0.8rem;
+    text-decoration: none;
+    color: var(--sanctum-ink-soft);
+    font-size: 0.85rem;
+}
+.lex-related a:hover { border-color: var(--sanctum-gold); color: var(--sanctum-gold); }
+.lex-related .lex-related-heb {
+    font-family: 'siloam_hebrew', "SBL Hebrew", "David", serif;
+    margin-right: 0.35rem;
+}
+
+.lex-occurrences {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.6rem;
+}
+.lex-occurrence {
+    border: 1px solid var(--sanctum-rule);
+    padding: 0.6rem 0.8rem;
+    font-size: 0.85rem;
+}
+.lex-occurrence a {
+    color: var(--sanctum-ink-soft);
+    text-decoration: none;
+    font-weight: 600;
+}
+.lex-occurrence a:hover { color: var(--sanctum-gold); }
+.lex-occurrence-eng { color: var(--sanctum-stone); font-size: 0.8rem; }
+.lex-occurrence-count {
+    font-size: 0.85rem;
+    color: var(--sanctum-stone);
+    margin-bottom: 0.8rem;
+}
+</style>
+
+<div class="lex-page">
+    <div class="lex-breadcrumb">
+        <a href="/lexicon/hebrew/">Lexicon</a> / Hebrew / {{ word.lemma }} ({{ word.strong_number }})
+    </div>
+
+    <div class="lex-headword">
+        <span class="lex-hebrew">{{ word.lemma }}</span>
+        {% if word.xlit %}<span class="lex-xlit">{{ word.xlit }}</span>{% endif %}
+        {% if word.pron %}<span class="lex-pron">{{ word.pron }}</span>{% endif %}
+        <span class="lex-badge">{{ word.strong_number }}</span>
+    </div>
+
+    <div class="lex-section">
+        <dl class="lex-dl">
+            {% if word.strongs_def %}<dt>Definition</dt><dd>{{ word.strongs_def }}</dd>{% endif %}
+            {% if word.derivation %}<dt>Root</dt><dd>{{ word.derivation }}</dd>{% endif %}
+            {% if word.description_html %}<dt>Exhaustive</dt><dd>{{ word.description_html|safe }}</dd>{% endif %}
+        </dl>
+        <div class="lex-citation">
+            Source: <a href="{{ word.biblehub_url }}" target="_blank" rel="noopener noreferrer">Strong's Exhaustive Concordance — {{ word.strong_number }}</a>
+        </div>
+    </div>
+
+    {% if word.bdb_html %}
+    <div class="lex-section">
+        <h2>Brown-Driver-Briggs Lexicon</h2>
+        <div class="lex-bdb">{{ word.bdb_html|safe }}</div>
+    </div>
+    {% endif %}
+
+    {% if word.fuerst_entries %}
+    <div class="lex-section">
+        <h2>Fürst Lexicon</h2>
+        {% for entry in word.fuerst_entries %}
+        <div class="lex-entry">
+            <div class="lex-entry-body">
+                {% if entry.part_of_speech %}<div class="lex-entry-meta">{{ entry.part_of_speech }}</div>{% endif %}
+                {% if entry.hebrew_word or entry.hebrew_consonantal %}
+                <span class="lex-entry-hebrew">{{ entry.hebrew_word|default:entry.hebrew_consonantal }}</span>
+                {% endif %}
+                {% if entry.definition_html %}<div class="lex-entry-def">{{ entry.definition_html|safe }}</div>{% endif %}
+                {% if entry.root %}<div class="lex-entry-meta">Root: {{ entry.root }}</div>{% endif %}
+            </div>
+            {% if entry.scan_img_url %}
+            <a class="lex-scan" href="{{ entry.scan_url }}">
+                <img src="{{ entry.scan_img_url }}" alt="Fürst lexicon scan, {{ entry.scan_label }}" loading="lazy">
+                <span>{{ entry.scan_label }}</span>
+            </a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if word.gesenius_entries %}
+    <div class="lex-section">
+        <h2>Gesenius Lexicon</h2>
+        {% for entry in word.gesenius_entries %}
+        <div class="lex-entry">
+            <div class="lex-entry-body">
+                {% if entry.part_of_speech %}<div class="lex-entry-meta">{{ entry.part_of_speech }}</div>{% endif %}
+                {% if entry.hebrew_word or entry.hebrew_consonantal %}
+                <span class="lex-entry-hebrew">{{ entry.hebrew_word|default:entry.hebrew_consonantal }}</span>
+                {% endif %}
+                {% if entry.transliteration %}<span class="lex-xlit">{{ entry.transliteration }}</span>{% endif %}
+                {% if entry.definition_html %}<div class="lex-entry-def">{{ entry.definition_html|safe }}</div>{% endif %}
+                {% if entry.root %}<div class="lex-entry-meta">Root: {{ entry.root }}</div>{% endif %}
+            </div>
+            {% if entry.scan_img_url %}
+            <a class="lex-scan" href="{{ entry.scan_url }}">
+                <img src="{{ entry.scan_img_url }}" alt="Gesenius lexicon scan, {{ entry.scan_label }}" loading="lazy">
+                <span>{{ entry.scan_label }}</span>
+            </a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if word.related_words %}
+    <div class="lex-section">
+        <h2>Related Words</h2>
+        <div class="lex-related">
+            {% for rel in word.related_words %}
+            <a href="/lexicon/hebrew/{{ rel.slug }}/">
+                {% if rel.lemma %}<span class="lex-related-heb">{{ rel.lemma }}</span>{% endif %}
+                {{ rel.xlit|default:rel.strong_number }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if word.occurrence_count %}
+    <div class="lex-section">
+        <h2>Verse Occurrences</h2>
+        <div class="lex-occurrence-count">
+            Appears {{ word.occurrence_count }} time{{ word.occurrence_count|pluralize }} in the Hebrew Bible{% if verse_links|length < word.occurrence_count %}, showing {{ verse_links|length }} below{% endif %}.
+        </div>
+        <div class="lex-occurrences">
+            {% for occ in verse_links %}
+            <div class="lex-occurrence">
+                <a href="{{ occ.url }}">{{ occ.book }} {{ occ.chapter }}:{{ occ.verse }}</a>
+                {% if occ.eng %}<div class="lex-occurrence-eng">{{ occ.eng }}</div>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

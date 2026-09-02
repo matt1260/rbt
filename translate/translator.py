@@ -154,6 +154,26 @@ def normalize_html_fragment(raw_html: str) -> str:
     return str(soup)
 
 
+def split_strong_refs(strong_field: str) -> list[str]:
+    """Split a raw hebrewdata `strongs` field into its individual Strong's refs.
+
+    The field packs one or more morpheme segments separated by `/` or `|`, each
+    segment shaped like `H1254a=בָּרָא=to create`. Returns just the `H...` tokens,
+    preserving any leading zeros or trailing homograph letters (e.g. 'H1254a').
+    """
+    if not strong_field:
+        return []
+    strong_refs: list[str] = []
+    for part in re.split(r'[\/|]', strong_field):
+        part = part.strip()
+        if not part:
+            continue
+        for subpart in (segment.strip() for segment in re.split(r'[=«]', part)):
+            if subpart.startswith('H'):
+                strong_refs.append(subpart)
+    return strong_refs
+
+
 book_abbreviations = {
     'Genesis': 'Gen',
     'Exodus': 'Exo',
@@ -943,7 +963,9 @@ def strong_data(strong_ref):
         citation_html = (
             f'<div class="strong-citation"><small>Source: '
             f'<a href="https://biblehub.com/hebrew/{display_ref}.htm" target="_blank" rel="noopener noreferrer">'
-            f"Strong&#39;s Exhaustive Concordance — {strong_number}</a></small></div>"
+            f"Strong&#39;s Exhaustive Concordance — {strong_number}</a>"
+            f' &middot; <a href="/lexicon/hebrew/{strong_number.lower()}/">Full Lexicon Entry →</a>'
+            f'</small></div>'
         )
 
     single_ref = f"""
@@ -1035,7 +1057,9 @@ def build_strongs_popup(strong_refs: list[str]) -> str:
             citation_html = (
                 f'<div class="strong-citation"><small>Source: '
                 f'<a href="https://biblehub.com/hebrew/{display_ref}.htm" target="_blank" rel="noopener noreferrer">'
-                f"Strong&#39;s Exhaustive Concordance &mdash; {strong_number_h}</a></small></div>"
+                f"Strong&#39;s Exhaustive Concordance &mdash; {strong_number_h}</a>"
+                f' &middot; <a href="/lexicon/hebrew/{strong_number_h.lower()}/">Full Lexicon Entry →</a>'
+                f'</small></div>'
             )
         
         # Build entry using exact same structure as old strong-popup
@@ -1488,6 +1512,160 @@ def get_strongs_numeric_value(strongs):
     return int(digits) if digits else None
 
 
+@lru_cache(maxsize=4096)
+def get_strongs_headword(strong_number: str) -> Optional[dict]:
+    """Lightweight {lemma, xlit, pron} lookup for a canonical Strong's number
+    (e.g. 'H1254'), for cross-links and index listings that don't need the
+    full popup/definition payload."""
+    result = execute_query(
+        """
+        SELECT lemma, xlit, pron
+        FROM old_testament.strongs_hebrew_dictionary
+        WHERE strong_number = %s;
+        """,
+        (strong_number,),
+        fetch='one'
+    )
+    if result is None:
+        return None
+    return {'lemma': result[0] or '', 'xlit': result[1] or '', 'pron': result[2] or ''}
+
+
+def get_hebrew_word_occurrences(strong_number: str, limit: int = 40):
+    """Return (total_count, sample_rows) of hebrewdata rows where `strong_number`
+    (e.g. 'H1254') actually occurs, confirmed by parsing each candidate's packed
+    `strongs` field rather than trusting a raw substring match (hebrewdata stores
+    forms like 'H1254a' or 'H0853', and a bare digit substring can false-match
+    unrelated numbers, e.g. 'H853' inside 'H8530').
+
+    Rows are cheap enough (currently ~300k total, no index on `strongs`) to fetch
+    the full LIKE-prefiltered candidate set and confirm in Python; callers should
+    cache the result rather than call this per-request.
+    """
+    numeric_value = get_strongs_numeric_value(strong_number)
+    if numeric_value is None:
+        return 0, []
+
+    candidate_rows = execute_query(
+        """
+        SELECT id, ref, eng, combined_heb, combined_heb_niqqud, strongs
+        FROM old_testament.hebrewdata
+        WHERE strongs LIKE %s
+        ORDER BY id
+        """,
+        (f'%{numeric_value}%',),
+        fetch='all'
+    ) or []
+
+    matches = []
+    for row_id, ref, eng, combined_heb, combined_heb_niqqud, strongs_field in candidate_rows:
+        refs = split_strong_refs(strongs_field or '')
+        if any(get_strongs_numeric_value(r) == numeric_value for r in refs):
+            matches.append({
+                'id': row_id,
+                'ref': ref or '',
+                'eng': eng or '',
+                'combined_heb': combined_heb or '',
+                'combined_heb_niqqud': combined_heb_niqqud or '',
+            })
+
+    return len(matches), matches[:limit]
+
+
+def get_lexicon_word_data(strong_number: str) -> Optional[dict]:
+    """Aggregate every lexical source (Strong's, BDB, Fürst, Gesenius, root
+    cross-links, verse occurrences) for a canonical Hebrew Strong's number
+    (e.g. 'H1254') into the data needed to render a standalone lexicon page.
+
+    Returns None if there is no core dictionary row for this Strong's number
+    (callers should treat that as a 404, not a partial page).
+    """
+    core = execute_query(
+        """
+        SELECT lemma, xlit, pron, derivation, strongs_def, kjv_def, description
+        FROM old_testament.strongs_hebrew_dictionary
+        WHERE strong_number = %s;
+        """,
+        (strong_number,),
+        fetch='one'
+    )
+    if core is None:
+        return None
+
+    lemma, xlit, pron, derivation, strongs_def, kjv_def, description = core
+    lemma = lemma or ''
+    xlit = xlit or ''
+    pron = pron or ''
+    derivation = derivation or ''
+    strongs_def = strongs_def or ''
+    kjv_def = kjv_def or ''
+    description_html = sanitize_allowed_html(description or '')
+
+    numeric_value = get_strongs_numeric_value(strong_number)
+
+    bdb_html = get_bdb_definition_for_strong(strong_number) or ''
+    if bdb_html:
+        bdb_html = normalize_html_fragment(bdb_html)
+
+    fuerst_entries = []
+    for entry in (get_fuerst_entries_for_strong(strong_number) or ()):
+        source_page = entry.get('source_page', '')
+        fuerst_entries.append({
+            **entry,
+            'definition_html': sanitize_allowed_html(entry.get('definition', '')),
+            'scan_url': build_fuerst_page_url(source_page),
+            'scan_img_url': f"{FUERST_IMAGE_BASE_URL}/{source_page}" if source_page and FUERST_IMAGE_BASE_URL else '',
+            'scan_label': format_fuerst_page_label(source_page),
+        })
+
+    gesenius_entries = []
+    for entry in (get_gesenius_entries_for_token(0, [strong_number], '', None, None, None) or ()):
+        source_page = entry.get('source_page', '')
+        gesenius_entries.append({
+            **entry,
+            'definition_html': sanitize_allowed_html(entry.get('definition', '')),
+            'scan_url': build_gesenius_page_url(source_page),
+            'scan_img_url': f"{GESENIUS_IMAGE_BASE_URL}/{source_page}" if source_page and GESENIUS_IMAGE_BASE_URL else '',
+            'scan_label': format_gesenius_page_label(source_page),
+        })
+
+    # Root cross-links: pull embedded Strong's numbers out of the derivation text
+    # (e.g. "apparent contracted from H226 (אות)...") and resolve their headwords.
+    related_words = []
+    if derivation:
+        seen = {numeric_value}
+        for match in re.findall(r'H0*(\d{1,4})', derivation):
+            n = int(match)
+            if n in seen:
+                continue
+            seen.add(n)
+            headword = get_strongs_headword(f'H{n}')
+            if headword:
+                related_words.append({'strong_number': f'H{n}', 'slug': f'h{n}', **headword})
+        related_words = related_words[:12]
+
+    occurrence_count, verse_occurrences = get_hebrew_word_occurrences(strong_number, limit=40)
+
+    return {
+        'strong_number': strong_number,
+        'slug': f'h{numeric_value}',
+        'lemma': lemma,
+        'xlit': xlit,
+        'pron': pron,
+        'derivation': derivation,
+        'strongs_def': strongs_def,
+        'kjv_def': kjv_def,
+        'description_html': description_html,
+        'bdb_html': bdb_html,
+        'fuerst_entries': fuerst_entries,
+        'gesenius_entries': gesenius_entries,
+        'related_words': related_words,
+        'occurrence_count': occurrence_count,
+        'verse_occurrences': verse_occurrences,
+        'biblehub_url': f"https://biblehub.com/hebrew/{numeric_value}.htm",
+    }
+
+
 def get_lxx_stats_for_strongs(strong_refs):
     """
     Fetch LXX translation statistics for a list of Strong's numbers.
@@ -1590,24 +1768,18 @@ def build_heb_interlinear(rows_data, show_edit_buttons: bool = False):
             ) = row_data
             legacy_lxx = None
 
-        parts = re.split(r'[\/|]', strong)
+        strong_refs = split_strong_refs(strong)
 
-        strong_refs = []
-        for part in parts:
+        # special numbers for particles
+        for part in re.split(r'[\/|]', strong):
             part = part.strip()
             if not part:
                 continue
-
             subparts = [segment.strip() for segment in re.split(r'[=«]', part) if segment.strip()]
+            if subparts and subparts[0] in {'H9001', 'H9002', 'H9003', 'H9004', 'H9005', 'H9006'}:
+                heb1 = f'<span style="color: blue;">{heb1}</span>'
 
-            for subpart in subparts:
-                if subpart.startswith('H'):
-                    strong_refs.append(subpart)
 
-            # special numbers for particles
-            if subparts and (subparts[0] == 'H9005' or subparts[0] == 'H9001' or subparts[0] == 'H9002' or subparts[0] == 'H9003' or subparts[0] == 'H9004' or subparts[0] == 'H9006'):
-                    heb1 = f'<span style="color: blue;">{heb1}</span>'
-                    
         # Build Strong's popup trigger
         strongs_popup = build_strongs_popup(strong_refs)
         

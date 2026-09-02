@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+
+<style>
+.lex-index {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--sanctum-ink);
+}
+
+.lex-hero {
+    text-align: center;
+    padding: 40px 24px 32px;
+    margin: -24px -20px 32px;
+}
+.lex-hero h1 {
+    font-weight: 300 !important;
+    font-size: clamp(2rem, 5vw, 3rem) !important;
+    color: var(--sanctum-ink-soft);
+    margin: 0 0 10px;
+}
+.lex-hero p {
+    font-size: 0.92rem;
+    color: var(--sanctum-stone);
+    margin: 0;
+}
+
+.lex-search-box {
+    max-width: 480px;
+    margin: 0 auto 32px;
+    position: relative;
+}
+.lex-search-box input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--sanctum-rule);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    background: #fff;
+}
+.lex-search-box input:focus { outline: none; border-color: var(--sanctum-gold); }
+.lex-search-results {
+    position: absolute;
+    top: 100%; left: 0; right: 0;
+    background: #fff;
+    border: 1px solid var(--sanctum-rule);
+    border-top: none;
+    max-height: 340px;
+    overflow-y: auto;
+    z-index: 10;
+    display: none;
+}
+.lex-search-results.open { display: block; }
+.lex-search-result {
+    display: block;
+    padding: 0.6rem 1rem;
+    text-decoration: none;
+    color: var(--sanctum-ink-soft);
+    border-bottom: 1px solid var(--sanctum-rule);
+    font-size: 0.85rem;
+}
+.lex-search-result:hover { background: var(--sanctum-parchment); }
+.lex-search-result .lex-sr-heb {
+    font-family: 'siloam_hebrew', "SBL Hebrew", "David", serif;
+    font-size: 1.1rem;
+    margin-right: 0.5rem;
+}
+
+.lex-letters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    justify-content: center;
+    margin-bottom: 32px;
+}
+.lex-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--sanctum-rule);
+    text-decoration: none;
+    color: var(--sanctum-ink-soft);
+    font-family: 'siloam_hebrew', "SBL Hebrew", "David", serif;
+    font-size: 1.1rem;
+}
+.lex-letter:hover, .lex-letter.active { border-color: var(--sanctum-gold); color: var(--sanctum-gold); }
+
+.lex-word-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.7rem;
+    margin-bottom: 32px;
+}
+.lex-word-card {
+    display: block;
+    border: 1px solid var(--sanctum-rule);
+    padding: 0.8rem 1rem;
+    text-decoration: none;
+    color: var(--sanctum-ink);
+}
+.lex-word-card:hover { border-color: var(--sanctum-gold); }
+.lex-word-card .lex-wc-heb {
+    font-family: 'siloam_hebrew', "SBL Hebrew", "David", serif;
+    font-size: 1.3rem;
+    margin-right: 0.5rem;
+}
+.lex-word-card .lex-wc-xlit {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-style: italic;
+    color: var(--sanctum-ink-soft);
+}
+.lex-word-card .lex-wc-def {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--sanctum-stone);
+    margin-top: 0.3rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lex-pagination {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.lex-pagination a, .lex-pagination span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.2rem;
+    height: 2.2rem;
+    padding: 0 0.5rem;
+    border: 1px solid var(--sanctum-rule);
+    text-decoration: none;
+    color: var(--sanctum-ink-soft);
+    font-size: 0.85rem;
+}
+.lex-pagination a:hover { border-color: var(--sanctum-gold); color: var(--sanctum-gold); }
+.lex-pagination .current { background: var(--sanctum-gold); color: #fff; border-color: var(--sanctum-gold); }
+</style>
+
+<div class="lex-index">
+    <div class="lex-hero">
+        <h1>Hebrew Lexicon</h1>
+        <p>{{ total_words }} words — Strong's, BDB, Fürst &amp; Gesenius entries with scanned dictionary pages and Bible occurrences.</p>
+    </div>
+
+    <div class="lex-search-box">
+        <input type="text" id="lexSearchInput" placeholder="Search by Hebrew, transliteration, or meaning..." autocomplete="off">
+        <div class="lex-search-results" id="lexSearchResults"></div>
+    </div>
+
+    <div class="lex-letters">
+        <a href="/lexicon/hebrew/" class="lex-letter{% if not active_letter %} active{% endif %}">All</a>
+        {% for letter in letters %}
+        <a href="/lexicon/hebrew/?letter={{ letter }}" class="lex-letter{% if letter == active_letter %} active{% endif %}">{{ letter }}</a>
+        {% endfor %}
+    </div>
+
+    <div class="lex-word-list">
+        {% for w in page %}
+        <a class="lex-word-card" href="/lexicon/hebrew/{{ w.slug }}/">
+            <span class="lex-wc-heb">{{ w.lemma }}</span>
+            <span class="lex-wc-xlit">{{ w.xlit }}</span>
+            <span class="lex-wc-def">{{ w.strongs_def }}</span>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div class="lex-pagination">
+        {% if page.has_previous %}
+        <a href="?page={{ page.previous_page_number }}{% if active_letter %}&letter={{ active_letter }}{% endif %}">&laquo;</a>
+        {% endif %}
+        <span class="current">{{ page.number }} / {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}
+        <a href="?page={{ page.next_page_number }}{% if active_letter %}&letter={{ active_letter }}{% endif %}">&raquo;</a>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+(function() {
+    var input = document.getElementById('lexSearchInput');
+    var results = document.getElementById('lexSearchResults');
+    var timer = null;
+
+    function renderResults(items) {
+        if (!items.length) {
+            results.innerHTML = '';
+            results.classList.remove('open');
+            return;
+        }
+        results.innerHTML = items.map(function(item) {
+            var heb = item.lemma ? '<span class="lex-sr-heb">' + item.lemma + '</span>' : '';
+            return '<a class="lex-search-result" href="' + item.url + '">' + heb + item.xlit + ' (' + item.strong_number + ') &mdash; ' + item.strongs_def + '</a>';
+        }).join('');
+        results.classList.add('open');
+    }
+
+    input.addEventListener('input', function() {
+        var term = input.value.trim();
+        clearTimeout(timer);
+        if (term.length < 2) {
+            renderResults([]);
+            return;
+        }
+        timer = setTimeout(function() {
+            fetch('/lexicon/hebrew/search/?term=' + encodeURIComponent(term))
+                .then(function(r) { return r.json(); })
+                .then(function(data) { renderResults(data.results || []); })
+                .catch(function() { renderResults([]); });
+        }, 200);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!results.contains(e.target) && e.target !== input) {
+            results.classList.remove('open');
+        }
+    });
+})();
+</script>
+
+{% endblock %}
