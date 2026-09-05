@@ -109,6 +109,15 @@ document.addEventListener("DOMContentLoaded", function() {
     const parenthesesToggleButton = document.getElementById("parenthesesToggleButton");
     const notesToggleButton = document.getElementById("notesToggleButton");
     const toggleDivContainer = document.getElementById("toggleDivContainer");
+
+    // Toolbar labels are rendered server-side in the page's language. Toggling a
+    // button rewrites its innerHTML, so read the label back off data-label
+    // instead of hardcoding English here -- otherwise the first toggle (or a
+    // restored saved state) silently reverts a translated page to English.
+    function toggleLabel(button, iconClass, fallbackLabel) {
+        const label = (button && button.dataset && button.dataset.label) || fallbackLabel;
+        return '<i class="fas ' + iconClass + '"></i> ' + label;
+    }
     // Accept multiple possible IDs used across templates for the paraphrase/literal panes
     const paraphraseContainer = document.getElementById("paraphraseContainer") || document.getElementById("paraphrase-area") || document.getElementById("paraphrase");
     const container = document.getElementById("container") || document.getElementById("mainTextArea");
@@ -210,9 +219,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
     function updateLiteralButtonLabel() {
         if (literalToggleButton) {
-            literalToggleButton.innerHTML = isLiteralVisible
-                ? '<i class="fas fa-eye-slash"></i> Literal (L)'
-                : '<i class="fas fa-eye"></i> Literal (L)';
+            literalToggleButton.innerHTML = toggleLabel(literalToggleButton,
+                isLiteralVisible ? 'fa-eye-slash' : 'fa-eye', 'Literal (L)');
         }
     }
 
@@ -253,9 +261,8 @@ document.addEventListener("DOMContentLoaded", function() {
         });
         isVerseRefVisible = !isVerseRefVisible;
         if (verseRefToggleButton) {
-            verseRefToggleButton.innerHTML = isVerseRefVisible 
-                ? '<i class="fas fa-eye-slash"></i> Verse References (V)' 
-                : '<i class="fas fa-eye"></i> Verse References (V)';
+            verseRefToggleButton.innerHTML = toggleLabel(verseRefToggleButton,
+                isVerseRefVisible ? 'fa-eye-slash' : 'fa-eye', 'Verse References (V)');
         }
     }
 
@@ -278,9 +285,8 @@ document.addEventListener("DOMContentLoaded", function() {
         });
         isH5Visible = !isH5Visible;
         if (h5ToggleButton) {
-            h5ToggleButton.innerHTML = isH5Visible
-                ? '<i class="fas fa-eye-slash"></i> Headers (H)'
-                : '<i class="fas fa-eye"></i> Headers (H)';
+            h5ToggleButton.innerHTML = toggleLabel(h5ToggleButton,
+                isH5Visible ? 'fa-eye-slash' : 'fa-eye', 'Headers (H)');
         }
     }
 
@@ -294,10 +300,10 @@ document.addEventListener("DOMContentLoaded", function() {
             tooltipContainers.forEach(function(container) {
                 if (isImageVisible) {
                     container.style.display = "none";
-                    imageToggleButton.innerHTML = '<i class="fas fa-eye"></i> Images (I)';
+                    imageToggleButton.innerHTML = toggleLabel(imageToggleButton, 'fa-eye', 'Images (I)');
                 } else {
                     container.style.display = "block";
-                    imageToggleButton.innerHTML = '<i class="fas fa-eye-slash"></i> Images (I)';
+                    imageToggleButton.innerHTML = toggleLabel(imageToggleButton, 'fa-eye-slash', 'Images (I)');
                 }
             });
             isImageVisible = !isImageVisible;
@@ -357,9 +363,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
         isParenthesesVisible = willShow;
         if (parenthesesToggleButton) {
-            parenthesesToggleButton.innerHTML = isParenthesesVisible 
-                ? '<i class="fas fa-eye-slash"></i> Names (P)' 
-                : '<i class="fas fa-eye"></i> Names (P)';
+            parenthesesToggleButton.innerHTML = toggleLabel(parenthesesToggleButton,
+                isParenthesesVisible ? 'fa-eye-slash' : 'fa-eye', 'Names (P)');
         }
     }
     
