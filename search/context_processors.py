@@ -5,17 +5,23 @@ from search.seo_utils import (
     book_to_slug,
     slug_to_book,
     hreflang_for,
-    SEO_LANGUAGES,
+    translated_languages_for,
     RTL_LANGUAGES,
 )
+from search.translation_utils import SUPPORTED_LANGUAGES
 
 
-def _alternates(route, base_kwargs):
+def _alternates(route, base_kwargs, languages):
     """Build the rel=alternate hreflang cluster for one chapter/verse.
 
     Every page in the cluster must list every language *including itself* plus an
     x-default, otherwise Google ignores the annotations and falls back to treating
     the translations as duplicates.
+
+    `languages` is the set of languages this chapter is actually translated into,
+    so the cluster is reciprocal. Advertising a fixed list regardless of what
+    exists produced non-reciprocal annotations (a page listed in the cluster that
+    did not itself list the cluster), which Google discards.
     """
     alternates = []
 
@@ -27,7 +33,7 @@ def _alternates(route, base_kwargs):
 
     add('x-default', route, dict(base_kwargs))
     add('en', route, dict(base_kwargs))
-    for code in SEO_LANGUAGES:
+    for code in sorted(languages):
         add(hreflang_for(code), f'{route}_lang', {**base_kwargs, 'lang_code': code})
     return alternates
 
@@ -60,7 +66,11 @@ def seo_context(request):
 
     # The page's real content language drives <html lang>/<dir>; without this every
     # translated page declared itself as en-US and read as an English duplicate.
-    page_lang = lang_code if lang_code in SEO_LANGUAGES else 'en'
+    # Gated on SUPPORTED_LANGUAGES (every language the site can serve) rather than
+    # a shorter promotion list: falling back to 'en' here also built the canonical
+    # URL from the English route, so those pages told Google they were duplicates
+    # of the English page and were never indexed.
+    page_lang = lang_code if lang_code in SUPPORTED_LANGUAGES else 'en'
     context['page_lang'] = page_lang
     context['page_dir'] = 'rtl' if page_lang in RTL_LANGUAGES else 'ltr'
 
@@ -86,7 +96,9 @@ def seo_context(request):
                     kwargs['lang_code'] = page_lang
                 path = reverse(route_name, kwargs=kwargs)
                 context['canonical_url'] = request.build_absolute_uri(path)
-                context['hreflang_alternates'] = _alternates('verse_seo_view', base_kwargs)
+                context['hreflang_alternates'] = _alternates(
+                    'verse_seo_view', base_kwargs, translated_languages_for(slug, chapter)
+                )
             else:
                 params = urlencode({'book': book, 'chapter': chapter, 'verse': verse})
                 context['canonical_url'] = f"{request.build_absolute_uri('/')}?{params}"
@@ -102,7 +114,9 @@ def seo_context(request):
                     kwargs['lang_code'] = page_lang
                 path = reverse(route_name, kwargs=kwargs)
                 context['canonical_url'] = request.build_absolute_uri(path)
-                context['hreflang_alternates'] = _alternates('chapter_seo_view', base_kwargs)
+                context['hreflang_alternates'] = _alternates(
+                    'chapter_seo_view', base_kwargs, translated_languages_for(slug, chapter)
+                )
             else:
                 params = urlencode({'book': book, 'chapter': chapter})
                 context['canonical_url'] = f"{request.build_absolute_uri('/')}?{params}"

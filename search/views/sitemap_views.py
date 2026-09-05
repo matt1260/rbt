@@ -12,7 +12,9 @@ SITEMAP_CACHE_TTL = 60 * 60 * 12  # 12h — rebuilding iterates ~22k items (reve
 
 def sitemap_xml(request):
     """Return the public Bible URL set without template or sitemap-index rendering."""
-    cache_key = f'sitemap_xml_v2_{request.scheme}_{request.get_host()}'
+    # Bump the version whenever the URL set changes, so a deploy doesn't keep
+    # serving the previous sitemap for the rest of the cache TTL.
+    cache_key = f'sitemap_xml_v3_{request.scheme}_{request.get_host()}'
     cached = safe_cache_get(cache_key)
     if cached is not None:
         return HttpResponse(cached, content_type='application/xml')

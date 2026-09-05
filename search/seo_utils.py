@@ -1,5 +1,7 @@
+import os
 import re
 import json
+from functools import lru_cache
 from typing import Optional
 from bs4 import BeautifulSoup
 from django.urls import reverse
@@ -79,6 +81,117 @@ def book_to_slug(book_name: str) -> Optional[str]:
 
 def slug_to_book(slug: str) -> Optional[str]:
     return _converter.from_slug(slug)
+
+
+_BOOK_NAMES_I18N_PATH = os.path.join(os.path.dirname(__file__), 'data', 'book_names_i18n.json')
+
+
+@lru_cache(maxsize=1)
+def _book_names_i18n():
+    """{language: {book_slug: traditional_name}}, extracted from the front-end
+    translations bundle. Static data, so it is read once per process."""
+    try:
+        with open(_BOOK_NAMES_I18N_PATH, encoding='utf-8') as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return {}
+
+
+def localized_book_name(book_name: str, language: Optional[str]) -> str:
+    """The book's traditional name in `language` (pl/3 John -> '3 Jana').
+
+    Titles and descriptions need the name people actually search for, which is
+    neither the English name nor the project's poetic RBT title -- a Polish
+    reader searches "3 Jana", not "3 John" and not "Trzeci Faworyzowany".
+    Falls back to the English name when a translation isn't available.
+    """
+    fallback = re.sub(r'^(\d+)([A-Za-z])', r'\1 \2', book_name or '')
+    if not language or language == 'en' or not book_name:
+        return fallback
+    slug = book_to_slug(book_name)
+    if not slug:
+        return fallback
+    return _book_names_i18n().get(language, {}).get(slug) or fallback
+
+
+# A chapter counts as translated into a language only once this much of it is
+# actually translated. Below that the page is mostly English fallback text under
+# a foreign URL, which is duplicate content rather than a translation worth
+# advertising in hreflang or submitting in the sitemap.
+MIN_TRANSLATION_COVERAGE = 0.5
+
+_TRANSLATED_CHAPTERS_CACHE_KEY = 'seo_translated_chapters_v1'
+_TRANSLATED_CHAPTERS_TTL = 60 * 60 * 6
+
+
+def translated_chapters():
+    """Map {(book_slug, chapter): frozenset(language_codes)} of chapters that
+    genuinely have a translation (see MIN_TRANSLATION_COVERAGE).
+
+    Both the hreflang cluster and the sitemap read this, so a language is only
+    advertised where translated text actually exists. The previous behaviour
+    advertised a fixed 10-language list for every chapter regardless of whether
+    a translation existed, while every other language was silently treated as
+    English -- which pointed their canonical at the English page.
+    """
+    from search.db_utils import execute_query, safe_cache_get, safe_cache_set
+
+    cached = safe_cache_get(_TRANSLATED_CHAPTERS_CACHE_KEY)
+    if cached is not None:
+        return cached
+
+    # `verse > 0` skips footnote rows; the NOT LIKE drops rows the translation
+    # worker stored as failures. '%%' is a literal % because params are bound.
+    rows = execute_query(
+        """
+        WITH v AS (
+            SELECT book, chapter, language_code, verse
+            FROM verse_translations
+            WHERE footnote_id IS NULL
+              AND verse > 0
+              AND COALESCE(TRIM(verse_text), '') <> ''
+              AND verse_text NOT LIKE '[Translation%%'
+        ),
+        len AS (
+            SELECT book, chapter, MAX(verse) AS n FROM v GROUP BY book, chapter
+        )
+        SELECT v.book, v.chapter, v.language_code
+        FROM v JOIN len ON len.book = v.book AND len.chapter = v.chapter
+        GROUP BY v.book, v.chapter, v.language_code, len.n
+        HAVING COUNT(*)::float / NULLIF(len.n, 0) >= %s
+        """,
+        (MIN_TRANSLATION_COVERAGE,),
+        fetch='all',
+    ) or []
+
+    index = {}
+    for book, chapter, language_code in rows:
+        # Normalises the book-name inconsistency in this table ("1 John" vs
+        # "1John"); returns None for non-canonical texts (Judas, Aseneth), which
+        # have their own routes and no hreflang cluster.
+        slug = book_to_slug(book)
+        if not slug:
+            continue
+        try:
+            chapter_int = int(chapter)
+        except (TypeError, ValueError):
+            continue
+        index.setdefault((slug, chapter_int), set()).add(language_code)
+
+    index = {key: frozenset(langs) for key, langs in index.items()}
+    safe_cache_set(_TRANSLATED_CHAPTERS_CACHE_KEY, index, _TRANSLATED_CHAPTERS_TTL)
+    return index
+
+
+def translated_languages_for(book_slug, chapter):
+    """Language codes with a real translation of this chapter."""
+    if not book_slug or chapter is None:
+        return frozenset()
+    try:
+        chapter_int = int(chapter)
+    except (TypeError, ValueError):
+        return frozenset()
+    return translated_chapters().get((book_slug, chapter_int), frozenset())
 
 def chapter_url(request, book_name: str, chapter_num, language: str = None) -> str:
     """Absolute URL of a chapter page, matching the page's own canonical tag.

@@ -2,7 +2,7 @@ from django.contrib.sitemaps import Sitemap
 from django.urls import reverse
 from urllib.parse import urlencode
 from translate.translator import old_testament_books, new_testament_books
-from search.seo_utils import book_to_slug, SEO_LANGUAGES
+from search.seo_utils import book_to_slug, translated_chapters
 from search.translation_utils import SUPPORTED_LANGUAGES
 import datetime
 
@@ -34,16 +34,24 @@ class BibleChapterSitemap(Sitemap):
         }
         
         items = []
+        # English: every chapter of every book.
         for book, count in bible_chapter_counts.items():
+            slug = book_to_slug(book)
+            if not slug:
+                continue
             for chapter in range(1, count + 1):
-                items.append((book, chapter, 'en'))
-                # Also index the top 10 most popular translations to save indexing budget
-                # rather than all 71 for every chapter immediately.
-                # Shared with the hreflang cluster in seo_utils.SEO_LANGUAGES -- the two
-                # lists must not drift, or we advertise alternates we never submit.
-                for lang in SEO_LANGUAGES:
-                    if lang in dict(SUPPORTED_LANGUAGES):
-                        items.append((book, chapter, lang))
+                items.append((slug, chapter, 'en'))
+
+        # Translations: only chapters that actually have one, in each language
+        # that has one. This shares seo_utils.translated_chapters() with the
+        # hreflang cluster, so the two cannot drift -- we never submit a URL we
+        # don't advertise, or advertise one we don't submit. The previous
+        # behaviour emitted a fixed 10-language list for every chapter, which
+        # submitted URLs that just render the English fallback.
+        for (slug, chapter), languages in sorted(translated_chapters().items()):
+            for lang in sorted(languages):
+                if lang in SUPPORTED_LANGUAGES:
+                    items.append((slug, chapter, lang))
         return items
 
     # Stable content date. Returning date.today() here (the previous behaviour)
@@ -55,17 +63,12 @@ class BibleChapterSitemap(Sitemap):
         return self.CONTENT_LASTMOD
 
     def location(self, item):
-        book, chapter, lang = item
-        slug = book_to_slug(book)
-        if slug:
-            if lang == 'en':
-                return reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': chapter})
-            return reverse('chapter_seo_view_lang', kwargs={'lang_code': lang, 'book_slug': slug, 'chapter': chapter})
-        # Fallback if slug conversion fails somehow
-        params = urlencode({'book': book, 'chapter': chapter})
-        if lang != 'en':
-            params += f"&lang={lang}"
-        return f"/?{params}"
+        # items() already resolved book names to slugs and dropped anything
+        # without one, so no query-string fallback is needed here.
+        slug, chapter, lang = item
+        if lang == 'en':
+            return reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': chapter})
+        return reverse('chapter_seo_view_lang', kwargs={'lang_code': lang, 'book_slug': slug, 'chapter': chapter})
 
 class StaticViewSitemap(Sitemap):
     priority = 0.5

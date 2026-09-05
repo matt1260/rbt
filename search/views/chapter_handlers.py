@@ -24,7 +24,7 @@ from search.translation_utils import SUPPORTED_LANGUAGES
 from search.db_utils import execute_query, get_db_connection
 from hebrewtool.debug_utils import set_debug_context, should_emit_debug
 
-from search.seo_utils import book_to_slug, _get_verse_url
+from search.seo_utils import book_to_slug, localized_book_name, _get_verse_url
 
 
 
@@ -199,8 +199,11 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
         display_book = book_name_translation.verse_text
 
     standard_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
-    meta_title = f"{standard_book} {chapter_num} Hebrew Interlinear | Gospel of the Queen"
-    meta_description = f"Read {standard_book} {chapter_num} in the original Hebrew with interlinear translation, BDB, Fuerst & Strong's lexicons, and complete morphological parsing."
+    # Traditional name in the page's language, so a translated page's <title>
+    # carries the term readers actually search for.
+    seo_book = localized_book_name(standard_book, language)
+    meta_title = f"{seo_book} {chapter_num} Hebrew Interlinear | Gospel of the Queen"
+    meta_description = f"Read {seo_book} {chapter_num} in the original Hebrew with interlinear translation, BDB, Fuerst & Strong's lexicons, and complete morphological parsing."
     page_title = meta_title
     
     # Determine if translation is needed
@@ -461,8 +464,11 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     if language != 'en' and book_name_translation and book_name_translation.verse_text:
         display_book = book_name_translation.verse_text
         
-    meta_title = f"{standard_book} {chapter_num} Greek Interlinear | Gospel of the Queen"
-    meta_description = f"Read {standard_book} {chapter_num} in the original Greek with interlinear translation, Strong's lexicon, and complete morphological parsing/Logeion links."
+    # Traditional name in the page's language, so a translated page's <title>
+    # carries the term readers actually search for.
+    seo_book = localized_book_name(standard_book, language)
+    meta_title = f"{seo_book} {chapter_num} Greek Interlinear | Gospel of the Queen"
+    meta_description = f"Read {seo_book} {chapter_num} in the original Greek with interlinear translation, Strong's lexicon, and complete morphological parsing/Logeion links."
     page_title = meta_title
     
     needs_translation = False
@@ -728,8 +734,11 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     if language != 'en' and book_name_translation and book_name_translation.verse_text:
         display_book = book_name_translation.verse_text
     
-    meta_title = f"{standard_book} {chapter_num} Hebrew Interlinear | Gospel of the Queen"
-    meta_description = f"Read {standard_book} {chapter_num} in the original Hebrew with interlinear translation, BDB, Fuerst & Strong's lexicons, and complete morphological parsing."
+    # Traditional name in the page's language, so a translated page's <title>
+    # carries the term readers actually search for.
+    seo_book = localized_book_name(standard_book, language)
+    meta_title = f"{seo_book} {chapter_num} Hebrew Interlinear | Gospel of the Queen"
+    meta_description = f"Read {seo_book} {chapter_num} in the original Hebrew with interlinear translation, BDB, Fuerst & Strong's lexicons, and complete morphological parsing."
     page_title = meta_title
     
     notes_html = build_notes_html([paraphrase, hebrew_literal], source_book, chapter_num, translated_footnotes=translated_footnotes)
