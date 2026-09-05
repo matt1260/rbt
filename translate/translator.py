@@ -960,11 +960,16 @@ def strong_data(strong_ref):
             '</small></div>'
         )
     else:
+        # Typographic markers have no lexicon page, so omit the link for them.
+        lexicon_link = (
+            '' if is_lexicon_excluded(strong_number)
+            else f' &middot; <a href="/lexicon/hebrew/{strong_number.lower()}/">Full Lexicon Entry →</a>'
+        )
         citation_html = (
             f'<div class="strong-citation"><small>Source: '
             f'<a href="https://biblehub.com/hebrew/{display_ref}.htm" target="_blank" rel="noopener noreferrer">'
             f"Strong&#39;s Exhaustive Concordance — {strong_number}</a>"
-            f' &middot; <a href="/lexicon/hebrew/{strong_number.lower()}/">Full Lexicon Entry →</a>'
+            f'{lexicon_link}'
             f'</small></div>'
         )
 
@@ -1054,11 +1059,16 @@ def build_strongs_popup(strong_refs: list[str]) -> str:
                 '</small></div>'
             )
         else:
+            # Typographic markers have no lexicon page, so omit the link for them.
+            lexicon_link = (
+                '' if is_lexicon_excluded(strong_number_h)
+                else f' &middot; <a href="/lexicon/hebrew/{strong_number_h.lower()}/">Full Lexicon Entry →</a>'
+            )
             citation_html = (
                 f'<div class="strong-citation"><small>Source: '
                 f'<a href="https://biblehub.com/hebrew/{display_ref}.htm" target="_blank" rel="noopener noreferrer">'
                 f"Strong&#39;s Exhaustive Concordance &mdash; {strong_number_h}</a>"
-                f' &middot; <a href="/lexicon/hebrew/{strong_number_h.lower()}/">Full Lexicon Entry →</a>'
+                f'{lexicon_link}'
                 f'</small></div>'
             )
         
@@ -1512,6 +1522,19 @@ def get_strongs_numeric_value(strongs):
     return int(digits) if digits else None
 
 
+# H9010-H9015 are typographic/pointing marks rather than words: the maqqef
+# (־), paseq (׀), paragogic letters, and a couple of single-latin-letter
+# artifacts ('a', 'p'). They carry no lexical content, so the lexicon hides
+# them -- no index row, no sitemap URL, no word page, no cross-link.
+LEXICON_EXCLUDED_STRONGS = frozenset(range(9010, 9016))
+
+
+def is_lexicon_excluded(strong_number) -> bool:
+    """True if this Strong's number has no place in the word-study lexicon."""
+    numeric_value = get_strongs_numeric_value(str(strong_number or ''))
+    return numeric_value in LEXICON_EXCLUDED_STRONGS
+
+
 @lru_cache(maxsize=4096)
 def get_strongs_headword(strong_number: str) -> Optional[dict]:
     """Lightweight {lemma, xlit, pron} lookup for a canonical Strong's number
@@ -1577,9 +1600,13 @@ def get_lexicon_word_data(strong_number: str) -> Optional[dict]:
     cross-links, verse occurrences) for a canonical Hebrew Strong's number
     (e.g. 'H1254') into the data needed to render a standalone lexicon page.
 
-    Returns None if there is no core dictionary row for this Strong's number
-    (callers should treat that as a 404, not a partial page).
+    Returns None if there is no core dictionary row for this Strong's number,
+    or if it is a typographic marker rather than a word (callers should treat
+    that as a 404, not a partial page).
     """
+    if is_lexicon_excluded(strong_number):
+        return None
+
     core = execute_query(
         """
         SELECT lemma, xlit, pron, derivation, strongs_def, kjv_def, description

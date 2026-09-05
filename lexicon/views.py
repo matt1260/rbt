@@ -8,6 +8,7 @@ from translate.db_utils import execute_query
 from translate.translator import (
     get_lexicon_word_data,
     get_strongs_numeric_value,
+    is_lexicon_excluded,
     convert_book_name,
 )
 from search.db_utils import safe_cache_get, safe_cache_set
@@ -20,9 +21,11 @@ PAGE_SIZE = 100
 
 
 def _all_dictionary_words():
-    """All Hebrew Strong's dictionary rows, numerically ordered. Cached — this
-    backs both index pagination and the sitemap, and rarely changes."""
-    cache_key = 'lexicon_hebrew_word_list_v1'
+    """All Hebrew Strong's dictionary rows worth a word page, numerically
+    ordered. Cached — this backs both index pagination and the sitemap, and
+    rarely changes. Typographic markers (see is_lexicon_excluded) are dropped
+    here, which keeps them out of the index and the sitemap at once."""
+    cache_key = 'lexicon_hebrew_word_list_v2'
     cached = safe_cache_get(cache_key)
     if cached is not None:
         return cached
@@ -45,6 +48,7 @@ def _all_dictionary_words():
             'strongs_def': strongs_def or '',
         }
         for strong_number, lemma, xlit, strongs_def in rows
+        if not is_lexicon_excluded(strong_number)
     ]
     safe_cache_set(cache_key, words, LEXICON_LIST_CACHE_TTL)
     return words
@@ -119,6 +123,7 @@ def lexicon_search(request):
             'url': f'/lexicon/hebrew/{strong_number.lower()}/',
         }
         for strong_number, lemma, xlit, strongs_def in rows
+        if not is_lexicon_excluded(strong_number)
     ]
     return JsonResponse({'results': results})
 
@@ -159,6 +164,11 @@ def lexicon_word_detail(request, strongs):
         return HttpResponsePermanentRedirect(f'/lexicon/hebrew/{canonical_slug}/')
 
     strong_number = 'H' + canonical_slug[1:]
+
+    # Checked ahead of the cache read: markers cached before they were excluded
+    # would otherwise keep serving from that entry.
+    if is_lexicon_excluded(strong_number):
+        raise Http404("Not a lexicon word")
 
     cache_key = f'lexicon_word_v1_{canonical_slug}'
     word = safe_cache_get(cache_key)
