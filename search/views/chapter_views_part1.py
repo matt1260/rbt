@@ -8,6 +8,7 @@ all Bible books (Genesis, OT, NT) and handles chapter/verse rendering.
 import re
 import os
 import json
+import time
 import calendar
 from datetime import datetime, timedelta
 from collections import OrderedDict
@@ -515,6 +516,10 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
     book = book.strip()
     sanitized_book = book.replace(':', '_').replace(' ', '')
     cache_key_base = f'{sanitized_book}_{chapter_num}_{verse_num}_{language}_{INTERLINEAR_CACHE_VERSION}'
+    # Taken before any data is read, so a translation that finishes mid-render
+    # invalidates this render instead of being overwritten by it. See
+    # safe_cache_set_if_fresh() in search/db_utils.py.
+    _render_started_at = time.time()
     print(f"[CACHE] Looking for key: {cache_key_base}")
     try:
         from search.db_utils import safe_cache_get
@@ -549,8 +554,8 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                     'html': rbt_html
                 }
                 try:
-                    from search.db_utils import safe_cache_set
-                    safe_cache_set(cache_key_base, data)
+                    from search.db_utils import safe_cache_set_if_fresh
+                    safe_cache_set_if_fresh(cache_key_base, data, _render_started_at)
                 except Exception:
                     try:
                         cache.set(cache_key_base, data)
@@ -569,8 +574,8 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
             }
             
             try:
-                from search.db_utils import safe_cache_set
-                safe_cache_set(cache_key_base, data)
+                from search.db_utils import safe_cache_set_if_fresh
+                safe_cache_set_if_fresh(cache_key_base, data, _render_started_at)
             except Exception:
                 try:
                     cache.set(cache_key_base, data)
@@ -744,8 +749,8 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 if row_data is None:
                     data = build_empty_result()
                     try:
-                        from search.db_utils import safe_cache_set
-                        safe_cache_set(cache_key_base, data)
+                        from search.db_utils import safe_cache_set_if_fresh
+                        safe_cache_set_if_fresh(cache_key_base, data, _render_started_at)
                     except Exception:
                         try:
                             cache.set(cache_key_base, data)
@@ -1114,8 +1119,8 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
             }
 
             try:
-                from search.db_utils import safe_cache_set
-                safe_cache_set(cache_key_base, data)
+                from search.db_utils import safe_cache_set_if_fresh
+                safe_cache_set_if_fresh(cache_key_base, data, _render_started_at)
             except Exception:
                 try:
                     cache.set(cache_key_base, data)
@@ -1248,8 +1253,8 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
             }
 
             try:
-                from search.db_utils import safe_cache_set
-                safe_cache_set(cache_key_base, data)
+                from search.db_utils import safe_cache_set_if_fresh
+                safe_cache_set_if_fresh(cache_key_base, data, _render_started_at)
             except Exception:
                 try:
                     cache.set(cache_key_base, data)
@@ -1296,8 +1301,8 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
             }
             
             try:
-                from search.db_utils import safe_cache_set
-                safe_cache_set(cache_key_base, data)
+                from search.db_utils import safe_cache_set_if_fresh
+                safe_cache_set_if_fresh(cache_key_base, data, _render_started_at)
             except Exception:
                 try:
                     cache.set(cache_key_base, data)

@@ -6,6 +6,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.cache import cache
+from search.db_utils import invalidate_cached_render
 from search.models import VerseTranslation
 from translate.translator import (
     book_abbreviations, new_testament_books, old_testament_books,
@@ -76,7 +77,7 @@ def translate_chapter_api(request):
         # Clear cache for the target language
         try:
              cache_key = get_cache_key(book, chapter_num, None, language)
-             cache.delete(cache_key)
+             invalidate_cached_render(cache_key)
              print(f"Cleared cache for: {cache_key}")
         except Exception as e:
              print(f"Error clearing cache: {e}")
@@ -681,7 +682,7 @@ def clear_translation_cache(request):
     try:
         chapter_num = int(chapter_num)
         cache_key = get_cache_key(book, chapter_num, None, language)
-        cache.delete(cache_key)
+        invalidate_cached_render(cache_key)
         
         return JsonResponse({
             'status': 'ok',

@@ -123,6 +123,7 @@ def table_has_column(schema: str, table: str, column: str) -> bool:
 from django.core.cache import cache
 from django.db import DatabaseError, ProgrammingError
 import logging
+import time
 
 logger_verbose = logging.getLogger("search.db_utils.verbose")
 
@@ -196,3 +197,47 @@ def safe_cache_delete(key):
         except Exception:
             logger_verbose.exception('safe_cache_delete: rollback failed')
         return False
+
+
+# --- Render-cache invalidation ------------------------------------------
+# A cached chapter render is built from data (verses + footnotes) that a
+# background translation job may be writing at the same moment. Deleting the
+# cache key when that job finishes is not enough on its own: a render that
+# STARTED before the job finished can reach its cache-set AFTER the delete and
+# put pre-translation (English) content back, where it then serves until the
+# entry expires -- the "I translated the chapter but it's still English" bug.
+#
+# So invalidation also stamps a timestamp, and renders write through
+# safe_cache_set_if_fresh(), which drops the write if an invalidation landed
+# while the render was in flight.
+
+_INVALIDATION_TTL = 7 * 24 * 60 * 60  # outlives any plausible in-flight render
+
+
+def _invalidation_key(cache_key):
+    return f'{cache_key}__invalidated_at'
+
+
+def cache_invalidated_at(cache_key):
+    """Unix time of the last invalidation of `cache_key` (0.0 if none recorded)."""
+    try:
+        return float(safe_cache_get(_invalidation_key(cache_key), 0) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def invalidate_cached_render(cache_key):
+    """Drop a cached render and record when, so a render already in flight can't
+    overwrite it with content built before this invalidation."""
+    deleted = safe_cache_delete(cache_key)
+    safe_cache_set(_invalidation_key(cache_key), time.time(), _INVALIDATION_TTL)
+    return deleted
+
+
+def safe_cache_set_if_fresh(cache_key, value, started_at, timeout=None):
+    """safe_cache_set() that no-ops when `cache_key` was invalidated after
+    `started_at` -- i.e. when the value being written is already stale."""
+    if started_at is not None and cache_invalidated_at(cache_key) > started_at:
+        logger_verbose.debug('Skipping stale cache write for key=%s', cache_key)
+        return False
+    return safe_cache_set(cache_key, value, timeout)

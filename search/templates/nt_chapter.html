@@ -227,7 +227,8 @@ function hideTranslationLoading() {
         {% for footnote_id, footnote_data in footnotes.items %}
         <div id="footnote-{{ footnote_id }}" class="footnote-entry" data-verse="{{ footnote_data.verse }}">
             <div class="footnote-title">
-                <sup>{{ footnote_id }}</sup> (Verse {{ footnote_data.verse }})
+                {# Language-neutral ref (e.g. "1:9"); a "(Verse N)" label stayed English in all 71 locales #}
+                <sup>{{ footnote_id }}</sup> {{ chapter_num }}:{{ footnote_data.verse }}
             </div>
             <div class="footnote-body">
                 {{ footnote_data.content|safe }}
