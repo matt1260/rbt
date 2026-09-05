@@ -2267,9 +2267,7 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
       <img src="{% static 'nun.png' %}" alt="nun" class="rbt-sanctum-logo sanctum-nav-nun">
       <span class="sanctum-nav-wordmark">Real Bible Translation Project</span>
     </a>
-    {# Labels come from search/data/ui_strings_i18n.json via the `ui` context var,
-       shared with the front-end bundle; |default keeps the English wording for
-       English pages and for any key a language is missing. #}
+    {# Labels: search/data/ui_strings_i18n.json via the `ui` var; |default = English fallback #}
     <ul class="rbt-sanctum-nav-links">
       <li><a href="https://read.realbible.tech/lexicon/hebrew/">{{ ui.nav_lexicon|default:"Lexicon" }}</a></li>
       <li><a href="https://read.realbible.tech/statistics/">{{ ui.nav_statistics|default:"Statistics" }}</a></li>

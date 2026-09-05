@@ -22,7 +22,12 @@
 "nav_methodology": "ዘዴ",
 "nav_science": "ሳይንስ",
 "nav_statistics": "ስታቲስቲክስ",
-"support": "ለዓላማው ይርዱ"
+"support": "ለዓላማው ይርዱ",
+"ui_headers": "አርዕስት",
+"ui_images": "ምስሎች",
+"ui_names": "ስሞች",
+"ui_read_bible": "መጽሐፍ ቅዱስን አንብብ",
+"ui_verse_refs": "ማጣቀሻዎች"
 },
 "ar": {
 "donate_btc": "تبرع بالبيتكوين",
@@ -47,7 +52,12 @@
 "nav_methodology": "المنهجية",
 "nav_science": "العلوم",
 "nav_statistics": "الإحصاءات",
-"support": "ساعد القضية"
+"support": "ساعد القضية",
+"ui_headers": "عناوين",
+"ui_images": "صور",
+"ui_names": "أسماء",
+"ui_read_bible": "اقرأ الكتاب المقدس",
+"ui_verse_refs": "مراجع الآيات"
 },
 "bn": {
 "donate_btc": "Bitcoin দান",
@@ -72,7 +82,12 @@
 "nav_methodology": "পদ্ধতিবিদ্যা",
 "nav_science": "বিজ্ঞান",
 "nav_statistics": "পরিসংখ্যান",
-"support": "কাজে সাহায্য করুন"
+"support": "কাজে সাহায্য করুন",
+"ui_headers": "শিরোনাম",
+"ui_images": "ছবি",
+"ui_names": "নাম",
+"ui_read_bible": "বাইবেল পড়ুন",
+"ui_verse_refs": "পদনির্দেশ"
 },
 "cs": {
 "donate_btc": "Bitcoin Dar",
@@ -97,7 +112,12 @@
 "nav_methodology": "Metodologie",
 "nav_science": "Věda",
 "nav_statistics": "Statistiky",
-"support": "Pomozte věci"
+"support": "Pomozte věci",
+"ui_headers": "Nadpisy",
+"ui_images": "Obrázky",
+"ui_names": "Jména",
+"ui_read_bible": "Číst Bibli",
+"ui_verse_refs": "Odkazy na verše"
 },
 "de": {
 "donate_btc": "Bitcoin-Spende",
@@ -122,7 +142,12 @@
 "nav_methodology": "Methodik",
 "nav_science": "Wissenschaft",
 "nav_statistics": "Statistiken",
-"support": "Helft der Sache"
+"support": "Helft der Sache",
+"ui_headers": "Überschriften",
+"ui_images": "Bilder",
+"ui_names": "Namen",
+"ui_read_bible": "Bibel lesen",
+"ui_verse_refs": "Versangaben"
 },
 "el": {
 "donate_btc": "Δωρεά Bitcoin",
@@ -147,7 +172,12 @@
 "nav_methodology": "Μεθοδολογία",
 "nav_science": "Επιστήμη",
 "nav_statistics": "Στατιστικά",
-"support": "Βοήθεια για τον σκοπό"
+"support": "Βοήθεια για τον σκοπό",
+"ui_headers": "Επικεφαλίδες",
+"ui_images": "Εικόνες",
+"ui_names": "Ονόματα",
+"ui_read_bible": "Διαβάστε την Αγία Γραφή",
+"ui_verse_refs": "Παραπομπές εδαφίων"
 },
 "en": {
 "donate_btc": "Help via Crypto",
@@ -197,7 +227,12 @@
 "nav_methodology": "Metodología",
 "nav_science": "Ciencia",
 "nav_statistics": "Estadísticas",
-"support": "Ayuda a la causa"
+"support": "Ayuda a la causa",
+"ui_headers": "Encabezados",
+"ui_images": "Imágenes",
+"ui_names": "Nombres",
+"ui_read_bible": "Leer la Biblia",
+"ui_verse_refs": "Referencias"
 },
 "fa": {
 "donate_btc": "کمک مالی Bitcoin",
@@ -222,7 +257,12 @@
 "nav_methodology": "روش‌شناسی",
 "nav_science": "علم",
 "nav_statistics": "آمار",
-"support": "به آرمان کمک کنید"
+"support": "به آرمان کمک کنید",
+"ui_headers": "عنوان‌ها",
+"ui_images": "تصاویر",
+"ui_names": "نام‌ها",
+"ui_read_bible": "مطالعه کتاب‌مقدس",
+"ui_verse_refs": "ارجاعات آیات"
 },
 "fr": {
 "donate_btc": "Don en Bitcoin",
@@ -246,7 +286,12 @@
 "nav_methodology": "Méthodologie",
 "nav_science": "Science",
 "nav_statistics": "Statistiques",
-"support": "Aider la cause"
+"support": "Aider la cause",
+"ui_headers": "Titres",
+"ui_images": "Images",
+"ui_names": "Noms",
+"ui_read_bible": "Lire la Bible",
+"ui_verse_refs": "Références"
 },
 "ha": {
 "donate_btc": "Gudummawar Bitcoin",
@@ -271,7 +316,12 @@
 "nav_methodology": "Hanyar Aiki",
 "nav_science": "Kimiyya",
 "nav_statistics": "Ƙididdiga",
-"support": "Taimaka wa Manufa"
+"support": "Taimaka wa Manufa",
+"ui_headers": "Kanun Labarai",
+"ui_images": "Hotuna",
+"ui_names": "Sunaye",
+"ui_read_bible": "Karanta Littafi Mai Tsarki",
+"ui_verse_refs": "Manazartan Ayoyi"
 },
 "he": {
 "donate_btc": "תרומת ביטקוין",
@@ -296,7 +346,12 @@
 "nav_methodology": "מתודולוגיה",
 "nav_science": "מדע",
 "nav_statistics": "סטטיסטיקה",
-"support": "עזרה למטרה"
+"support": "עזרה למטרה",
+"ui_headers": "כותרות",
+"ui_images": "תמונות",
+"ui_names": "שמות",
+"ui_read_bible": "קרא בתנ\"ך",
+"ui_verse_refs": "מספרי פסוקים"
 },
 "hi": {
 "donate_btc": "Bitcoin दान",
@@ -321,7 +376,12 @@
 "nav_methodology": "पद्धति",
 "nav_science": "विज्ञान",
 "nav_statistics": "सांख्यिकी",
-"support": "उद्देश्य में सहायता करें"
+"support": "उद्देश्य में सहायता करें",
+"ui_headers": "शीर्षक",
+"ui_images": "चित्र",
+"ui_names": "नाम",
+"ui_read_bible": "बाइबल पढ़ें",
+"ui_verse_refs": "पद संदर्भ"
 },
 "hr": {
 "donate_btc": "BTC Donacija",
@@ -346,7 +406,12 @@
 "nav_methodology": "Metodologija",
 "nav_science": "Znanost",
 "nav_statistics": "Statistika",
-"support": "Pomozite cilju"
+"support": "Pomozite cilju",
+"ui_headers": "Naslovi",
+"ui_images": "Slike",
+"ui_names": "Imena",
+"ui_read_bible": "Čitaj Bibliju",
+"ui_verse_refs": "Reference stihova"
 },
 "hu": {
 "donate_btc": "Bitcoin Adomány",
@@ -371,7 +436,12 @@
 "nav_methodology": "Módszertan",
 "nav_science": "Tudomány",
 "nav_statistics": "Statisztikák",
-"support": "Segítsd az ügyet"
+"support": "Segítsd az ügyet",
+"ui_headers": "Címsorok",
+"ui_images": "Képek",
+"ui_names": "Nevek",
+"ui_read_bible": "Biblia olvasása",
+"ui_verse_refs": "Vershivatkozások"
 },
 "id": {
 "donate_btc": "Donasi Bitcoin",
@@ -396,7 +466,12 @@
 "nav_methodology": "Metodologi",
 "nav_science": "Sains",
 "nav_statistics": "Statistik",
-"support": "Bantu Penyebabnya"
+"support": "Bantu Penyebabnya",
+"ui_headers": "Judul",
+"ui_images": "Gambar",
+"ui_names": "Nama",
+"ui_read_bible": "Baca Alkitab",
+"ui_verse_refs": "Referensi Ayat"
 },
 "ig": {
 "donate_btc": "Onyinye Bitcoin",
@@ -421,7 +496,12 @@
 "nav_methodology": "Usoro Ọrụ",
 "nav_science": "Sayensị",
 "nav_statistics": "Ọnụọgụ",
-"support": "Nyere ihe kpatara ya aka"
+"support": "Nyere ihe kpatara ya aka",
+"ui_headers": "Isi okwu",
+"ui_images": "Ihe onyinyo",
+"ui_names": "Aha",
+"ui_read_bible": "Gụọ Baịbụl",
+"ui_verse_refs": "Ntụaka amaokwu"
 },
 "it": {
 "donate_btc": "Donazione Bitcoin",
@@ -445,7 +525,12 @@
 "nav_methodology": "Metodologia",
 "nav_science": "Scienza",
 "nav_statistics": "Statistiche",
-"support": "Aiuta la causa"
+"support": "Aiuta la causa",
+"ui_headers": "Intestazioni",
+"ui_images": "Immagini",
+"ui_names": "Nomi",
+"ui_read_bible": "Leggi la Bibbia",
+"ui_verse_refs": "Riferimenti versetti"
 },
 "ja": {
 "donate_btc": "Bitcoin寄付",
@@ -470,7 +555,12 @@
 "nav_methodology": "方法論",
 "nav_science": "科学",
 "nav_statistics": "統計",
-"support": "この活動を支援する"
+"support": "この活動を支援する",
+"ui_headers": "見出し",
+"ui_images": "画像",
+"ui_names": "名前",
+"ui_read_bible": "聖書を読む",
+"ui_verse_refs": "節番号"
 },
 "ko": {
 "donate_btc": "비트코인 기부",
@@ -495,7 +585,12 @@
 "nav_methodology": "방법론",
 "nav_science": "과학",
 "nav_statistics": "통계",
-"support": "원인 돕기"
+"support": "원인 돕기",
+"ui_headers": "소제목",
+"ui_images": "이미지",
+"ui_names": "인명",
+"ui_read_bible": "성경 읽기",
+"ui_verse_refs": "성구 참조"
 },
 "mr": {
 "donate_btc": "Bitcoin देणगी",
@@ -520,7 +615,12 @@
 "nav_methodology": "पद्धतशास्त्र",
 "nav_science": "विज्ञान",
 "nav_statistics": "आकडेवारी",
-"support": "कार्यात मदत करा"
+"support": "कार्यात मदत करा",
+"ui_headers": "शीर्षके",
+"ui_images": "चित्रे",
+"ui_names": "नावे",
+"ui_read_bible": "बायबल वाचा",
+"ui_verse_refs": "वचन संदर्भ"
 },
 "nl": {
 "donate_btc": "Bitcoin Donatie",
@@ -545,7 +645,12 @@
 "nav_methodology": "Methodologie",
 "nav_science": "Wetenschap",
 "nav_statistics": "Statistieken",
-"support": "Help de zaak"
+"support": "Help de zaak",
+"ui_headers": "Kopteksten",
+"ui_images": "Afbeeldingen",
+"ui_names": "Namen",
+"ui_read_bible": "Lees de Bijbel",
+"ui_verse_refs": "Versverwijzingen"
 },
 "om": {
 "donate_btc": "Kenntaa Bitcoin",
@@ -567,7 +672,12 @@
 "nav_methodology": "Mala",
 "nav_science": "Saayinsii",
 "nav_statistics": "Lakkoofsa",
-"support": "Kaayyoof gargaara"
+"support": "Kaayyoof gargaara",
+"ui_headers": "Mata-dureewwan",
+"ui_images": "Fakkiiwwan",
+"ui_names": "Maqoota",
+"ui_read_bible": "Macaafa Qulqulluu Dubbisi",
+"ui_verse_refs": "Eeruu Lakkoofsotaa"
 },
 "pa": {
 "donate_btc": "Bitcoin ਦਾਨ",
@@ -592,7 +702,12 @@
 "nav_methodology": "ਵਿਧੀ ਵਿਗਿਆਨ",
 "nav_science": "ਵਿਗਿਆਨ",
 "nav_statistics": "ਅੰਕੜੇ",
-"support": "ਮਕਸਦ ਵਿੱਚ ਮਦਦ ਕਰੋ"
+"support": "ਮਕਸਦ ਵਿੱਚ ਮਦਦ ਕਰੋ",
+"ui_headers": "ਸਿਰਲੇਖ",
+"ui_images": "ਤਸਵੀਰਾਂ",
+"ui_names": "ਨਾਮ",
+"ui_read_bible": "ਬਾਈਬਲ ਪੜ੍ਹੋ",
+"ui_verse_refs": "ਆਇਤ ਹਵਾਲੇ"
 },
 "pl": {
 "donate_btc": "Darowizna Bitcoin",
@@ -617,7 +732,12 @@
 "nav_methodology": "Metodologia",
 "nav_science": "Nauka",
 "nav_statistics": "Statystyki",
-"support": "Pomóż sprawie"
+"support": "Pomóż sprawie",
+"ui_headers": "Nagłówki",
+"ui_images": "Ilustracje",
+"ui_names": "Imiona",
+"ui_read_bible": "Czytaj Biblię",
+"ui_verse_refs": "Odniesienia"
 },
 "pt": {
 "donate_btc": "Doação em Bitcoin",
@@ -642,7 +762,12 @@
 "nav_methodology": "Metodologia",
 "nav_science": "Ciência",
 "nav_statistics": "Estatísticas",
-"support": "Ajude a causa"
+"support": "Ajude a causa",
+"ui_headers": "Títulos",
+"ui_images": "Imagens",
+"ui_names": "Nomes",
+"ui_read_bible": "Ler a Bíblia",
+"ui_verse_refs": "Referências"
 },
 "ro": {
 "donate_btc": "Donație Bitcoin",
@@ -667,7 +792,12 @@
 "nav_methodology": "Metodologie",
 "nav_science": "Știință",
 "nav_statistics": "Statistici",
-"support": "Ajutați cauza"
+"support": "Ajutați cauza",
+"ui_headers": "Titluri",
+"ui_images": "Imagini",
+"ui_names": "Nume",
+"ui_read_bible": "Citește Biblia",
+"ui_verse_refs": "Referințe versete"
 },
 "ru": {
 "donate_btc": "Пожертвование Bitcoin",
@@ -692,7 +822,12 @@
 "nav_methodology": "Методология",
 "nav_science": "Наука",
 "nav_statistics": "Статистика",
-"support": "Помогите делу"
+"support": "Помогите делу",
+"ui_headers": "Заголовки",
+"ui_images": "Изображения",
+"ui_names": "Имена",
+"ui_read_bible": "Читать Библию",
+"ui_verse_refs": "Ссылки на стихи"
 },
 "sr": {
 "donate_btc": "BTC Донација",
@@ -717,7 +852,12 @@
 "nav_methodology": "Методологија",
 "nav_science": "Наука",
 "nav_statistics": "Статистика",
-"support": "Помозите циљу"
+"support": "Помозите циљу",
+"ui_headers": "Наслови",
+"ui_images": "Слике",
+"ui_names": "Имена",
+"ui_read_bible": "Читај Библију",
+"ui_verse_refs": "Референце стихова"
 },
 "sv": {
 "donate_btc": "Help via Crypto",
@@ -742,7 +882,12 @@
 "nav_methodology": "Metodologi",
 "nav_science": "Vetenskap",
 "nav_statistics": "Statistik",
-"support": "Hjälp saken"
+"support": "Hjälp saken",
+"ui_headers": "Rubriker",
+"ui_images": "Bilder",
+"ui_names": "Namn",
+"ui_read_bible": "Läs Bibeln",
+"ui_verse_refs": "Versreferenser"
 },
 "sw": {
 "donate_btc": "Mchango wa Bitcoin",
@@ -767,7 +912,12 @@
 "nav_methodology": "Mbinu",
 "nav_science": "Sayansi",
 "nav_statistics": "Takwimu",
-"support": "Saidia Sababu"
+"support": "Saidia Sababu",
+"ui_headers": "Vichwa",
+"ui_images": "Picha",
+"ui_names": "Majina",
+"ui_read_bible": "Soma Biblia",
+"ui_verse_refs": "Marejeo ya Mistari"
 },
 "ta": {
 "donate_btc": "Bitcoin நன்கொடை",
@@ -792,7 +942,12 @@
 "nav_methodology": "முறையியல்",
 "nav_science": "அறிவியல்",
 "nav_statistics": "புள்ளிவிவரங்கள்",
-"support": "காரணத்திற்கு உதவுங்கள்"
+"support": "காரணத்திற்கு உதவுங்கள்",
+"ui_headers": "தலைப்புகள்",
+"ui_images": "படங்கள்",
+"ui_names": "பெயர்கள்",
+"ui_read_bible": "வேதாகமத்தை வாசிக்க",
+"ui_verse_refs": "வசனக் குறிப்புகள்"
 },
 "th": {
 "donate_btc": "บริจาค Bitcoin",
@@ -817,7 +972,12 @@
 "nav_methodology": "วิธีการ",
 "nav_science": "วิทยาศาสตร์",
 "nav_statistics": "สถิติ",
-"support": "ช่วยเหลือโครงการ"
+"support": "ช่วยเหลือโครงการ",
+"ui_headers": "หัวข้อ",
+"ui_images": "รูปภาพ",
+"ui_names": "ชื่อ",
+"ui_read_bible": "อ่านพระคัมภีร์",
+"ui_verse_refs": "ข้ออ้างอิง"
 },
 "tr": {
 "donate_btc": "Bitcoin Bağışı",
@@ -842,7 +1002,12 @@
 "nav_methodology": "Metodoloji",
 "nav_science": "Bilim",
 "nav_statistics": "İstatistikler",
-"support": "Davaya yardım et"
+"support": "Davaya yardım et",
+"ui_headers": "Başlıklar",
+"ui_images": "Resimler",
+"ui_names": "İsimler",
+"ui_read_bible": "Kutsal Kitap'ı Oku",
+"ui_verse_refs": "Ayet Referansları"
 },
 "uk": {
 "donate_btc": "Пожертвування Bitcoin",
@@ -867,7 +1032,12 @@
 "nav_methodology": "Методологія",
 "nav_science": "Наука",
 "nav_statistics": "Статистика",
-"support": "Допоможіть справі"
+"support": "Допоможіть справі",
+"ui_headers": "Заголовки",
+"ui_images": "Зображення",
+"ui_names": "Імена",
+"ui_read_bible": "Читати Біблію",
+"ui_verse_refs": "Посилання на вірші"
 },
 "ur": {
 "donate_btc": "Bitcoin عطیہ",
@@ -892,7 +1062,12 @@
 "nav_methodology": "طریقہ کار",
 "nav_science": "سائنس",
 "nav_statistics": "اعداد و شمار",
-"support": "مقصد में मदद करें"
+"support": "مقصد में मदद करें",
+"ui_headers": "سرخیاں",
+"ui_images": "تصویریں",
+"ui_names": "نام",
+"ui_read_bible": "بائبل پڑھیں",
+"ui_verse_refs": "آیات کے حوالے"
 },
 "vi": {
 "donate_btc": "Quyên Góp Bitcoin",
@@ -917,7 +1092,12 @@
 "nav_methodology": "Phương Pháp Luận",
 "nav_science": "Khoa Học",
 "nav_statistics": "Thống Kê",
-"support": "Giúp đỡ sự nghiệp"
+"support": "Giúp đỡ sự nghiệp",
+"ui_headers": "Tiêu đề",
+"ui_images": "Hình ảnh",
+"ui_names": "Tên",
+"ui_read_bible": "Đọc Kinh Thánh",
+"ui_verse_refs": "Tham chiếu"
 },
 "yo": {
 "donate_btc": "Ẹbọ Bitcoin",
@@ -942,7 +1122,12 @@
 "nav_methodology": "Ilana Iṣẹ",
 "nav_science": "Imọ-ijinlẹ",
 "nav_statistics": "Awọn iṣiro",
-"support": "Ran Agbodo lọwọ"
+"support": "Ran Agbodo lọwọ",
+"ui_headers": "Àkọlé",
+"ui_images": "Àwòrán",
+"ui_names": "Orúkọ",
+"ui_read_bible": "Ka Bíbélì",
+"ui_verse_refs": "Ìtọkasí Ẹsẹ"
 },
 "zh": {
 "donate_btc": "比特币捐款",
@@ -967,6 +1152,11 @@
 "nav_methodology": "方法论",
 "nav_science": "科学",
 "nav_statistics": "统计",
-"support": "帮助事业"
+"support": "帮助事业",
+"ui_headers": "标题",
+"ui_images": "图片",
+"ui_names": "人名",
+"ui_read_bible": "阅读圣经",
+"ui_verse_refs": "经文编号"
 }
 }
