@@ -6,6 +6,7 @@ from search.seo_utils import (
     slug_to_book,
     hreflang_for,
     translated_languages_for,
+    ui_strings,
     RTL_LANGUAGES,
 )
 from search.translation_utils import SUPPORTED_LANGUAGES
@@ -73,6 +74,9 @@ def seo_context(request):
     page_lang = lang_code if lang_code in SUPPORTED_LANGUAGES else 'en'
     context['page_lang'] = page_lang
     context['page_dir'] = 'rtl' if page_lang in RTL_LANGUAGES else 'ltr'
+    # Translated nav/footer labels; empty for English so templates keep their
+    # literal wording via |default.
+    context['ui'] = ui_strings(page_lang)
 
     if not book and book_slug:
         book = slug_to_book(book_slug) or book_slug.replace('-', ' ').title()

@@ -2267,15 +2267,18 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
       <img src="{% static 'nun.png' %}" alt="nun" class="rbt-sanctum-logo sanctum-nav-nun">
       <span class="sanctum-nav-wordmark">Real Bible Translation Project</span>
     </a>
+    {# Labels come from search/data/ui_strings_i18n.json via the `ui` context var,
+       shared with the front-end bundle; |default keeps the English wording for
+       English pages and for any key a language is missing. #}
     <ul class="rbt-sanctum-nav-links">
-      <li><a href="https://read.realbible.tech/lexicon/hebrew/">Lexicon</a></li>
-      <li><a href="https://read.realbible.tech/statistics/">Statistics</a></li>
-      <li><a href="https://www.realbible.tech/notes/">Notes</a></li>
-      <li><a href="https://www.realbible.tech/methodology/">Methodology</a></li>
-      <li><a href="https://www.realbible.tech/about/">About</a></li>
-      <li><a href="#" id="helpNavLink" onclick="openHelpModal(event)">Help</a></li>
+      <li><a href="https://read.realbible.tech/lexicon/hebrew/">{{ ui.nav_lexicon|default:"Lexicon" }}</a></li>
+      <li><a href="https://read.realbible.tech/statistics/">{{ ui.nav_statistics|default:"Statistics" }}</a></li>
+      <li><a href="https://www.realbible.tech/notes/">{{ ui.footer_notes|default:"Notes" }}</a></li>
+      <li><a href="https://www.realbible.tech/methodology/">{{ ui.nav_methodology|default:"Methodology" }}</a></li>
+      <li><a href="https://www.realbible.tech/about/">{{ ui.nav_about|default:"About" }}</a></li>
+      <li><a href="#" id="helpNavLink" onclick="openHelpModal(event)">{{ ui.nav_donate|default:"Help" }}</a></li>
     </ul>
-    <a href="https://read.realbible.tech/" class="rbt-sanctum-cta">Search</a>
+    <a href="https://read.realbible.tech/" class="rbt-sanctum-cta">{{ ui.footer_search|default:"Search" }}</a>
     <button class="rbt-sanctum-hamburger" id="rbtMenuToggle" aria-label="Toggle navigation" aria-expanded="false">
       <span></span><span></span><span></span>
     </button>
@@ -2284,12 +2287,12 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
     <button class="rbt-sanctum-drawer-close" id="rbtDrawerClose" aria-label="Close menu">&times;</button>
     <ul>
       <li><a href="https://read.realbible.tech/">Read the Bible</a></li>
-      <li><a href="https://read.realbible.tech/lexicon/hebrew/">Lexicon</a></li>
-      <li><a href="https://read.realbible.tech/statistics/">Statistics</a></li>
-      <li><a href="https://www.realbible.tech/notes/">Notes</a></li>
-      <li><a href="https://www.realbible.tech/methodology/">Methodology</a></li>
-      <li><a href="https://www.realbible.tech/about/">About</a></li>
-      <li><a href="#" onclick="openHelpModal(event)">Help</a></li>
+      <li><a href="https://read.realbible.tech/lexicon/hebrew/">{{ ui.nav_lexicon|default:"Lexicon" }}</a></li>
+      <li><a href="https://read.realbible.tech/statistics/">{{ ui.nav_statistics|default:"Statistics" }}</a></li>
+      <li><a href="https://www.realbible.tech/notes/">{{ ui.footer_notes|default:"Notes" }}</a></li>
+      <li><a href="https://www.realbible.tech/methodology/">{{ ui.nav_methodology|default:"Methodology" }}</a></li>
+      <li><a href="https://www.realbible.tech/about/">{{ ui.nav_about|default:"About" }}</a></li>
+      <li><a href="#" onclick="openHelpModal(event)">{{ ui.nav_donate|default:"Help" }}</a></li>
     </ul>
   </div>
   <div class="rbt-sanctum-overlay" id="rbtOverlay"></div>
@@ -2628,32 +2631,32 @@ html { scroll-behavior: smooth; }
   <div class="sanctum-footer-logo">Real Bible Translation</div>
   <div class="sanctum-footer-grid">
     <div class="sanctum-footer-section">
-      <h4>About</h4>
+      <h4>{{ ui.footer_about|default:"About" }}</h4>
       <ul class="sanctum-footer-nav">
-        <li><a href="https://www.realbible.tech/about/">About the Project</a></li>
-        <li><a href="https://www.realbible.tech/methodology/">Methodology</a></li>
-        <li><a href="https://www.realbible.tech/copyrights/">Copyrights</a></li>
+        <li><a href="https://www.realbible.tech/about/">{{ ui.footer_about_link|default:"About the Project" }}</a></li>
+        <li><a href="https://www.realbible.tech/methodology/">{{ ui.footer_methodology|default:"Methodology" }}</a></li>
+        <li><a href="https://www.realbible.tech/copyrights/">{{ ui.footer_copyrights|default:"Copyrights" }}</a></li>
       </ul>
     </div>
     <div class="sanctum-footer-section">
-      <h4>Resources</h4>
+      <h4>{{ ui.footer_resources|default:"Resources" }}</h4>
       <ul class="sanctum-footer-nav">
-        <li><a href="https://read.realbible.tech/lexicon/hebrew/">Hebrew Lexicon</a></li>
-        <li><a href="https://www.realbible.tech/let-there-be-science/">Let There Be Science</a></li>
-        <li><a href="https://read.realbible.tech/statistics/">Statistics</a></li>
-        <li><a href="https://www.realbible.tech/notes/">Notes</a></li>
+        <li><a href="https://read.realbible.tech/lexicon/hebrew/">{{ ui.footer_lexicon|default:"Hebrew Lexicon" }}</a></li>
+        <li><a href="https://www.realbible.tech/let-there-be-science/">{{ ui.footer_science|default:"Let There Be Science" }}</a></li>
+        <li><a href="https://read.realbible.tech/statistics/">{{ ui.footer_stats|default:"Statistics" }}</a></li>
+        <li><a href="https://www.realbible.tech/notes/">{{ ui.footer_notes|default:"Notes" }}</a></li>
       </ul>
     </div>
     <div class="sanctum-footer-section">
-      <h4>Quick Links</h4>
+      <h4>{{ ui.footer_links|default:"Quick Links" }}</h4>
       <ul class="sanctum-footer-nav">
-        <li><a href="https://www.realbible.tech/">Home</a></li>
-        <li><a href="https://read.realbible.tech/search/">Search</a></li>
-        <li><a href="https://read.realbible.tech/updates/">Recent Updates</a></li>
+        <li><a href="https://www.realbible.tech/">{{ ui.footer_home|default:"Home" }}</a></li>
+        <li><a href="https://read.realbible.tech/search/">{{ ui.footer_search|default:"Search" }}</a></li>
+        <li><a href="https://read.realbible.tech/updates/">{{ ui.footer_updates|default:"Recent Updates" }}</a></li>
       </ul>
     </div>
     <div class="sanctum-footer-section" id="support-this-work">
-      <h4>Help the Cause</h4>
+      <h4>{{ ui.support|default:"Help the Cause" }}</h4>
       <ul class="sanctum-footer-nav">
         <li><a href="https://www.paypal.com/donate/?hosted_button_id=6LHHSLKJCY4RY" target="_blank" rel="noopener">Help via PayPal</a></li>
         <li><a href="https://x.com/intent/tweet?hashtags=LetMyPeopleGo&text=Reading+the+Real+Bible+Translation+Project" target="_blank" rel="noopener">Share on X #LetMyPeopleGo</a></li>

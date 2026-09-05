@@ -83,6 +83,32 @@ def slug_to_book(slug: str) -> Optional[str]:
     return _converter.from_slug(slug)
 
 
+_UI_STRINGS_I18N_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ui_strings_i18n.json')
+
+
+@lru_cache(maxsize=1)
+def _ui_strings_i18n():
+    """{language: {key: text}} for nav/footer chrome, extracted from the
+    front-end translations bundle so both sites share one set of labels."""
+    try:
+        with open(_UI_STRINGS_I18N_PATH, encoding='utf-8') as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return {}
+
+
+def ui_strings(language: Optional[str]) -> dict:
+    """Translated nav/footer labels for `language`.
+
+    Returns a plain dict; templates use `{{ ui.nav_statistics|default:"..." }}`
+    so any key missing for a language falls back to the English wording in the
+    template rather than rendering empty.
+    """
+    if not language or language == 'en':
+        return {}
+    return _ui_strings_i18n().get(language, {})
+
+
 _BOOK_NAMES_I18N_PATH = os.path.join(os.path.dirname(__file__), 'data', 'book_names_i18n.json')
 
 
