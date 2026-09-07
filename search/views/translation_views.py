@@ -925,36 +925,54 @@ def clean_failed_translations(request):
     book = request.GET.get('book')
     chapter_num = request.GET.get('chapter')
     language = request.GET.get('lang')
+    # chapter (default) | book | nt -- how wide to sweep.
+    scope = request.GET.get('scope', 'chapter')
 
-    if not book or not chapter_num or not language:
+    if not language:
         return JsonResponse({'status': 'error', 'message': 'Missing parameters'})
 
-    if book not in new_testament_books:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'This tool is limited to New Testament books.'
-        })
+    rows = VerseTranslation.objects.filter(status='completed')
 
-    try:
-        chapter_num = int(chapter_num)
-    except ValueError:
-        return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'})
+    if scope == 'nt':
+        rows = rows.filter(book__in=new_testament_books)
+    else:
+        if not book:
+            return JsonResponse({'status': 'error', 'message': 'Missing parameters'})
+        if book not in new_testament_books:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'This tool is limited to New Testament books.'
+            })
+        # Both spellings of the numbered books occur in verse_translations.
+        book_forms = {book, book.replace(' ', '')}
+        rows = rows.filter(book__in=list(book_forms))
 
-    rows = VerseTranslation.objects.filter(book=book, chapter=chapter_num, status='completed')
+        if scope != 'book':
+            if not chapter_num:
+                return JsonResponse({'status': 'error', 'message': 'Missing parameters'})
+            try:
+                chapter_num = int(chapter_num)
+            except ValueError:
+                return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'})
+            rows = rows.filter(chapter=chapter_num)
+
     if language != 'all':
         rows = rows.filter(language_code=language)
 
     failed = rows.filter(translation_error_q('verse_text') | translation_error_q('footnote_text'))
     languages_touched = sorted(set(failed.values_list('language_code', flat=True)))
+    # Cached chapter payloads still hold the error text, so note which
+    # book/chapter pairs to drop BEFORE the rows are gone.
+    affected = sorted(set(failed.values_list('book', 'chapter')))
     removed = failed.count()
     if removed:
         failed.delete()
-        # Cached chapter payloads still hold the error text; drop them.
-        for code in languages_touched:
-            try:
-                invalidate_cached_render(get_cache_key(book, chapter_num, None, code))
-            except Exception:
-                pass
+        for bk, ch in affected:
+            for code in languages_touched:
+                try:
+                    invalidate_cached_render(get_cache_key(bk, ch, None, code))
+                except Exception:
+                    pass
 
     return JsonResponse({
         'status': 'ok',
@@ -965,3 +983,199 @@ def clean_failed_translations(request):
             if removed else 'No failed translations found.'
         ),
     })
+
+
+def nt_dashboard_stats():
+    """NT-wide translation coverage, aggregated in SQL rather than per chapter.
+
+    260 chapters x 71 languages is far too much to walk one chapter at a time,
+    so this is two grouped queries plus one for footnotes.
+    """
+    from search.db_utils import execute_query
+    from search.models import GeminiUsageLog
+    from django.db.models import Count, Q
+    from django.utils import timezone
+
+    # new_testament_books is a membership list carrying BOTH spellings of the
+    # numbered books ('1 John' and '1John'), so it has 38 entries for 27 books.
+    # Good for filtering (verse_translations really does use both), wrong for
+    # counting or iterating -- so collapse to one canonical name per abbreviation,
+    # preferring the spaced form.
+    abbrev_to_book = {}
+    for b in new_testament_books:
+        ab = book_abbreviations.get(b, b)
+        if ab not in abbrev_to_book or (' ' in b and ' ' not in abbrev_to_book[ab]):
+            abbrev_to_book[ab] = b
+    book_to_abbrev = {b: ab for ab, b in abbrev_to_book.items()}
+    nt_books_canonical = list(abbrev_to_book.values())
+
+    src_rows = execute_query(
+        'SELECT book, chapter, count(*) FROM new_testament.nt GROUP BY book, chapter;',
+        fetch='all'
+    ) or []
+
+    source_by_book = {}
+    source_total = 0
+    chapters_by_book = {}
+    for abbrev, chapter, n in src_rows:
+        book = abbrev_to_book.get(abbrev)
+        if not book:
+            continue
+        source_by_book[book] = source_by_book.get(book, 0) + int(n)
+        chapters_by_book.setdefault(book, set()).add(int(chapter))
+        source_total += int(n)
+
+    err_q = translation_error_q('verse_text')
+
+    # --- verses: one grouped query over NT books only ----------------------
+    verse_rows = list(
+        VerseTranslation.objects
+        .filter(status='completed', footnote_id__isnull=True, book__in=new_testament_books)
+        .values('book', 'language_code')
+        .annotate(ok=Count('id', filter=~err_q), err=Count('id', filter=err_q))
+    )
+
+    # --- footnotes: same shape --------------------------------------------
+    note_err_q = translation_error_q('footnote_text')
+    note_rows = list(
+        VerseTranslation.objects
+        .filter(status='completed', book__in=new_testament_books)
+        .exclude(footnote_id__isnull=True)
+        .values('language_code')
+        .annotate(ok=Count('id', filter=~note_err_q), err=Count('id', filter=note_err_q))
+    )
+    notes_by_lang = {r['language_code']: r for r in note_rows}
+
+    # --- roll up per language ---------------------------------------------
+    per_lang = {}
+    per_book = {}
+    for r in verse_rows:
+        lang, book = r['language_code'], r['book']
+        d = per_lang.setdefault(lang, {'ok': 0, 'err': 0, 'books': set()})
+        d['ok'] += r['ok']
+        d['err'] += r['err']
+        if r['ok'] or r['err']:
+            d['books'].add(book)
+
+        # Merge '1 John' and '1John' into one bucket.
+        ab = book_to_abbrev.get(book, book)
+        b = per_book.setdefault(ab, {'ok': 0, 'err': 0, 'langs': set()})
+        b['ok'] += r['ok']
+        b['err'] += r['err']
+        if r['ok'] or r['err']:
+            b['langs'].add(lang)
+
+    languages = []
+    for code, label in SUPPORTED_LANGUAGES.items():
+        if code == 'en':
+            continue
+        d = per_lang.get(code, {'ok': 0, 'err': 0, 'books': set()})
+        n = notes_by_lang.get(code, {'ok': 0, 'err': 0})
+        missing = max(source_total - d['ok'] - d['err'], 0)
+        pct = round(100.0 * d['ok'] / source_total, 1) if source_total else 0.0
+        if d['ok'] == 0 and d['err'] == 0:
+            state = 'absent'
+        elif d['err']:
+            state = 'errors'
+        elif missing:
+            state = 'partial'
+        else:
+            state = 'complete'
+        languages.append({
+            'code': code, 'label': label, 'state': state, 'pct': pct,
+            'verses_ok': d['ok'], 'verses_err': d['err'], 'verses_missing': missing,
+            'books_started': len(d['books']),
+            'notes_ok': n['ok'], 'notes_err': n['err'],
+        })
+
+    order = {'errors': 0, 'partial': 1, 'absent': 3, 'complete': 2}
+    languages.sort(key=lambda x: (order[x['state']], -x['pct'], x['label']))
+
+    books = []
+    for book in nt_books_canonical:
+        ab = book_to_abbrev.get(book, book)
+        src = source_by_book.get(book, 0)
+        b = per_book.get(ab, {'ok': 0, 'err': 0, 'langs': set()})
+        books.append({
+            'book': book,
+            'chapters': len(chapters_by_book.get(book, ())),
+            'source_verses': src,
+            'verses_ok': b['ok'], 'verses_err': b['err'],
+            'languages_started': len(b['langs']),
+        })
+
+    summary = {
+        'source_verses': source_total,
+        'books': len(nt_books_canonical),
+        'chapters': sum(len(v) for v in chapters_by_book.values()),
+        'languages_total': len(languages),
+        'languages_started': sum(1 for x in languages if x['state'] != 'absent'),
+        'languages_complete': sum(1 for x in languages if x['state'] == 'complete'),
+        'languages_with_errors': sum(1 for x in languages if x['state'] == 'errors'),
+        'verses_ok': sum(x['verses_ok'] for x in languages),
+        'verses_err': sum(x['verses_err'] for x in languages),
+        'notes_ok': sum(x['notes_ok'] for x in languages),
+        'notes_err': sum(x['notes_err'] for x in languages),
+    }
+
+    # --- API / quota -------------------------------------------------------
+    api = {'keys_configured': 0, 'today': 0, 'rate_limited': 0, 'errors': 0, 'by_key': []}
+    try:
+        from search.translation_utils import GEMINI_API_KEYS
+        api['keys_configured'] = len(GEMINI_API_KEYS)
+    except Exception:
+        pass
+    try:
+        since = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today = GeminiUsageLog.objects.filter(timestamp__gte=since)
+        api['today'] = today.count()
+        api['rate_limited'] = today.filter(status_code=429).count()
+        api['errors'] = today.exclude(status_code__in=[200, 429]).count()
+        api['by_key'] = list(
+            today.values('api_key_abbrev').annotate(
+                ok=Count('id', filter=Q(status_code=200)),
+                limited=Count('id', filter=Q(status_code=429)),
+                failed=Count('id', filter=~Q(status_code__in=[200, 429])),
+            ).order_by('-ok')
+        )
+    except Exception:
+        pass
+
+    return {
+        'summary': summary,
+        'languages': languages,
+        'books': books,
+        'api': api,
+    }
+
+
+def translation_dashboard(request):
+    """NT-wide translation dashboard: coverage, tools, prompt config, API status."""
+    from django.shortcuts import render
+    from django.http import HttpResponse
+    from search.translation_utils import (
+        TRANSLATION_GLOSSARY, LANGUAGE_TERM_OVERRIDES, build_glossary_section,
+    )
+
+    if not request.user.is_authenticated:
+        return HttpResponse('Unauthorized', status=403)
+
+    stats = nt_dashboard_stats()
+
+    # Show the glossary as the model actually receives it, for a language that
+    # has a pinned term where one exists.
+    sample_lang = next(iter(LANGUAGE_TERM_OVERRIDES), 'es')
+    context = {
+        'stats': stats,
+        'summary': stats['summary'],
+        'languages': stats['languages'],
+        'books': stats['books'],
+        'api': stats['api'],
+        'glossary': TRANSLATION_GLOSSARY,
+        'overrides': LANGUAGE_TERM_OVERRIDES,
+        'sample_lang': sample_lang,
+        'sample_lang_name': SUPPORTED_LANGUAGES.get(sample_lang, sample_lang),
+        'glossary_preview': build_glossary_section(sample_lang),
+        'supported_languages': SUPPORTED_LANGUAGES,
+    }
+    return render(request, 'translation_dashboard.html', context)

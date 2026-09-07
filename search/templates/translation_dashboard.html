@@ -1,0 +1,312 @@
+{% extends 'base.html' %}
+{% block title %}NT Translation Dashboard | RBT{% endblock %}
+{% block content %}
+<style>
+  .td-wrap { max-width: 1240px; margin: 1.5em auto 4em; padding: 0 16px; font-size: 13px; }
+  .td-wrap h1 { font-size: 22px; margin: 0 0 4px; }
+  .td-sub { color: #777; margin: 0 0 20px; }
+  .td-card { border: 1px solid #ddd; border-radius: 6px; background: #fff; margin-bottom: 22px; }
+  .td-card > h2 {
+      font-size: 14px; margin: 0; padding: 11px 16px; border-bottom: 1px solid #eee;
+      text-transform: uppercase; letter-spacing: .05em; color: #555;
+  }
+  .td-card > .td-body { padding: 14px 16px; }
+
+  .td-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .td-tile { border: 1px solid #eee; border-radius: 5px; padding: 10px 12px; background: #fafafa; }
+  .td-tile .n { font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .td-tile .k { font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: .04em; }
+  .td-tile.warn .n { color: #9b2226; }
+
+  table.td { width: 100%; border-collapse: collapse; }
+  table.td th, table.td td { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; }
+  table.td th { font-size: 11px; text-transform: uppercase; color: #777; white-space: nowrap; }
+  table.td td.n, table.td th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .td-err { color: #9b2226; font-weight: 600; }
+
+  .td-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .td-complete { background: #dff3e4; color: #1d6b38; }
+  .td-partial  { background: #fdf3d6; color: #8a6100; }
+  .td-errors   { background: #fbdedf; color: #9b2226; }
+  .td-absent   { background: #eee;    color: #666; }
+
+  .td-bar { position: relative; height: 7px; background: #eee; border-radius: 4px; overflow: hidden; min-width: 90px; }
+  .td-bar > span { display: block; height: 100%; background: #4bbf73; }
+  .td-bar.has-err > span { background: #f0ad4e; }
+
+  /* Explicit colour: the theme's global button rule is white, for dark buttons. */
+  .td-btn {
+      border: 1px solid #cfcfcf; background: #fff; color: #222;
+      border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer;
+      margin-right: 4px; line-height: 1.4; font-family: inherit;
+  }
+  .td-btn:hover:not(:disabled) { background: #f3f3f3; color: #000; }
+  .td-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .td-btn-cost { border-color: #e0b4b4; }
+  .td-btn-danger { border-color: #d9534f; color: #9b2226; }
+
+  .td-quota { padding: 9px 11px; border-radius: 4px; background: #f6f7f9; border-left: 3px solid #c9d4e0; }
+  .td-quota.warn { background: #fff6f6; border-left-color: #d9534f; }
+  .td-note { color: #777; line-height: 1.55; }
+  .td-pre {
+      background: #f7f7f8; border: 1px solid #e6e6e6; border-radius: 4px;
+      padding: 11px; font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; overflow-x: auto;
+      max-height: 340px; color: #333;
+  }
+  .td-scroll { max-height: 520px; overflow-y: auto; }
+  #td-status { color: #2271b1; margin-left: 8px; }
+  .td-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+</style>
+
+<div class="td-wrap">
+  <h1>New Testament Translation Dashboard</h1>
+  <p class="td-sub">
+    Coverage across {{ summary.books }} books &middot; {{ summary.chapters }} chapters &middot;
+    {{ summary.source_verses }} source verses &middot; {{ summary.languages_total }} target languages.
+    <span id="td-status"></span>
+  </p>
+
+  <!-- ── Overview ──────────────────────────────────────────────────── -->
+  <div class="td-card">
+    <h2>Overview</h2>
+    <div class="td-body">
+      <div class="td-tiles">
+        <div class="td-tile"><div class="n">{{ summary.source_verses }}</div><div class="k">source verses</div></div>
+        <div class="td-tile"><div class="n">{{ summary.languages_started }}</div><div class="k">languages started</div></div>
+        <div class="td-tile"><div class="n">{{ summary.languages_complete }}</div><div class="k">languages complete</div></div>
+        <div class="td-tile"><div class="n">{{ summary.verses_ok }}</div><div class="k">verse rows OK</div></div>
+        <div class="td-tile warn"><div class="n">{{ summary.verses_err }}</div><div class="k">verse failures</div></div>
+        <div class="td-tile"><div class="n">{{ summary.notes_ok }}</div><div class="k">footnote rows OK</div></div>
+        <div class="td-tile warn"><div class="n">{{ summary.notes_err }}</div><div class="k">footnote failures</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Coverage by language ──────────────────────────────────────── -->
+  <div class="td-card">
+    <h2>Coverage by language</h2>
+    <div class="td-body">
+      <div class="td-actions">
+        <label><input type="checkbox" id="td-hide-absent"> hide untranslated languages</label>
+        <button type="button" class="td-btn td-btn-danger" id="td-clean-nt" style="margin-left:auto;">
+          Clean ALL NT failures ({{ summary.verses_err|add:summary.notes_err }} rows &middot; no API use)
+        </button>
+      </div>
+      <div class="td-scroll">
+        <table class="td" id="td-lang-table">
+          <thead>
+            <tr>
+              <th>Language</th><th>State</th><th style="width:130px;">NT complete</th>
+              <th class="n">Verses OK</th><th class="n">Failed</th><th class="n">Missing</th>
+              <th class="n">Books</th><th class="n">Notes OK</th><th class="n">Notes failed</th>
+              <th>Tools</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in languages %}
+            <tr data-state="{{ e.state }}">
+              <td>{{ e.label }} <span style="color:#aaa;">{{ e.code }}</span></td>
+              <td><span class="td-pill td-{{ e.state }}">{{ e.state }}</span></td>
+              <td>
+                <div class="td-bar {% if e.verses_err %}has-err{% endif %}"><span style="width: {{ e.pct }}%;"></span></div>
+                <span style="font-size:11px; color:#777;">{{ e.pct }}%</span>
+              </td>
+              <td class="n">{{ e.verses_ok }}</td>
+              <td class="n {% if e.verses_err %}td-err{% endif %}">{% if e.verses_err %}{{ e.verses_err }}{% endif %}</td>
+              <td class="n">{{ e.verses_missing }}</td>
+              <td class="n">{{ e.books_started }}</td>
+              <td class="n">{{ e.notes_ok }}</td>
+              <td class="n {% if e.notes_err %}td-err{% endif %}">{% if e.notes_err %}{{ e.notes_err }}{% endif %}</td>
+              <td>
+                <button type="button" class="td-btn td-clean-lang" data-lang="{{ e.code }}"
+                        {% if not e.verses_err and not e.notes_err %}disabled{% endif %}
+                        title="Delete this language's stored failures across the whole NT. No API use.">Clean NT</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Coverage by book ──────────────────────────────────────────── -->
+  <div class="td-card">
+    <h2>Coverage by book</h2>
+    <div class="td-body">
+      <div class="td-scroll">
+        <table class="td">
+          <thead>
+            <tr>
+              <th>Book</th><th class="n">Chapters</th><th class="n">Source verses</th>
+              <th class="n">Verse rows OK</th><th class="n">Failed</th><th class="n">Languages started</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in books %}
+            <tr>
+              <td>{{ b.book }}</td>
+              <td class="n">{{ b.chapters }}</td>
+              <td class="n">{{ b.source_verses }}</td>
+              <td class="n">{{ b.verses_ok }}</td>
+              <td class="n {% if b.verses_err %}td-err{% endif %}">{% if b.verses_err %}{{ b.verses_err }}{% endif %}</td>
+              <td class="n">{{ b.languages_started }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Prompt configuration ──────────────────────────────────────── -->
+  <div class="td-card">
+    <h2>Prompt configuration</h2>
+    <div class="td-body">
+      <p class="td-note" style="margin-top:0;">
+        The Gemini prompt is built for a <strong>whole chapter</strong> &mdash; every tool here and in the
+        verse editor queues that same chapter job. Terms below are injected into both the chapter and
+        footnote prompts so the two cannot drift.
+        Editing is in code: <code>TRANSLATION_GLOSSARY</code> and <code>LANGUAGE_TERM_OVERRIDES</code>
+        in <code>search/translation_utils.py</code>.
+      </p>
+
+      <table class="td" style="margin-bottom:16px;">
+        <thead><tr><th>Term</th><th>Intended sense</th><th>Pinned renderings</th></tr></thead>
+        <tbody>
+          {% for g in glossary %}
+          <tr>
+            <td><strong>{{ g.term }}</strong></td>
+            <td>{{ g.sense }}<br><span style="color:#777;">Avoid: {{ g.avoid }}</span></td>
+            <td>
+              {% for code, terms in overrides.items %}
+                {% for t, v in terms.items %}
+                  {% if t == g.term %}<div>{{ code }} &rarr; <strong>{{ v }}</strong></div>{% endif %}
+                {% endfor %}
+              {% empty %}<span style="color:#999;">none</span>{% endfor %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" style="color:#999;">No glossary terms defined.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <p class="td-note" style="margin-bottom:6px;">
+        <strong>Prompt section as sent</strong> (example for {{ sample_lang_name }} &mdash; the language with a pinned term):
+      </p>
+      <div class="td-pre">{{ glossary_preview }}</div>
+    </div>
+  </div>
+
+  <!-- ── API status ────────────────────────────────────────────────── -->
+  <div class="td-card">
+    <h2>API status</h2>
+    <div class="td-body">
+      <div class="td-quota {% if api.rate_limited %}warn{% endif %}" style="margin-bottom:14px;">
+        <strong>{{ api.keys_configured }}</strong> Gemini key(s) configured &middot;
+        <strong>{{ api.today }}</strong> call(s) today &middot;
+        <span {% if api.rate_limited %}class="td-err"{% endif %}>{{ api.rate_limited }} rate-limited (429)</span> &middot;
+        {{ api.errors }} other error(s)
+        {% if api.rate_limited %}<br>Free-tier quota is being hit &mdash; prefer cleaning now and translating later.{% endif %}
+      </div>
+
+      {% if api.by_key %}
+      <table class="td" style="margin-bottom:14px;">
+        <thead><tr><th>Key</th><th class="n">OK</th><th class="n">Rate limited</th><th class="n">Failed</th></tr></thead>
+        <tbody>
+          {% for k in api.by_key %}
+          <tr>
+            <td>&hellip;{{ k.api_key_abbrev }}</td>
+            <td class="n">{{ k.ok }}</td>
+            <td class="n {% if k.limited %}td-err{% endif %}">{{ k.limited }}</td>
+            <td class="n {% if k.failed %}td-err{% endif %}">{{ k.failed }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      <p class="td-note" style="margin:0;">
+        Models: <code>gemini-3-flash-preview</code>, falling back to <code>gemini-2.5-flash</code> when a
+        response cannot be parsed. Keys rotate on quota errors. Configured via the
+        <code>GEMINI_API_KEYS</code> environment variable (comma separated); values are never shown here.
+        Per-request logs: <a href="/api/gemini/dashboard/">Gemini usage dashboard</a>.
+      </p>
+    </div>
+  </div>
+
+  <p class="td-note">
+    <strong>Cost model.</strong> Cleaning only deletes stored failures and uses no API quota.
+    Translating or retrying spends one chapter call per language. Per-chapter tools live in the
+    verse editor's <em>Translation coverage</em> panel.
+  </p>
+</div>
+
+<script>
+(function () {
+    var statusEl = document.getElementById('td-status');
+    var busy = false;
+
+    function say(msg, isErr) {
+        statusEl.textContent = msg || '';
+        statusEl.style.color = isErr ? '#d9534f' : '#2271b1';
+    }
+
+    function clean(params, confirmMsg, btn) {
+        if (busy) return;
+        if (!window.confirm(confirmMsg)) return;
+        busy = true;
+        if (btn) btn.disabled = true;
+        say('Cleaning…');
+        var qs = Object.keys(params).map(function (k) {
+            return k + '=' + encodeURIComponent(params[k]);
+        }).join('&');
+        fetch('/api/translation/clean-failed/?' + qs, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                busy = false;
+                say((res.message || 'Done') + ' Reloading…', res.status === 'error');
+                if (res.status !== 'error') { window.setTimeout(function () { location.reload(); }, 900); }
+                else if (btn) { btn.disabled = false; }
+            })
+            .catch(function () { busy = false; if (btn) btn.disabled = false; say('Request failed', true); });
+    }
+
+    var cleanNt = document.getElementById('td-clean-nt');
+    if (cleanNt) {
+        cleanNt.addEventListener('click', function () {
+            clean({ scope: 'nt', lang: 'all' },
+                  'Delete EVERY stored translation failure across the whole New Testament, ' +
+                  'in all languages?\n\nThis uses no API quota, but cannot be undone.',
+                  cleanNt);
+        });
+    }
+
+    var table = document.getElementById('td-lang-table');
+    if (table) {
+        table.addEventListener('click', function (ev) {
+            var btn = ev.target.closest('.td-clean-lang');
+            if (!btn) return;
+            var lang = btn.dataset.lang;
+            clean({ scope: 'nt', lang: lang },
+                  'Delete stored failures for "' + lang + '" across the whole New Testament?\n\n' +
+                  'No API quota is used. This cannot be undone.',
+                  btn);
+        });
+    }
+
+    var hide = document.getElementById('td-hide-absent');
+    if (hide && table) {
+        hide.addEventListener('change', function () {
+            var rows = table.querySelectorAll('tbody tr');
+            for (var i = 0; i < rows.length; i++) {
+                rows[i].style.display =
+                    (hide.checked && rows[i].dataset.state === 'absent') ? 'none' : '';
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

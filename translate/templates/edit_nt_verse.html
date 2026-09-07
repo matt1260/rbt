@@ -2206,6 +2206,14 @@ Cached: {{ cached_hit }}
   }
   .tx-btn:hover:not(:disabled) { background: #f3f3f3; color: #000; }
   .tx-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .tx-dash-link {
+      margin-left: auto;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      text-decoration: none;
+      border-bottom: 1px solid currentColor;
+  }
   .tx-btn-cost { border-color: #e0b4b4; }
   .tx-actions { margin: 12px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   #tx-status { margin-left: 8px; color: #2271b1; }
@@ -2225,9 +2233,13 @@ Cached: {{ cached_hit }}
     <div class="tx-actions">
       <button type="button" class="tx-btn" id="tx-refresh">Refresh</button>
       <button type="button" class="tx-btn" id="tx-clean-all">Clean all failed rows (no API use)</button>
-      <label style="margin-left:auto; color:#777;">
+      <label style="color:#777;">
         <input type="checkbox" id="tx-hide-absent"> hide untranslated languages
       </label>
+      <a class="tx-dash-link" href="/api/translation/dashboard/" target="_blank" rel="noopener"
+         title="NT-wide coverage, prompt configuration and API status">
+        Full NT dashboard &rarr;
+      </a>
     </div>
 
     <table id="tx-table">
