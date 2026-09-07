@@ -980,7 +980,12 @@ Wescott & Hort Greek NT:
     (function () {
         var verseShareUrl = window.location.href.split('#')[0];
         var verseReference = '{{ book|escapejs }} {{ chapter_num|escapejs }}:{{ verse_num|escapejs }}';
-        var verseText = document.getElementById('englishReader')?.textContent.trim() || '';
+        // The reader span wraps the verse as `<strong>RBT Translation:</strong><div>…</div>`,
+        // so read the inner div. textContent on the span glued the UI label onto the
+        // quote, producing shares that read: 3 John 1:3: "RBT Translation:For I rejoiced…"
+        var readerEl = document.getElementById('englishReader');
+        var verseBody = readerEl ? (readerEl.querySelector('div') || readerEl) : null;
+        var verseText = verseBody ? verseBody.textContent.trim() : '';
         var shareText = verseReference + (verseText ? ': "' + verseText.slice(0, 240) + (verseText.length > 240 ? '…' : '') + '"' : '');
         var status = document.getElementById('verseShareStatus');
         var shareButton = document.getElementById('nativeShare');
@@ -999,8 +1004,8 @@ Wescott & Hort Greek NT:
                 return;
             }
 
-                navigator.share({ title: verseReference, text: shareText, url: verseShareUrl }).catch(function () {});
-        }
+            navigator.share({ title: verseReference, text: shareText, url: verseShareUrl }).catch(function () {});
+        });
 
         copyButton.addEventListener('click', function () {
             if (!navigator.clipboard) {
