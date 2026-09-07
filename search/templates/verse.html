@@ -1015,13 +1015,47 @@ Wescott & Hort Greek NT:
     (function () {
         var verseShareUrl = window.location.href.split('#')[0];
         var verseReference = '{{ book|escapejs }} {{ chapter_num|escapejs }}:{{ verse_num|escapejs }}';
-        // The reader span wraps the verse as `<strong>RBT Translation:</strong><div>…</div>`,
-        // so read the inner div. textContent on the span glued the UI label onto the
-        // quote, producing shares that read: 3 John 1:3: "RBT Translation:For I rejoiced…"
+        // Share the verse and nothing else. The rendered verse also carries a
+        // section <h5>, footnote markers (<a class="sdfootnoteanc"><sup>N</sup></a>)
+        // and .tooltip-container popups holding images and long commentary -- all of
+        // which landed in the shared quote as one run-on blob.
+        function cleanVerseText(rootEl) {
+            if (!rootEl) return '';
+            var clone = rootEl.cloneNode(true);
+            var drop = clone.querySelectorAll(
+                'h1, h2, h3, h4, h5, h6, ' +          // section headings
+                '.tooltip-container, .tooltip, .tooltip2, ' +  // popup blocks
+                '.touch-indicator, ' +
+                'a.sdfootnoteanc, sup, ' +            // footnote reference numbers
+                '.verse_ref, .note-location, ' +      // verse numbers / note labels
+                'img, figure, center, script, style'
+            );
+            for (var i = 0; i < drop.length; i++) {
+                drop[i].parentNode && drop[i].parentNode.removeChild(drop[i]);
+            }
+            return (clone.textContent || '')
+                .replace(/\s+/g, ' ')
+                .replace(/\s+([,.;:!?])/g, '$1')   // tidy space left by removed markers
+                .trim();
+        }
+
+        // On a translated page share the translation; otherwise the English.
+        // #englishReader wraps its verse as `<strong>RBT Translation:</strong><div>…</div>`,
+        // so read the inner div or the label joins the quote.
+        var translatedEl = document.getElementById('translatedReader');
         var readerEl = document.getElementById('englishReader');
-        var verseBody = readerEl ? (readerEl.querySelector('div') || readerEl) : null;
-        var verseText = verseBody ? verseBody.textContent.trim() : '';
-        var shareText = verseReference + (verseText ? ': "' + verseText.slice(0, 240) + (verseText.length > 240 ? '…' : '') + '"' : '');
+        var verseSource = translatedEl ||
+            (readerEl ? (readerEl.querySelector('div') || readerEl) : null);
+        var verseText = cleanVerseText(verseSource);
+
+        // Truncate on a word boundary rather than mid-word.
+        if (verseText.length > 240) {
+            var cut = verseText.slice(0, 240);
+            var lastSpace = cut.lastIndexOf(' ');
+            verseText = (lastSpace > 180 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:]+$/, '') + '…';
+        }
+
+        var shareText = verseReference + (verseText ? ': "' + verseText + '"' : '');
         var status = document.getElementById('verseShareStatus');
         var shareButton = document.getElementById('nativeShare');
         var copyButton = document.getElementById('copyVerseLink');
