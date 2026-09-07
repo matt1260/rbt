@@ -315,6 +315,29 @@
         margin-top: 1px;
     }
 
+    /* Translated reading, shown above the English RBT source. */
+    .translated_verse {
+        border-left: 3px solid #c9d4e0;
+        padding: 0.35em 0 0.35em 0.85em;
+        margin-bottom: 1.2em;
+    }
+
+    .translated_verse > strong {
+        display: block;
+        font-size: 0.78em;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #7a8794;
+        margin-bottom: 0.3em;
+    }
+
+    .translated_verse[dir="rtl"] {
+        border-left: 0;
+        border-right: 3px solid #c9d4e0;
+        padding: 0.35em 0.85em 0.35em 0;
+        text-align: right;
+    }
+
     .verse-share {
         display: flex;
         align-items: center;
@@ -327,6 +350,11 @@
         color: #666;
         font-size: 13px;
         margin-right: 2px;
+    }
+
+    /* Beats the display:inline-flex below, so el.hidden actually hides. */
+    .verse-share-button[hidden] {
+        display: none;
     }
 
     .verse-share-button {
@@ -932,6 +960,13 @@ Wescott & Hort Greek NT:
 </script>
 
     {% if rbt %}
+        {% if translated_verse %}
+        {# Translated reading first; the English RBT stays below it as the source. #}
+        <div class="single_verse translated_verse" lang="{{ current_language }}"{% if is_rtl %} dir="rtl"{% endif %}>
+            <strong>{{ translated_language_label }}:</strong>
+            <div id="translatedReader">{{ translated_verse|safe }}</div>
+        </div>
+        {% endif %}
         <div class="single_verse">
             <span id="englishReader">{{ rbt|safe }}
             </span>
@@ -998,14 +1033,17 @@ Wescott & Hort Greek NT:
         xShareUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(verseShareUrl);
         xButton.href = xShareUrl;
 
-        shareButton.addEventListener('click', function () {
-            if (!navigator.share) {
-                window.open(xShareUrl, '_blank', 'noopener,noreferrer');
-                return;
-            }
-
-            navigator.share({ title: verseReference, text: shareText, url: verseShareUrl }).catch(function () {});
-        });
+        // The Web Share API is missing on most desktop browsers. The previous
+        // fallback opened the X intent, which made this button a silent duplicate
+        // of the X button next to it. Hide it instead: desktop shows X + Copy
+        // link, mobile additionally gets the real native share sheet.
+        if (!navigator.share) {
+            shareButton.hidden = true;
+        } else {
+            shareButton.addEventListener('click', function () {
+                navigator.share({ title: verseReference, text: shareText, url: verseShareUrl }).catch(function () {});
+            });
+        }
 
         copyButton.addEventListener('click', function () {
             if (!navigator.clipboard) {

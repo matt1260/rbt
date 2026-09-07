@@ -30,7 +30,7 @@ from translate.translator import (
     new_testament_books,
     load_json,
 )
-from search.seo_utils import book_to_slug, slug_to_book
+from search.seo_utils import book_to_slug, slug_to_book, RTL_LANGUAGES
 from search.rbt_titles import rbt_books
 from search.translation_utils import SUPPORTED_LANGUAGES
 from search.db_utils import execute_query
@@ -223,6 +223,59 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
         hebrew_cards = results.get('hebrew_interlinear_cards')
         hebrew_cards = hebrew_cards or []
 
+        # Footnotes carry their own translations, keyed differently from the verse.
+        # get_footnote() renders '1-1-1' by taking the trailing number and looking up
+        # '<abbrev>-<n>' (Joh-1); verse_translations keys the same note by FULL book
+        # name ('John-1'). Map across that gap so translated notes appear too.
+        if footnote_contents and language and language != 'en':
+            footnote_ids = results.get('current_verse_footnotes') or []
+            wanted = {}
+            for idx, raw_id in enumerate(footnote_ids):
+                number = str(raw_id).split('-')[-1]
+                wanted[f'{book}-{number}'] = idx
+
+            if wanted:
+                translated_notes = {}
+                for trans in (
+                    VerseTranslation.objects
+                    .filter(
+                        footnote_id__in=list(wanted.keys()),
+                        language_code=language,
+                        status='completed',
+                    )
+                    .exclude(footnote_text__isnull=True)
+                    .exclude(footnote_text='')
+                    .exclude(footnote_text__startswith='[Translation error')
+                ):
+                    translated_notes[trans.footnote_id] = trans.footnote_text
+
+                if translated_notes:
+                    footnote_contents = list(footnote_contents)
+                    for key, idx in wanted.items():
+                        if key not in translated_notes or idx >= len(footnote_contents):
+                            continue
+                        row = footnote_contents[idx]
+                        body = translated_notes[key]
+                        # Swap only the note body, keeping get_footnote()'s row
+                        # scaffolding (number cell + note-location) intact.
+                        swapped, n = re.subn(
+                            r'(<div class="note-location">.*?</div>)(.*?)(</td>\s*</tr>)',
+                            lambda m: m.group(1) + body + m.group(3),
+                            row,
+                            count=1,
+                            flags=re.DOTALL,
+                        )
+                        if not n:
+                            swapped, n = re.subn(
+                                r'(<td[^>]*>)(?:(?!</td>).)*(</td>\s*</tr>)',
+                                lambda m: m.group(1) + body + m.group(2),
+                                row,
+                                count=1,
+                                flags=re.DOTALL,
+                            )
+                        if n:
+                            footnote_contents[idx] = swapped
+
         if footnote_contents:
             footnotes_content = "<p> ".join(footnote_contents)
             footnotes_content = f'<div style="font-size: 12px;">{footnotes_content}</div>'
@@ -230,6 +283,44 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
             footnotes_content = ''
         
         rbt_paraphrase = rbt_paraphrase or ''
+
+        # Verse pages never consulted verse_translations, so /<lang>/<book>/<ch>/<v>/
+        # served English in all 38 languages while the chapter page beside it was
+        # correctly translated. Show the translation above the English rather than
+        # replacing it -- on a study page both are useful.
+        translated_verse = ''
+        translated_language_label = ''
+        if language and language != 'en':
+            try:
+                verse_int = int(str(verse_num).strip())
+            except (TypeError, ValueError):
+                verse_int = None
+            if verse_int is not None:
+                # verse_translations stores book names inconsistently ('3 John'
+                # and '3John' both occur), so try the spaced and unspaced forms.
+                book_variants = {book, book.replace(' ', '')}
+                trans = (
+                    VerseTranslation.objects
+                    .filter(
+                        book__in=list(book_variants),
+                        chapter=chapter_num,
+                        verse=verse_int,
+                        language_code=language,
+                        status='completed',
+                        footnote_id__isnull=True,
+                    )
+                    .exclude(verse_text__isnull=True)
+                    .exclude(verse_text='')
+                    # ~18% of rows are stored Gemini failures ("[Translation
+                    # error: 503 UNAVAILABLE...") saved with status='completed'.
+                    # Never render those as if they were a translation.
+                    .exclude(verse_text__startswith='[Translation error')
+                    .first()
+                )
+                if trans:
+                    translated_verse = trans.verse_text
+                    translated_language_label = dict(SUPPORTED_LANGUAGES).get(language, language)
+
         rbt = f'<strong>RBT Translation:</strong><div>{rbt}</div>'
 
         from django.utils.html import strip_tags
@@ -258,6 +349,10 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
             'verse_num': verse_num,
             'slt': slt,
             'rbt': rbt,
+            'translated_verse': translated_verse,
+            'translated_language_label': translated_language_label,
+            'current_language': language,
+            'is_rtl': language in RTL_LANGUAGES,
             'rbt_text': rbt_text,
             'rbt_paraphrase': rbt_paraphrase,
             'englxx': eng_lxx,
