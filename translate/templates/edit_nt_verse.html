@@ -2144,4 +2144,258 @@ Cached: {{ cached_hit }}
     })();
     </script>
 
+
+<!-- ── Translation coverage (NT only) ─────────────────────────────────────
+     Chapter-scoped on purpose: the Gemini prompt is engineered for a whole
+     chapter, so every action here queues the existing chapter job rather than
+     translating this verse alone. -->
+<style>
+  #tx-panel {
+      margin: 2.5em auto 4em;
+      max-width: 1100px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 13px;
+  }
+  #tx-panel > summary {
+      cursor: pointer;
+      padding: 12px 16px;
+      font-weight: 600;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+  }
+  #tx-panel > summary::-webkit-details-marker { display: none; }
+  #tx-panel > summary::before { content: "\25B8"; color: #888; }
+  #tx-panel[open] > summary::before { content: "\25BE"; }
+  #tx-body { padding: 0 16px 16px; }
+  .tx-pill {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 600; letter-spacing: .02em;
+  }
+  .tx-complete { background: #dff3e4; color: #1d6b38; }
+  .tx-partial  { background: #fdf3d6; color: #8a6100; }
+  .tx-errors   { background: #fbdedf; color: #9b2226; }
+  .tx-absent   { background: #eee;    color: #666; }
+  .tx-summary { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 6px; }
+  .tx-quota {
+      margin: 8px 0 14px; padding: 8px 10px; border-radius: 4px;
+      background: #f6f7f9; color: #444; border-left: 3px solid #c9d4e0;
+  }
+  .tx-quota.tx-quota-warn { background: #fff6f6; border-left-color: #d9534f; }
+  #tx-table { width: 100%; border-collapse: collapse; }
+  #tx-table th, #tx-table td {
+      padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left;
+      vertical-align: middle;
+  }
+  #tx-table th { font-size: 11px; text-transform: uppercase; color: #777; }
+  #tx-table td.tx-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tx-err-count { color: #9b2226; font-weight: 600; }
+  /* The theme's global button rule sets color:#fff for dark buttons, which made
+     these invisible on a white background. Set colour explicitly. */
+  .tx-btn {
+      border: 1px solid #cfcfcf; background: #fff; border-radius: 4px;
+      padding: 3px 8px; font-size: 12px; cursor: pointer; margin-right: 4px;
+      /* Needed: the theme's button colour is white, for dark buttons. */
+      color: #222;
+      line-height: 1.4;
+      font-family: inherit;
+  }
+  .tx-btn:hover:not(:disabled) { background: #f3f3f3; color: #000; }
+  .tx-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .tx-btn-cost { border-color: #e0b4b4; }
+  .tx-actions { margin: 12px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  #tx-status { margin-left: 8px; color: #2271b1; }
+  .tx-note { color: #777; margin: 10px 0 0; line-height: 1.5; }
+</style>
+
+<details id="tx-panel" data-book="{{ book }}" data-chapter="{{ chapter_num }}">
+  <summary>
+    Translation coverage &mdash; {{ book }} {{ chapter_num }}
+    <span id="tx-headline" class="tx-pill tx-absent">not loaded</span>
+    <span id="tx-status"></span>
+  </summary>
+  <div id="tx-body">
+    <div class="tx-summary" id="tx-summary"></div>
+    <div class="tx-quota" id="tx-quota"></div>
+
+    <div class="tx-actions">
+      <button type="button" class="tx-btn" id="tx-refresh">Refresh</button>
+      <button type="button" class="tx-btn" id="tx-clean-all">Clean all failed rows (no API use)</button>
+      <label style="margin-left:auto; color:#777;">
+        <input type="checkbox" id="tx-hide-absent"> hide untranslated languages
+      </label>
+    </div>
+
+    <table id="tx-table">
+      <thead>
+        <tr>
+          <th>Language</th><th>State</th>
+          <th class="tx-num">Verses</th><th class="tx-num">Failed</th><th class="tx-num">Missing</th>
+          <th class="tx-num">Notes</th><th class="tx-num">Failed</th><th class="tx-num">Missing</th>
+          <th>Tools</th>
+        </tr>
+      </thead>
+      <tbody id="tx-rows"></tbody>
+    </table>
+
+    <p class="tx-note">
+      The Gemini prompt is built for a whole chapter, so every action here queues the
+      existing chapter job &mdash; nothing translates a single verse in isolation.
+      <strong>Clean</strong> only deletes stored failures and costs no API quota;
+      <strong>Retry failed</strong> and <strong>Translate</strong> each spend a chapter
+      call against the free tier.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+    var panel = document.getElementById('tx-panel');
+    if (!panel) return;
+
+    var book = panel.dataset.book, chapter = panel.dataset.chapter;
+    var statusEl = document.getElementById('tx-status');
+    var rowsEl = document.getElementById('tx-rows');
+    var loaded = false, busy = false, lastStats = null;
+
+    function say(msg, isError) {
+        statusEl.textContent = msg || '';
+        statusEl.style.color = isError ? '#d9534f' : '#2271b1';
+    }
+
+    function qs(params) {
+        return Object.keys(params)
+            .map(function (k) { return k + '=' + encodeURIComponent(params[k]); })
+            .join('&');
+    }
+
+    function call(path, params) {
+        return fetch(path + '?' + qs(params), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); });
+    }
+
+    function render(stats) {
+        lastStats = stats;
+        var s = stats.summary;
+
+        var head = document.getElementById('tx-headline');
+        head.textContent = s.complete + ' / ' + s.total + ' complete';
+        head.className = 'tx-pill ' + (s.errors ? 'tx-errors' : (s.complete === s.total ? 'tx-complete' : 'tx-partial'));
+
+        document.getElementById('tx-summary').innerHTML =
+            '<span><span class="tx-pill tx-complete">' + s.complete + '</span> complete</span>' +
+            '<span><span class="tx-pill tx-partial">' + s.partial + '</span> partial</span>' +
+            '<span><span class="tx-pill tx-errors">' + s.errors + '</span> with failures</span>' +
+            '<span><span class="tx-pill tx-absent">' + s.absent + '</span> untranslated</span>' +
+            '<span style="color:#777;">source: ' + stats.source_verses + ' verses, ' +
+                stats.source_footnotes + ' footnotes</span>' +
+            (s.error_rows ? '<span class="tx-err-count">' + s.error_rows + ' stored failure rows</span>' : '');
+
+        var q = stats.quota, quotaEl = document.getElementById('tx-quota');
+        quotaEl.className = 'tx-quota' + (q.rate_limited ? ' tx-quota-warn' : '');
+        quotaEl.innerHTML =
+            '<strong>Gemini free tier today:</strong> ' + q.today + ' call(s)' +
+            (q.rate_limited ? ' &middot; <span class="tx-err-count">' + q.rate_limited + ' rate-limited (429)</span>' : '') +
+            (q.errors ? ' &middot; ' + q.errors + ' other error(s)' : '') +
+            (q.rate_limited ? ' &mdash; quota is being hit; prefer Clean now and re-translate later.' : '');
+
+        var hideAbsent = document.getElementById('tx-hide-absent').checked;
+        rowsEl.innerHTML = '';
+        stats.languages.forEach(function (e) {
+            if (hideAbsent && e.state === 'absent') return;
+            var tr = document.createElement('tr');
+            var failed = e.verses_err + e.notes_err;
+            tr.innerHTML =
+                '<td>' + e.label + ' <span style="color:#aaa;">' + e.code + '</span></td>' +
+                '<td><span class="tx-pill tx-' + e.state + '">' + e.state + '</span></td>' +
+                '<td class="tx-num">' + e.verses_ok + '</td>' +
+                '<td class="tx-num' + (e.verses_err ? ' tx-err-count' : '') + '">' + (e.verses_err || '') + '</td>' +
+                '<td class="tx-num">' + (e.verses_missing || '') + '</td>' +
+                '<td class="tx-num">' + e.notes_ok + '</td>' +
+                '<td class="tx-num' + (e.notes_err ? ' tx-err-count' : '') + '">' + (e.notes_err || '') + '</td>' +
+                '<td class="tx-num">' + (e.notes_missing || '') + '</td>' +
+                '<td>' +
+                    '<button type="button" class="tx-btn" data-act="clean" data-lang="' + e.code + '"' +
+                        (failed ? '' : ' disabled') + ' title="Delete stored failures. No API use.">Clean</button>' +
+                    '<button type="button" class="tx-btn tx-btn-cost" data-act="retry" data-lang="' + e.code + '"' +
+                        (failed ? '' : ' disabled') + ' title="Delete failures and re-queue the chapter. Uses quota.">Retry failed</button>' +
+                    '<button type="button" class="tx-btn tx-btn-cost" data-act="start" data-lang="' + e.code + '"' +
+                        ' title="Queue the whole chapter. Uses quota.">Translate</button>' +
+                '</td>';
+            rowsEl.appendChild(tr);
+        });
+    }
+
+    function load(msg) {
+        if (busy) return Promise.resolve();
+        busy = true;
+        say(msg || 'Loading\u2026');
+        return call('/api/translation/stats/', { book: book, chapter: chapter })
+            .then(function (res) {
+                if (res.status !== 'ok') { say(res.message || 'Failed to load', true); return; }
+                render(res.stats);
+                loaded = true;
+                say('');
+            })
+            .catch(function () { say('Failed to load stats', true); })
+            .finally(function () { busy = false; });
+    }
+
+    panel.addEventListener('toggle', function () {
+        if (panel.open && !loaded) load();
+    });
+
+    document.getElementById('tx-refresh').addEventListener('click', function () { load('Refreshing\u2026'); });
+
+    document.getElementById('tx-hide-absent').addEventListener('change', function () {
+        if (lastStats) render(lastStats);
+    });
+
+    document.getElementById('tx-clean-all').addEventListener('click', function () {
+        if (!lastStats) return;
+        var n = lastStats.summary.error_rows;
+        if (!n) { say('No failed rows to clean.'); return; }
+        if (!window.confirm('Delete ' + n + ' stored failure row(s) for ' + book + ' ' + chapter +
+                            ' across all languages?\n\nThis uses no API quota and cannot be undone.')) return;
+        busy = true; say('Cleaning\u2026');
+        call('/api/translation/clean-failed/', { book: book, chapter: chapter, lang: 'all' })
+            .then(function (res) { busy = false; say(res.message || 'Done'); return load(''); })
+            .catch(function () { busy = false; say('Clean failed', true); });
+    });
+
+    rowsEl.addEventListener('click', function (ev) {
+        var btn = ev.target.closest('button[data-act]');
+        if (!btn || busy) return;
+        var act = btn.dataset.act, lang = btn.dataset.lang;
+
+        var endpoints = {
+            clean: '/api/translation/clean-failed/',
+            retry: '/api/translation/retry-failed/',
+            start: '/api/translation/start/'
+        };
+
+        if (act !== 'clean') {
+            if (!window.confirm('This queues a full-chapter Gemini job for "' + lang +
+                                '" and spends free-tier quota.\n\nContinue?')) return;
+        }
+
+        busy = true;
+        btn.disabled = true;
+        say(act === 'clean' ? 'Cleaning\u2026' : 'Queueing\u2026');
+
+        call(endpoints[act], { book: book, chapter: chapter, lang: lang })
+            .then(function (res) {
+                busy = false;
+                say(res.message || res.status || 'Done', res.status === 'error');
+                return load('');
+            })
+            .catch(function () { busy = false; btn.disabled = false; say('Request failed', true); });
+    });
+})();
+</script>
+
     {% endblock %}

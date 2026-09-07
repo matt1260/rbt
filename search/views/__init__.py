@@ -44,6 +44,8 @@ from .translation_views import (
     translation_job_status,
     clear_translation_cache,
     retry_failed_translations,
+    translation_stats_api,
+    clean_failed_translations,
 )
 
 # Chapter views (PARTIAL - core functions only)
@@ -145,6 +147,8 @@ __all__ = [
     'translation_job_status',
     'clear_translation_cache',
     'retry_failed_translations',
+    'translation_stats_api',
+    'clean_failed_translations',
     
     # Chapter views (PARTIAL)
     'home',

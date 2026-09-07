@@ -23,6 +23,154 @@ from .footnote_views import get_footnote
 INTERLINEAR_CACHE_VERSION = 'v3'
 
 
+# Gemini failures are persisted as ordinary rows with status='completed', so the
+# only way to tell a real translation from a dead one is the text prefix.
+TRANSLATION_ERROR_PREFIXES = ('[Translation error', '[Translation parsing error')
+
+
+def translation_error_q(field='verse_text'):
+    """Q object matching rows whose text is a stored Gemini failure."""
+    q = Q()
+    for prefix in TRANSLATION_ERROR_PREFIXES:
+        q |= Q(**{f'{field}__startswith': prefix})
+    return q
+
+
+def _nt_footnote_table(book_abbrev):
+    table_abbrev = book_abbrev.lower()
+    if table_abbrev and table_abbrev[0].isdigit():
+        return f'table_{table_abbrev}_footnotes'
+    return f'{table_abbrev}_footnotes'
+
+
+def nt_chapter_translation_stats(book, chapter_num):
+    """Per-language translation coverage for one NT chapter.
+
+    Source tables key books by abbreviation ('Joh') while verse_translations
+    keys them by full name ('John'), so both forms are needed here.
+
+    Returns None for non-NT books -- this panel is NT-only for now.
+    """
+    from search.db_utils import execute_query  # local: keeps import graph flat
+    from search.models import GeminiUsageLog
+    from django.utils import timezone
+
+    if book not in new_testament_books:
+        return None
+
+    try:
+        chapter_num = int(chapter_num)
+    except (TypeError, ValueError):
+        return None
+
+    book_abbrev = book_abbreviations.get(book, book)
+
+    # --- source totals ---------------------------------------------------
+    row = execute_query(
+        'SELECT count(*) FROM new_testament.nt WHERE book = %s AND chapter = %s;',
+        (book_abbrev, chapter_num), fetch='one'
+    )
+    source_verses = int(row[0]) if row else 0
+
+    # Footnote ids in new_testament.<abbrev>_footnotes are sequential per BOOK
+    # ('Joh-1' ... 'Joh-787') with no chapter component, so counting that table
+    # would report the whole book. Count the notes this chapter's verses actually
+    # reference instead.
+    source_footnotes = 0
+    try:
+        rows = execute_query(
+            'SELECT rbt FROM new_testament.nt WHERE book = %s AND chapter = %s;',
+            (book_abbrev, chapter_num), fetch='all'
+        ) or []
+        chapter_html = ' '.join((r[0] or '') for r in rows)
+        source_footnotes = len(set(
+            re.findall(r'\?footnote=[0-9]+-[0-9]+-([0-9A-Za-z]+)', chapter_html)
+        ))
+    except Exception:
+        source_footnotes = 0
+
+    # --- translation rows, one query for the whole chapter ---------------
+    rows = VerseTranslation.objects.filter(
+        book=book, chapter=chapter_num, status='completed'
+    ).values_list('language_code', 'verse', 'verse_text', 'footnote_id', 'footnote_text')
+
+    per_lang = {}
+    for lang, verse, verse_text, footnote_id, footnote_text in rows:
+        d = per_lang.setdefault(lang, {
+            'verses_ok': set(), 'verses_err': set(),
+            'notes_ok': set(), 'notes_err': set(),
+        })
+        if footnote_id:
+            text = footnote_text or ''
+            bucket = 'notes_err' if text.startswith(TRANSLATION_ERROR_PREFIXES) else 'notes_ok'
+            if text:
+                d[bucket].add(footnote_id)
+        else:
+            text = verse_text or ''
+            if not text:
+                continue
+            bucket = 'verses_err' if text.startswith(TRANSLATION_ERROR_PREFIXES) else 'verses_ok'
+            d[bucket].add(verse)
+
+    languages = []
+    for code, label in SUPPORTED_LANGUAGES.items():
+        if code == 'en':
+            continue
+        d = per_lang.get(code)
+        v_ok = len(d['verses_ok']) if d else 0
+        v_err = len(d['verses_err']) if d else 0
+        n_ok = len(d['notes_ok']) if d else 0
+        n_err = len(d['notes_err']) if d else 0
+        v_missing = max(source_verses - v_ok - v_err, 0)
+        n_missing = max(source_footnotes - n_ok - n_err, 0)
+
+        if v_ok == 0 and v_err == 0:
+            state = 'absent'
+        elif v_err:
+            state = 'errors'
+        elif v_missing or n_missing:
+            state = 'partial'
+        else:
+            state = 'complete'
+
+        languages.append({
+            'code': code, 'label': label, 'state': state,
+            'verses_ok': v_ok, 'verses_err': v_err, 'verses_missing': v_missing,
+            'notes_ok': n_ok, 'notes_err': n_err, 'notes_missing': n_missing,
+        })
+
+    order = {'errors': 0, 'partial': 1, 'absent': 2, 'complete': 3}
+    languages.sort(key=lambda x: (order[x['state']], x['label']))
+
+    summary = {'complete': 0, 'partial': 0, 'errors': 0, 'absent': 0}
+    for entry in languages:
+        summary[entry['state']] += 1
+    summary['total'] = len(languages)
+    summary['error_rows'] = sum(e['verses_err'] + e['notes_err'] for e in languages)
+
+    # --- free-tier quota awareness ---------------------------------------
+    quota = {'today': 0, 'rate_limited': 0, 'errors': 0}
+    try:
+        since = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today = GeminiUsageLog.objects.filter(timestamp__gte=since)
+        quota['today'] = today.count()
+        quota['rate_limited'] = today.filter(status_code=429).count()
+        quota['errors'] = today.exclude(status_code__in=[200, 429]).count()
+    except Exception:
+        pass
+
+    return {
+        'book': book,
+        'book_abbrev': book_abbrev,
+        'chapter': chapter_num,
+        'source_verses': source_verses,
+        'source_footnotes': source_footnotes,
+        'languages': languages,
+        'summary': summary,
+        'quota': quota,
+    }
+
+
 def get_cache_key(book, chapter_num, verse_num, language):
     """Generate cache key for verse/chapter translations."""
     sanitized_book = book.replace(':', '_').replace(' ', '')
@@ -736,4 +884,84 @@ def retry_failed_translations(request):
         'status': 'ok',
         'job_id': job.job_id,
         'message': f'Retry started for {failed_count} failed verses.'
+    })
+
+
+@csrf_exempt
+def translation_stats_api(request):
+    """JSON translation coverage for one NT chapter, for the verse editor panel."""
+    book = request.GET.get('book')
+    chapter_num = request.GET.get('chapter')
+    if not book or not chapter_num:
+        return JsonResponse({'status': 'error', 'message': 'Missing parameters'})
+
+    stats = nt_chapter_translation_stats(book, chapter_num)
+    if stats is None:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Translation stats are available for New Testament books only.'
+        })
+    return JsonResponse({'status': 'ok', 'stats': stats})
+
+
+@csrf_exempt
+def clean_failed_translations(request):
+    """Delete stored Gemini failures for an NT chapter without re-translating.
+
+    Separate from retry_failed_translations, which deletes AND queues a new job.
+    Cleaning costs no API quota, which matters on the free tier: it lets a bad
+    run be cleared now and re-translated later when quota allows.
+
+    lang may be a language code, or 'all' for every language in the chapter.
+    """
+    # This one deletes rows, so unlike the read-only/queueing endpoints it is
+    # gated. Return JSON rather than letting @login_required 302 to a login page,
+    # which the panel's fetch() could not make sense of.
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {'status': 'error', 'message': 'Sign in to clean translations.'}, status=403
+        )
+
+    book = request.GET.get('book')
+    chapter_num = request.GET.get('chapter')
+    language = request.GET.get('lang')
+
+    if not book or not chapter_num or not language:
+        return JsonResponse({'status': 'error', 'message': 'Missing parameters'})
+
+    if book not in new_testament_books:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'This tool is limited to New Testament books.'
+        })
+
+    try:
+        chapter_num = int(chapter_num)
+    except ValueError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'})
+
+    rows = VerseTranslation.objects.filter(book=book, chapter=chapter_num, status='completed')
+    if language != 'all':
+        rows = rows.filter(language_code=language)
+
+    failed = rows.filter(translation_error_q('verse_text') | translation_error_q('footnote_text'))
+    languages_touched = sorted(set(failed.values_list('language_code', flat=True)))
+    removed = failed.count()
+    if removed:
+        failed.delete()
+        # Cached chapter payloads still hold the error text; drop them.
+        for code in languages_touched:
+            try:
+                invalidate_cached_render(get_cache_key(book, chapter_num, None, code))
+            except Exception:
+                pass
+
+    return JsonResponse({
+        'status': 'ok',
+        'removed': removed,
+        'languages': languages_touched,
+        'message': (
+            f'Removed {removed} failed row(s) across {len(languages_touched)} language(s).'
+            if removed else 'No failed translations found.'
+        ),
     })

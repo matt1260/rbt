@@ -30,6 +30,8 @@ urlpatterns = [
     path('translation/status/', views.translation_job_status, name='translation_job_status'),
     path('translation/clear-cache/', views.clear_translation_cache, name='clear_translation_cache'),
     path('translation/retry-failed/', views.retry_failed_translations, name='retry_failed_translations'),
+    path('translation/stats/', views.translation_stats_api, name='translation_stats_api'),
+    path('translation/clean-failed/', views.clean_failed_translations, name='clean_failed_translations'),
 
     # Aeon Bot API endpoints
     path('gemini/dashboard/', translate_views.gemini_dashboard_view, name='gemini_dashboard'),
