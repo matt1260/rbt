@@ -94,6 +94,88 @@ SUPPORTED_LANGUAGES = {
 }
 
 
+# ── RBT terminology glossary ──────────────────────────────────────────────
+# RBT renders some Greek/Hebrew words with a deliberate technical sense that a
+# general-purpose translator gets wrong. Gemini translated "The Logos Ratio"
+# into Polish as "Relacja Logos" -- defensible for a relation between things,
+# but wrong here: the intended sense is the mathematical one, where Polish
+# wants "stosunek".
+#
+# Each entry states the SENSE in English, which steers all 70+ target languages
+# at once. LANGUAGE_TERM_OVERRIDES then pins exact wording for the languages
+# where the correct term is known. Add to either as more cases surface.
+
+TRANSLATION_GLOSSARY = [
+    {
+        'term': 'Logos Ratio',
+        'sense': (
+            "Greek λόγος in its MATHEMATICAL sense: the ratio or proportion between "
+            "two quantities, as used by Euclid and Aristotle."
+        ),
+        'use': (
+            "the target language's ordinary MATHEMATICAL word for 'ratio' -- the one "
+            "used for 'a 2:1 ratio' or 'the length-to-width ratio'"
+        ),
+        'avoid': (
+            "words meaning 'word', 'speech', 'message' or 'account', and also any "
+            "general 'relation/relationship' word used for connections between "
+            "people or things"
+        ),
+    },
+]
+
+# language_code -> {english term: exact preferred rendering}
+LANGUAGE_TERM_OVERRIDES = {
+    'pl': {
+        # "relacja" can carry a quantitative sense, but "stosunek" is the
+        # conventional Polish mathematical term for ratio.
+        'Logos Ratio': 'Stosunek Logos',
+    },
+}
+
+
+def build_glossary_section(target_language_code):
+    """Render the glossary as a prompt section, or '' when there is nothing to say.
+
+    Shared by the chapter and footnote prompts so the two cannot drift.
+    """
+    if not TRANSLATION_GLOSSARY and target_language_code not in LANGUAGE_TERM_OVERRIDES:
+        return ''
+
+    overrides = LANGUAGE_TERM_OVERRIDES.get(target_language_code, {})
+    lines = [
+        "",
+        "TERMINOLOGY - THESE OVERRIDE YOUR DEFAULT WORD CHOICE:",
+        "These English phrases carry a specific technical sense. Translate the SENSE "
+        "described, not the most common dictionary meaning of the English words.",
+        "",
+    ]
+
+    for entry in TRANSLATION_GLOSSARY:
+        term = entry['term']
+        lines.append(f'- "{term}"')
+        lines.append(f"    Sense: {entry['sense']}")
+        lines.append(f"    Use: {entry['use']}.")
+        lines.append(f"    Do NOT use: {entry['avoid']}.")
+        if term in overrides:
+            lines.append(
+                f'    REQUIRED for this language: render "{term}" as "{overrides[term]}". '
+                "Inflect it naturally for grammatical case, number and agreement as the "
+                "sentence requires -- keep the vocabulary, not the exact surface form."
+            )
+        lines.append("")
+
+    extra = {k: v for k, v in overrides.items()
+             if k not in {e['term'] for e in TRANSLATION_GLOSSARY}}
+    if extra:
+        lines.append("Additional required renderings for this language:")
+        for term, target in extra.items():
+            lines.append(f'- "{term}" -> "{target}" (inflect naturally as needed)')
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def translate_chapter_batch(verses_dict, target_language_code, chapter=None):
     """Translate entire chapter at once for efficiency
     
@@ -166,6 +248,8 @@ Return ONLY the translated phrase, no explanation or extra text."""
     for verse_num in sorted(verse_dict_only.keys()):
         chapter_text += f"<<<VERSE_{verse_num}>>>\n{verse_dict_only[verse_num]}\n\n"
     
+    glossary_section = build_glossary_section(target_language_code)
+
     prompt = f"""Translate this Bible chapter to {language_name}.
 
 CRITICAL INSTRUCTIONS - READ CAREFULLY:
@@ -187,7 +271,8 @@ CRITICAL INSTRUCTIONS - READ CAREFULLY:
 15. SPECIAL: 'has sevened' and similar uses of 'seven' as a verbal should be translated to convey 'make seven' or 'cause to be seven' rather than a simple past tense, to preserve the original meaning and nuance.
 16. SPECIAL: 'self eternal' means 'eternal by one's own nature' or 'reflexively eternal' and is generally used adjectivally (e.g. 'the self-eternal stone' is a stone that exists of itself/self-existent) - translate accordingly to preserve this meaning.
 17. SPECIAL: 'the self' is integral to the meaning of certain phrases and should be preserved in translation (e.g. 'I, self, am striving' or 'learners of self' or he, self, is coming' - the 'self' emphasizes a reflexivity and should be retained as best as possible to preserve meaning).
-15. IMPORTANT: This is NOT a standard Bible translation. Translate the English text as-is, without trying to conform to traditional biblical language or style in the target language. The goal is a natural, accurate rendering of the English meaning, not a formal "Bible-like" style.
+18. IMPORTANT: This is NOT a standard Bible translation. Translate the English text as-is, without trying to conform to traditional biblical language or style in the target language. The goal is a natural, accurate rendering of the English meaning, not a formal "Bible-like" style.
+{glossary_section}
 EXAMPLES OF WHAT TO TRANSLATE:
 ✓ <h5><span style="color: blue;">The Twins</span></h5>
   → <h5><span style="color: blue;">Los Gemelos</span></h5>
@@ -310,6 +395,8 @@ def translate_footnotes_batch(footnotes_dict, target_language_code):
     for footnote_id in sorted(footnotes_dict.keys()):
         footnotes_text += f"<<<FOOTNOTE_{footnote_id}>>>\n{footnotes_dict[footnote_id]}\n\n"
     
+    glossary_section = build_glossary_section(target_language_code)
+
     prompt = f"""Translate these Bible footnotes/commentaries to {language_name}.
 
 CRITICAL RULES - NEVER BREAK THESE:
@@ -323,6 +410,7 @@ CRITICAL RULES - NEVER BREAK THESE:
 8. Do NOT translate: URLs, CSS styles, HTML entities, class names, or code examples
 9. Maintain scholarly, technical tone and theological accuracy
 
+{glossary_section}
 EXAMPLES:
 ✓ <p class="rbt_footnote"><span>The Greek <strong>Ἐν</strong> means "in"</span></p>
   → <p class="rbt_footnote"><span>El griego <strong>Ἐν</strong> significa "en"</span></p>
