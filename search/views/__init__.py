@@ -47,6 +47,8 @@ from .translation_views import (
     translation_stats_api,
     clean_failed_translations,
     translation_dashboard,
+    translation_coverage_api,
+    prompt_config_api,
 )
 
 # Chapter views (PARTIAL - core functions only)
@@ -151,6 +153,8 @@ __all__ = [
     'translation_stats_api',
     'clean_failed_translations',
     'translation_dashboard',
+    'translation_coverage_api',
+    'prompt_config_api',
     
     # Chapter views (PARTIAL)
     'home',

@@ -278,3 +278,84 @@ class GeminiUsageLog(models.Model):
     class Meta:
         db_table = 'gemini_usage_logs'
 
+
+
+# ── Editable translation prompt configuration ───────────────────────────────
+# The Gemini prompt used to be hard-coded in search/translation_utils.py, so every
+# new nuance (a term whose technical sense a general translator gets wrong, a rule
+# about preserving reflexive emphasis) needed a code change and a deploy. These
+# models surface the whole scheme so it can be edited from the dashboard.
+#
+# The code constants remain as the seed and as a fallback: if these tables are
+# empty or unreadable, prompt building falls back to them, so a bad edit or a
+# missing migration can never leave the translator with no instructions at all.
+
+class PromptRule(models.Model):
+    """One numbered instruction in the translation prompt."""
+
+    SCOPE_CHOICES = [
+        ('chapter', 'Chapter prompt only'),
+        ('footnote', 'Footnote prompt only'),
+        ('both', 'Both prompts'),
+    ]
+
+    scope = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='chapter')
+    order = models.IntegerField(default=0, help_text='Sort order within its prompt.')
+    text = models.TextField(help_text='The instruction as sent, without its number.')
+    active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'prompt_rules'
+        ordering = ['scope', 'order', 'id']
+
+    def __str__(self):
+        return f'[{self.scope}] {self.text[:60]}'
+
+
+class PromptGlossaryTerm(models.Model):
+    """An English phrase whose intended sense a translator would otherwise miss.
+
+    `sense` steers every target language at once; per-language exact wording lives
+    in PromptLanguageOverride.
+    """
+
+    term = models.CharField(max_length=200, unique=True)
+    sense = models.TextField(help_text='What the phrase actually means here.')
+    use_guidance = models.TextField(
+        help_text="What to use, e.g. \"the target language's ordinary word for 'ratio'\".")
+    avoid = models.TextField(
+        blank=True, default='', help_text='Wordings that would be wrong.')
+    active = models.BooleanField(default=True)
+    order = models.IntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'prompt_glossary_terms'
+        ordering = ['order', 'term']
+
+    def __str__(self):
+        return self.term
+
+
+class PromptLanguageOverride(models.Model):
+    """Exact rendering of a glossary term in one language.
+
+    e.g. Polish "Logos Ratio" -> "Stosunek Logos": "relacja" can carry a
+    quantitative sense, but "stosunek" is the conventional mathematical term.
+    """
+
+    term = models.ForeignKey(
+        PromptGlossaryTerm, on_delete=models.CASCADE, related_name='overrides')
+    language_code = models.CharField(max_length=10)
+    rendering = models.CharField(max_length=300)
+    active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'prompt_language_overrides'
+        unique_together = [('term', 'language_code')]
+        ordering = ['language_code']
+
+    def __str__(self):
+        return f'{self.language_code}: {self.term_id} -> {self.rendering}'

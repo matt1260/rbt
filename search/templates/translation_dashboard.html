@@ -166,37 +166,38 @@
     <div class="td-body">
       <p class="td-note" style="margin-top:0;">
         The Gemini prompt is built for a <strong>whole chapter</strong> &mdash; every tool here and in the
-        verse editor queues that same chapter job. Terms below are injected into both the chapter and
-        footnote prompts so the two cannot drift.
-        Editing is in code: <code>TRANSLATION_GLOSSARY</code> and <code>LANGUAGE_TERM_OVERRIDES</code>
-        in <code>search/translation_utils.py</code>.
+        verse editor queues that same chapter job. Everything below is injected into the chapter and
+        footnote prompts, and is <strong>editable</strong>: rules are the numbered instruction list,
+        glossary terms pin the sense of phrases a general translator gets wrong.
+        Changes take effect on the next translation; nothing already stored is altered.
       </p>
 
-      <table class="td" style="margin-bottom:16px;">
-        <thead><tr><th>Term</th><th>Intended sense</th><th>Pinned renderings</th></tr></thead>
-        <tbody>
-          {% for g in glossary %}
-          <tr>
-            <td><strong>{{ g.term }}</strong></td>
-            <td>{{ g.sense }}<br><span style="color:#777;">Avoid: {{ g.avoid }}</span></td>
-            <td>
-              {% for code, terms in overrides.items %}
-                {% for t, v in terms.items %}
-                  {% if t == g.term %}<div>{{ code }} &rarr; <strong>{{ v }}</strong></div>{% endif %}
-                {% endfor %}
-              {% empty %}<span style="color:#999;">none</span>{% endfor %}
-            </td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="3" style="color:#999;">No glossary terms defined.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="td-actions">
+        <button type="button" class="td-btn" id="pc-reload">Reload</button>
+        <button type="button" class="td-btn" id="pc-format">Format JSON</button>
+        <label style="margin-left:8px;">Preview language:
+          <select id="pc-lang"></select>
+        </label>
+        <button type="button" class="td-btn td-btn-cost" id="pc-save" style="margin-left:auto;">
+          Save configuration
+        </button>
+        <span class="rbt-status" id="pc-status"></span>
+      </div>
 
-      <p class="td-note" style="margin-bottom:6px;">
-        <strong>Prompt section as sent</strong> (example for {{ sample_lang_name }} &mdash; the language with a pinned term):
-      </p>
-      <div class="td-pre">{{ glossary_preview }}</div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start;">
+        <div>
+          <p class="td-note" style="margin:0 0 6px;"><strong>Configuration</strong> (JSON)</p>
+          <textarea id="pc-json" spellcheck="false"
+                    style="width:100%; height:420px; font-family:ui-monospace,Menlo,Consolas,monospace;
+                           font-size:11.5px; line-height:1.45; padding:10px; border:1px solid #ccc;
+                           border-radius:4px; color:#222; background:#fff;"></textarea>
+          <p class="td-note" id="pc-hint" style="margin:6px 0 0;"></p>
+        </div>
+        <div>
+          <p class="td-note" style="margin:0 0 6px;"><strong>Prompt sections as sent</strong></p>
+          <div class="td-pre" id="pc-preview" style="height:420px; max-height:none;"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -296,6 +297,98 @@
                   btn);
         });
     }
+
+    // ── Prompt configuration editor ─────────────────────────────────
+    // Edited as JSON rather than a bespoke form: the shape (rules by scope,
+    // terms with nested per-language overrides) grows as nuances are added, and
+    // a generic editor stays correct as it does. The server validates before
+    // writing, so a malformed edit is rejected whole rather than half-applied.
+    (function () {
+        var ta = document.getElementById('pc-json');
+        if (!ta) return;
+        var statusEl = document.getElementById('pc-status');
+        var preview = document.getElementById('pc-preview');
+        var langSel = document.getElementById('pc-lang');
+        var hint = document.getElementById('pc-hint');
+        var loaded = false;
+
+        function say(msg, isErr) {
+            statusEl.textContent = msg || '';
+            statusEl.style.color = isErr ? '#d9534f' : '#2271b1';
+        }
+
+        function renderPreview(p) {
+            preview.textContent =
+                'CHAPTER RULES\n' + p.chapter_rules +
+                '\n\nFOOTNOTE RULES\n' + p.footnote_rules +
+                '\n\nGLOSSARY (' + p.language + ')\n' + (p.glossary || '(none)');
+        }
+
+        function describe(cfg) {
+            var nRules = 0;
+            Object.keys(cfg.rules || {}).forEach(function (k) { nRules += cfg.rules[k].length; });
+            hint.textContent = nRules + ' rule(s), ' + (cfg.glossary || []).length +
+                ' glossary term(s). Editing replaces the whole configuration.';
+        }
+
+        function load(lang) {
+            say('Loading\u2026');
+            return fetch('/api/translation/prompt-config/?lang=' + encodeURIComponent(lang || langSel.value || 'pl'),
+                         { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d.status !== 'ok') { say(d.message || 'Failed to load', true); return; }
+                    ta.value = JSON.stringify(d.config, null, 2);
+                    renderPreview(d.preview);
+                    describe(d.config);
+                    if (!loaded) {
+                        (d.languages || []).forEach(function (l) {
+                            var o = document.createElement('option');
+                            o.value = l.code; o.textContent = l.label + ' (' + l.code + ')';
+                            if (l.code === d.preview.language) o.selected = true;
+                            langSel.appendChild(o);
+                        });
+                        loaded = true;
+                    }
+                    say('');
+                })
+                .catch(function () { say('Failed to load', true); });
+        }
+
+        document.getElementById('pc-reload').addEventListener('click', function () { load(); });
+        langSel.addEventListener('change', function () { load(langSel.value); });
+
+        document.getElementById('pc-format').addEventListener('click', function () {
+            try {
+                ta.value = JSON.stringify(JSON.parse(ta.value), null, 2);
+                say('Formatted.');
+            } catch (e) { say('Invalid JSON: ' + e.message, true); }
+        });
+
+        document.getElementById('pc-save').addEventListener('click', function () {
+            var parsed;
+            try { parsed = JSON.parse(ta.value); }
+            catch (e) { say('Invalid JSON: ' + e.message, true); return; }
+            if (!window.confirm('Replace the translation prompt configuration?\n\n' +
+                                'This changes what every future translation is asked to do. ' +
+                                'Existing translations are unaffected.')) return;
+            say('Saving\u2026');
+            fetch('/api/translation/prompt-config/', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(parsed)
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d.status !== 'ok') { say(d.message || 'Save failed', true); return; }
+                    say(d.message || 'Saved.');
+                    load();
+                })
+                .catch(function () { say('Save failed', true); });
+        });
+
+        load('pl');
+    })();
 
     var hide = document.getElementById('td-hide-absent');
     if (hide && table) {

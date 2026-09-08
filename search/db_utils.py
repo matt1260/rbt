@@ -133,6 +133,33 @@ logger_verbose = logging.getLogger("search.db_utils.verbose")
 # cache operations for this process.
 _db_cache_disabled_reason: str | None = None
 
+# Django's DB cache culls by ROW COUNT, never by bytes, so one oversized value can
+# consume as much disk as thousands of small ones. A 4.4 GB django_cache_table
+# filled the volume on 2026-09-07 and crash-looped Postgres. This is a ceiling on
+# any single entry; MAX_ENTRIES in settings bounds the count.
+CACHE_MAX_VALUE_BYTES = 1_048_576  # 1 MB
+
+
+def _cache_value_too_large(value):
+    """True when `value` is too big to be worth a cache row.
+
+    Measured by pickling, which is what the DB backend does anyway -- correct
+    rather than a guess at nested sizes. Costs one extra serialization per SET;
+    cache writes are far rarer than reads, and the alternative was an unbounded
+    table.
+    """
+    try:
+        import pickle
+        size = len(pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL))
+    except Exception:
+        return False  # unpicklable values fail later in cache.set anyway
+    if size > CACHE_MAX_VALUE_BYTES:
+        logger_verbose.warning(
+            'Refusing to cache %s bytes (limit %s)', size, CACHE_MAX_VALUE_BYTES
+        )
+        return True
+    return False
+
 
 def _maybe_disable_db_cache_from_exception(exc: Exception) -> bool:
     global _db_cache_disabled_reason
@@ -167,6 +194,8 @@ def safe_cache_get(key, default=None):
 def safe_cache_set(key, value, timeout=None):
     """Safely set value in Django cache, handling DB cache failures gracefully."""
     if _db_cache_disabled_reason:
+        return False
+    if _cache_value_too_large(value):
         return False
     try:
         cache.set(key, value, timeout)

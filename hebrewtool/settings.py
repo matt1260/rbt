@@ -190,11 +190,24 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
         'LOCATION': 'django_cache_table',
         'OPTIONS': {
-            # Raised from 10000: the Hebrew lexicon alone can cache one entry per
-            # Strong's number (~8.7k) as word pages get visited/crawled, which was
-            # close enough to the old cap to start culling unrelated site caches
-            # (verse/chapter renders, rate limiting) once lexicon traffic ramped up.
-            'MAX_ENTRIES': 30000,
+            # Raised from 10000 originally: the Hebrew lexicon alone can cache one
+            # entry per Strong's number (~8.7k) as word pages get visited/crawled,
+            # which was close enough to the old cap to start culling unrelated site
+            # caches (verse/chapter renders, rate limiting) once lexicon traffic
+            # ramped up.
+            #
+            # Lowered from 30000 after that cap took production down on 2026-09-07:
+            # this one table mixes tiny lexicon entries with chapter render payloads
+            # averaging ~148 KB, and Django's DB cache culls by ROW COUNT, never by
+            # bytes. 30000 x 148 KB grew django_cache_table to 4.4 GB -- 85% of the
+            # database -- and filled the volume, which crash-looped Postgres
+            # (PANIC: could not fsync pg_wal: No space left on device).
+            #
+            # 8000 still covers most of the lexicon while bounding the worst case to
+            # roughly 1.2 GB. The proper fix is a separate cache alias for render
+            # payloads so the two workloads stop sharing a row budget; see
+            # CACHE_MAX_VALUE_BYTES in search/db_utils.py for the interim guard.
+            'MAX_ENTRIES': 8000,
             'CULL_FREQUENCY': 4,  # When full, delete 1/4 of entries
         }
     }

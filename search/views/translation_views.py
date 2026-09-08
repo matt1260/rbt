@@ -27,6 +27,10 @@ INTERLINEAR_CACHE_VERSION = 'v3'
 # only way to tell a real translation from a dead one is the text prefix.
 TRANSLATION_ERROR_PREFIXES = ('[Translation error', '[Translation parsing error')
 
+# Ceiling on per-request cache invalidations. Above this we let TTLs handle it
+# rather than firing thousands of writes at the DB cache in one request.
+MAX_CACHE_INVALIDATIONS = 400
+
 
 def translation_error_q(field='verse_text'):
     """Q object matching rows whose text is a stored Gemini failure."""
@@ -961,27 +965,55 @@ def clean_failed_translations(request):
 
     failed = rows.filter(translation_error_q('verse_text') | translation_error_q('footnote_text'))
     languages_touched = sorted(set(failed.values_list('language_code', flat=True)))
-    # Cached chapter payloads still hold the error text, so note which
-    # book/chapter pairs to drop BEFORE the rows are gone.
-    affected = sorted(set(failed.values_list('book', 'chapter')))
+
+    # Cached chapter payloads still hold the error text, so note what to drop
+    # BEFORE the rows are gone.
+    #
+    # This previously took the CROSS PRODUCT of (book, chapter) x languages, which
+    # at NT scope was 182 x 38 = 6,916 invalidations -- and each one is two cache
+    # operations (a delete plus a tombstone write), so ~13.8k writes in a single
+    # synchronous request. On 2026-09-07 that ran against a django_cache_table
+    # already pinned at its row cap, forcing repeated culls, and the resulting WAL
+    # churn filled the volume and crash-looped Postgres.
+    #
+    # Two changes: invalidate only the exact (book, chapter, language) triples that
+    # actually had failures, and refuse to do it at all beyond a sane ceiling --
+    # cache entries carry TTLs and will expire on their own, which is far better
+    # than taking the database down to save a few stale reads.
+    affected = set(failed.values_list('book', 'chapter', 'language_code'))
     removed = failed.count()
+    invalidated = 0
+    invalidation_skipped = False
+
     if removed:
         failed.delete()
-        for bk, ch in affected:
-            for code in languages_touched:
+        if len(affected) > MAX_CACHE_INVALIDATIONS:
+            invalidation_skipped = True
+        else:
+            for bk, ch, code in affected:
                 try:
                     invalidate_cached_render(get_cache_key(bk, ch, None, code))
+                    invalidated += 1
                 except Exception:
                     pass
+
+    message = (
+        f'Removed {removed} failed row(s) across {len(languages_touched)} language(s).'
+        if removed else 'No failed translations found.'
+    )
+    if invalidation_skipped:
+        message += (
+            f' Skipped cache invalidation for {len(affected)} entries '
+            '(over the safety limit); they will expire on their own.'
+        )
 
     return JsonResponse({
         'status': 'ok',
         'removed': removed,
         'languages': languages_touched,
-        'message': (
-            f'Removed {removed} failed row(s) across {len(languages_touched)} language(s).'
-            if removed else 'No failed translations found.'
-        ),
+        'invalidated': invalidated,
+        'invalidation_skipped': invalidation_skipped,
+        'message': message,
     })
 
 
@@ -1179,3 +1211,230 @@ def translation_dashboard(request):
         'supported_languages': SUPPORTED_LANGUAGES,
     }
     return render(request, 'translation_dashboard.html', context)
+
+
+def public_translation_coverage():
+    """Translation coverage for the PUBLIC statistics page.
+
+    Derived from nt_dashboard_stats() but deliberately stripped of every failure
+    metric: readers should see what has been translated and how far along it is,
+    not internal Gemini error counts. Nothing here exposes verses_err, notes_err,
+    quota, API keys or the 'errors' state.
+    """
+    stats = nt_dashboard_stats()
+
+    languages = []
+    for e in stats['languages']:
+        if e['state'] == 'absent':
+            continue  # nothing to show for a language never started
+        languages.append({
+            'code': e['code'],
+            'label': e['label'],
+            'pct': e['pct'],
+            'verses': e['verses_ok'],
+            'notes': e['notes_ok'],
+            'books': e['books_started'],
+            # 'errors' is an internal state; publicly it is just in progress
+            'state': 'complete' if e['state'] == 'complete' else 'in progress',
+        })
+    languages.sort(key=lambda x: (-x['pct'], x['label']))
+
+    source_verses = stats['summary']['source_verses']
+    books = []
+    for b in stats['books']:
+        src = b['source_verses'] or 0
+        started = b['languages_started']
+        books.append({
+            'book': b['book'],
+            'chapters': b['chapters'],
+            'verses': src,
+            'languages': started,
+            'translated_verses': b['verses_ok'],
+        })
+
+    return {
+        'summary': {
+            'source_verses': source_verses,
+            'books': stats['summary']['books'],
+            'chapters': stats['summary']['chapters'],
+            'languages_available': len(languages),
+            'languages_total': stats['summary']['languages_total'],
+            'translated_verses': stats['summary']['verses_ok'],
+            'translated_notes': stats['summary']['notes_ok'],
+        },
+        'languages': languages,
+        'books': books,
+    }
+
+
+@csrf_exempt
+def translation_coverage_api(request):
+    """Public JSON: which languages exist and how far along they are."""
+    try:
+        data = public_translation_coverage()
+    except Exception:
+        return JsonResponse({'status': 'error', 'message': 'Coverage unavailable'})
+    response = JsonResponse({'status': 'ok', **data})
+    response['Access-Control-Allow-Origin'] = '*'
+    return response
+
+
+def _prompt_config_payload():
+    """Current editable prompt configuration, as a JSON-friendly dict."""
+    from search.models import PromptRule, PromptGlossaryTerm
+    return {
+        'rules': {
+            scope: list(
+                PromptRule.objects.filter(scope=scope).order_by('order', 'id')
+                .values('id', 'order', 'text', 'active')
+            )
+            for scope in ('chapter', 'footnote', 'both')
+        },
+        'glossary': [
+            {
+                'term': t.term,
+                'sense': t.sense,
+                'use_guidance': t.use_guidance,
+                'avoid': t.avoid,
+                'active': t.active,
+                'order': t.order,
+                'overrides': [
+                    {'language_code': o.language_code, 'rendering': o.rendering,
+                     'active': o.active}
+                    for o in t.overrides.all().order_by('language_code')
+                ],
+            }
+            for t in PromptGlossaryTerm.objects.order_by('order', 'term')
+                                              .prefetch_related('overrides')
+        ],
+    }
+
+
+@csrf_exempt
+def prompt_config_api(request):
+    """Read or replace the editable translation prompt configuration.
+
+    GET  -> the current configuration plus a rendered preview.
+    POST -> replace it wholesale from a JSON body.
+
+    Auth-gated on both verbs: this determines what every future translation is
+    asked to do, and the GET exposes the full instruction set.
+    """
+    import json as _json
+    from django.db import transaction
+    from search.models import PromptRule, PromptGlossaryTerm, PromptLanguageOverride
+    from search.translation_utils import build_glossary_section, build_rules_section
+
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {'status': 'error', 'message': 'Sign in to view or edit the prompt configuration.'},
+            status=403)
+
+    if request.method == 'GET':
+        lang = request.GET.get('lang') or 'pl'
+        return JsonResponse({
+            'status': 'ok',
+            'config': _prompt_config_payload(),
+            'preview': {
+                'language': lang,
+                'chapter_rules': build_rules_section('chapter'),
+                'footnote_rules': build_rules_section('footnote'),
+                'glossary': build_glossary_section(lang),
+            },
+            'languages': [{'code': c, 'label': l} for c, l in SUPPORTED_LANGUAGES.items()],
+        })
+
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'GET or POST only'}, status=405)
+
+    try:
+        payload = _json.loads(request.body.decode('utf-8'))
+    except Exception as exc:
+        return JsonResponse({'status': 'error', 'message': f'Invalid JSON: {exc}'})
+
+    # Validate everything BEFORE writing: a partially-applied prompt config would
+    # be worse than a rejected one.
+    errors = []
+    rules = payload.get('rules') or {}
+    if not isinstance(rules, dict):
+        errors.append('"rules" must be an object keyed by scope.')
+    else:
+        for scope, items in rules.items():
+            if scope not in ('chapter', 'footnote', 'both'):
+                errors.append(f'Unknown rule scope "{scope}".')
+            if not isinstance(items, list):
+                errors.append(f'rules["{scope}"] must be a list.')
+                continue
+            for n, it in enumerate(items):
+                if not isinstance(it, dict) or not str(it.get('text', '')).strip():
+                    errors.append(f'rules["{scope}"][{n}] needs a non-empty "text".')
+
+    glossary = payload.get('glossary')
+    if glossary is None:
+        glossary = []
+    if not isinstance(glossary, list):
+        errors.append('"glossary" must be a list.')
+    else:
+        seen = set()
+        for n, g in enumerate(glossary):
+            if not isinstance(g, dict):
+                errors.append(f'glossary[{n}] must be an object.'); continue
+            term = str(g.get('term', '')).strip()
+            if not term:
+                errors.append(f'glossary[{n}] needs a "term".')
+            elif term in seen:
+                errors.append(f'Duplicate glossary term "{term}".')
+            else:
+                seen.add(term)
+            if not str(g.get('sense', '')).strip():
+                errors.append(f'glossary[{n}] ("{term}") needs a "sense".')
+            if not str(g.get('use_guidance', '')).strip():
+                errors.append(f'glossary[{n}] ("{term}") needs "use_guidance".')
+            for o in (g.get('overrides') or []):
+                if not isinstance(o, dict) or not str(o.get('language_code', '')).strip():
+                    errors.append(f'glossary[{n}] ("{term}") has an override with no language_code.')
+                elif not str(o.get('rendering', '')).strip():
+                    errors.append(
+                        f'glossary[{n}] ("{term}") override "{o.get("language_code")}" needs a rendering.')
+
+    total_rules = sum(len(v) for v in rules.values() if isinstance(v, list))
+    if total_rules == 0:
+        errors.append('Refusing to save: that would leave the prompt with no instructions.')
+
+    if errors:
+        return JsonResponse({'status': 'error', 'message': ' '.join(errors[:6]),
+                             'errors': errors})
+
+    with transaction.atomic():
+        PromptRule.objects.all().delete()
+        for scope, items in rules.items():
+            for n, it in enumerate(items):
+                PromptRule.objects.create(
+                    scope=scope,
+                    order=int(it.get('order') or n + 1),
+                    text=str(it['text']).strip(),
+                    active=bool(it.get('active', True)),
+                )
+        PromptGlossaryTerm.objects.all().delete()  # cascades to overrides
+        for n, g in enumerate(glossary):
+            term = PromptGlossaryTerm.objects.create(
+                term=str(g['term']).strip(),
+                sense=str(g['sense']).strip(),
+                use_guidance=str(g['use_guidance']).strip(),
+                avoid=str(g.get('avoid') or '').strip(),
+                active=bool(g.get('active', True)),
+                order=int(g.get('order') or n),
+            )
+            for o in (g.get('overrides') or []):
+                PromptLanguageOverride.objects.create(
+                    term=term,
+                    language_code=str(o['language_code']).strip(),
+                    rendering=str(o['rendering']).strip(),
+                    active=bool(o.get('active', True)),
+                )
+
+    return JsonResponse({
+        'status': 'ok',
+        'message': f'Saved {total_rules} rule(s) and {len(glossary)} glossary term(s).',
+        'config': _prompt_config_payload(),
+    })

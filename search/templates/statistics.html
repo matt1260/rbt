@@ -39,6 +39,19 @@
     }
 </style>
 
+<style>
+  .cov-note { color: #777; font-size: 13px; margin: 0 0 12px; }
+  .cov-scroll { max-height: 460px; overflow-y: auto; }
+  .cov-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .cov-table th, .cov-table td { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; }
+  .cov-table th { font-size: 11px; text-transform: uppercase; color: #777; white-space: nowrap; }
+  .cov-table td.cov-n, .cov-table th.cov-n { text-align: right; font-variant-numeric: tabular-nums; }
+  .cov-bar { position: relative; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; min-width: 110px; }
+  .cov-bar > span { display: block; height: 100%; background: #4bbf73; }
+  .cov-pct { font-size: 11px; color: #777; }
+  .cov-badge { display:inline-block; padding:1px 7px; border-radius:9px; font-size:10px; font-weight:600;
+               background:#dff3e4; color:#1d6b38; margin-left:6px; }
+</style>
 <h1 style="text-align: center;">RBT Translation Statistics</h1>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
@@ -325,8 +338,41 @@ button.active {
                     </div>
                 </div>
             </div>
+
         </div>
+
     </div>
+
+        <!-- ── Translation coverage (public) ─────────────────────────── -->
+        <div id="coverageSections">
+        <div class="chart-container">
+            <h3 class="chart-title">Translation Coverage by Language</h3>
+            <p class="cov-note" id="covSummary">Loading coverage&hellip;</p>
+            <div class="cov-scroll">
+                <table class="cov-table" id="covLangTable">
+                    <thead>
+                        <tr><th>Language</th><th style="width:190px;">New Testament progress</th>
+                            <th class="cov-n">Verses</th><th class="cov-n">Footnotes</th><th class="cov-n">Books</th></tr>
+                    </thead>
+                    <tbody id="covLangBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h3 class="chart-title">Coverage by Book</h3>
+            <p class="cov-note">New Testament books, with how many languages each has been translated into.</p>
+            <div class="cov-scroll">
+                <table class="cov-table" id="covBookTable">
+                    <thead>
+                        <tr><th>Book</th><th class="cov-n">Chapters</th><th class="cov-n">Verses</th>
+                            <th class="cov-n">Languages</th><th class="cov-n">Translated verses</th></tr>
+                    </thead>
+                    <tbody id="covBookBody"></tbody>
+                </table>
+            </div>
+        </div>
+        </div><!-- /#coverageSections -->
 </div>
 
 <script>
@@ -607,6 +653,64 @@ function updateMonthlyChart(data) {
     });
 }
 
+// Public translation coverage. Loaded independently of the update statistics
+// above so a failure in one panel cannot blank the other.
+async function loadCoverage() {
+    // Hoist out of #dashboard if the parser nested us there: that element stays
+    // display:none until loadData() succeeds, and coverage loads independently.
+    try {
+        const wrap = document.getElementById('coverageSections');
+        const dash = document.getElementById('dashboard');
+        if (wrap && dash && dash.contains(wrap) && dash.parentNode) {
+            dash.parentNode.insertBefore(wrap, dash.nextSibling);
+        }
+    } catch (e) { /* placement is cosmetic; never block the data */ }
+
+    try {
+        const res = await fetch('/api/translation/coverage/');
+        const data = await res.json();
+        if (data.status !== 'ok') throw new Error(data.message || 'unavailable');
+
+        const s = data.summary;
+        document.getElementById('covSummary').textContent =
+            s.languages_available + ' of ' + s.languages_total + ' languages started \u00b7 ' +
+            s.translated_verses.toLocaleString() + ' translated verses and ' +
+            s.translated_notes.toLocaleString() + ' translated footnotes across ' +
+            s.books + ' New Testament books (' + s.source_verses.toLocaleString() + ' verses).';
+
+        const langBody = document.getElementById('covLangBody');
+        langBody.innerHTML = '';
+        data.languages.forEach(function (e) {
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td>' + e.label + ' <span style="color:#aaa;">' + e.code + '</span>' +
+                    (e.state === 'complete' ? '<span class="cov-badge">complete</span>' : '') + '</td>' +
+                '<td><div class="cov-bar"><span style="width:' + e.pct + '%;"></span></div>' +
+                    '<span class="cov-pct">' + e.pct + '%</span></td>' +
+                '<td class="cov-n">' + e.verses.toLocaleString() + '</td>' +
+                '<td class="cov-n">' + e.notes.toLocaleString() + '</td>' +
+                '<td class="cov-n">' + e.books + '</td>';
+            langBody.appendChild(tr);
+        });
+
+        const bookBody = document.getElementById('covBookBody');
+        bookBody.innerHTML = '';
+        data.books.forEach(function (b) {
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td>' + b.book + '</td>' +
+                '<td class="cov-n">' + b.chapters + '</td>' +
+                '<td class="cov-n">' + b.verses.toLocaleString() + '</td>' +
+                '<td class="cov-n">' + b.languages + '</td>' +
+                '<td class="cov-n">' + b.translated_verses.toLocaleString() + '</td>';
+            bookBody.appendChild(tr);
+        });
+    } catch (err) {
+        document.getElementById('covSummary').textContent = 'Coverage statistics are unavailable right now.';
+        console.error('coverage load failed', err);
+    }
+}
+
 function updateReferenceList(data) {
     const container = document.getElementById('referenceList');
     container.innerHTML = '';
@@ -633,10 +737,14 @@ function updateReferenceList(data) {
 
 // Event listeners
 document.getElementById('timeRange').addEventListener('change', loadData);
-document.getElementById('refreshBtn').addEventListener('click', loadData);
+document.getElementById('refreshBtn').addEventListener('click', function () {
+    loadData();
+    loadCoverage();
+});
 
 // Initial load
 loadData();
+loadCoverage();
 </script>
 
 {% endblock %}

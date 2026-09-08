@@ -94,6 +94,68 @@ SUPPORTED_LANGUAGES = {
 }
 
 
+# Fallback instruction sets. These are what shipped hard-coded in the prompt and
+# what migration 0013 seeds PromptRule with. Kept here so prompt building still
+# works if the table is missing, empty, or unreadable -- Gemini must never be sent
+# a prompt with no rules just because a migration has not run.
+FALLBACK_RULES = {
+    'chapter': [       'NEVER modify, alter, or translate ANY HTML tags, attributes, or code',
+        'NEVER change: <tag names>, class="...", style="...", href="...", src="...", '
+        'width="...", or ANY attribute values',
+        'NEVER translate English words that appear inside HTML attributes (like '
+        'class="tooltip" or href values)',
+        'ONLY translate the human-readable text content that appears BETWEEN opening and '
+        'closing tags',
+        'Keep <<<VERSE_N>>> markers EXACTLY as written - these are parsing markers, not '
+        'content',
+        'Preserve ALL whitespace, line breaks, and HTML structure exactly',
+        'Image URLs must remain EXACTLY as provided - do not translate or modify them',
+        'CSS class names, style values, and color codes must remain in English/original '
+        'form',
+        'HTML entities and special characters must be preserved exactly',
+        'SPECIAL: If the English text uses the word \'dual\' (e.g., "dual hands"), '
+        "translate it to the closest equivalent conveying 'pair' or 'twofold' in the "
+        'target language',
+        'SPECIAL: Try to maintain articular infinitives where possible in the target '
+        "language, preserving their grammatical function, e.g. 'the Afflicting of "
+        "Himself.'",
+        'SPECIAL: Try to maintain substantive clauses where possible in the target '
+        "language, preserving their grammatical function, e.g. 'the One who is Coming' or "
+        "'from the Eyes of Themselves'.",
+        "SPECIAL: Avoid combining emphatic clauses like 'within the Days, these ones,' "
+        'into simpler forms; retain the emphasis and structure of the original English.',
+        "SPECIAL: Preserve reflexive pronoun emphasis in clauses, e.g., 'they, "
+        "themselves,' 'you, yourself,' 'he, himself,' to maintain the original emphasis in "
+        'translation.',
+        "SPECIAL: 'has sevened' and similar uses of 'seven' as a verbal should be "
+        "translated to convey 'make seven' or 'cause to be seven' rather than a simple "
+        'past tense, to preserve the original meaning and nuance.',
+        "SPECIAL: 'self eternal' means 'eternal by one's own nature' or 'reflexively "
+        "eternal' and is generally used adjectivally (e.g. 'the self-eternal stone' is a "
+        'stone that exists of itself/self-existent) - translate accordingly to preserve '
+        'this meaning.',
+        "SPECIAL: 'the self' is integral to the meaning of certain phrases and should be "
+        "preserved in translation (e.g. 'I, self, am striving' or 'learners of self' or "
+        "he, self, is coming' - the 'self' emphasizes a reflexivity and should be retained "
+        'as best as possible to preserve meaning).',
+        'IMPORTANT: This is NOT a standard Bible translation. Translate the English text '
+        'as-is, without trying to conform to traditional biblical language or style in the '
+        'target language. The goal is a natural, accurate rendering of the English '
+        'meaning, not a formal "Bible-like" style.'],
+    'footnote': [       'NEVER modify, alter, or translate ANY HTML tags, attributes, or code structure',
+        'NEVER change: <p>, <span>, <strong>, <em>, <br>, <ul>, <li>, <h5>, <a>, or ANY '
+        'tag names',
+        'NEVER translate attribute values: class="...", style="...", href="...", etc.',
+        "Keep Hebrew/Greek terms in their original language (e.g., ἀρχή, ὁ λόγος, Strong's "
+        'numbers)',
+        'Keep <<<FOOTNOTE_X>>> markers EXACTLY as they are - these are parsing markers',
+        'ONLY translate human-readable English text that appears between HTML tags',
+        'Preserve ALL line breaks, indentation, whitespace, and formatting exactly',
+        'Do NOT translate: URLs, CSS styles, HTML entities, class names, or code examples',
+        'Maintain scholarly, technical tone and theological accuracy'],
+}
+
+
 # ── RBT terminology glossary ──────────────────────────────────────────────
 # RBT renders some Greek/Hebrew words with a deliberate technical sense that a
 # general-purpose translator gets wrong. Gemini translated "The Logos Ratio"
@@ -134,15 +196,73 @@ LANGUAGE_TERM_OVERRIDES = {
 }
 
 
+def _db_rules(scope):
+    """Active PromptRule texts for `scope`, or None if the table cannot be used.
+
+    Returning None (never []) lets the caller tell "configured as empty" apart
+    from "database unavailable", so a migration that has not run yet falls back
+    to the code constants rather than sending Gemini a prompt with no rules.
+    """
+    try:
+        from search.models import PromptRule
+        rows = list(
+            PromptRule.objects
+            .filter(active=True)
+            .filter(scope__in=[scope, 'both'])
+            .order_by('order', 'id')
+            .values_list('text', flat=True)
+        )
+        return rows or None
+    except Exception:
+        return None
+
+
+def build_rules_section(scope):
+    """The numbered instruction list for one prompt, as sent."""
+    rules = _db_rules(scope)
+    if rules is None:
+        rules = FALLBACK_RULES.get(scope, [])
+    return '\n'.join(f'{i}. {text}' for i, text in enumerate(rules, start=1))
+
+
+def _db_glossary(target_language_code):
+    """(entries, overrides) from the DB, or (None, None) when unavailable."""
+    try:
+        from search.models import PromptGlossaryTerm
+        entries, overrides = [], {}
+        qs = (PromptGlossaryTerm.objects
+              .filter(active=True)
+              .order_by('order', 'term')
+              .prefetch_related('overrides'))
+        for t in qs:
+            entries.append({
+                'term': t.term,
+                'sense': t.sense,
+                'use': t.use_guidance,
+                'avoid': t.avoid,
+            })
+            for o in t.overrides.all():
+                if o.active and o.language_code == target_language_code:
+                    overrides[t.term] = o.rendering
+        return (entries or None), overrides
+    except Exception:
+        return None, None
+
+
 def build_glossary_section(target_language_code):
     """Render the glossary as a prompt section, or '' when there is nothing to say.
 
-    Shared by the chapter and footnote prompts so the two cannot drift.
+    Shared by the chapter and footnote prompts so the two cannot drift. Reads the
+    editable configuration, falling back to the module constants.
     """
-    if not TRANSLATION_GLOSSARY and target_language_code not in LANGUAGE_TERM_OVERRIDES:
+    entries, overrides = _db_glossary(target_language_code)
+    if entries is None:
+        entries = TRANSLATION_GLOSSARY
+        overrides = LANGUAGE_TERM_OVERRIDES.get(target_language_code, {})
+
+    if not entries and not overrides:
         return ''
 
-    overrides = LANGUAGE_TERM_OVERRIDES.get(target_language_code, {})
     lines = [
         "",
         "TERMINOLOGY - THESE OVERRIDE YOUR DEFAULT WORD CHOICE:",
@@ -151,12 +271,13 @@ def build_glossary_section(target_language_code):
         "",
     ]
 
-    for entry in TRANSLATION_GLOSSARY:
+    for entry in entries:
         term = entry['term']
         lines.append(f'- "{term}"')
         lines.append(f"    Sense: {entry['sense']}")
         lines.append(f"    Use: {entry['use']}.")
-        lines.append(f"    Do NOT use: {entry['avoid']}.")
+        if entry.get('avoid'):
+            lines.append(f"    Do NOT use: {entry['avoid']}.")
         if term in overrides:
             lines.append(
                 f'    REQUIRED for this language: render "{term}" as "{overrides[term]}". '
@@ -166,7 +287,7 @@ def build_glossary_section(target_language_code):
         lines.append("")
 
     extra = {k: v for k, v in overrides.items()
-             if k not in {e['term'] for e in TRANSLATION_GLOSSARY}}
+             if k not in {e['term'] for e in entries}}
     if extra:
         lines.append("Additional required renderings for this language:")
         for term, target in extra.items():
@@ -249,29 +370,12 @@ Return ONLY the translated phrase, no explanation or extra text."""
         chapter_text += f"<<<VERSE_{verse_num}>>>\n{verse_dict_only[verse_num]}\n\n"
     
     glossary_section = build_glossary_section(target_language_code)
+    rules_section = build_rules_section('chapter')
 
     prompt = f"""Translate this Bible chapter to {language_name}.
 
 CRITICAL INSTRUCTIONS - READ CAREFULLY:
-1. NEVER modify, alter, or translate ANY HTML tags, attributes, or code
-2. NEVER change: <tag names>, class="...", style="...", href="...", src="...", width="...", or ANY attribute values
-3. NEVER translate English words that appear inside HTML attributes (like class="tooltip" or href values)
-4. ONLY translate the human-readable text content that appears BETWEEN opening and closing tags
-5. Keep <<<VERSE_N>>> markers EXACTLY as written - these are parsing markers, not content
-6. Preserve ALL whitespace, line breaks, and HTML structure exactly
-7. Image URLs must remain EXACTLY as provided - do not translate or modify them
-8. CSS class names, style values, and color codes must remain in English/original form
-9. HTML entities and special characters must be preserved exactly
-10. SPECIAL: If the English text uses the word 'dual' (e.g., "dual hands"), translate it to the closest equivalent conveying 'pair' or 'twofold' in the target language 
-(preserve the paired/twofold nuance; avoid casual "double" translations if the intent is grammatical or lexical).
-11. SPECIAL: Try to maintain articular infinitives where possible in the target language, preserving their grammatical function, e.g. 'the Afflicting of Himself.'
-12. SPECIAL: Try to maintain substantive clauses where possible in the target language, preserving their grammatical function, e.g. 'the One who is Coming' or 'from the Eyes of Themselves'.
-13. SPECIAL: Avoid combining emphatic clauses like 'within the Days, these ones,' into simpler forms; retain the emphasis and structure of the original English.
-14. SPECIAL: Preserve reflexive pronoun emphasis in clauses, e.g., 'they, themselves,' 'you, yourself,' 'he, himself,' to maintain the original emphasis in translation.
-15. SPECIAL: 'has sevened' and similar uses of 'seven' as a verbal should be translated to convey 'make seven' or 'cause to be seven' rather than a simple past tense, to preserve the original meaning and nuance.
-16. SPECIAL: 'self eternal' means 'eternal by one's own nature' or 'reflexively eternal' and is generally used adjectivally (e.g. 'the self-eternal stone' is a stone that exists of itself/self-existent) - translate accordingly to preserve this meaning.
-17. SPECIAL: 'the self' is integral to the meaning of certain phrases and should be preserved in translation (e.g. 'I, self, am striving' or 'learners of self' or he, self, is coming' - the 'self' emphasizes a reflexivity and should be retained as best as possible to preserve meaning).
-18. IMPORTANT: This is NOT a standard Bible translation. Translate the English text as-is, without trying to conform to traditional biblical language or style in the target language. The goal is a natural, accurate rendering of the English meaning, not a formal "Bible-like" style.
+{rules_section}
 {glossary_section}
 EXAMPLES OF WHAT TO TRANSLATE:
 ✓ <h5><span style="color: blue;">The Twins</span></h5>
@@ -396,20 +500,12 @@ def translate_footnotes_batch(footnotes_dict, target_language_code):
         footnotes_text += f"<<<FOOTNOTE_{footnote_id}>>>\n{footnotes_dict[footnote_id]}\n\n"
     
     glossary_section = build_glossary_section(target_language_code)
+    rules_section = build_rules_section('footnote')
 
     prompt = f"""Translate these Bible footnotes/commentaries to {language_name}.
 
 CRITICAL RULES - NEVER BREAK THESE:
-1. NEVER modify, alter, or translate ANY HTML tags, attributes, or code structure
-2. NEVER change: <p>, <span>, <strong>, <em>, <br>, <ul>, <li>, <h5>, <a>, or ANY tag names
-3. NEVER translate attribute values: class="...", style="...", href="...", etc.
-4. Keep Hebrew/Greek terms in their original language (e.g., ἀρχή, ὁ λόγος, Strong's numbers)
-5. Keep <<<FOOTNOTE_X>>> markers EXACTLY as they are - these are parsing markers
-6. ONLY translate human-readable English text that appears between HTML tags
-7. Preserve ALL line breaks, indentation, whitespace, and formatting exactly
-8. Do NOT translate: URLs, CSS styles, HTML entities, class names, or code examples
-9. Maintain scholarly, technical tone and theological accuracy
-
+{rules_section}
 {glossary_section}
 EXAMPLES:
 ✓ <p class="rbt_footnote"><span>The Greek <strong>Ἐν</strong> means "in"</span></p>
