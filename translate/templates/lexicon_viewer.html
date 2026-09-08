@@ -93,7 +93,9 @@
 .lexicon-image {
     max-width: 100%;
     height: auto;
-    transition: transform 0.3s ease;
+    /* No transform transition: animating scale on these scans (Gesenius pages are
+       2294x4004, ~9.2 MP) re-rasterises the whole layer every frame, up to ~83 MP
+       at 3x zoom. Zoom steps instantly instead. */
     cursor: grab;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
@@ -216,10 +218,12 @@
 
     <div class="image-container" id="imageContainer">
         {% if image_url %}
-        <img src="{{ image_url }}" 
-             alt="{{ lexicon_name }} Lexicon {{ page_number }}" 
-             class="lexicon-image" 
+        <img src="{{ image_url }}"
+             alt="{{ lexicon_name }} Lexicon {{ page_number }}"
+             class="lexicon-image"
              id="lexiconImage"
+             decoding="async"
+             fetchpriority="high"
              onload="imageLoaded()"
              onerror="imageError()">
         <div class="loading-indicator" id="loadingIndicator">
