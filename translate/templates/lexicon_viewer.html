@@ -88,6 +88,10 @@
     justify-content: center;
     align-items: flex-start;
     padding: 20px;
+    /* Shadow lives here, on a viewport-sized box, rather than on the multi-
+       megapixel image inside. `contain: paint` keeps repaints inside this box. */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    contain: paint;
 }
 
 .lexicon-image {
@@ -97,7 +101,6 @@
        2294x4004, ~9.2 MP) re-rasterises the whole layer every frame, up to ~83 MP
        at 3x zoom. Zoom steps instantly instead. */
     cursor: grab;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
 .lexicon-image:active {
