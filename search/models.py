@@ -359,24 +359,3 @@ class PromptLanguageOverride(models.Model):
 
     def __str__(self):
         return f'{self.language_code}: {self.term_id} -> {self.rendering}'
-
-
-class PromptLanguageGuidance(models.Model):
-    """Contextual translation awareness for one target language.
-
-    This is deliberately separate from rules: it describes semantic and
-    grammatical context the model should keep in mind without turning every
-    language nuance into a universal prohibition.
-    """
-
-    language_code = models.CharField(max_length=10, unique=True)
-    guidance = models.TextField()
-    active = models.BooleanField(default=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'prompt_language_guidance'
-        ordering = ['language_code']
-
-    def __str__(self):
-        return f'{self.language_code}: {self.guidance[:60]}'

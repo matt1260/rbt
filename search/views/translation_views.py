@@ -1281,7 +1281,7 @@ def translation_coverage_api(request):
 
 def _prompt_config_payload():
     """Current editable prompt configuration, as a JSON-friendly dict."""
-    from search.models import PromptRule, PromptGlossaryTerm, PromptLanguageGuidance
+    from search.models import PromptRule, PromptGlossaryTerm
     return {
         'rules': {
             scope: list(
@@ -1307,14 +1307,6 @@ def _prompt_config_payload():
             for t in PromptGlossaryTerm.objects.order_by('order', 'term')
                                               .prefetch_related('overrides')
         ],
-        'language_guidance': [
-            {
-                'language_code': g.language_code,
-                'guidance': g.guidance,
-                'active': g.active,
-            }
-            for g in PromptLanguageGuidance.objects.order_by('language_code')
-        ],
     }
 
 
@@ -1330,14 +1322,8 @@ def prompt_config_api(request):
     """
     import json as _json
     from django.db import transaction
-    from search.models import (
-        PromptRule, PromptGlossaryTerm, PromptLanguageOverride,
-        PromptLanguageGuidance,
-    )
-    from search.translation_utils import (
-        build_glossary_section, build_language_awareness_section,
-        build_rules_section,
-    )
+    from search.models import PromptRule, PromptGlossaryTerm, PromptLanguageOverride
+    from search.translation_utils import build_glossary_section, build_rules_section
 
     if not request.user.is_authenticated:
         return JsonResponse(
@@ -1354,7 +1340,6 @@ def prompt_config_api(request):
                 'chapter_rules': build_rules_section('chapter'),
                 'footnote_rules': build_rules_section('footnote'),
                 'glossary': build_glossary_section(lang),
-                'language_awareness': build_language_awareness_section(lang),
             },
             'languages': [{'code': c, 'label': l} for c, l in SUPPORTED_LANGUAGES.items()],
         })
@@ -1412,25 +1397,6 @@ def prompt_config_api(request):
                     errors.append(
                         f'glossary[{n}] ("{term}") override "{o.get("language_code")}" needs a rendering.')
 
-    language_guidance = payload.get('language_guidance') or []
-    if not isinstance(language_guidance, list):
-        errors.append('"language_guidance" must be a list.')
-    else:
-        seen_guidance = set()
-        for n, item in enumerate(language_guidance):
-            if not isinstance(item, dict):
-                errors.append(f'language_guidance[{n}] must be an object.')
-                continue
-            code = str(item.get('language_code', '')).strip()
-            if not code:
-                errors.append(f'language_guidance[{n}] needs a language_code.')
-            elif code in seen_guidance:
-                errors.append(f'Duplicate language guidance for "{code}".')
-            else:
-                seen_guidance.add(code)
-            if not str(item.get('guidance', '')).strip():
-                errors.append(f'language_guidance[{n}] needs non-empty guidance.')
-
     total_rules = sum(len(v) for v in rules.values() if isinstance(v, list))
     if total_rules == 0:
         errors.append('Refusing to save: that would leave the prompt with no instructions.')
@@ -1466,19 +1432,9 @@ def prompt_config_api(request):
                     rendering=str(o['rendering']).strip(),
                     active=bool(o.get('active', True)),
                 )
-        PromptLanguageGuidance.objects.all().delete()
-        for item in language_guidance:
-            PromptLanguageGuidance.objects.create(
-                language_code=str(item['language_code']).strip(),
-                guidance=str(item['guidance']).strip(),
-                active=bool(item.get('active', True)),
-            )
 
     return JsonResponse({
         'status': 'ok',
-        'message': (
-            f'Saved {total_rules} rule(s), {len(glossary)} glossary term(s), '
-            f'and {len(language_guidance)} language guidance entrie(s).'
-        ),
+        'message': f'Saved {total_rules} rule(s) and {len(glossary)} glossary term(s).',
         'config': _prompt_config_payload(),
     })
