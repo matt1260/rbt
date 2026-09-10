@@ -321,14 +321,17 @@
             preview.textContent =
                 'CHAPTER RULES\n' + p.chapter_rules +
                 '\n\nFOOTNOTE RULES\n' + p.footnote_rules +
-                '\n\nGLOSSARY (' + p.language + ')\n' + (p.glossary || '(none)');
+                '\n\nGLOSSARY (' + p.language + ')\n' + (p.glossary || '(none)') +
+                '\n\nLANGUAGE AWARENESS (' + p.language + ')\n' +
+                (p.language_awareness || '(fallback/default guidance)');
         }
 
         function describe(cfg) {
             var nRules = 0;
             Object.keys(cfg.rules || {}).forEach(function (k) { nRules += cfg.rules[k].length; });
             hint.textContent = nRules + ' rule(s), ' + (cfg.glossary || []).length +
-                ' glossary term(s). Editing replaces the whole configuration.';
+              ' glossary term(s), ' + (cfg.language_guidance || []).length +
+              ' language guidance entrie(s). Editing replaces the whole configuration.';
         }
 
         function load(lang) {
