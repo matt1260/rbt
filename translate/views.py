@@ -237,7 +237,8 @@ def _safe_save_update(instance: 'TranslationUpdates') -> None:
             print(f"Failed to save TranslationUpdates: {exc}")
 
 
-def word_occurrences(request, public=False):
+@login_required
+def word_occurrences(request):
     """View or edit NT translations for every verse containing a Strong's number."""
     strongs = (request.GET.get('strongs') or request.POST.get('strongs') or '').strip()
     strongs_match = re.search(r'\d+', strongs)
@@ -358,7 +359,7 @@ def word_occurrences(request, public=False):
         }
         for row in rows
     ]
-    is_editor = request.user.is_authenticated and not public
+    is_editor = True
     if not is_editor:
         for occurrence in occurrences:
             clean_html = BeautifulSoup(occurrence['rbt'], 'html.parser')
@@ -459,6 +460,22 @@ def get_context(book, chapter_num, verse_num):
         footnote_contents = results['footnote_content'] # footnote html rows
         chapter_list = results['chapter_list']
         interlinear = results['interlinear']
+        if interlinear:
+            strong_link_pattern = re.compile(
+                r'(<a href="https://biblehub\.com/greek/(\d+)\.htm" target="_blank">'
+                r'Strongs \2</a>)'
+            )
+
+            def add_occurrence_editor_link(match: re.Match[str]) -> str:
+                strongs_number = match.group(2)
+                return (
+                    f'{match.group(1)} '
+                    f'<a class="occurrence-icon" href="/translate/word-occurrences/?strongs={strongs_number}" '
+                    'title="View every NT occurrence" aria-label="View every NT occurrence">'
+                    '<i class="fas fa-list"></i></a>'
+                )
+
+            interlinear = strong_link_pattern.sub(add_occurrence_editor_link, interlinear)
         linear_english = results['linear_english']
         entries = results['entries']
         replacements = results['replacements']
