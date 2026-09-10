@@ -7,7 +7,7 @@ from django.contrib import messages
 from search.models import Genesis, GenesisFootnotes, EngLXX, LITV, TranslationUpdates
 from django.db.models import Q
 from django.utils.html import escape
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.core.cache import cache
 import subprocess
@@ -237,7 +237,7 @@ def _safe_save_update(instance: 'TranslationUpdates') -> None:
             print(f"Failed to save TranslationUpdates: {exc}")
 
 
-@login_required
+@user_passes_test(lambda user: user.is_authenticated and user.is_staff)
 def word_occurrences(request):
     """View or edit NT translations for every verse containing a Strong's number."""
     strongs = (request.GET.get('strongs') or request.POST.get('strongs') or '').strip()
@@ -248,7 +248,7 @@ def word_occurrences(request):
     occurrence_pattern = rf'(^|[^0-9]){re.escape(strongs_number)}([^0-9]|$)'
 
     if request.method == 'POST':
-        if not request.user.is_authenticated:
+        if not request.user.is_authenticated or not request.user.is_staff:
             return JsonResponse({'error': 'Authentication is required to edit occurrences.'}, status=403)
         try:
             payload = json.loads(request.body.decode('utf-8'))
