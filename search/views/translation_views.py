@@ -1323,7 +1323,9 @@ def prompt_config_api(request):
     import json as _json
     from django.db import transaction
     from search.models import PromptRule, PromptGlossaryTerm, PromptLanguageOverride
-    from search.translation_utils import build_glossary_section, build_rules_section
+    from search.translation_utils import (
+        build_glossary_section, build_language_awareness_section, build_rules_section,
+    )
 
     if not request.user.is_authenticated:
         return JsonResponse(
@@ -1340,6 +1342,7 @@ def prompt_config_api(request):
                 'chapter_rules': build_rules_section('chapter'),
                 'footnote_rules': build_rules_section('footnote'),
                 'glossary': build_glossary_section(lang),
+                'language_awareness': build_language_awareness_section(lang),
             },
             'languages': [{'code': c, 'label': l} for c, l in SUPPORTED_LANGUAGES.items()],
         })

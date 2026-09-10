@@ -196,6 +196,71 @@ LANGUAGE_TERM_OVERRIDES = {
 }
 
 
+# Contextual guidance is deliberately separate from the structural rules. It
+# tells the model what meaning to preserve without forcing every language into
+# the same grammatical strategy.
+LANGUAGE_TRANSLATION_AWARENESS = {
+    code: (
+        f"Translate naturally in {name}. Preserve the source's semantic roles, "
+        "including who is acting and who is being acted upon. Retain deliberate "
+        "personification and do not flatten a person into an inanimate object."
+    )
+    for code, name in SUPPORTED_LANGUAGES.items()
+}
+
+LANGUAGE_TRANSLATION_AWARENESS.update({
+    'he': "Hebrew marks gender strongly. When an abstract noun is deliberately personified as a woman, preserve feminine agreement and feminine object forms.",
+    'es': "Spanish distinguishes feminine la/ella from inanimate lo/ello. Preserve a feminine personified referent with natural feminine agreement and object forms.",
+    'pt': "Portuguese distinguishes feminine a/ela from inanimate isso. Preserve feminine agreement and person reference when an abstract noun is personified.",
+    'fr': "French distinguishes elle/la from il/le/ça. Preserve the feminine personified referent rather than turning it into an impersonal ça.",
+    'de': "German gender follows the chosen noun. When an abstract noun is personified as feminine, use feminine agreement and sie rather than es.",
+    'it': "Italian distinguishes feminine la/lei from lo/esso. Preserve the feminine personified referent in agreement and object forms.",
+    'ru': "Russian case and gender matter. Preserve a feminine personified referent with feminine agreement and её, not masculine его or impersonal это.",
+    'uk': "Ukrainian case and gender matter. Preserve a feminine personified referent with feminine agreement and її, not masculine його or impersonal це.",
+    'pl': "Polish case and gender matter. Preserve a feminine personified referent with feminine agreement and ją, not neuter je.",
+    'cs': "Czech case and gender matter. Preserve a feminine personified referent with feminine agreement and ji, not a neuter form.",
+    'hr': "Croatian uses gendered object forms. Preserve a feminine personified referent with nju or an explicit feminine noun.",
+    'sr': "Serbian uses gendered object forms. Preserve a feminine personified referent with њу or an explicit feminine noun.",
+    'bg': "Bulgarian distinguishes feminine я from neuter forms. Preserve feminine personification rather than an impersonal object.",
+    'el': "Greek gender and case matter. Preserve feminine agreement and the feminine object form when an abstract noun is personified as a woman.",
+    'ar': "Arabic gender and agreement matter. Preserve feminine agreement and a feminine object reference such as إياها, not a masculine or inanimate reference.",
+    'hi': "Hindi gender and agreement matter. Use a natural feminine person reference such as उसे or उस स्त्री को when the referent is personified as a woman.",
+    'bn': "Bengali pronouns may be gender-neutral. Use an explicit feminine person expression when a bare pronoun could be mistaken for an inanimate object.",
+    'pa': "Punjabi gender and person reference matter. Preserve a feminine person reference rather than an inanimate form.",
+    'ta': "Tamil can use an inanimate neuter form. Use அவளை or an explicit feminine person noun when the referent is personified as a woman.",
+    'ja': "Japanese has no obligatory grammatical gender. Use 彼女 or an explicit feminine person expression rather than それ for a deliberate female personification.",
+    'ko': "Korean has no obligatory grammatical gender. Use 그녀 or an explicit woman-like expression rather than 그것 for a deliberate female personification.",
+    'zh': "Written Chinese distinguishes 她 from 它. Use 她 or an explicit feminine person expression for a deliberate female personification, never 它.",
+    'zh-TW': "Written Traditional Chinese distinguishes 她 from 它. Use 她 or an explicit feminine person expression, never 它.",
+    'th': "Thai can use inanimate มัน. Preserve a feminine personification with เธอ or an explicit woman expression.",
+    'vi': "Vietnamese distinguishes person reference from inanimate nó. Use bà ấy, cô ấy, or another natural feminine person reference.",
+    'id': "Indonesian pronouns are gender-neutral. Use perempuan itu or another explicit feminine person expression when needed to avoid an inanimate reading.",
+    'sw': "Swahili noun classes can make an abstract noun sound inanimate. Preserve the human feminine referent with the appropriate person form.",
+    'am': "Amharic gendered pronouns matter. Preserve the feminine object form እሷን rather than masculine እርሱን.",
+    'om': "Oromo gendered pronouns matter. Preserve the feminine object form ishee rather than masculine or inanimate isa.",
+    'yo': "Yoruba pronouns are generally gender-neutral. Use obìnrin náà or another explicit feminine person expression when a bare pronoun could mean an object.",
+    'ig': "Igbo pronouns are generally gender-neutral. Use nwanyị ahụ or another explicit feminine person expression when a bare pronoun could mean an object.",
+})
+
+
+def build_language_awareness_section(target_language_code):
+    """Render contextual, language-specific meaning guidance for chapter prompts."""
+    guidance = LANGUAGE_TRANSLATION_AWARENESS.get(target_language_code)
+    if not guidance:
+        language_name = SUPPORTED_LANGUAGES.get(target_language_code, target_language_code)
+        guidance = (
+            f"Translate naturally in {language_name}. Preserve semantic roles, "
+            "deliberate personification, and the distinction between a person and "
+            "an inanimate object."
+        )
+    return (
+        "\n\nSEMANTIC AWARENESS FOR THIS LANGUAGE:\n"
+        "These are contextual observations, not formatting rules. Apply them "
+        "naturally without adding explanations to the translation:\n"
+        f"- {guidance}"
+    )
+
+
 def _db_rules(scope):
     """Active PromptRule texts for `scope`, or None if the table cannot be used.
 
@@ -370,6 +435,7 @@ Return ONLY the translated phrase, no explanation or extra text."""
         chapter_text += f"<<<VERSE_{verse_num}>>>\n{verse_dict_only[verse_num]}\n\n"
     
     glossary_section = build_glossary_section(target_language_code)
+    language_awareness_section = build_language_awareness_section(target_language_code)
     rules_section = build_rules_section('chapter')
 
     prompt = f"""Translate this Bible chapter to {language_name}.
@@ -377,6 +443,7 @@ Return ONLY the translated phrase, no explanation or extra text."""
 CRITICAL INSTRUCTIONS - READ CAREFULLY:
 {rules_section}
 {glossary_section}
+{language_awareness_section}
 EXAMPLES OF WHAT TO TRANSLATE:
 ✓ <h5><span style="color: blue;">The Twins</span></h5>
   → <h5><span style="color: blue;">Los Gemelos</span></h5>

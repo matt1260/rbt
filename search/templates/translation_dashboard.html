@@ -321,7 +321,9 @@
             preview.textContent =
                 'CHAPTER RULES\n' + p.chapter_rules +
                 '\n\nFOOTNOTE RULES\n' + p.footnote_rules +
-                '\n\nGLOSSARY (' + p.language + ')\n' + (p.glossary || '(none)');
+                '\n\nGLOSSARY (' + p.language + ')\n' + (p.glossary || '(none)') +
+                '\n\nLANGUAGE AWARENESS (' + p.language + ')\n' +
+                (p.language_awareness || '(none)');
         }
 
         function describe(cfg) {
