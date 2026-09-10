@@ -39,7 +39,7 @@ from search.seo_utils import book_to_slug
 from search.rbt_titles import rbt_books
 
 # Cache version for interlinear data
-INTERLINEAR_CACHE_VERSION = 'v5'
+INTERLINEAR_CACHE_VERSION = 'v6'
 
 
 def home(request):
@@ -997,8 +997,10 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
 
                         interlinear += '<table class="tablefloat">\n<tbody>\n'
                         interlinear += '<tr>\n<td class="interlinear" height="160" valign="middle" align="left">\n'
+                        interlinear += '<div class="strongs-occurrence-row">'
                         interlinear += f'<span class="pos"><a href="https://biblehub.com/greek/{strongs}.htm" target="_blank">Strongs {strongs}</a></span>&nbsp;'
-                        interlinear += f'<a class="occurrence-icon" href="/word-occurrences/?strongs={strongs}" title="View every NT occurrence" aria-label="View every NT occurrence"><i class="fas fa-list"></i></a><br>\n'
+                        interlinear += f'<a class="occurrence-icon" href="/word-occurrences/?strongs={strongs}" title="View every NT occurrence" aria-label="View every NT occurrence"><i class="fas fa-list"></i></a>'
+                        interlinear += '</div>\n'
                         
                         greek_lemma = greek_lookup(lemma)
                         
@@ -1007,7 +1009,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                         if greek_lemma == 'Παραδείσῳ':
                             greek_lemma = 'παράδεισος'
                         
-                        interlinear += f'<span class="strongsnt2"> <a href="https://logeion.uchicago.edu/{greek_lemma}" target="_blank">Λογεῖον</a></span><br>\n'
+                        interlinear += f'<div class="strongsnt2"> <a href="https://logeion.uchicago.edu/{greek_lemma}" target="_blank">Λογεῖον</a></div>\n'
                         interlinear += f'<span class="strongsnt2"> <a href="https://www.perseus.tufts.edu/hopper/morph?l={greek_lemma}" target="_blank">Perseus</a></span><br>\n'
                         interlinear += f'<span class="translit">{translit}</span><br>\n'
                         interlinear += f'<span class="greek">{lemma}</span><br>\n'
