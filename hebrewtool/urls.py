@@ -83,6 +83,7 @@ urlpatterns = [
     path('edit_search/', views.edit_search, name='edit_search'),
     path('edit/', views.edit, name='edit'),
     path('edit_nt_chapter/', views.edit_nt_chapter, name='edit_nt_chapter'),
+    path('word-occurrences/', views.word_occurrences, {'public': True}, name='public_word_occurrences'),
     path('paraphrase/', include('search.urls')),
     path("edit_nt_chapter/", views.edit_nt_chapter, name="edit_nt_chapter"),
     path('RBT/', include('search.urls')),

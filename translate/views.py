@@ -237,7 +237,7 @@ def _safe_save_update(instance: 'TranslationUpdates') -> None:
             print(f"Failed to save TranslationUpdates: {exc}")
 
 
-def word_occurrences(request):
+def word_occurrences(request, public=False):
     """View or edit NT translations for every verse containing a Strong's number."""
     strongs = (request.GET.get('strongs') or request.POST.get('strongs') or '').strip()
     strongs_match = re.search(r'\d+', strongs)
@@ -358,7 +358,7 @@ def word_occurrences(request):
         }
         for row in rows
     ]
-    is_editor = request.user.is_authenticated
+    is_editor = request.user.is_authenticated and not public
     if not is_editor:
         for occurrence in occurrences:
             clean_html = BeautifulSoup(occurrence['rbt'], 'html.parser')
