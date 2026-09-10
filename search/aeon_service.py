@@ -29,9 +29,9 @@ DEFAULT_EMBEDDING_MODELS = [
     'text-embedding-004',
 ]
 DEFAULT_GENERATION_MODELS = [
-    'models/gemini-2.5-flash',
-    'gemini-2.5-flash',
-    'models/gemini-3-flash-preview',
+    'models/gemini-3.8-flash',
+    'gemini-3.8-flash',
+    'models/gemini-3.6-flash',
 ]
 
 ROLE_WHITELIST = {'user', 'assistant'}

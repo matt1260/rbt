@@ -969,11 +969,10 @@ Cached: {{ cached_hit }}
             <div class="gemini-modal__field">
                 <label for="greekGeminiModel">Model</label>
                 <select id="greekGeminiModel" autocomplete="off">
-                    <option value="gemini-3-flash-preview" selected>gemini-3-flash-preview</option>
+                    <option value="gemini-3.8-flash" selected>gemini-3.8-flash</option>
                     <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
-                    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                    <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                    <option value="gemini-3.6-flash">gemini-3.6-flash</option>
+                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite</option>
                 </select>
             </div>
             <div class="gemini-modal__field">
@@ -1866,7 +1865,7 @@ Cached: {{ cached_hit }}
             <div id="chat-toolbar">
                 <label for="chat-model-select">Model:</label>
                 <select id="chat-model-select">
-                    <option value="gemini-3-flash-preview" selected>Flash (fast)</option>
+                    <option value="gemini-3.8-flash" selected>Flash (fast)</option>
                     <option value="gemini-3.1-pro-preview">Pro (best)</option>
                 </select>
                 <button id="chat-clear-btn" title="Clear chat history for this word"
@@ -2077,7 +2076,7 @@ Cached: {{ cached_hit }}
                         message: msg,
                         context: lexiconContext,
                         history: chatHistory.slice(-6), // send last 3 exchanges for context
-                        model: modelSelect ? modelSelect.value : 'gemini-3-flash-preview',
+                        model: modelSelect ? modelSelect.value : 'gemini-3.8-flash',
                     }),
                 });
                 const responseText = await resp.text();

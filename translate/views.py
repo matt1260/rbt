@@ -68,7 +68,7 @@ client = genai.Client(api_key=GEMINI_API_KEY, http_options={'client_args': {'tra
 CHATGPT_KEY = os.getenv('CHATGPT_KEY')
 openai_client = OpenAI(api_key=CHATGPT_KEY) if CHATGPT_KEY else None
 
-DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash-preview')
+DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3.8-flash')
 MODEL_NAME_PATTERN = re.compile(r'^[\w\-.:+]+$')
 
 DEFAULT_CHATGPT_MODEL = os.getenv('CHATGPT_MODEL_NAME', 'gpt-5.6-terra')
@@ -6426,7 +6426,7 @@ def chat_with_lexicon(request):
 
         # Whitelist allowed models; fall back to default
         ALLOWED_CHAT_MODELS = {
-            'gemini-3-flash-preview': 'gemini-3-flash-preview',
+            'gemini-3.8-flash': 'gemini-3.8-flash',
             'gemini-3.1-pro-preview': 'gemini-3.1-pro-preview',
         }
         chat_model = ALLOWED_CHAT_MODELS.get(requested_model, DEFAULT_GEMINI_MODEL)

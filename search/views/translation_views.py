@@ -321,13 +321,13 @@ def _translate_nt_chapter(book, chapter_num, language, results):
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=0, verse=0,
                     language_code=language, footnote_id=None,
-                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3-flash-preview'}
+                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
                 )
             else:
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=chapter_num, verse=verse_num,
                     language_code=language, footnote_id=None,
-                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3-flash-preview'}
+                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
                 )
             translation_stats['verses'] += 1
 
@@ -428,7 +428,7 @@ def _translate_nt_chapter(book, chapter_num, language, results):
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=c_obj, verse=v_obj,
                     language_code=language, footnote_id=f_id,
-                    defaults={'footnote_text': f_text, 'status': 'completed', 'generated_by': 'gemini-3-flash-preview'}
+                    defaults={'footnote_text': f_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
                 )
                 translation_stats['footnotes'] += 1
     
@@ -517,13 +517,13 @@ def _translate_ot_chapter(book, chapter_num, language, results):
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=0, verse=0,
                     language_code=language, footnote_id=None,
-                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3-flash-preview'}
+                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
                 )
             else:
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=chapter_num, verse=verse_num,
                     language_code=language, footnote_id=None,
-                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3-flash-preview'}
+                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
                 )
             translation_stats['verses'] += 1
     
@@ -610,7 +610,7 @@ def _translate_ot_chapter(book, chapter_num, language, results):
                     verse=data.get('verse', 0),
                     language_code=language,
                     footnote_id=f_id,
-                    defaults={'footnote_text': f_text, 'status': 'completed', 'generated_by': 'gemini-3-flash-preview'}
+                    defaults={'footnote_text': f_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
                 )
                 translation_stats['footnotes'] += 1
     

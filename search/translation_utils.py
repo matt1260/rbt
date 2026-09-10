@@ -341,7 +341,7 @@ Return ONLY the translated phrase, no explanation or extra text."""
                 print(f"[TRANSLATION DEBUG] Translating book name: {book_name}")
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
-                    model='models/gemini-3-flash-preview',
+                    model='models/gemini-3.8-flash',
                     contents=book_prompt
                 )
                 translated_book = (response.text or '').strip() # type: ignore
@@ -428,17 +428,17 @@ Return ONLY the translated verses with all HTML tags and <<<VERSE_N>>> markers p
         try:
             print(f"[TRANSLATION DEBUG] Calling Gemini API with key ending in ...{api_key[-4:] if api_key else 'None'}")
             client = genai.Client(api_key=api_key)
-            translated_text = _call_model(client, 'models/gemini-3-flash-preview', prompt)
+            translated_text = _call_model(client, 'models/gemini-3.8-flash', prompt)
             print(f"[TRANSLATION DEBUG] API Response received. Length: {len(translated_text)}")
             _log_gemini_usage(api_key, 'chapter', target_language_code, book=book_name, chapter=chapter)
             # print(f"[TRANSLATION DEBUG] Response preview: {translated_text[:100]}...")
             
             verse_results = _parse_verse_results(translated_text) if translated_text else {}
 
-            # Fallback: retry with gemini-2.5-flash if parsing failed or empty
+            # Fallback: retry with gemini-3.6-flash if parsing failed or empty
             if not verse_results:
-                print(f"[TRANSLATION DEBUG] Primary model parsing failed or empty. Retrying with gemini-2.5-flash...")
-                translated_text = _call_model(client, 'models/gemini-2.5-flash', prompt)
+                print(f"[TRANSLATION DEBUG] Primary model parsing failed or empty. Retrying with gemini-3.6-flash...")
+                translated_text = _call_model(client, 'models/gemini-3.6-flash', prompt)
                 print(f"[TRANSLATION DEBUG] Fallback response received. Length: {len(translated_text)}")
                 verse_results = _parse_verse_results(translated_text) if translated_text else {}
 
@@ -531,7 +531,7 @@ Return the translated footnotes with <<<FOOTNOTE_X>>> markers and ALL HTML prese
             print(f"[TRANSLATION DEBUG] Footnotes: Trying API key {key_idx + 1}/{len(api_keys)} (ending ...{api_key[-4:] if api_key else 'None'})")
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
-                model='models/gemini-3-flash-preview',
+                model='models/gemini-3.8-flash',
                 contents=prompt
             )
             translated_text = (response.text or '').strip() # type: ignore
@@ -561,11 +561,11 @@ Return the translated footnotes with <<<FOOTNOTE_X>>> markers and ALL HTML prese
                 print(f"[TRANSLATION DEBUG] WARNING: Expected {len(footnotes_dict)} footnotes, got {len(result)}")
                 print(f"[TRANSLATION DEBUG] Found IDs: {list(result.keys())[:10]}...")
             
-            # Fallback: retry with gemini-2.5-flash if parsing failed or empty
+            # Fallback: retry with gemini-3.6-flash if parsing failed or empty
             if not result:
-                print(f"[TRANSLATION DEBUG] Footnotes parsing failed or empty. Retrying with gemini-2.5-flash...")
+                print(f"[TRANSLATION DEBUG] Footnotes parsing failed or empty. Retrying with gemini-3.6-flash...")
                 response = client.models.generate_content(
-                    model='models/gemini-2.5-flash',
+                    model='models/gemini-3.6-flash',
                     contents=prompt
                 )
                 translated_text = (response.text or '').strip() # type: ignore
@@ -631,7 +631,7 @@ Return only the translated text with HTML tags preserved."""
     try:
         client = genai.Client(api_key=GEMINI_API_KEYS[0])
         response = client.models.generate_content(
-            model='models/gemini-3-flash-preview',
+            model='models/gemini-3.8-flash',
             contents=prompt
         )
         return (response.text or '').strip() # type: ignore
@@ -665,7 +665,7 @@ Return only the translated text with HTML tags preserved."""
     try:
         client = genai.Client(api_key=GEMINI_API_KEYS[0])
         response = client.models.generate_content(
-            model='models/gemini-3-flash-preview',
+            model='models/gemini-3.8-flash',
             contents=prompt
         )
         return (response.text or '').strip() # type: ignore

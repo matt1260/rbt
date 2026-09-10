@@ -92,7 +92,7 @@ class VerseTranslation(models.Model):
     footnote_id = models.CharField(max_length=50, blank=True, null=True)
     footnote_text = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ai_generated')
-    generated_by = models.CharField(max_length=50, default='gemini-3-flash-preview')
+    generated_by = models.CharField(max_length=50, default='gemini-3.8-flash')
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

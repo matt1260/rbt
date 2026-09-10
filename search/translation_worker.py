@@ -343,7 +343,7 @@ class TranslationWorker:
                         defaults={
                             'verse_text': translated_text,
                             'status': 'completed',
-                            'generated_by': 'gemini-3-flash-preview',
+                            'generated_by': 'gemini-3.8-flash',
                         }
                     )
             print(f"[WORKER] Judas commentary translated to {language}")
@@ -375,7 +375,7 @@ class TranslationWorker:
                     defaults={
                         'verse_text': translated_text,
                         'status': 'completed',
-                        'generated_by': 'gemini-3-flash-preview',
+                        'generated_by': 'gemini-3.8-flash',
                     }
                 )
         print(f"[WORKER] Judas heading translated to {language}")
@@ -662,7 +662,7 @@ class TranslationWorker:
                         defaults={
                             'verse_text': translated_text,
                             'status': 'completed',
-                            'generated_by': 'gemini-3-flash-preview'
+                            'generated_by': 'gemini-3.8-flash'
                         }
                     )
                     
@@ -704,7 +704,7 @@ class TranslationWorker:
                         defaults={
                             'footnote_text': translated_text,
                             'status': 'completed',
-                            'generated_by': 'gemini-3-flash-preview'
+                            'generated_by': 'gemini-3.8-flash'
                         }
                     )
                     
