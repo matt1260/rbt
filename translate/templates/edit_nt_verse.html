@@ -852,7 +852,7 @@ Cached: {{ cached_hit }}
                 class="fas fa-chevron-circle-right"></i></a>
     </h3>
     Skip to verse:
-    <form method="post" action="./" id="edit-form">
+    <form method="post" action="./" id="verse-navigation-form">
         {% csrf_token %}
         <input name="book" id="book" value="{{ book }}">
         <input name="chapter" id="chapter" maxlength="2" size="2" value="{{ chapter_num }}">
@@ -880,7 +880,7 @@ Cached: {{ cached_hit }}
         <span id="englishReader">{{ rbt_display|safe }}</span>
     </div>
 
-    <form method="post" action="./" id="edit-form">
+    <form method="post" action="./" id="translation-edit-form">
         {% csrf_token %}
         <textarea id="editor-texto" name="edited_content" rows="8" cols="80"
             oninput="updateReader(this.value)">{{ rbt|safe }}</textarea>
@@ -1213,7 +1213,7 @@ Cached: {{ cached_hit }}
             id="dynamic_content"></span>&quot;&gt;&lt;sup&gt;<span id="dynamic_content2"></span>&lt;/sup&gt;&lt;/a&gt;
     </div>
     <button onclick="copyText()">Copy Footnote</button>
-    <form method="post" action="./" id="edit-form">
+    <form method="post" action="./" id="footnote-edit-form">
         {% csrf_token %}
         Footnote ID: <input type="text" id="footnote_id" name="footnote_id" value="xx" autocomplete="off"> Add Header:
         <input type="text" id="footnote_header" name="footnote_header" autocomplete="off"><br>
@@ -1241,7 +1241,7 @@ Cached: {{ cached_hit }}
             document.getElementById('edited_content').value = editedContent;
 
             // Submit the form via the 'edit' view
-            document.getElementById('edit-form').submit();
+            document.getElementById('translation-edit-form').submit();
         });
     </script>
 
