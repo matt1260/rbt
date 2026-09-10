@@ -237,6 +237,135 @@ def _safe_save_update(instance: 'TranslationUpdates') -> None:
             print(f"Failed to save TranslationUpdates: {exc}")
 
 
+@login_required
+def word_occurrences(request):
+    """Edit NT translations for every verse containing a Strong's number."""
+    strongs = (request.GET.get('strongs') or request.POST.get('strongs') or '').strip()
+    strongs_match = re.search(r'\d+', strongs)
+    if not strongs_match:
+        return HttpResponse('A numeric Strong\'s number is required.', status=400)
+    strongs_number = strongs_match.group(0)
+    occurrence_pattern = rf'(^|[^0-9]){re.escape(strongs_number)}([^0-9]|$)'
+
+    if request.method == 'POST':
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+            changes = payload.get('changes', [])
+        except (ValueError, UnicodeDecodeError):
+            return JsonResponse({'error': 'Invalid change payload.'}, status=400)
+
+        if not isinstance(changes, list) or len(changes) > 500:
+            return JsonResponse({'error': 'Submit between 1 and 500 changes.'}, status=400)
+
+        updated = []
+        conflicts = []
+        try:
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute("SET LOCAL search_path TO new_testament")
+                    for change in changes:
+                        try:
+                            verse_id = int(change.get('verse_id'))
+                        except (AttributeError, TypeError, ValueError):
+                            continue
+                        new_text = change.get('text')
+                        original_text = change.get('original')
+                        if not isinstance(new_text, str) or not isinstance(original_text, str):
+                            continue
+                        cursor.execute(
+                            """
+                            UPDATE nt
+                            SET rbt = %s
+                            WHERE verseID = %s AND rbt = %s
+                            AND EXISTS (
+                                SELECT 1 FROM rbt_greek.strongs_greek g
+                                WHERE g.verse LIKE nt.book || '.' || nt.chapter || '.' || nt.startVerse || '-%%'
+                                AND g.strongs::text ~ %s
+                            )
+                            """,
+                            (new_text, verse_id, original_text, occurrence_pattern),
+                        )
+                        if cursor.rowcount:
+                            updated.append(verse_id)
+                        else:
+                            conflicts.append(verse_id)
+        except Exception:
+            logger.exception('Failed to save Strong\'s occurrence edits for %s', strongs_number)
+            return JsonResponse({'error': 'The occurrence edits could not be saved.'}, status=500)
+
+        for verse_id in updated:
+            row = execute_query(
+                "SELECT book, chapter, startVerse, rbt FROM new_testament.nt WHERE verseID = %s",
+                (verse_id,), fetch='one'
+            )
+            if not row:
+                continue
+            book_code, chapter, verse, new_text = row
+            book_name = convert_book_name(book_code) or book_code
+            _invalidate_reader_cache(book_name, chapter, verse)
+            _safe_save_update(TranslationUpdates(
+                date=datetime.now(),
+                version='New Testament',
+                reference=f'{book_name} {chapter}:{verse}',
+                update_text=re.sub(r'<a\s+.*?>(.*?)</a>', r'\1', new_text or ''),
+            ))
+
+        return JsonResponse({'updated': len(updated), 'conflicts': conflicts})
+
+    try:
+        page = max(1, int(request.GET.get('page', '1')))
+        page_size = min(100, max(25, int(request.GET.get('page_size', '50'))))
+    except ValueError:
+        page, page_size = 1, 50
+    offset = (page - 1) * page_size
+
+    count_row = execute_query(
+        """
+        SELECT COUNT(DISTINCT n.verseID)
+        FROM rbt_greek.strongs_greek g
+        JOIN new_testament.nt n
+          ON g.verse LIKE n.book || '.' || n.chapter || '.' || n.startVerse || '-%%'
+        WHERE g.strongs::text ~ %s
+        """,
+        (occurrence_pattern,), fetch='one'
+    )
+    total = int(count_row[0] if count_row else 0)
+    rows = execute_query(
+        """
+        SELECT n.verseID, n.book, n.chapter, n.startVerse, n.rbt,
+               string_agg(DISTINCT g.lemma, ' ' ORDER BY g.lemma)
+        FROM rbt_greek.strongs_greek g
+        JOIN new_testament.nt n
+          ON g.verse LIKE n.book || '.' || n.chapter || '.' || n.startVerse || '-%%'
+        WHERE g.strongs::text ~ %s
+        GROUP BY n.verseID, n.book, n.chapter, n.startVerse, n.rbt, n.nt_id
+        ORDER BY n.nt_id
+        LIMIT %s OFFSET %s
+        """,
+        (occurrence_pattern, page_size, offset), fetch='all'
+    )
+    occurrences = [
+        {
+            'verse_id': row[0],
+            'book': convert_book_name(row[1]) or row[1],
+            'chapter': row[2],
+            'verse': row[3],
+            'rbt': row[4] or '',
+            'greek': row[5] or '',
+        }
+        for row in rows
+    ]
+    return render(request, 'word_occurrences.html', {
+        'strongs': strongs_number,
+        'occurrences': occurrences,
+        'page': page,
+        'page_size': page_size,
+        'total': total,
+        'has_next': offset + len(occurrences) < total,
+        'next_page': page + 1,
+    })
+
+
 def _record_judas_update(version: str, reference: str, update_text: str) -> None:
     """Persist Judas editor actions into TranslationUpdates for /updates/."""
     update_instance = TranslationUpdates(
@@ -319,6 +448,21 @@ def get_context(book, chapter_num, verse_num):
         footnote_contents = results['footnote_content'] # footnote html rows
         chapter_list = results['chapter_list']
         interlinear = results['interlinear']
+        if interlinear:
+            strong_link_pattern = re.compile(
+                r'(<a href="https://biblehub\.com/greek/(\d+)\.htm" target="_blank">'
+                r'Strongs \2</a>)'
+            )
+
+            def add_occurrence_editor_link(match: re.Match[str]) -> str:
+                strongs_number = match.group(2)
+                return (
+                    f'{match.group(1)} '
+                    f'<a href="/translate/word-occurrences/?strongs={quote(strongs_number)}" '
+                    'title="Edit every NT occurrence">[edit occurrences]</a>'
+                )
+
+            interlinear = strong_link_pattern.sub(add_occurrence_editor_link, interlinear)
         linear_english = results['linear_english']
         entries = results['entries']
         replacements = results['replacements']

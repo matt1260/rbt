@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}Strong's {{ strongs }} occurrences{% endblock %}
+{% block content %}
+<style>
+    .occurrence-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin:16px 0; }
+    .occurrence-toolbar h1 { margin:0; }
+    .occurrence-meta { color:#526173; margin:4px 0 0; }
+    .occurrence-actions { display:flex; gap:8px; align-items:center; }
+    .occurrence-actions button, .occurrence-actions a { border:1px solid #b8c4d1; border-radius:5px; padding:8px 12px; background:#fff; color:#17324f; text-decoration:none; cursor:pointer; }
+    .occurrence-actions button.primary { background:#17324f; color:#fff; border-color:#17324f; }
+    .occurrence-actions button:disabled { opacity:.55; cursor:not-allowed; }
+    .occurrence-list { display:grid; gap:12px; }
+    .occurrence-card { border:1px solid #d5dbe4; border-radius:6px; background:#fff; padding:14px; }
+    .occurrence-card.is-dirty { border-color:#d58b28; box-shadow:0 0 0 2px #fff1d6; }
+    .occurrence-heading { display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap; margin-bottom:8px; }
+    .occurrence-heading a { color:#17324f; font-weight:700; }
+    .occurrence-greek { color:#53657a; font-family:Georgia, serif; }
+    .occurrence-card textarea { width:100%; min-height:92px; resize:vertical; border:1px solid #b8c4d1; border-radius:4px; padding:9px; font:14px/1.55 Georgia, serif; }
+    .occurrence-card textarea:focus { outline:2px solid #9bc0e8; border-color:#3478b9; }
+    .status { min-height:24px; color:#23623c; }
+    .status.error { color:#a12a2a; }
+    .pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:18px 0 32px; }
+    .pagination a { color:#17324f; }
+</style>
+
+<div class="occurrence-toolbar">
+    <div>
+        <p><a href="../edit/">Back to verse editor</a></p>
+        <h1>Strong's {{ strongs }} occurrences</h1>
+        <p class="occurrence-meta">{{ total }} NT verses contain this Strong's number. Showing {{ occurrences|length }} per page.</p>
+    </div>
+    <div class="occurrence-actions">
+        <label for="page-size">Per page</label>
+        <select id="page-size" onchange="window.location.href='?strongs={{ strongs }}&page_size=' + this.value">
+            <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+            <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+        </select>
+        <button class="primary" id="save-occurrences" type="button" disabled>Save changes</button>
+    </div>
+</div>
+
+<div id="save-status" class="status" aria-live="polite"></div>
+{% csrf_token %}
+<div class="occurrence-list" id="occurrence-list">
+    {% for occurrence in occurrences %}
+    <article class="occurrence-card" data-verse-id="{{ occurrence.verse_id }}">
+        <div class="occurrence-heading">
+            <a href="../edit/?book={{ occurrence.book|urlencode }}&chapter={{ occurrence.chapter }}&verse={{ occurrence.verse }}" target="_blank" rel="noopener">{{ occurrence.book }} {{ occurrence.chapter }}:{{ occurrence.verse }}</a>
+            <span class="occurrence-greek">{{ occurrence.greek }}</span>
+        </div>
+        <textarea class="occurrence-editor" data-original="{{ occurrence.rbt|escape }}">{{ occurrence.rbt }}</textarea>
+    </article>
+    {% empty %}
+    <p>No NT occurrences were found for Strong's {{ strongs }}.</p>
+    {% endfor %}
+</div>
+
+<div class="pagination">
+    {% if page > 1 %}<a href="?strongs={{ strongs }}&page={{ page|add:'-1' }}&page_size={{ page_size }}">Previous page</a>{% else %}<span></span>{% endif %}
+    <span>Page {{ page }}</span>
+    {% if has_next %}<a href="?strongs={{ strongs }}&page={{ next_page }}&page_size={{ page_size }}">Next page</a>{% endif %}
+</div>
+
+<script>
+(() => {
+    const saveButton = document.getElementById('save-occurrences');
+    const status = document.getElementById('save-status');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const cards = [...document.querySelectorAll('.occurrence-card')];
+
+    function dirtyCards() {
+        return cards.filter(card => {
+            const editor = card.querySelector('.occurrence-editor');
+            return editor.value !== editor.dataset.original;
+        });
+    }
+
+    function refreshState() {
+        const dirty = dirtyCards();
+        cards.forEach(card => card.classList.toggle('is-dirty', dirty.includes(card)));
+        saveButton.disabled = dirty.length === 0;
+        saveButton.textContent = dirty.length ? `Save ${dirty.length} change${dirty.length === 1 ? '' : 's'}` : 'Save changes';
+    }
+
+    cards.forEach(card => card.querySelector('.occurrence-editor').addEventListener('input', refreshState));
+
+    saveButton.addEventListener('click', async () => {
+        const dirty = dirtyCards();
+        if (!dirty.length) return;
+        saveButton.disabled = true;
+        status.className = 'status';
+        status.textContent = 'Saving...';
+        const changes = dirty.map(card => {
+            const editor = card.querySelector('.occurrence-editor');
+            return { verse_id: card.dataset.verseId, text: editor.value, original: editor.dataset.original };
+        });
+        try {
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest'},
+                body: JSON.stringify({strongs: '{{ strongs }}', changes})
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Save failed.');
+            const conflictSet = new Set((result.conflicts || []).map(String));
+            dirty.forEach(card => {
+                if (!conflictSet.has(card.dataset.verseId)) {
+                    const editor = card.querySelector('.occurrence-editor');
+                    editor.dataset.original = editor.value;
+                }
+            });
+            refreshState();
+            status.textContent = `${result.updated} change${result.updated === 1 ? '' : 's'} saved${result.conflicts?.length ? `; ${result.conflicts.length} conflict${result.conflicts.length === 1 ? '' : 's'} need review` : '.'}`;
+            if (result.conflicts?.length) status.className = 'status error';
+        } catch (error) {
+            status.className = 'status error';
+            status.textContent = error.message;
+            refreshState();
+        }
+    });
+
+    refreshState();
+})();
+</script>
+{% endblock %}

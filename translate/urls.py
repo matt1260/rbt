@@ -8,6 +8,7 @@ urlpatterns = [
 
     path('RBT/translate/', views.translate, name='rbt_translate'),
     path("edit_nt_chapter/", views.edit_nt_chapter, name="edit_nt_chapter"),
+    path("word-occurrences/", views.word_occurrences, name="word_occurrences"),
     path('RBT/edit_search/', views.edit_search, name='edit_search'),
     path('RBT/edit_footnote/', views.edit_footnote, name='edit_footnote'),
     path('RBT/edit/', views.edit, name='edit'),
