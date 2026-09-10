@@ -8,7 +8,7 @@
     .occurrence-actions { display:flex; gap:8px; align-items:center; }
     .occurrence-actions button, .occurrence-actions a { border:1px solid #b8c4d1; border-radius:5px; padding:8px 12px; background:#fff; color:#17324f; text-decoration:none; cursor:pointer; }
     .occurrence-actions button.primary { background:#17324f; color:#fff; border-color:#17324f; }
-    .occurrence-actions button:disabled { opacity:.55; cursor:not-allowed; }
+    .occurrence-actions button:disabled, .occurrence-save:disabled { opacity:.55; cursor:not-allowed; }
     .occurrence-list { display:grid; gap:12px; }
     .occurrence-card { border:1px solid #d5dbe4; border-radius:6px; background:#fff; padding:14px; }
     .occurrence-card.is-dirty { border-color:#d58b28; box-shadow:0 0 0 2px #fff1d6; }
@@ -18,6 +18,10 @@
     .occurrence-gloss { color:#687789; font-size:13px; }
     .occurrence-card textarea { width:100%; min-height:92px; resize:vertical; border:1px solid #b8c4d1; border-radius:4px; padding:9px; font:14px/1.55 Georgia, serif; }
     .occurrence-card textarea:focus { outline:2px solid #9bc0e8; border-color:#3478b9; }
+    .occurrence-footer { display:flex; align-items:center; gap:10px; margin-top:8px; }
+    .occurrence-save { border:1px solid #17324f; border-radius:4px; padding:6px 10px; background:#17324f; color:#fff; cursor:pointer; }
+    .occurrence-save-status { color:#23623c; font-size:13px; }
+    .occurrence-save-status.error { color:#a12a2a; }
     .status { min-height:24px; color:#23623c; }
     .status.error { color:#a12a2a; }
     .pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:18px 0 32px; }
@@ -37,11 +41,9 @@
             <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
             <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
         </select>
-        {% if is_editor %}<button class="primary" id="save-occurrences" type="button" disabled>Save changes</button>{% endif %}
     </div>
 </div>
 
-<div id="save-status" class="status" aria-live="polite"></div>
 {% csrf_token %}
 <div class="occurrence-list" id="occurrence-list">
     {% for occurrence in occurrences %}
@@ -53,6 +55,10 @@
         </div>
         {% if is_editor %}
         <textarea class="occurrence-editor" data-original="{{ occurrence.rbt|escape }}">{{ occurrence.rbt }}</textarea>
+        <div class="occurrence-footer">
+            <button class="occurrence-save" type="button" disabled>Save verse</button>
+            <span class="occurrence-save-status" aria-live="polite"></span>
+        </div>
         {% else %}
         <div class="occurrence-text">{{ occurrence.rbt|safe }}</div>
         {% endif %}
@@ -70,62 +76,59 @@
 
 {% if is_editor %}<script>
 (() => {
-    const saveButton = document.getElementById('save-occurrences');
-    const status = document.getElementById('save-status');
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
     const cards = [...document.querySelectorAll('.occurrence-card')];
     let hasUnsavedChanges = false;
 
-    function dirtyCards() {
-        return cards.filter(card => {
-            const editor = card.querySelector('.occurrence-editor');
-            return editor.value !== editor.dataset.original;
-        });
+    function isDirty(card) {
+        const editor = card.querySelector('.occurrence-editor');
+        return editor.value !== editor.dataset.original;
     }
 
-    function refreshState() {
-        const dirty = dirtyCards();
-        hasUnsavedChanges = dirty.length > 0;
-        cards.forEach(card => card.classList.toggle('is-dirty', dirty.includes(card)));
-        saveButton.disabled = dirty.length === 0;
-        saveButton.textContent = dirty.length ? `Save ${dirty.length} change${dirty.length === 1 ? '' : 's'}` : 'Save changes';
+    function refreshCard(card) {
+        const dirty = isDirty(card);
+        card.classList.toggle('is-dirty', dirty);
+        card.querySelector('.occurrence-save').disabled = !dirty;
+        hasUnsavedChanges = cards.some(isDirty);
     }
 
-    cards.forEach(card => card.querySelector('.occurrence-editor').addEventListener('input', refreshState));
-
-    saveButton.addEventListener('click', async () => {
-        const dirty = dirtyCards();
-        if (!dirty.length) return;
+    async function saveCard(card) {
+        if (!isDirty(card)) return;
+        const editor = card.querySelector('.occurrence-editor');
+        const saveButton = card.querySelector('.occurrence-save');
+        const status = card.querySelector('.occurrence-save-status');
         saveButton.disabled = true;
-        status.className = 'status';
+        status.className = 'occurrence-save-status';
         status.textContent = 'Saving...';
-        const changes = dirty.map(card => {
-            const editor = card.querySelector('.occurrence-editor');
-            return { verse_id: card.dataset.verseId, text: editor.value, original: editor.dataset.original };
-        });
         try {
             const response = await fetch(window.location.href, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest'},
-                body: JSON.stringify({strongs: '{{ strongs }}', changes})
+                body: JSON.stringify({strongs: '{{ strongs }}', changes: [{
+                    verse_id: card.dataset.verseId,
+                    text: editor.value,
+                    original: editor.dataset.original
+                }]})
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || 'Save failed.');
-            const conflictSet = new Set((result.conflicts || []).map(String));
-            dirty.forEach(card => {
-                if (!conflictSet.has(card.dataset.verseId)) {
-                    const editor = card.querySelector('.occurrence-editor');
-                    editor.dataset.original = editor.value;
-                }
-            });
-            refreshState();
-            status.textContent = `${result.updated} change${result.updated === 1 ? '' : 's'} saved${result.conflicts?.length ? `; ${result.conflicts.length} conflict${result.conflicts.length === 1 ? '' : 's'} need review` : '.'}`;
-            if (result.conflicts?.length) status.className = 'status error';
+            if (result.conflicts && result.conflicts.length) {
+                throw new Error('This verse changed elsewhere. Reload it before saving again.');
+            }
+            editor.dataset.original = editor.value;
+            status.textContent = 'Saved';
+            refreshCard(card);
         } catch (error) {
-            status.className = 'status error';
+            status.className = 'occurrence-save-status error';
             status.textContent = error.message;
-            refreshState();
+            refreshCard(card);
         }
+    }
+
+    cards.forEach(card => {
+        card.querySelector('.occurrence-editor').addEventListener('input', () => refreshCard(card));
+        card.querySelector('.occurrence-save').addEventListener('click', () => saveCard(card));
+        refreshCard(card);
     });
 
     window.addEventListener('beforeunload', (event) => {
@@ -134,8 +137,6 @@
             event.returnValue = '';
         }
     });
-
-    refreshState();
 })();
 </script>{% endif %}
 {% endblock %}
