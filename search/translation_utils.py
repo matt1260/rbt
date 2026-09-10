@@ -256,7 +256,16 @@ def build_language_awareness_section(target_language_code):
     return (
         "\n\nSEMANTIC AWARENESS FOR THIS LANGUAGE:\n"
         "These are contextual observations, not formatting rules. Apply them "
-        "naturally without adding explanations to the translation:\n"
+        "naturally without adding explanations to the translation.\n"
+        "- When a pronoun or pronoun-like reference is wrapped in blue or pink "
+        "highlighting (including #ff00aa), that highlighting is a semantic cue: "
+        "translate it as a human, gendered referent such as 'her' or 'him' "
+        "according to the source context and the target language's grammar. Do "
+        "not flatten a highlighted personified referent into 'it'.\n"
+        "- When a neuter pronoun or reference is not color-wrapped, preserve its "
+        "neuter/inanimate meaning as 'it' or the natural equivalent in the target "
+        "language. Preserve the highlighting and all HTML exactly; never translate "
+        "the style attribute.\n"
         f"- {guidance}"
     )
 
