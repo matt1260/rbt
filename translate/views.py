@@ -14,7 +14,8 @@ import subprocess
 from django.middleware.csrf import get_token
 import re
 import unicodedata
-from search.views import get_results, INTERLINEAR_CACHE_VERSION, get_footnote
+from search.views import get_results, get_footnote
+from search.views.chapter_views_part1 import INTERLINEAR_CACHE_VERSION
 from translate.translator import *
 import pythonbible as bible
 from datetime import datetime
