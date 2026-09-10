@@ -776,7 +776,7 @@
 {% endif %}
 
 <div class="arrow-links">
-    <a href="?book={{book}}&chapter={{chapter_num}}">Chapter {{ chapter_num }}</a>
+    <a href="{{ chapter_url }}">Chapter {{ chapter_num }}</a>
     <h3 class="verse-view">
         {% if previous_verse %}
         <a href="{{ previous_verse }}">{% endif %}<img src="http://www.realbible.tech/wp-content/uploads/2023/12/left_arrow.png" style="height: 30px; vertical-align: middle;"> </a>

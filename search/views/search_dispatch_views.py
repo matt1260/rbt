@@ -333,6 +333,13 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
         
         standard_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
 
+        chapter_slug = book_to_slug(book)
+        chapter_route = 'chapter_seo_view_lang' if language != 'en' else 'chapter_seo_view'
+        chapter_kwargs = {'book_slug': chapter_slug, 'chapter': chapter_num}
+        if chapter_route.endswith('_lang'):
+            chapter_kwargs['lang_code'] = language
+        chapter_url = reverse(chapter_route, kwargs=chapter_kwargs) if chapter_slug else f'/?book={book}&chapter={chapter_num}'
+
         if is_nt:
             meta_title = f"{standard_book} {chapter_num}:{verse_num} Greek Interlinear Translation | Gospel of the Queen"
             meta_description = f"Read the {standard_book} {chapter_num}:{verse_num} Greek interlinear translation:{snippet} Featuring full morphological parsing, Strong's lexicon, and Logeion/Perseus study tools."
@@ -346,6 +353,7 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
             'footnotes': footnotes_content,
             'book': book,
             'chapter_num': chapter_num,
+            'chapter_url': chapter_url,
             'verse_num': verse_num,
             'slt': slt,
             'rbt': rbt,
