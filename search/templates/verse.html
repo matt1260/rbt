@@ -873,6 +873,10 @@ Wescott & Hort Greek NT:
 {% endif %}
 
 {% if greek_interlinear %}
+<style>
+    .occurrence-icon { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; margin-left:4px; border:1px solid #9aaabd; border-radius:3px; color:#17324f; font-size:11px; text-decoration:none; vertical-align:middle; }
+    .occurrence-icon:hover, .occurrence-icon:focus { background:#e9f0f7; }
+</style>
 <div class="greek_interlinear">
     <strong>RBT Greek Interlinear:</strong><br>
     {{ greek_interlinear|safe }}

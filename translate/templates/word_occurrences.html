@@ -15,6 +15,7 @@
     .occurrence-heading { display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap; margin-bottom:8px; }
     .occurrence-heading a { color:#17324f; font-weight:700; }
     .occurrence-greek { color:#53657a; font-family:Georgia, serif; }
+    .occurrence-gloss { color:#687789; font-size:13px; }
     .occurrence-card textarea { width:100%; min-height:92px; resize:vertical; border:1px solid #b8c4d1; border-radius:4px; padding:9px; font:14px/1.55 Georgia, serif; }
     .occurrence-card textarea:focus { outline:2px solid #9bc0e8; border-color:#3478b9; }
     .status { min-height:24px; color:#23623c; }
@@ -36,7 +37,7 @@
             <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
             <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
         </select>
-        <button class="primary" id="save-occurrences" type="button" disabled>Save changes</button>
+        {% if is_editor %}<button class="primary" id="save-occurrences" type="button" disabled>Save changes</button>{% endif %}
     </div>
 </div>
 
@@ -46,10 +47,15 @@
     {% for occurrence in occurrences %}
     <article class="occurrence-card" data-verse-id="{{ occurrence.verse_id }}">
         <div class="occurrence-heading">
-            <a href="../edit/?book={{ occurrence.book|urlencode }}&chapter={{ occurrence.chapter }}&verse={{ occurrence.verse }}" target="_blank" rel="noopener">{{ occurrence.book }} {{ occurrence.chapter }}:{{ occurrence.verse }}</a>
+            <a href="/?book={{ occurrence.book|urlencode }}&chapter={{ occurrence.chapter }}&verse={{ occurrence.verse }}" target="_blank" rel="noopener">{{ occurrence.book }} {{ occurrence.chapter }}:{{ occurrence.verse }}</a>
             <span class="occurrence-greek">{{ occurrence.greek }}</span>
+            <span class="occurrence-gloss">{{ occurrence.gloss }}</span>
         </div>
+        {% if is_editor %}
         <textarea class="occurrence-editor" data-original="{{ occurrence.rbt|escape }}">{{ occurrence.rbt }}</textarea>
+        {% else %}
+        <div class="occurrence-text">{{ occurrence.rbt|safe }}</div>
+        {% endif %}
     </article>
     {% empty %}
     <p>No NT occurrences were found for Strong's {{ strongs }}.</p>
@@ -62,12 +68,13 @@
     {% if has_next %}<a href="?strongs={{ strongs }}&page={{ next_page }}&page_size={{ page_size }}">Next page</a>{% endif %}
 </div>
 
-<script>
+{% if is_editor %}<script>
 (() => {
     const saveButton = document.getElementById('save-occurrences');
     const status = document.getElementById('save-status');
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
     const cards = [...document.querySelectorAll('.occurrence-card')];
+    let hasUnsavedChanges = false;
 
     function dirtyCards() {
         return cards.filter(card => {
@@ -78,6 +85,7 @@
 
     function refreshState() {
         const dirty = dirtyCards();
+        hasUnsavedChanges = dirty.length > 0;
         cards.forEach(card => card.classList.toggle('is-dirty', dirty.includes(card)));
         saveButton.disabled = dirty.length === 0;
         saveButton.textContent = dirty.length ? `Save ${dirty.length} change${dirty.length === 1 ? '' : 's'}` : 'Save changes';
@@ -120,7 +128,14 @@
         }
     });
 
+    window.addEventListener('beforeunload', (event) => {
+        if (hasUnsavedChanges) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    });
+
     refreshState();
 })();
-</script>
+</script>{% endif %}
 {% endblock %}

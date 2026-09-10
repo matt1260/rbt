@@ -237,9 +237,8 @@ def _safe_save_update(instance: 'TranslationUpdates') -> None:
             print(f"Failed to save TranslationUpdates: {exc}")
 
 
-@login_required
 def word_occurrences(request):
-    """Edit NT translations for every verse containing a Strong's number."""
+    """View or edit NT translations for every verse containing a Strong's number."""
     strongs = (request.GET.get('strongs') or request.POST.get('strongs') or '').strip()
     strongs_match = re.search(r'\d+', strongs)
     if not strongs_match:
@@ -248,6 +247,8 @@ def word_occurrences(request):
     occurrence_pattern = rf'(^|[^0-9]){re.escape(strongs_number)}([^0-9]|$)'
 
     if request.method == 'POST':
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication is required to edit occurrences.'}, status=403)
         try:
             payload = json.loads(request.body.decode('utf-8'))
             changes = payload.get('changes', [])
@@ -332,8 +333,9 @@ def word_occurrences(request):
     total = int(count_row[0] if count_row else 0)
     rows = execute_query(
         """
-        SELECT n.verseID, n.book, n.chapter, n.startVerse, n.rbt,
-               string_agg(DISTINCT g.lemma, ' ' ORDER BY g.lemma)
+         SELECT n.verseID, n.book, n.chapter, n.startVerse, n.rbt,
+             string_agg(DISTINCT g.lemma, ' ' ORDER BY g.lemma),
+             string_agg(DISTINCT g.english, '; ' ORDER BY g.english)
         FROM rbt_greek.strongs_greek g
         JOIN new_testament.nt n
           ON g.verse LIKE n.book || '.' || n.chapter || '.' || n.startVerse || '-%%'
@@ -352,9 +354,17 @@ def word_occurrences(request):
             'verse': row[3],
             'rbt': row[4] or '',
             'greek': row[5] or '',
+            'gloss': row[6] or '',
         }
         for row in rows
     ]
+    is_editor = request.user.is_authenticated
+    if not is_editor:
+        for occurrence in occurrences:
+            clean_html = BeautifulSoup(occurrence['rbt'], 'html.parser')
+            for image in clean_html.find_all('img'):
+                image.decompose()
+            occurrence['rbt'] = str(clean_html)
     return render(request, 'word_occurrences.html', {
         'strongs': strongs_number,
         'occurrences': occurrences,
@@ -363,6 +373,7 @@ def word_occurrences(request):
         'total': total,
         'has_next': offset + len(occurrences) < total,
         'next_page': page + 1,
+        'is_editor': is_editor,
     })
 
 
@@ -448,21 +459,6 @@ def get_context(book, chapter_num, verse_num):
         footnote_contents = results['footnote_content'] # footnote html rows
         chapter_list = results['chapter_list']
         interlinear = results['interlinear']
-        if interlinear:
-            strong_link_pattern = re.compile(
-                r'(<a href="https://biblehub\.com/greek/(\d+)\.htm" target="_blank">'
-                r'Strongs \2</a>)'
-            )
-
-            def add_occurrence_editor_link(match: re.Match[str]) -> str:
-                strongs_number = match.group(2)
-                return (
-                    f'{match.group(1)} '
-                    f'<a href="/translate/word-occurrences/?strongs={quote(strongs_number)}" '
-                    'title="Edit every NT occurrence">[edit occurrences]</a>'
-                )
-
-            interlinear = strong_link_pattern.sub(add_occurrence_editor_link, interlinear)
         linear_english = results['linear_english']
         entries = results['entries']
         replacements = results['replacements']
