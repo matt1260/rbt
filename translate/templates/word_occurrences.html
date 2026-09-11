@@ -16,8 +16,12 @@
     .occurrence-heading a { color:#17324f; font-weight:700; }
     .occurrence-greek { color:#53657a; font-family:Georgia, serif; }
     .occurrence-gloss { color:#687789; font-size:13px; }
-    .occurrence-card textarea { width:100%; min-height:92px; resize:vertical; border:1px solid #b8c4d1; border-radius:4px; padding:9px; font:14px/1.55 Georgia, serif; }
+    .occurrence-edit-grid { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:10px; align-items:start; }
+    .occurrence-edit-grid textarea, .occurrence-preview { width:100%; min-height:92px; max-height:220px; overflow:auto; resize:vertical; border:1px solid #b8c4d1; border-radius:4px; padding:9px; font:14px/1.55 Georgia, serif; }
+    .occurrence-preview { background:#fbfcfe; resize:none; }
+    .occurrence-preview img { max-width:100%; height:auto; }
     .occurrence-card textarea:focus { outline:2px solid #9bc0e8; border-color:#3478b9; }
+    .occurrence-preview-label { display:block; margin-bottom:4px; color:#687789; font-size:12px; font-weight:600; }
     .occurrence-footer { display:flex; align-items:center; gap:10px; margin-top:8px; }
     .occurrence-save { border:1px solid #17324f; border-radius:4px; padding:6px 10px; background:#17324f; color:#fff; cursor:pointer; }
     .occurrence-save-status { color:#23623c; font-size:13px; }
@@ -49,12 +53,18 @@
     {% for occurrence in occurrences %}
     <article class="occurrence-card" data-verse-id="{{ occurrence.verse_id }}">
         <div class="occurrence-heading">
-            <a href="/?book={{ occurrence.book|urlencode }}&chapter={{ occurrence.chapter }}&verse={{ occurrence.verse }}" target="_blank" rel="noopener">{{ occurrence.book }} {{ occurrence.chapter }}:{{ occurrence.verse }}</a>
+            <a href="/edit/?book={{ occurrence.book|urlencode }}&chapter={{ occurrence.chapter }}&verse={{ occurrence.verse }}" target="_blank" rel="noopener">{{ occurrence.book }} {{ occurrence.chapter }}:{{ occurrence.verse }}</a>
             <span class="occurrence-greek">{{ occurrence.greek }}</span>
             <span class="occurrence-gloss">{{ occurrence.gloss }}</span>
         </div>
         {% if is_editor %}
-        <textarea class="occurrence-editor" data-original="{{ occurrence.rbt|escape }}">{{ occurrence.rbt }}</textarea>
+        <div class="occurrence-edit-grid">
+            <textarea class="occurrence-editor" data-original="{{ occurrence.rbt|escape }}">{{ occurrence.rbt }}</textarea>
+            <div>
+                <span class="occurrence-preview-label">Rendered HTML</span>
+                <div class="occurrence-preview">{{ occurrence.rbt|safe }}</div>
+            </div>
+        </div>
         <div class="occurrence-footer">
             <button class="occurrence-save" type="button" disabled>Save verse</button>
             <span class="occurrence-save-status" aria-live="polite"></span>
@@ -89,6 +99,7 @@
         const dirty = isDirty(card);
         card.classList.toggle('is-dirty', dirty);
         card.querySelector('.occurrence-save').disabled = !dirty;
+        card.querySelector('.occurrence-preview').innerHTML = card.querySelector('.occurrence-editor').value;
         hasUnsavedChanges = cards.some(isDirty);
     }
 
