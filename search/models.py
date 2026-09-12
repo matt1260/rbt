@@ -89,6 +89,7 @@ class VerseTranslation(models.Model):
     verse = models.IntegerField()
     language_code = models.CharField(max_length=10, db_index=True)
     verse_text = models.TextField(blank=True, null=True)
+    source_hash = models.CharField(max_length=64, blank=True, null=True, db_index=True)
     footnote_id = models.CharField(max_length=50, blank=True, null=True)
     footnote_text = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ai_generated')
