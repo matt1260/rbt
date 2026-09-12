@@ -20,7 +20,7 @@ from translate.translator import (
 )
 from search.rbt_titles import rbt_books
 from search.seo_utils import generate_chapter_schema
-from search.translation_utils import SUPPORTED_LANGUAGES, source_fingerprint
+from search.translation_utils import SUPPORTED_LANGUAGES
 from search.db_utils import execute_query, get_db_connection
 from hebrewtool.debug_utils import set_debug_context, should_emit_debug
 
@@ -51,16 +51,16 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     
     if language != 'en':
         # Check which verses need translation
-        existing_translations = dict(VerseTranslation.objects.filter(
+        existing_translations = VerseTranslation.objects.filter(
             book=book,
             chapter=chapter_num,
             language_code=language,
             status__in=['completed', 'processing'],
             footnote_id__isnull=True
-        ).values_list('verse', 'source_hash'))
+        ).values_list('verse', flat=True)
         
         for result in rbt:
-            if existing_translations.get(int(result.verse)) != source_fingerprint(result.rbt_reader or ''):
+            if int(result.verse) not in existing_translations:
                 verses_to_translate[int(result.verse)] = True
         
         # Check if book name needs translation
@@ -86,8 +86,7 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
             footnote_id__isnull=True
         )
         for trans in translations_qs:
-            source_text = next((result.rbt_reader or '' for result in rbt if int(result.verse) == trans.verse), '')
-            if trans.verse_text and trans.source_hash == source_fingerprint(source_text):
+            if trans.verse_text:
                 translated_verses[trans.verse] = trans.verse_text
 
     hebrew_literal = ""
@@ -295,18 +294,18 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     
     if language != 'en':
         # Check which verses need translation (completed OR processing)
-        existing_translations = dict(VerseTranslation.objects.filter(
+        existing_translations = VerseTranslation.objects.filter(
             book=book,
             chapter=chapter_num,
             language_code=language,
             status__in=['completed', 'processing'],
             footnote_id__isnull=True
-        ).values_list('verse', 'source_hash'))
+        ).values_list('verse', flat=True)
         
         verses_to_translate = {}
         for row in chapter_rows:
             bk, ch_num, vrs, html_verse = row
-            if existing_translations.get(int(vrs)) != source_fingerprint(html_verse):
+            if int(vrs) not in existing_translations:
                 verses_to_translate[int(vrs)] = True
         
         # Check if book name needs translation (stored with verse=0)
@@ -331,12 +330,8 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
             status='completed',
             footnote_id__isnull=True
         )
-        source_hashes = {
-            int(vrs): source_fingerprint(html_verse)
-            for _bk, _ch, vrs, html_verse in chapter_rows
-        }
         for trans in translations_qs:
-            if trans.verse_text and trans.source_hash == source_hashes.get(trans.verse):
+            if trans.verse_text:
                 translated_verses[trans.verse] = trans.verse_text
         
         # Apply translations to chapter_rows
@@ -572,13 +567,13 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     
     if language != 'en':
         # Check which verses need translation
-        existing_translations = dict(VerseTranslation.objects.filter(
+        existing_translations = VerseTranslation.objects.filter(
             book=book,
             chapter=chapter_num,
             language_code=language,
             status__in=['completed', 'processing'],
             footnote_id__isnull=True
-        ).values_list('verse', 'source_hash'))
+        ).values_list('verse', flat=True)
         
         # Build verse_data from html_rows (one entry per verse)
         verse_data = []
@@ -589,7 +584,7 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
         
         # Check which verses need translation
         for verse_num_int, vrs, html_verse in verse_data:
-            if existing_translations.get(verse_num_int) != source_fingerprint(html_verse):
+            if verse_num_int not in existing_translations:
                 verses_to_translate[verse_num_int] = True
         
         # Check if book name needs translation
@@ -615,8 +610,7 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
             footnote_id__isnull=True
         )
         for trans in translations_qs:
-            source_text = next((item[2] for item in verse_data if item[0] == trans.verse), '')
-            if trans.verse_text and trans.source_hash == source_fingerprint(source_text):
+            if trans.verse_text:
                 translated_verses[trans.verse] = trans.verse_text
         
         # Apply translations to verses

@@ -98,7 +98,7 @@
           <thead>
             <tr>
               <th>Language</th><th>State</th><th style="width:130px;">NT complete</th>
-              <th class="n">Verses OK</th><th class="n">Failed</th><th class="n">Stale</th><th class="n">Missing</th>
+              <th class="n">Verses OK</th><th class="n">Failed</th><th class="n">Missing</th>
               <th class="n">Books</th><th class="n">Notes OK</th><th class="n">Notes failed</th>
               <th>Tools</th>
             </tr>
@@ -114,7 +114,6 @@
               </td>
               <td class="n">{{ e.verses_ok }}</td>
               <td class="n {% if e.verses_err %}td-err{% endif %}">{% if e.verses_err %}{{ e.verses_err }}{% endif %}</td>
-              <td class="n {% if e.verses_stale %}td-err{% endif %}">{% if e.verses_stale %}{{ e.verses_stale }}{% endif %}</td>
               <td class="n">{{ e.verses_missing }}</td>
               <td class="n">{{ e.books_started }}</td>
               <td class="n">{{ e.notes_ok }}</td>
