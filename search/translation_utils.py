@@ -1,8 +1,14 @@
 """Utilities for multi-lingual verse translations using Gemini API"""
 
 import os
+import hashlib
 from google import genai
 from .models import VerseTranslation, GeminiUsageLog
+
+
+def source_fingerprint(source_text):
+    """Fingerprint the exact source text used for a translation."""
+    return hashlib.sha256((source_text or '').encode('utf-8')).hexdigest()
 
 # Comma-separated list of API keys from environment variable
 # Format: GEMINI_API_KEYS="key1,key2,key3,..."
@@ -760,6 +766,7 @@ def get_or_create_verse_translation(book, chapter, verse, language_code, english
         chapter=chapter,
         verse=verse,
         language_code=language_code,
+        source_hash=source_fingerprint(english_text),
         verse_text__isnull=False
     ).first()
     
@@ -776,6 +783,7 @@ def get_or_create_verse_translation(book, chapter, verse, language_code, english
         verse=verse,
         language_code=language_code,
         verse_text=translated_text,
+        source_hash=source_fingerprint(english_text),
         status='ai_generated'
     )
     
@@ -806,6 +814,7 @@ def get_or_create_footnote_translation(footnote_id, language_code, english_footn
         verse=verse,
         language_code=language_code,
         footnote_id=footnote_id,
+        source_hash=source_fingerprint(english_footnote),
         footnote_text__isnull=False
     ).first()
     
@@ -823,6 +832,7 @@ def get_or_create_footnote_translation(footnote_id, language_code, english_footn
         language_code=language_code,
         footnote_id=footnote_id,
         footnote_text=translated_text,
+        source_hash=source_fingerprint(english_footnote),
         status='ai_generated'
     )
     

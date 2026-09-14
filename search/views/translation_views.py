@@ -10,10 +10,10 @@ from search.db_utils import invalidate_cached_render
 from search.models import VerseTranslation
 from translate.translator import (
     book_abbreviations, new_testament_books, old_testament_books,
-    nt_abbrev
+    nt_abbrev, convert_book_name
 )
 from search.rbt_titles import rbt_books
-from search.translation_utils import translate_chapter_batch, translate_footnotes_batch
+from search.translation_utils import translate_chapter_batch, translate_footnotes_batch, source_fingerprint
 from search.translation_utils import SUPPORTED_LANGUAGES
 from .footnote_views import get_footnote
 
@@ -30,6 +30,20 @@ TRANSLATION_ERROR_PREFIXES = ('[Translation error', '[Translation parsing error'
 # Ceiling on per-request cache invalidations. Above this we let TTLs handle it
 # rather than firing thousands of writes at the DB cache in one request.
 MAX_CACHE_INVALIDATIONS = 400
+
+
+def current_nt_source_hashes():
+    """Return current NT source hashes keyed by canonical book/chapter/verse."""
+    from search.db_utils import execute_query
+
+    rows = execute_query(
+        'SELECT book, chapter, startVerse, rbt FROM new_testament.nt;',
+        fetch='all'
+    ) or []
+    return {
+        (convert_book_name(book) or book, int(chapter), int(verse)): source_fingerprint(rbt)
+        for book, chapter, verse, rbt in rows
+    }
 
 
 def translation_error_q(field='verse_text'):
@@ -69,6 +83,12 @@ def nt_chapter_translation_stats(book, chapter_num):
 
     book_abbrev = book_abbreviations.get(book, book)
 
+    source_rows = execute_query(
+        'SELECT startVerse, rbt FROM new_testament.nt WHERE book = %s AND chapter = %s;',
+        (book_abbrev, chapter_num), fetch='all'
+    ) or []
+    source_hashes = {int(verse): source_fingerprint(source_text) for verse, source_text in source_rows}
+
     # --- source totals ---------------------------------------------------
     row = execute_query(
         'SELECT count(*) FROM new_testament.nt WHERE book = %s AND chapter = %s;',
@@ -96,12 +116,12 @@ def nt_chapter_translation_stats(book, chapter_num):
     # --- translation rows, one query for the whole chapter ---------------
     rows = VerseTranslation.objects.filter(
         book=book, chapter=chapter_num, status='completed'
-    ).values_list('language_code', 'verse', 'verse_text', 'footnote_id', 'footnote_text')
+    ).values_list('language_code', 'verse', 'verse_text', 'footnote_id', 'footnote_text', 'source_hash')
 
     per_lang = {}
-    for lang, verse, verse_text, footnote_id, footnote_text in rows:
+    for lang, verse, verse_text, footnote_id, footnote_text, stored_source_hash in rows:
         d = per_lang.setdefault(lang, {
-            'verses_ok': set(), 'verses_err': set(),
+            'verses_ok': set(), 'verses_err': set(), 'verses_stale': set(),
             'notes_ok': set(), 'notes_err': set(),
         })
         if footnote_id:
@@ -113,6 +133,9 @@ def nt_chapter_translation_stats(book, chapter_num):
             text = verse_text or ''
             if not text:
                 continue
+            if stored_source_hash != source_hashes.get(int(verse)):
+                d['verses_stale'].add(verse)
+                continue
             bucket = 'verses_err' if text.startswith(TRANSLATION_ERROR_PREFIXES) else 'verses_ok'
             d[bucket].add(verse)
 
@@ -123,6 +146,7 @@ def nt_chapter_translation_stats(book, chapter_num):
         d = per_lang.get(code)
         v_ok = len(d['verses_ok']) if d else 0
         v_err = len(d['verses_err']) if d else 0
+        v_stale = len(d['verses_stale']) if d else 0
         n_ok = len(d['notes_ok']) if d else 0
         n_err = len(d['notes_err']) if d else 0
         v_missing = max(source_verses - v_ok - v_err, 0)
@@ -132,7 +156,7 @@ def nt_chapter_translation_stats(book, chapter_num):
             state = 'absent'
         elif v_err:
             state = 'errors'
-        elif v_missing or n_missing:
+        elif v_missing or n_missing or v_stale:
             state = 'partial'
         else:
             state = 'complete'
@@ -140,6 +164,7 @@ def nt_chapter_translation_stats(book, chapter_num):
         languages.append({
             'code': code, 'label': label, 'state': state,
             'verses_ok': v_ok, 'verses_err': v_err, 'verses_missing': v_missing,
+            'verses_stale': v_stale,
             'notes_ok': n_ok, 'notes_err': n_err, 'notes_missing': n_missing,
         })
 
@@ -252,13 +277,13 @@ def _translate_nt_chapter(book, chapter_num, language, results):
     print(f"[API DEBUG] Found {len(chapter_rows)} rows in chapter")
     
     # --- VERSE TEXT TRANSLATION ---
-    existing_translations = VerseTranslation.objects.filter(
+    existing_translations = dict(VerseTranslation.objects.filter(
         book=book,
         chapter=chapter_num,
         language_code=language,
         status__in=['completed', 'processing'],
         footnote_id__isnull=True
-    ).values_list('verse', flat=True)
+    ).values_list('verse', 'source_hash'))
     
     print(f"[API DEBUG] Existing translations: {list(existing_translations)}")
 
@@ -266,7 +291,8 @@ def _translate_nt_chapter(book, chapter_num, language, results):
     
     for row in chapter_rows:
         bk, ch_num, vrs, html_verse = row
-        if int(vrs) not in existing_translations:
+        source_hash = source_fingerprint(html_verse)
+        if existing_translations.get(int(vrs)) != source_hash:
             verses_to_translate[int(vrs)] = html_verse
     
     # Check if book name needs translation (stored with verse=0)
@@ -294,13 +320,13 @@ def _translate_nt_chapter(book, chapter_num, language, results):
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=0, verse=0,
                     language_code=language, footnote_id=None,
-                    defaults={'status': 'processing', 'verse_text': ''}
+                    defaults={'status': 'processing', 'verse_text': '', 'source_hash': source_fingerprint(verses_to_translate[verse_num])}
                 )
             else:
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=chapter_num, verse=verse_num,
                     language_code=language, footnote_id=None,
-                    defaults={'status': 'processing', 'verse_text': ''}
+                    defaults={'status': 'processing', 'verse_text': '', 'source_hash': source_fingerprint(verses_to_translate[verse_num])}
                 )
         print(f"[API DEBUG] Marked {len(verses_to_translate)} verses as 'processing'")
         
@@ -321,13 +347,13 @@ def _translate_nt_chapter(book, chapter_num, language, results):
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=0, verse=0,
                     language_code=language, footnote_id=None,
-                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
+                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash', 'source_hash': source_fingerprint(verses_to_translate[verse_num])}
                 )
             else:
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=chapter_num, verse=verse_num,
                     language_code=language, footnote_id=None,
-                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
+                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash', 'source_hash': source_fingerprint(verses_to_translate[verse_num])}
                 )
             translation_stats['verses'] += 1
 
@@ -400,7 +426,7 @@ def _translate_nt_chapter(book, chapter_num, language, results):
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=c_obj, verse=v_obj,
                     language_code=language, footnote_id=f_id,
-                    defaults={'status': 'processing', 'footnote_text': ''}
+                    defaults={'status': 'processing', 'footnote_text': '', 'source_hash': source_fingerprint(footnotes_collection[found_sup]['content']) if found_sup else None}
                 )
             
             translated_footnotes = translate_footnotes_batch(footnotes_to_translate, language)
@@ -428,7 +454,7 @@ def _translate_nt_chapter(book, chapter_num, language, results):
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=c_obj, verse=v_obj,
                     language_code=language, footnote_id=f_id,
-                    defaults={'footnote_text': f_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
+                    defaults={'footnote_text': f_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash', 'source_hash': source_fingerprint(footnotes_collection[found_sup]['content']) if found_sup else None}
                 )
                 translation_stats['footnotes'] += 1
     
@@ -444,13 +470,13 @@ def _translate_ot_chapter(book, chapter_num, language, results):
     book_abbrev = book_abbreviations.get(book, book)
     
     # --- PARAPHRASE TEXT TRANSLATION (not Hebrew Literal) ---
-    existing_translations = VerseTranslation.objects.filter(
+    existing_translations = dict(VerseTranslation.objects.filter(
         book=book,
         chapter=chapter_num,
         language_code=language,
         status__in=['completed', 'processing'],
         footnote_id__isnull=True
-    ).values_list('verse', flat=True)
+    ).values_list('verse', 'source_hash'))
     
     verses_to_translate = {}
     
@@ -459,7 +485,7 @@ def _translate_ot_chapter(book, chapter_num, language, results):
         for verse_obj in rbt_queryset:
             verse_num = verse_obj.verse
             paraphrase_content = verse_obj.rbt_reader or ''
-            if verse_num not in existing_translations and paraphrase_content:
+            if existing_translations.get(verse_num) != source_fingerprint(paraphrase_content) and paraphrase_content:
                 verses_to_translate[verse_num] = paraphrase_content
     else:
         html_dict = results.get('html', {})
@@ -469,7 +495,7 @@ def _translate_ot_chapter(book, chapter_num, language, results):
             else:
                 paraphrase_content = value if isinstance(value, str) else ''
             verse_num = int(verse_key)
-            if verse_num not in existing_translations and paraphrase_content:
+            if existing_translations.get(verse_num) != source_fingerprint(paraphrase_content) and paraphrase_content:
                 verses_to_translate[verse_num] = paraphrase_content
     
     # Check if book name needs translation
@@ -491,13 +517,13 @@ def _translate_ot_chapter(book, chapter_num, language, results):
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=0, verse=0,
                     language_code=language, footnote_id=None,
-                    defaults={'status': 'processing', 'verse_text': ''}
+                    defaults={'status': 'processing', 'verse_text': '', 'source_hash': source_fingerprint(verses_to_translate[verse_num])}
                 )
             else:
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=chapter_num, verse=verse_num,
                     language_code=language, footnote_id=None,
-                    defaults={'status': 'processing', 'verse_text': ''}
+                    defaults={'status': 'processing', 'verse_text': '', 'source_hash': source_fingerprint(verses_to_translate[verse_num])}
                 )
         
         translated_results = translate_chapter_batch(verses_to_translate, language, chapter=chapter)
@@ -517,13 +543,13 @@ def _translate_ot_chapter(book, chapter_num, language, results):
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=0, verse=0,
                     language_code=language, footnote_id=None,
-                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
+                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash', 'source_hash': source_fingerprint(verses_to_translate[verse_num])}
                 )
             else:
                 VerseTranslation.objects.update_or_create(
                     book=book, chapter=chapter_num, verse=verse_num,
                     language_code=language, footnote_id=None,
-                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
+                    defaults={'verse_text': translated_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash', 'source_hash': source_fingerprint(verses_to_translate[verse_num])}
                 )
             translation_stats['verses'] += 1
     
@@ -591,7 +617,7 @@ def _translate_ot_chapter(book, chapter_num, language, results):
                     verse=data.get('verse', 0),
                     language_code=language,
                     footnote_id=f_id,
-                    defaults={'status': 'processing', 'footnote_text': ''}
+                    defaults={'status': 'processing', 'footnote_text': '', 'source_hash': source_fingerprint(footnotes_collection[f_id]['content'])}
                 )
             
             translated_footnotes = translate_footnotes_batch(footnotes_to_translate, language)
@@ -610,7 +636,7 @@ def _translate_ot_chapter(book, chapter_num, language, results):
                     verse=data.get('verse', 0),
                     language_code=language,
                     footnote_id=f_id,
-                    defaults={'footnote_text': f_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash'}
+                    defaults={'footnote_text': f_text, 'status': 'completed', 'generated_by': 'gemini-3.8-flash', 'source_hash': source_fingerprint(footnotes_collection[f_id]['content'])}
                 )
                 translation_stats['footnotes'] += 1
     
@@ -1060,11 +1086,11 @@ def nt_dashboard_stats():
     err_q = translation_error_q('verse_text')
 
     # --- verses: one grouped query over NT books only ----------------------
+    source_hashes = current_nt_source_hashes()
     verse_rows = list(
         VerseTranslation.objects
-        .filter(status='completed', footnote_id__isnull=True, book__in=new_testament_books)
-        .values('book', 'language_code')
-        .annotate(ok=Count('id', filter=~err_q), err=Count('id', filter=err_q))
+        .filter(status='completed', footnote_id__isnull=True, verse__gt=0, book__in=new_testament_books)
+        .values('book', 'chapter', 'verse', 'source_hash', 'language_code', 'verse_text')
     )
 
     # --- footnotes: same shape --------------------------------------------
@@ -1083,25 +1109,36 @@ def nt_dashboard_stats():
     per_book = {}
     for r in verse_rows:
         lang, book = r['language_code'], r['book']
-        d = per_lang.setdefault(lang, {'ok': 0, 'err': 0, 'books': set()})
-        d['ok'] += r['ok']
-        d['err'] += r['err']
-        if r['ok'] or r['err']:
+        source_key = (convert_book_name(book) or book, int(r['chapter']), int(r['verse']))
+        is_current = bool(r['source_hash']) and r['source_hash'] == source_hashes.get(source_key)
+        is_error = str(r['verse_text'] or '').startswith(TRANSLATION_ERROR_PREFIXES)
+        d = per_lang.setdefault(lang, {'ok': 0, 'err': 0, 'stale': 0, 'books': set()})
+        if is_current and is_error:
+            d['err'] += 1
+        elif is_current:
+            d['ok'] += 1
+        else:
+            d['stale'] += 1
+        if is_current or is_error:
             d['books'].add(book)
 
         # Merge '1 John' and '1John' into one bucket.
         ab = book_to_abbrev.get(book, book)
-        b = per_book.setdefault(ab, {'ok': 0, 'err': 0, 'langs': set()})
-        b['ok'] += r['ok']
-        b['err'] += r['err']
-        if r['ok'] or r['err']:
+        b = per_book.setdefault(ab, {'ok': 0, 'err': 0, 'stale': 0, 'langs': set()})
+        if is_current and is_error:
+            b['err'] += 1
+        elif is_current:
+            b['ok'] += 1
+        else:
+            b['stale'] += 1
+        if is_current or is_error:
             b['langs'].add(lang)
 
     languages = []
     for code, label in SUPPORTED_LANGUAGES.items():
         if code == 'en':
             continue
-        d = per_lang.get(code, {'ok': 0, 'err': 0, 'books': set()})
+        d = per_lang.get(code, {'ok': 0, 'err': 0, 'stale': 0, 'books': set()})
         n = notes_by_lang.get(code, {'ok': 0, 'err': 0})
         missing = max(source_total - d['ok'] - d['err'], 0)
         pct = round(100.0 * d['ok'] / source_total, 1) if source_total else 0.0
@@ -1116,6 +1153,7 @@ def nt_dashboard_stats():
         languages.append({
             'code': code, 'label': label, 'state': state, 'pct': pct,
             'verses_ok': d['ok'], 'verses_err': d['err'], 'verses_missing': missing,
+            'verses_stale': d['stale'],
             'books_started': len(d['books']),
             'notes_ok': n['ok'], 'notes_err': n['err'],
         })
@@ -1127,12 +1165,12 @@ def nt_dashboard_stats():
     for book in nt_books_canonical:
         ab = book_to_abbrev.get(book, book)
         src = source_by_book.get(book, 0)
-        b = per_book.get(ab, {'ok': 0, 'err': 0, 'langs': set()})
+        b = per_book.get(ab, {'ok': 0, 'err': 0, 'stale': 0, 'langs': set()})
         books.append({
             'book': book,
             'chapters': len(chapters_by_book.get(book, ())),
             'source_verses': src,
-            'verses_ok': b['ok'], 'verses_err': b['err'],
+            'verses_ok': b['ok'], 'verses_err': b['err'], 'verses_stale': b['stale'],
             'languages_started': len(b['langs']),
         })
 
