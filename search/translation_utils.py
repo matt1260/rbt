@@ -10,6 +10,30 @@ def source_fingerprint(source_text):
     """Fingerprint the exact source text used for a translation."""
     return hashlib.sha256((source_text or '').encode('utf-8')).hexdigest()
 
+
+def is_translation_current(stored_hash, current_hash):
+    """True if a saved translation should be treated as matching today's source.
+
+    stored_hash is None for every row saved before source_hash existed (the
+    migration added the column with no backfill) -- treat those as trusted
+    rather than forcing them all to look stale relative to a hash they were
+    never given the chance to earn. Only a *real*, mismatching hash means the
+    source actually changed since translation.
+    """
+    return stored_hash is None or stored_hash == current_hash
+
+
+def needs_retranslation(existing_hashes, key, current_hash):
+    """True if `key` has no translation row at all, or its real source_hash no
+    longer matches. `existing_hashes` is a {key: stored_hash} dict from a
+    values_list('key', 'source_hash') query -- note that a dict .get() alone
+    can't tell "no row" from "row exists with a legacy NULL hash", both of
+    which return None, so membership is checked explicitly.
+    """
+    if key not in existing_hashes:
+        return True
+    return not is_translation_current(existing_hashes[key], current_hash)
+
 # Comma-separated list of API keys from environment variable
 # Format: GEMINI_API_KEYS="key1,key2,key3,..."
 GEMINI_API_KEYS_STR = os.getenv('GEMINI_API_KEYS', '')

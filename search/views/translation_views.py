@@ -13,7 +13,10 @@ from translate.translator import (
     nt_abbrev, convert_book_name
 )
 from search.rbt_titles import rbt_books
-from search.translation_utils import translate_chapter_batch, translate_footnotes_batch, source_fingerprint
+from search.translation_utils import (
+    translate_chapter_batch, translate_footnotes_batch, source_fingerprint,
+    is_translation_current, needs_retranslation,
+)
 from search.translation_utils import SUPPORTED_LANGUAGES
 from .footnote_views import get_footnote
 
@@ -133,7 +136,7 @@ def nt_chapter_translation_stats(book, chapter_num):
             text = verse_text or ''
             if not text:
                 continue
-            if stored_source_hash != source_hashes.get(int(verse)):
+            if not is_translation_current(stored_source_hash, source_hashes.get(int(verse))):
                 d['verses_stale'].add(verse)
                 continue
             bucket = 'verses_err' if text.startswith(TRANSLATION_ERROR_PREFIXES) else 'verses_ok'
@@ -292,7 +295,7 @@ def _translate_nt_chapter(book, chapter_num, language, results):
     for row in chapter_rows:
         bk, ch_num, vrs, html_verse = row
         source_hash = source_fingerprint(html_verse)
-        if existing_translations.get(int(vrs)) != source_hash:
+        if needs_retranslation(existing_translations, int(vrs), source_hash):
             verses_to_translate[int(vrs)] = html_verse
     
     # Check if book name needs translation (stored with verse=0)
@@ -485,7 +488,7 @@ def _translate_ot_chapter(book, chapter_num, language, results):
         for verse_obj in rbt_queryset:
             verse_num = verse_obj.verse
             paraphrase_content = verse_obj.rbt_reader or ''
-            if existing_translations.get(verse_num) != source_fingerprint(paraphrase_content) and paraphrase_content:
+            if paraphrase_content and needs_retranslation(existing_translations, verse_num, source_fingerprint(paraphrase_content)):
                 verses_to_translate[verse_num] = paraphrase_content
     else:
         html_dict = results.get('html', {})
@@ -495,7 +498,7 @@ def _translate_ot_chapter(book, chapter_num, language, results):
             else:
                 paraphrase_content = value if isinstance(value, str) else ''
             verse_num = int(verse_key)
-            if existing_translations.get(verse_num) != source_fingerprint(paraphrase_content) and paraphrase_content:
+            if paraphrase_content and needs_retranslation(existing_translations, verse_num, source_fingerprint(paraphrase_content)):
                 verses_to_translate[verse_num] = paraphrase_content
     
     # Check if book name needs translation
@@ -1110,7 +1113,7 @@ def nt_dashboard_stats():
     for r in verse_rows:
         lang, book = r['language_code'], r['book']
         source_key = (convert_book_name(book) or book, int(r['chapter']), int(r['verse']))
-        is_current = bool(r['source_hash']) and r['source_hash'] == source_hashes.get(source_key)
+        is_current = is_translation_current(r['source_hash'], source_hashes.get(source_key))
         is_error = str(r['verse_text'] or '').startswith(TRANSLATION_ERROR_PREFIXES)
         d = per_lang.setdefault(lang, {'ok': 0, 'err': 0, 'stale': 0, 'books': set()})
         if is_current and is_error:
