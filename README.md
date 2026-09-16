@@ -249,18 +249,6 @@ if not cached_data:
 
 ## Common Tasks
 
-### Adding a New Bible Book
-
-1. **Create schema/table** in PostgreSQL with required columns
-2. **Update book lists** in `translator.py`:
-   ```python
-   old_testament_books = [..., 'new_book']
-   book_abbreviations['new_book'] = 'Nbk'
-   ```
-3. **Create footnote table**: `{book}_footnotes` with `footnote_id`, `footnote_html`
-4. **Update `get_results()`** in `search/views.py` to handle new book data
-5. **Add to book browser** in `search_input.html`
-
 ### Modifying Verse Display
 
 Edit template files in `search/templates/`:
@@ -269,38 +257,12 @@ Edit template files in `search/templates/`:
 - Use `{{ rbt|safe }}` for HTML content
 - Load custom tags: `{% load custom_tags %}`
 
-### Managing Static Files
-
-```bash
-# Collect static files
-python manage.py collectstatic --noinput
-
-# Clear and rebuild
-python manage.py collectstatic --noinput --clear
-```
-
-Static files are served by WhiteNoise in production.
-
-## Testing
-
-Currently manual testing via:
-- Admin interface: `/edit/`, `/edit_nt_chapter/`
-- Public interface: `/`, `/search/`
-- API testing: `curl http://localhost:8000/api/live/?q=love&limit=5`
-
 ## Logging
 
 Logs are written to `RBT_error.log`:
 - Daily rotation
 - 7-day retention
 - Configured in `settings.py`
-
-## Security Notes
-
-- All `/translate/*` and `/edit*` routes require authentication
-- Login URL: `/accounts/login/`
-- CSRF protection enabled for all forms
-- Secure cookie settings in production (HTTPS only)
 
 ## Contributing
 
@@ -309,11 +271,6 @@ Logs are written to `RBT_error.log`:
 - Use meaningful variable names
 - Add docstrings to functions
 - Comment complex logic
-
-### Database Changes
-- Never commit migrations to old_testament/new_testament schemas
-- Only create migrations for Django ORM models (Genesis, etc.)
-- Test schema changes locally before deploying
 
 ### Pull Request Process
 1. Create feature branch
@@ -325,8 +282,3 @@ Logs are written to `RBT_error.log`:
 
 For questions or issues:
 - GitHub Issues: [Create an issue]
-
-## Acknowledgments
-
-- ETCBC BHSA database for Hebrew morphology, data graph
-- Strong's Concordance for lexicon data
