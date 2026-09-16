@@ -472,6 +472,7 @@ def get_context(book, chapter_num, verse_num):
                 return (
                     f'{match.group(1)} '
                     f'<a class="occurrence-icon" href="/translate/word-occurrences/?strongs={strongs_number}" '
+                    'target="_blank" rel="noopener noreferrer" '
                     'title="View every NT occurrence" aria-label="View every NT occurrence">'
                     '<i class="fas fa-list"></i></a>'
                 )
