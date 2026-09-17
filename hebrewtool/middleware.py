@@ -51,7 +51,7 @@ class RateLimitMiddleware:
         # Skip rate limiting for static/media and common benign endpoints (assets, health checks)
         path = request.path or ''
         static_prefix = getattr(settings, 'STATIC_URL', '/static/')
-        if path.startswith(static_prefix) or path.startswith('/media/') or path in ('/favicon.ico', '/robots.txt', '/healthz'):
+        if path.startswith(static_prefix) or path.startswith('/media/') or path in ('/favicon.ico', '/robots.txt', '/health'):
             return self.get_response(request)
 
         # Skip rate limiting for translation polling endpoints to avoid accidental bans
