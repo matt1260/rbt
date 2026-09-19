@@ -3027,6 +3027,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Watch for new content (e.g. dynamic loads)
     const tooltipObserver = new MutationObserver((mutations) => {
+        // Skip changes made inside the inline chapter editor (every keystroke): nothing there
+        // needs this, and MathJax rewriting editor DOM would fight ProseMirror.
+        const insideEditor = (m) => {
+            const el = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+            return !!(el && el.closest && el.closest('.ProseMirror'));
+        };
+        if (mutations.every(insideEditor)) return;
+
         attachTooltipListeners();
         
         // Also re-render MathJax on dynamically added content
