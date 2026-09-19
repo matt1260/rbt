@@ -1,5 +1,13 @@
 ARG PYTHON_VERSION=3.12
 
+# Inline chapter editor (React + ProseMirror), built into static/chapter-editor/.
+FROM node:22-slim AS editor
+WORKDIR /build/chapter-editor
+COPY chapter-editor/package.json chapter-editor/package-lock.json ./
+RUN npm ci
+COPY chapter-editor/ ./
+RUN npm run build
+
 FROM python:${PYTHON_VERSION}
 
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -21,6 +29,7 @@ RUN set -ex && \
     pip install -r /tmp/requirements.txt && \
     rm -rf /root/.cache/
 COPY . /code
+COPY --from=editor /build/static/chapter-editor /code/static/chapter-editor
 
 # Add entrypoint to run DB migrations / cache table creation on startup
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

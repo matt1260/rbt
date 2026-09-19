@@ -1,0 +1,430 @@
+/* Inline chapter editor. Colours follow the chapter page's Sanctum tokens. */
+:root {
+  --rbt-ce-gold: var(--sanctum-gold, #b78550);
+  --rbt-ce-parchment: var(--sanctum-parchment, #faf7f2);
+  --rbt-ce-cream: var(--sanctum-cream, #f0ebe3);
+  --rbt-ce-stone: var(--sanctum-stone, #8a7e70);
+  --rbt-ce-rule: var(--sanctum-rule, rgba(183, 133, 80, 0.25));
+  --rbt-ce-ink: #2b2520;
+  --rbt-ce-ok: #3d7a4a;
+  --rbt-ce-bad: #b3261e;
+  --rbt-ce-shadow: 0 6px 24px rgba(43, 37, 32, 0.16), 0 1px 3px rgba(43, 37, 32, 0.12);
+  --rbt-ce-ui-font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* ---- Page in edit mode ---------------------------------------------------- */
+
+.rbt-edit-mode #paraphrase-area .rbt-verse {
+  cursor: text;
+}
+
+/* Verse numbers are always visible while editing (normally toggled with V). */
+.rbt-edit-mode #paraphrase-area .verse_ref {
+  display: inline !important;
+}
+
+.rbt-edit-mode #paraphrase-area .verse_ref a {
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0 2px;
+  transition: background-color 0.15s;
+}
+
+.rbt-edit-mode #paraphrase-area .verse_ref a:hover {
+  background: var(--rbt-ce-cream);
+}
+
+/* The one verse being edited. Inline so it flows exactly like the idle verses around it;
+   highlighted with box-shadow/background only, which don't change layout. */
+.rbt-verse-editor {
+  display: inline;
+  outline: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-variant-ligatures: none;
+  background: rgba(183, 133, 80, 0.1);
+  box-shadow: 0 0 0 3px rgba(183, 133, 80, 0.1);
+  border-radius: 2px;
+  caret-color: var(--rbt-ce-gold);
+}
+
+.rbt-verse-editor .rbt-run {
+  display: inline;
+}
+
+.rbt-verse-editor .rbt-raw-inline,
+.rbt-verse-editor [contenteditable='false'] {
+  cursor: default;
+}
+
+/* The verse number floats left (base.html), so on the page the space after it collapses.
+   The editor's pre-wrap would keep it and shift the verse right. */
+.rbt-verse-editor .rbt-ref-widget {
+  user-select: none;
+  white-space: normal;
+}
+
+/* ProseMirror essentials */
+.rbt-verse-editor .ProseMirror-hideselection *::selection {
+  background: transparent;
+}
+
+.rbt-verse-editor .ProseMirror-hideselection {
+  caret-color: transparent;
+}
+
+.rbt-verse-editor img.ProseMirror-separator {
+  display: inline !important;
+  border: none !important;
+  margin: 0 !important;
+}
+
+/* ProseMirror adds this after a trailing atom (e.g. a footnote anchor) so the caret can
+   sit there. In an inline editor it would be a real line break. */
+.rbt-verse-editor br.ProseMirror-trailingBreak {
+  display: none;
+}
+
+/* ---- Floating toolbar ------------------------------------------------------ */
+
+.rbt-ce-toolbar {
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--rbt-ce-parchment);
+  border: 1px solid var(--rbt-ce-rule);
+  border-radius: 8px;
+  box-shadow: var(--rbt-ce-shadow);
+  font-family: var(--rbt-ce-ui-font);
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+  max-width: calc(100vw - 16px);
+  overflow-x: auto;
+}
+
+.rbt-ce-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--rbt-ce-ink);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+
+.rbt-ce-tool:hover:not(:disabled) {
+  background: var(--rbt-ce-cream);
+  border-color: var(--rbt-ce-rule);
+}
+
+.rbt-ce-tool:focus-visible {
+  outline: 2px solid var(--rbt-ce-gold);
+  outline-offset: 1px;
+}
+
+.rbt-ce-tool[aria-pressed='true'] {
+  background: rgba(183, 133, 80, 0.2);
+  border-color: var(--rbt-ce-gold);
+}
+
+.rbt-ce-tool:disabled {
+  color: var(--rbt-ce-rule);
+  cursor: default;
+}
+
+.rbt-ce-tool--bold { font-weight: 700; }
+.rbt-ce-tool--hayah { font-style: italic; }
+.rbt-ce-tool--h5 { font-weight: 600; font-size: 12px; }
+
+.rbt-ce-swatch {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.rbt-ce-tool--pink .rbt-ce-swatch { background: #ff00aa; }
+.rbt-ce-tool--blue .rbt-ce-swatch { background: blue; }
+.rbt-ce-tool--nocolour { color: var(--rbt-ce-stone); }
+
+.rbt-ce-tool--link {
+  color: var(--rbt-ce-stone);
+  font-size: 12px;
+}
+
+.rbt-ce-tool--done {
+  background: var(--rbt-ce-gold);
+  color: #fff;
+  font-weight: 600;
+  padding: 0 12px;
+}
+
+.rbt-ce-tool--done:hover:not(:disabled) {
+  background: #9c6e3f;
+  border-color: transparent;
+}
+
+.rbt-ce-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 3px;
+  background: var(--rbt-ce-rule);
+}
+
+/* ---- Interlinear popover --------------------------------------------------- */
+
+.rbt-ce-interlinear {
+  z-index: 9001;
+  width: max-content;
+  max-width: min(640px, calc(100vw - 16px));
+  max-height: 340px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid var(--rbt-ce-rule);
+  border-radius: 8px;
+  box-shadow: var(--rbt-ce-shadow);
+  font-family: var(--rbt-ce-ui-font);
+  color: var(--rbt-ce-ink);
+}
+
+.rbt-ce-interlinear__head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 12px;
+  background: var(--rbt-ce-parchment);
+  border-bottom: 1px solid var(--rbt-ce-rule);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rbt-ce-stone);
+}
+
+.rbt-ce-interlinear__head a {
+  color: var(--rbt-ce-gold);
+  text-decoration: none;
+  letter-spacing: normal;
+  text-transform: none;
+  font-size: 12px;
+}
+
+.rbt-ce-interlinear__msg {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--rbt-ce-stone);
+}
+
+.rbt-ce-interlinear__words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px;
+}
+
+.rbt-ce-word {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 56px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--rbt-ce-parchment);
+  text-align: center;
+}
+
+.rbt-ce-word__greek {
+  font-family: 'Gentium Plus', 'SBL Greek', 'Times New Roman', serif;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.rbt-ce-word__translit {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--rbt-ce-stone);
+}
+
+.rbt-ce-word__english {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.rbt-ce-word__morph {
+  font-size: 10px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+.rbt-ce-word__strongs {
+  font-size: 10px;
+  color: var(--rbt-ce-stone);
+}
+
+/* ---- Status bar -------------------------------------------------------------- */
+
+.rbt-ce-status {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 9002;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: min(380px, calc(100vw - 32px));
+  font-family: var(--rbt-ce-ui-font);
+  font-size: 13px;
+  color: var(--rbt-ce-ink);
+}
+
+.rbt-ce-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 12px;
+  background: var(--rbt-ce-parchment);
+  border: 1px solid var(--rbt-ce-rule);
+  border-radius: 999px;
+  box-shadow: var(--rbt-ce-shadow);
+}
+
+.rbt-ce-pill__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--rbt-ce-stone);
+}
+
+.rbt-ce-pill__state::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rbt-ce-rule);
+}
+
+.rbt-ce-pill__state--busy::before { background: var(--rbt-ce-gold); animation: rbt-ce-pulse 1s ease-in-out infinite; }
+.rbt-ce-pill__state--ok::before { background: var(--rbt-ce-ok); }
+.rbt-ce-pill__state--bad { color: var(--rbt-ce-bad); }
+.rbt-ce-pill__state--bad::before { background: var(--rbt-ce-bad); }
+
+@keyframes rbt-ce-pulse {
+  50% { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rbt-ce-pill__state--busy::before { animation: none; }
+}
+
+.rbt-ce-pill__state button,
+.rbt-ce-card__actions button {
+  padding: 3px 10px;
+  border: 1px solid var(--rbt-ce-rule);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--rbt-ce-ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.rbt-ce-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--rbt-ce-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.rbt-ce-switch:hover {
+  background: var(--rbt-ce-cream);
+}
+
+.rbt-ce-switch:focus-visible {
+  outline: 2px solid var(--rbt-ce-gold);
+}
+
+.rbt-ce-switch__track {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--rbt-ce-rule);
+  transition: background-color 0.15s;
+}
+
+.rbt-ce-switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s;
+}
+
+.rbt-ce-switch[aria-checked='true'] .rbt-ce-switch__track {
+  background: var(--rbt-ce-gold);
+}
+
+.rbt-ce-switch[aria-checked='true'] .rbt-ce-switch__thumb {
+  transform: translateX(12px);
+}
+
+.rbt-ce-card {
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--rbt-ce-rule);
+  border-radius: 8px;
+  box-shadow: var(--rbt-ce-shadow);
+  line-height: 1.45;
+}
+
+.rbt-ce-card--bad {
+  border-color: rgba(179, 38, 30, 0.35);
+}
+
+.rbt-ce-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.rbt-ce-card__actions a {
+  color: var(--rbt-ce-gold);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+@media (max-width: 600px) {
+  .rbt-ce-status {
+    right: 8px;
+    bottom: 8px;
+  }
+}

@@ -18,7 +18,7 @@ from search.views import get_results, get_footnote
 from search.views.chapter_views_part1 import INTERLINEAR_CACHE_VERSION
 from translate.translator import *
 import pythonbible as bible
-from datetime import datetime
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup, NavigableString
 import os
 import csv
@@ -236,6 +236,43 @@ def _safe_save_update(instance: 'TranslationUpdates') -> None:
             logger.exception('Failed to save TranslationUpdates instance: %s', exc)
         except Exception:
             print(f"Failed to save TranslationUpdates: {exc}")
+
+
+def save_nt_verse_html(verse_id, html, book, chapter, verse, coalesce_seconds: int = 0) -> list[str]:
+    """
+    Write an NT verse's RBT paraphrase HTML (new_testament.nt.rbt), log it to
+    TranslationUpdates and clear the reader cache. Returns the cleared cache keys.
+
+    With coalesce_seconds, a log row for the same verse written within that window
+    is updated in place, so rapid autosaves show up as one entry on the updates page.
+    """
+    execute_query(
+        "UPDATE new_testament.nt SET rbt = %s WHERE verseID = %s",
+        (html, verse_id)
+    )
+
+    update_version = "New Testament"
+    reference = f"{book} {chapter}:{verse}"
+    update_text = re.sub(r'<a\s+.*?>(.*?)</a>', r'\1', html)
+    now = datetime.now()
+
+    recent = None
+    if coalesce_seconds:
+        try:
+            recent = TranslationUpdates.objects.filter(
+                version=update_version,
+                reference=reference,
+                date__gte=now - timedelta(seconds=coalesce_seconds),
+            ).order_by('-date').first()
+        except Exception:
+            logger.exception('Failed to look up recent TranslationUpdates for %s', reference)
+
+    if recent is not None:
+        TranslationUpdates.objects.filter(date=recent.date).update(update_text=update_text)
+    else:
+        _safe_save_update(TranslationUpdates(date=now, version=update_version, reference=reference, update_text=update_text))
+
+    return _invalidate_reader_cache(book, chapter, verse)
 
 
 @user_passes_test(lambda user: user.is_authenticated and user.is_staff)
@@ -1741,19 +1778,7 @@ def edit(request):
         
         elif verse_id is not None:
 
-            # Update the rbt column
-            execute_query(
-                "UPDATE new_testament.nt SET rbt = %s WHERE verseID = %s",
-                (edited_content, verse_id)
-            )
-            
-            update_text = re.sub(r'<a\s+.*?>(.*?)</a>', r'\1', edited_content)
-            update_version = "New Testament"
-            update_date = datetime.now()
-            update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num}", update_text=update_text)
-            _safe_save_update(update_instance)
-
-            cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
+            cleared_keys = save_nt_verse_html(verse_id, edited_content, book, chapter_num, verse_num)
             cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
             context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))

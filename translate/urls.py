@@ -2,7 +2,7 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 from django.urls import include
 
-from . import views
+from . import views, chapter_editor_api
 
 urlpatterns = [
 
@@ -34,6 +34,9 @@ urlpatterns = [
     path('api/search-lexicon/', views.get_lexicon_search_results, name='search_lexicon'),
     path('api/search-consonantal/', views.search_consonantal, name='search_consonantal'),
     path('api/update-interlinear-word/', views.update_interlinear_word, name='update_interlinear_word'),
+    path('api/chapter-editor/chapter/', chapter_editor_api.chapter, name='chapter_editor_chapter'),
+    path('api/chapter-editor/verse/', chapter_editor_api.save_verse, name='chapter_editor_save_verse'),
+    path('api/chapter-editor/interlinear/', chapter_editor_api.interlinear, name='chapter_editor_interlinear'),
     path('api/scrape-lexicon/', views.scrape_lexicon, name='scrape_lexicon'),
     path('api/chat-lexicon/', views.chat_with_lexicon, name='chat_lexicon'),
     path('proxy/biblehub/', views.biblehub_proxy, name='biblehub_proxy'),

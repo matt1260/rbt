@@ -155,6 +155,9 @@ document.addEventListener("DOMContentLoaded", function() {
             mutations.forEach(function(m) {
                 m.addedNodes && m.addedNodes.forEach(function(n) {
                     if (n.nodeType !== 1) return;
+                    // Leave the inline chapter editor's DOM alone: ProseMirror re-renders any node
+                    // changed from outside, which would re-trigger this observer endlessly.
+                    if (n.closest && n.closest('.ProseMirror')) return;
                     if (n.matches && n.matches('h5')) {
                         if (!n.dataset.origFontSize) {
                             const fs = window.getComputedStyle(n).fontSize;
@@ -166,7 +169,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     const nested = n.querySelectorAll && n.querySelectorAll('h5');
                     if (nested && nested.length) {
                         nested.forEach(h5 => {
-                            if (!h5.dataset.origFontSize) {
+                            if (!h5.dataset.origFontSize && !h5.closest('.ProseMirror')) {
                                 const fs = window.getComputedStyle(h5).fontSize;
                                 h5.dataset.origFontSize = parseFloat(fs) || '';
                                 scalableH5s.push(h5);
@@ -467,8 +470,8 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     function handleKeyDown(event) {
-        if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
-        
+        if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.isContentEditable) return;
+
         if (event.key === "v") {
             toggleVerseRefs();
         } else if (event.key === "h" && h5ToggleButton) { 

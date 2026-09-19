@@ -28,7 +28,17 @@ from hebrewtool.debug_utils import set_debug_context, should_emit_debug
 
 from search.seo_utils import book_to_slug, localized_book_name, _get_verse_url
 
+import os
+from django.contrib.staticfiles import finders
 
+
+def _chapter_editor_version():
+    """Cache-busting token for the chapter editor bundle: the built file's mtime."""
+    path = finders.find('chapter-editor/chapter-editor.js')
+    try:
+        return str(int(os.path.getmtime(path))) if path else ''
+    except OSError:
+        return ''
 
 
 def handle_genesis_chapter(request, book, chapter_num, results, language, source_book):
@@ -385,6 +395,10 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
             print(f"[FOOTNOTE QUERY ERROR] Schema: {schema}, Table: {table_name}, ID: {db_footnote_id}, Error: {e}")
             return None
 
+    # Staff get each verse wrapped in a layout-neutral element (display: contents) so the
+    # inline chapter editor (static/chapter-editor/) can find and swap a single verse.
+    chapter_editor_enabled = language == 'en' and getattr(getattr(request, 'user', None), 'is_staff', False)
+
     paraphrase = ""
     for row in chapter_rows:
         bk, ch_num, vrs, html_verse = row
@@ -407,12 +421,15 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
                 if h5_match:
                     heading = h5_match.group(1)
                     rest = h5_match.group(2)
-                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, vrs)}">{vrs}</a> </b></span>{rest}{close_text}'
+                    verse_html = f'{heading}<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, vrs)}">{vrs}</a> </b></span>{rest}{close_text}'
                 else:
-                    paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, vrs)}">{vrs}</a> </b></span>{html_verse}{close_text}'
+                    verse_html = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, vrs)}">{vrs}</a> </b></span>{html_verse}{close_text}'
             else:
-                html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, vrs)}">{vrs}</a></b></span> {html_verse}'
-                paraphrase += html_verse + close_text
+                verse_html = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, vrs)}">{vrs}</a></b></span> {html_verse}{close_text}'
+
+            if chapter_editor_enabled:
+                verse_html = f'<div class="rbt-verse" data-verse="{vrs}" style="display: contents;">{verse_html}</div>'
+            paraphrase += verse_html
     
     # Handle footnote translations
     if language != 'en' and footnotes_collection:
@@ -528,16 +545,18 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         'translation_quota_exceeded': translation_quota_exceeded,
         'needs_translation': needs_translation,
         'has_failed_translations': has_failed_translations,
-        'failed_translation_count': failed_translation_count
+        'failed_translation_count': failed_translation_count,
+        'chapter_editor_enabled': chapter_editor_enabled,
+        'chapter_editor_version': _chapter_editor_version() if chapter_editor_enabled else '',
     }
-    
+
     context['jsonld_schemas'] = generate_chapter_schema(
         request, original_book, chapter_num, footnotes_collection,
         url_book=original_book, language=language,
     )
     context['meta_title'] = meta_title
     context['meta_description'] = meta_description
-    
+
     return render(request, 'nt_chapter.html', {'page_title': page_title, **context})
 
 

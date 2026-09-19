@@ -368,6 +368,43 @@ def updates(request):
     return response
 
 
+def fetch_greek_interlinear_rows(book, chapter_num, verse_num):
+    """
+    Return the Greek interlinear words for one NT verse from rbt_greek.strongs_greek.
+
+    strongs/lemma/english have the interlinear replacements applied; raw_lemma and
+    raw_english keep the stored values.
+    """
+    book_abbrev = book_abbreviations.get(book, book)
+    sql_query = """
+        SELECT verse, strongs, translit, lemma, english, morph, morph_desc
+        FROM rbt_greek.strongs_greek
+        WHERE verse LIKE %s
+        ORDER BY id ASC;
+    """
+    rows = execute_query(sql_query, (f'{book_abbrev}.{chapter_num}.{verse_num}-%',), fetch='all') or []
+
+    words = []
+    for row in rows:
+        try:
+            _verse, strongs, translit, lemma, english, morph, morph_desc = row
+            shown_strongs, shown_lemma, shown_english = replace_words(strongs, lemma, english)
+        except Exception as e:
+            print(f"[ERROR] Exception reading interlinear row: {e}, row data: {row}")
+            continue
+        words.append({
+            'strongs': shown_strongs,
+            'translit': translit,
+            'lemma': shown_lemma,
+            'english': shown_english,
+            'morph': morph,
+            'morph_desc': morph_desc,
+            'raw_lemma': lemma,
+            'raw_english': english,
+        })
+    return words
+
+
 def get_results(book, chapter_num, verse_num=None, language='en'):
     """
     Central function for fetching verse/chapter data from all Bible sources.
@@ -964,36 +1001,22 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                     next_ref = _get_verse_url(language, next_book, next_record[1], next_record[2])
 
                 # GET GREEK INTERLINEAR
-                if book in book_abbreviations:
-                    book_abbrev = book_abbreviations[book]
-                    rbt_grk_ref = f'{book_abbrev}.{chapter_num}.{verse_num}-'
-                else:
-                    rbt_grk_ref = f'{book}.{chapter_num}.{verse_num}-'
-
-                sql_query = """
-                    SELECT verse, strongs, translit, lemma, english, morph, morph_desc
-                    FROM rbt_greek.strongs_greek
-                    WHERE verse LIKE %s
-                    ORDER BY id ASC;
-                """
-                result = execute_query(sql_query, (f'{rbt_grk_ref}%',), fetch='all')
                 interlinear = ''
                 linear_english = ''
                 entries = []
 
-                for i, row in enumerate(result, start=1):
+                for i, word in enumerate(fetch_greek_interlinear_rows(book, chapter_num, verse_num), start=1):
                     try:
-                        verse, strongs, translit, lemma, english, morph, morph_desc = row
-                        
                         entries.append({
                             "seq": i,
-                            "lemma": lemma,
-                            "english": english,
-                            "morph": morph,
-                            "morph_description": morph_desc,
+                            "lemma": word['raw_lemma'],
+                            "english": word['raw_english'],
+                            "morph": word['morph'],
+                            "morph_description": word['morph_desc'],
                         })
-                        
-                        strongs, lemma, english = replace_words(strongs, lemma, english)
+
+                        strongs, lemma, english = word['strongs'], word['lemma'], word['english']
+                        translit, morph, morph_desc = word['translit'], word['morph'], word['morph_desc']
 
                         interlinear += '<table class="tablefloat">\n<tbody>\n'
                         interlinear += '<tr>\n<td class="interlinear" height="160" valign="middle" align="left">\n'
@@ -1025,7 +1048,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
 
                         linear_english += f'{english} '
                     except Exception as e:
-                        print(f"[ERROR] Exception on row {i}: {e}, row data: {row}")
+                        print(f"[ERROR] Exception on row {i}: {e}, row data: {word}")
 
                 if rbt_html is not None:
                     footnote_references = re.findall(r'\?footnote=(\d+-\d+-\d+[a-zA-Z]?)', rbt_html)

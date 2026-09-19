@@ -65,6 +65,11 @@ conversations.json
 /staticfiles/
 media/
 
+# Inline chapter editor: built into static/ by the Dockerfile's editor stage
+chapter-editor/node_modules/
+/static/chapter-editor/
+!chapter-editor/scripts/
+
 
 # VS Code
 .vscode/

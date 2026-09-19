@@ -258,6 +258,18 @@ function hideTranslationLoading() {
         {{ chapters|safe }}
 </div>
 
+{% if chapter_editor_enabled %}
+{# Inline chapter editor (staff only). Source: chapter-editor/, built into static/chapter-editor/. #}
+<link rel="stylesheet" href="{% static 'chapter-editor/chapter-editor.css' %}?v={{ chapter_editor_version }}">
+<div id="chapter-editor-root"
+     data-book="{{ original_book }}"
+     data-chapter="{{ chapter_num }}"
+     data-csrf="{{ csrf_token }}"
+     data-edit-url="/edit/"
+     data-api-base="/translate/api/chapter-editor/"></div>
+<script type="module" src="{% static 'chapter-editor/chapter-editor.js' %}?v={{ chapter_editor_version }}"></script>
+{% endif %}
+
 <style>
     /* Mobile responsive fixes for main text area */
     #mainTextArea {

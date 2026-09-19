@@ -1,0 +1,34 @@
+{
+  "name": "chapter-editor",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Inline WYSIWYG editor for NT chapter pages (staff only). Builds into ../static/chapter-editor/.",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "watch": "vite build --watch",
+    "typecheck": "tsc --noEmit",
+    "roundtrip": "tsx scripts/roundtrip.ts"
+  },
+  "dependencies": {
+    "@floating-ui/react": "^0.27.20",
+    "prosemirror-commands": "^1.7.2",
+    "prosemirror-history": "^1.5.0",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-model": "^1.25.11",
+    "prosemirror-state": "^1.4.4",
+    "prosemirror-view": "^1.42.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "jsdom": "^26.1.0",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.3"
+  }
+}
