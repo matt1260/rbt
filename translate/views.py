@@ -5616,12 +5616,17 @@ def add_manual_lexicon_mapping(request):
     """
     import json
     import re
-    
+
+    from translate.translator import normalize_strong_number
+
     try:
         data = json.loads(request.body)
         
         hebrew_word = data.get('hebrew_word', '').strip()
-        strong_number = data.get('strong_number', '').strip()
+        # Store the Strong's ref in the same canonical `H<int>` form the
+        # interlinear renderer looks mappings up with, so 'H0136', 'H136a' and
+        # 'H136' all land on one row that the cards can actually find.
+        strong_number = normalize_strong_number(data.get('strong_number', '').strip()) or ''
         lexicon_type = data.get('lexicon_type', 'both')  # 'fuerst', 'gesenius', or 'both'
         fuerst_id = data.get('fuerst_id')
         gesenius_id = data.get('gesenius_id')
@@ -5643,19 +5648,23 @@ def add_manual_lexicon_mapping(request):
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
+            # Compare on the numeric part so an existing row saved under an
+            # older spelling ('H0136') is updated rather than duplicated.
+            strong_numeric = int(strong_number[1:]) if strong_number else None
+
             cursor.execute("""
                 SELECT mapping_id
                 FROM old_testament.manual_lexicon_mappings
                 WHERE hebrew_word = %s
-                  AND (strong_number = %s OR (strong_number IS NULL AND %s IS NULL))
+                  AND NULLIF(regexp_replace(COALESCE(strong_number, ''), '[^0-9]', '', 'g'), '')::int
+                      IS NOT DISTINCT FROM %s
                   AND lexicon_type = %s
                   AND book IS NOT DISTINCT FROM %s
                   AND chapter IS NOT DISTINCT FROM %s
                   AND verse IS NOT DISTINCT FROM %s
             """, (
                 hebrew_word,
-                strong_number or None,
-                strong_number or None,
+                strong_numeric,
                 lexicon_type,
                 book,
                 chapter,
@@ -5667,6 +5676,7 @@ def add_manual_lexicon_mapping(request):
                 cursor.execute("""
                     UPDATE old_testament.manual_lexicon_mappings
                     SET hebrew_consonantal = %s,
+                        strong_number = %s,
                         fuerst_id = %s,
                         gesenius_id = %s,
                         notes = %s,
@@ -5675,6 +5685,7 @@ def add_manual_lexicon_mapping(request):
                     RETURNING mapping_id
                 """, (
                     hebrew_consonantal,
+                    strong_number or None,
                     fuerst_id,
                     gesenius_id,
                     notes,

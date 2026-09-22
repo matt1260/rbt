@@ -1547,7 +1547,34 @@
         return s.replace(/[\u0591-\u05AF\u05B0-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]/g, '');
     }
 
-    function openMappingModal(buttonElement) {
+    // The `strongs` field packs one or more morpheme segments (e.g.
+// "H9005=ל=to/H3651c=כֵּן=so"). Pull out the first lexical Strong's number and
+// canonicalise it to H<int>, which is the form the interlinear renderer looks
+// manual mappings up with. H9xxx refs are grammatical markers, not lexemes, so
+// they are only used as a fallback.
+function tokenStrongsNumber(strongsField) {
+  if (!strongsField) return '';
+  var fallback = '';
+  var parts = String(strongsField).split(/[\/|]/);
+  for (var i = 0; i < parts.length; i++) {
+    var segments = parts[i].split(/[=\u00AB]/);
+    for (var j = 0; j < segments.length; j++) {
+      var seg = segments[j].trim();
+      if (!/^H\d/i.test(seg)) continue;
+      var digits = seg.replace(/\D/g, '');
+      if (!digits) continue;
+      var canonical = 'H' + parseInt(digits, 10);
+      if (parseInt(digits, 10) >= 9000) {
+        if (!fallback) fallback = canonical;
+        continue;
+      }
+      return canonical;
+    }
+  }
+  return fallback;
+}
+
+function openMappingModal(buttonElement) {
         const hebrewNiqqud = buttonElement.getAttribute('data-hebrew-niqqud') || '';
         const hebrewConsonantal = buttonElement.getAttribute('data-hebrew-consonantal') || '';
         
@@ -1558,7 +1585,11 @@
 
         document.getElementById('modalHebrewNiqqud').textContent = hebrewNiqqud;
         document.getElementById('modalHebrewConsonantal').textContent = hebrewConsonantal;
-        document.getElementById('modalStrongsInput').value = '';
+        // Prefill with THIS token's Strong's number. The mapping is keyed on it,
+        // so typing the number of the lexeme being mapped from (e.g. H134 for
+        // אדן) silently saves a row the cards will never match.
+        currentMappingData.strong_number = tokenStrongsNumber(buttonElement.getAttribute('data-strongs'));
+        document.getElementById('modalStrongsInput').value = currentMappingData.strong_number;
 
         const prefill = stripHebrewVowels(hebrewNiqqud) || hebrewConsonantal || '';
         const searchInput = document.getElementById('searchTermInput');
@@ -2095,7 +2126,8 @@
                     </div>
                     <div class="mapping-info-row">
                         <strong>Strong's Number:</strong>
-                        <input type="text" id="modalStrongsInput" style="font-size: 1em; padding: 3px 8px; border: 1px solid #ccc; border-radius: 4px; width: 120px;" placeholder="e.g., H8176">
+                        <input type="text" id="modalStrongsInput" style="font-size: 1em; padding: 3px 8px; border: 1px solid #ccc; border-radius: 4px; width: 120px;" placeholder="e.g., H8176" title="The Strong's number of THIS word - the mapping is saved against it. Use the search box below to find entries for a different lexeme.">
+          <small style="color: #666; margin-left: 8px;">this word's number &mdash; mappings are saved against it</small>
                     </div>
                 </div>
 

@@ -3,6 +3,7 @@ import html
 import json
 import re
 import logging
+import time
 from functools import lru_cache
 from typing import Optional
 import unicodedata
@@ -46,36 +47,62 @@ def _debug_filtered_rows(label: str, before_rows: list[tuple], after_rows: list[
     print(info)
 
 
+# Manual mappings are edited live from the MAP LEXICON modal, so the cache is
+# bucketed by wall-clock time rather than held for the life of the process:
+# a new mapping shows up on the interlinear cards within this many seconds
+# without needing a redeploy, while a single page render still hits the DB once
+# per distinct word.
+MANUAL_MAPPING_CACHE_TTL_SECONDS = 30
+
+
+def normalize_strong_number(strong_number) -> Optional[str]:
+    """Canonicalise a Strong's ref to `H<int>` (e.g. 'H0136'/'H136a' -> 'H136').
+
+    The `hebrewdata.strongs` field, the mapping modal and the rows already in
+    `manual_lexicon_mappings` all spell the same number differently (leading
+    zeros, upper/lowercase homograph suffixes). The Fürst popup already
+    collapses to the bare integer, so canonicalising everywhere is what makes
+    a saved mapping findable again.
+    """
+    if strong_number is None:
+        return None
+    digits = re.sub(r'\D', '', str(strong_number))
+    return f'H{int(digits)}' if digits else None
+
+
 @lru_cache(maxsize=4096)
-def get_manual_lexicon_mappings(hebrew_word: str, strong_number: Optional[str] = None,
-                                   book: Optional[str] = None, chapter: Optional[int] = None, verse: Optional[int] = None):
-    """
-    Retrieve manual lexicon mappings for a Hebrew word.
-    Checks most specific to least specific (verse-level → chapter-level → book-level → global).
-    Returns dict with 'fuerst_ids' and 'gesenius_ids' lists.
-    """
-    if not hebrew_word:
-        return {'fuerst_ids': [], 'gesenius_ids': []}
-    
+def _get_manual_lexicon_mappings_cached(_cache_bucket: int, hebrew_word: str,
+                                        strong_number: Optional[str] = None,
+                                        book: Optional[str] = None,
+                                        chapter: Optional[int] = None,
+                                        verse: Optional[int] = None):
     # Normalize Hebrew text to NFD form (decomposed) for consistent comparison
     # This ensures diacritical marks are in consistent order
     hebrew_word_normalized = unicodedata.normalize('NFD', hebrew_word)
-    
+
+    # Match on the numeric part of the Strong's ref on both sides so that rows
+    # saved as 'H0136' or 'H136a' still match a lookup for 'H136'.
+    canonical_strong = normalize_strong_number(strong_number)
+    strong_numeric = int(canonical_strong[1:]) if canonical_strong else None
+
     # For global-only mappings, simplify the query
     results = execute_query("""
         SELECT lexicon_type, fuerst_id, gesenius_id
         FROM old_testament.manual_lexicon_mappings
         WHERE NORMALIZE(hebrew_word, NFD) = %s
-          AND (strong_number = %s OR strong_number IS NULL)
+          AND (
+                strong_number IS NULL
+             OR NULLIF(regexp_replace(strong_number, '[^0-9]', '', 'g'), '')::int = %s
+          )
           AND book IS NULL
           AND chapter IS NULL
           AND verse IS NULL
         ORDER BY mapping_id
-    """, (hebrew_word_normalized, strong_number), fetch='all')
-    
+    """, (hebrew_word_normalized, strong_numeric), fetch='all')
+
     fuerst_ids = []
     gesenius_ids = []
-    
+
     if results:
         # Collect all matching entries (may have separate fuerst and gesenius rows)
         for result in results:
@@ -84,13 +111,29 @@ def get_manual_lexicon_mappings(hebrew_word: str, strong_number: Optional[str] =
                 fuerst_ids.append(fuerst_id)
             if gesenius_id and lexicon_type in ('gesenius', 'both'):
                 gesenius_ids.append(gesenius_id)
-        
+
         return {
             'fuerst_ids': fuerst_ids,
             'gesenius_ids': gesenius_ids
         }
-    
+
     return {'fuerst_ids': [], 'gesenius_ids': []}
+
+
+def get_manual_lexicon_mappings(hebrew_word: str, strong_number: Optional[str] = None,
+                                   book: Optional[str] = None, chapter: Optional[int] = None, verse: Optional[int] = None):
+    """
+    Retrieve manual lexicon mappings for a Hebrew word.
+    Checks most specific to least specific (verse-level -> chapter-level -> book-level -> global).
+    Returns dict with 'fuerst_ids' and 'gesenius_ids' lists.
+    """
+    if not hebrew_word:
+        return {'fuerst_ids': [], 'gesenius_ids': []}
+
+    cache_bucket = int(time.time() // MANUAL_MAPPING_CACHE_TTL_SECONDS)
+    return _get_manual_lexicon_mappings_cached(
+        cache_bucket, hebrew_word, normalize_strong_number(strong_number), book, chapter, verse
+    )
 
 
 # Small HTML sanitizer: allows a small whitelist of tags and safe <a href="..."> links
