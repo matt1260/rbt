@@ -7,6 +7,8 @@ import psycopg2.extras
 from django.conf import settings
 from django.db import connection
 
+from search.db_utils import end_stray_transaction
+
 
 RowType = Tuple[Any, ...]
 FetchMode = Optional[Literal['one', 'all']]
@@ -55,6 +57,7 @@ def get_db_connection():
         connection.rollback()
         raise e
     finally:
+        end_stray_transaction()
         # Restore default search_path on return so future callers
         # (e.g. Django session/auth ORM queries) find tables in `public`.
         try:

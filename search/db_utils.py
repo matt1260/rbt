@@ -1,7 +1,9 @@
+import logging
 from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any, List, Optional, Sequence, Tuple, Union, Literal, overload, Mapping
 
+import psycopg2.extensions
 from django.conf import settings
 from django.db import connection
 
@@ -37,6 +39,33 @@ def execute_query(
 ) -> int:
     ...
 
+
+def end_stray_transaction():
+    """Close a transaction left open on Django's connection by raw SQL.
+
+    Several lookups run ``BEGIN; SET LOCAL search_path ...`` through
+    get_db_connection() and never COMMIT. Django keeps the connection in autocommit
+    mode, so its commit() is a no-op there and the transaction stayed open on the
+    pooled connection: later writes in the same thread ran inside it, invisible to
+    other connections (e.g. background worker threads) and rolled back if the
+    connection was recycled before something else happened to commit. Inside a real
+    ``transaction.atomic()`` block this does nothing.
+    """
+    try:
+        raw = connection.connection
+        if raw is None or connection.in_atomic_block or not connection.get_autocommit():
+            return
+        status = raw.info.transaction_status
+        if status == psycopg2.extensions.TRANSACTION_STATUS_INTRANS:
+            with connection.cursor() as cursor:
+                cursor.execute('COMMIT')
+        elif status == psycopg2.extensions.TRANSACTION_STATUS_INERROR:
+            with connection.cursor() as cursor:
+                cursor.execute('ROLLBACK')
+    except Exception:
+        logging.getLogger(__name__).exception('Failed to close a stray transaction')
+
+
 @contextmanager
 def get_db_connection():
     """Context manager that yields Django's persistent database connection.
@@ -49,6 +78,7 @@ def get_db_connection():
     try:
         yield connection
     finally:
+        end_stray_transaction()
         # Reset search_path so schema changes don't leak into subsequent requests.
         try:
             with connection.cursor() as cursor:

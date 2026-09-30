@@ -101,6 +101,11 @@ CORS_ALLOW_METHODS = [
 # -- a route that does not exist, producing 404s that Google indexed.
 LOGIN_URL = '/accounts/login/'
 
+# Logging in without a ?next= landed on Django's default /accounts/profile/, which this
+# project has no route for, so a successful login showed a 404.
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
+
 # Increase field limits for bulk editing forms (e.g., find_and_replace)
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000  # Default is 1000
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB (default is 2.5MB)
