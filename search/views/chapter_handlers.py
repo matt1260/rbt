@@ -33,13 +33,18 @@ import os
 from django.contrib.staticfiles import finders
 
 
-def _static_version(static_path):
-    """Cache-busting token for an unhashed static file: its mtime."""
-    path = finders.find(static_path)
-    try:
-        return str(int(os.path.getmtime(path))) if path else ''
-    except OSError:
-        return ''
+def _static_version(*static_paths):
+    """Cache-busting token for unhashed static files: the newest mtime among them, so a
+    change to any file that shares the token (e.g. a .js and its .css) busts the cache."""
+    mtimes = []
+    for static_path in static_paths:
+        path = finders.find(static_path)
+        try:
+            if path:
+                mtimes.append(int(os.path.getmtime(path)))
+        except OSError:
+            pass
+    return str(max(mtimes)) if mtimes else ''
 
 
 def _chapter_editor_version():
@@ -555,7 +560,7 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         'chapter_editor_version': _chapter_editor_version() if chapter_editor_enabled else '',
         # Published AI paraphrase for the "Paraphrase" reader view (English only for now).
         'reader_paraphrase': published_paraphrase(original_book, chapter_num) if language == 'en' else None,
-        'reader_paraphrase_version': _static_version('reader-paraphrase.js'),
+        'reader_paraphrase_version': _static_version('reader-paraphrase.js', 'reader-paraphrase.css'),
     }
 
     context['jsonld_schemas'] = generate_chapter_schema(

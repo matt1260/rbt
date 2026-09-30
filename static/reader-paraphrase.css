@@ -112,19 +112,18 @@
     display: none;
 }
 
-/* Verse ranges stay out of the reading flow; hovering a passage shows them in the margin. */
-.rbt-paraphrase [data-v] {
-    position: relative;
-}
-
+/* Verse ranges stay out of the reading flow; hovering a passage shows them in the margin.
+   The label is an inline-block with a net width of zero (-3.1em margin + 2.6em width +
+   0.5em gap) rather than an absolutely positioned one: a positioned paragraph would paint
+   over the floated image beside it and swallow its hover tooltip. */
 .rbt-paraphrase [data-v]::before {
     content: attr(data-v);
-    position: absolute;
-    top: 0.3em;
-    left: -3.1em;
+    display: inline-block;
     width: 2.6em;
+    margin-left: -3.1em;
+    margin-right: 0.5em;
     text-align: right;
-    font: 600 0.68rem/1.4 'Inter', system-ui, sans-serif;
+    font: 600 0.68rem/1 'Inter', system-ui, sans-serif;
     color: var(--sanctum-gold, #b78550);
     opacity: 0;
     transition: opacity 0.15s;
@@ -133,6 +132,11 @@
 
 .rbt-paraphrase [data-v]:hover::before {
     opacity: 0.8;
+}
+
+/* Beside a left-floated image the margin is the image itself; don't draw over it. */
+.rbt-paraphrase .pp-media--left + [data-v]::before {
+    visibility: hidden;
 }
 
 .rbt-paraphrase .pp-anchor {
