@@ -1,0 +1,188 @@
+/* Paraphrase reader view on NT chapter pages. The HTML comes from search/paraphrase.py,
+   which only lets through the elements and classes styled here.
+
+   Layout rules use container queries rather than media queries, so the Paraphrase
+   Studio's phone-width preview (a narrow box on a desktop screen) lays out exactly
+   like a real phone. */
+
+/* The Paraphrase toggle is the one filled button in the toolbar, so it stands out.
+   Selectors include the container id to outrank nt_chapter.html's toolbar button rules. */
+#toggleButtonsContainer > #paraphraseViewToggle {
+    background: var(--sanctum-gold, #b78550);
+    border-color: var(--sanctum-gold, #b78550);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(122, 82, 40, 0.35);
+}
+
+#toggleButtonsContainer > #paraphraseViewToggle:hover {
+    background: #9c6e3f;
+    border-color: #9c6e3f;
+    color: #fff;
+}
+
+#toggleButtonsContainer > #paraphraseViewToggle.is-active {
+    background: #6f4a24;
+    border-color: #6f4a24;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+#toggleButtonsContainer > #paraphraseViewToggle:focus-visible {
+    outline: 2px solid var(--sanctum-gold, #b78550);
+    outline-offset: 2px;
+}
+
+#toggleButtonsContainer #paraphraseViewToggle i {
+    color: #fff;
+}
+
+.rbt-paraphrase {
+    container-type: inline-size;
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 0 0 2rem;
+    font-size: 1.08em;
+    line-height: 1.75;
+}
+
+.rbt-paraphrase::after {
+    content: '';
+    display: block;
+    clear: both;
+}
+
+.rbt-paraphrase p {
+    margin: 0 0 1.05em;
+}
+
+.rbt-paraphrase .pp-lead {
+    font-size: 1.06em;
+}
+
+.rbt-paraphrase .pp-indent {
+    padding-left: 2em;
+}
+
+.rbt-paraphrase blockquote.pp-poetry,
+.rbt-paraphrase blockquote {
+    margin: 1em 0 1.3em 1.5em;
+    padding-left: 1em;
+    border-left: 2px solid var(--sanctum-rule, rgba(183, 133, 80, 0.3));
+}
+
+/* Media: the original tooltip blocks, placed and aligned by the model, at most 250px
+   wide so paragraphs wrap beside them. */
+.rbt-paraphrase .pp-media {
+    width: min(250px, 45%);
+    margin: 0.35em auto 1em;
+}
+
+.rbt-paraphrase .pp-media--left {
+    float: left;
+    margin: 0.35em 1.5em 0.8em 0;
+}
+
+.rbt-paraphrase .pp-media--right {
+    float: right;
+    margin: 0.35em 0 0.8em 1.5em;
+}
+
+.rbt-paraphrase .pp-media--center {
+    clear: both;
+}
+
+.rbt-paraphrase .pp-media .tooltip-container {
+    display: block;
+    width: 100%;
+    float: none !important;
+    padding: 0 !important;
+}
+
+.rbt-paraphrase .pp-media img,
+.rbt-paraphrase .pp-media video {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+}
+
+/* The page's Images (I) toggle hides tooltip blocks; hide their frame too. */
+.rbt-paraphrase .pp-media:has(> .tooltip-container[style*="none"]) {
+    display: none;
+}
+
+/* Verse ranges stay out of the reading flow; hovering a passage shows them in the margin. */
+.rbt-paraphrase [data-v] {
+    position: relative;
+}
+
+.rbt-paraphrase [data-v]::before {
+    content: attr(data-v);
+    position: absolute;
+    top: 0.3em;
+    left: -3.1em;
+    width: 2.6em;
+    text-align: right;
+    font: 600 0.68rem/1.4 'Inter', system-ui, sans-serif;
+    color: var(--sanctum-gold, #b78550);
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+}
+
+.rbt-paraphrase [data-v]:hover::before {
+    opacity: 0.8;
+}
+
+.rbt-paraphrase .pp-anchor {
+    scroll-margin-top: 90px;
+}
+
+.rbt-paraphrase__empty {
+    padding: 2rem 0;
+    color: var(--sanctum-stone, #8a7e70);
+    font-style: italic;
+}
+
+.rbt-paraphrase__empty button {
+    margin-left: 0.5em;
+    padding: 4px 12px;
+    border: 1px solid var(--sanctum-gold, #b78550);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--sanctum-gold, #b78550);
+    font: inherit;
+    font-style: normal;
+    cursor: pointer;
+}
+
+@container (max-width: 560px) {
+    /* A 250px float would leave a phone only a sliver of text beside it. */
+    .rbt-paraphrase .pp-media--left,
+    .rbt-paraphrase .pp-media--right,
+    .rbt-paraphrase .pp-media--center {
+        float: none;
+        width: min(250px, 100%);
+        margin: 1.2em auto;
+    }
+
+    .rbt-paraphrase .pp-indent {
+        padding-left: 1em;
+    }
+
+    .rbt-paraphrase blockquote {
+        margin-left: 0.5em;
+    }
+
+    /* No margin to show verse ranges in on a phone. */
+    .rbt-paraphrase [data-v]::before {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rbt-paraphrase [data-v]::before {
+        transition: none;
+    }
+}

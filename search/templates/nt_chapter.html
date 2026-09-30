@@ -49,6 +49,12 @@
 {% with title_prefix=book|title %}
 <div id="toggleButtonsContainer" style="display: flex; justify-content: flex-end;">
     {# Bracketed letters are keyboard shortcuts. data-label is what chapter-viewer.js re-renders on toggle. #}
+    {% if reader_paraphrase or chapter_editor_enabled %}
+    {# Switches between the verse-by-verse translation and the published AI paraphrase (static/reader-paraphrase.js). #}
+    <div id="paraphraseViewToggle" role="button" tabindex="0" aria-pressed="false" title="Switch between the verse-by-verse translation and the readable paraphrase (R)">
+        <i class="fas fa-book-open"></i> Paraphrase (R)
+    </div>
+    {% endif %}
     <div id="h5ToggleButton" data-label="{{ ui.ui_headers|default:'Headers' }} (H)" style="padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
         <i class="fas fa-eye-slash"></i> {{ ui.ui_headers|default:"Headers" }} (H)
     </div>
@@ -220,6 +226,15 @@ function hideTranslationLoading() {
             {% endif %}
         {% endif %}
 
+        {% if reader_paraphrase or chapter_editor_enabled %}
+        <article id="reader-paraphrase" class="rbt-paraphrase" hidden>
+            {% if reader_paraphrase %}{{ reader_paraphrase.html|safe }}{% else %}
+            <p class="rbt-paraphrase__empty">No paraphrase is published for this chapter yet.{% if chapter_editor_enabled %}
+                <button type="button" data-open-paraphrase-studio>Open the Paraphrase Studio</button>{% endif %}</p>
+            {% endif %}
+        </article>
+        {% endif %}
+
     </div>
 
     <!-- Hidden footnotes data for popup access -->
@@ -258,6 +273,11 @@ function hideTranslationLoading() {
         {{ chapters|safe }}
 </div>
 
+{% if reader_paraphrase or chapter_editor_enabled %}
+<link rel="stylesheet" href="{% static 'reader-paraphrase.css' %}?v={{ reader_paraphrase_version }}">
+<script src="{% static 'reader-paraphrase.js' %}?v={{ reader_paraphrase_version }}" defer></script>
+{% endif %}
+
 {% if chapter_editor_enabled %}
 {# Inline chapter editor (staff only). Source: chapter-editor/, built into static/chapter-editor/. #}
 <link rel="stylesheet" href="{% static 'chapter-editor/chapter-editor.css' %}?v={{ chapter_editor_version }}">
@@ -266,7 +286,8 @@ function hideTranslationLoading() {
      data-chapter="{{ chapter_num }}"
      data-csrf="{{ csrf_token }}"
      data-edit-url="/edit/"
-     data-api-base="/translate/api/chapter-editor/"></div>
+     data-api-base="/translate/api/chapter-editor/"
+     data-paraphrase-api="/translate/api/paraphrase/"></div>
 <script type="module" src="{% static 'chapter-editor/chapter-editor.js' %}?v={{ chapter_editor_version }}"></script>
 {% endif %}
 

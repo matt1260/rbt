@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 
 # Django genesis database 
@@ -360,3 +362,92 @@ class PromptLanguageOverride(models.Model):
 
     def __str__(self):
         return f'{self.language_code}: {self.term_id} -> {self.rendering}'
+
+
+class ParaphrasePrompt(models.Model):
+    """A named, reusable prompt preset for AI chapter paraphrases (the reader view).
+
+    `instructions` is the editable style guidance; the fixed output rules the page
+    depends on are appended by search/paraphrase.py and are not stored here.
+    """
+
+    name = models.CharField(max_length=100, unique=True)
+    instructions = models.TextField()
+    word_guidance = models.TextField(
+        blank=True, default='', help_text='Paraphrase-specific word/usage notes, one per line.')
+    include_glossary = models.BooleanField(
+        default=True, help_text='Also include the active translation glossary terms.')
+    is_default = models.BooleanField(default=False)
+    updated_by = models.CharField(max_length=150, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'paraphrase_prompts'
+        ordering = ['-is_default', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class ChapterParaphrase(models.Model):
+    """One AI-generated paraphrase of a whole chapter, from one model.
+
+    Every generation is kept for comparison; at most one per chapter and language is
+    published (shown to readers). `uid` is the stable identity used when syncing rows
+    between local and production (manage.py sync_paraphrases).
+    """
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('done', 'Done'),
+        ('failed', 'Failed'),
+    ]
+
+    uid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    batch_id = models.UUIDField(db_index=True, help_text='Generations started together, for side-by-side comparison.')
+    book = models.CharField(max_length=50)
+    chapter = models.IntegerField()
+    language_code = models.CharField(max_length=10, default='en')
+
+    provider = models.CharField(max_length=20)
+    model_name = models.CharField(max_length=100)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    error = models.TextField(blank=True, default='')
+
+    html = models.TextField(blank=True, default='', help_text='Sanitised reader HTML with media placeholders resolved.')
+    raw_output = models.TextField(blank=True, default='', help_text='Model output exactly as returned.')
+    missing_verses = models.JSONField(default=list, blank=True)
+
+    prompt_name = models.CharField(max_length=100, blank=True, default='')
+    system_prompt = models.TextField(blank=True, default='', help_text='Full system prompt as sent.')
+    source_hash = models.CharField(
+        max_length=64, blank=True, default='', help_text="Hash of the chapter's verse text when generated.")
+
+    input_tokens = models.IntegerField(null=True, blank=True)
+    output_tokens = models.IntegerField(null=True, blank=True)
+    thinking_tokens = models.IntegerField(null=True, blank=True)
+    duration_ms = models.IntegerField(null=True, blank=True)
+
+    is_published = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.CharField(max_length=150, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'chapter_paraphrases'
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['book', 'chapter', 'language_code'], name='chapter_paraphrase_ref_idx')]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['book', 'chapter', 'language_code'],
+                condition=models.Q(is_published=True),
+                name='one_published_paraphrase_per_chapter',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.book} {self.chapter} [{self.language_code}] {self.model_name} ({self.status})'

@@ -3,6 +3,7 @@ import type { ChapterEditorController, Snapshot } from '../controller'
 interface Props {
   controller: ChapterEditorController
   snapshot: Snapshot
+  onOpenStudio: () => void
 }
 
 function summary(snapshot: Snapshot): { text: string; tone: 'idle' | 'busy' | 'ok' | 'bad' } {
@@ -16,7 +17,7 @@ function summary(snapshot: Snapshot): { text: string; tone: 'idle' | 'busy' | 'o
 }
 
 /** Fixed bottom-right: edit mode switch, save state, conflicts and notices. */
-export function StatusBar({ controller, snapshot }: Props) {
+export function StatusBar({ controller, snapshot, onOpenStudio }: Props) {
   const { text, tone } = summary(snapshot)
   const problems = snapshot.statuses.filter((s) => s.status === 'error' || s.status === 'conflict')
 
@@ -60,6 +61,9 @@ export function StatusBar({ controller, snapshot }: Props) {
             {snapshot.loadError && <button type="button" onClick={controller.retryLoad}>Retry</button>}
           </span>
         )}
+        <button type="button" className="rbt-ce-studio" onClick={onOpenStudio} title="Generate, compare and publish the AI paraphrase of this chapter">
+          Paraphrase studio
+        </button>
         <button
           type="button"
           className="rbt-ce-switch"

@@ -27,18 +27,23 @@ from search.db_utils import execute_query, get_db_connection
 from hebrewtool.debug_utils import set_debug_context, should_emit_debug
 
 from search.seo_utils import book_to_slug, localized_book_name, _get_verse_url
+from search.paraphrase import published_for as published_paraphrase
 
 import os
 from django.contrib.staticfiles import finders
 
 
-def _chapter_editor_version():
-    """Cache-busting token for the chapter editor bundle: the built file's mtime."""
-    path = finders.find('chapter-editor/chapter-editor.js')
+def _static_version(static_path):
+    """Cache-busting token for an unhashed static file: its mtime."""
+    path = finders.find(static_path)
     try:
         return str(int(os.path.getmtime(path))) if path else ''
     except OSError:
         return ''
+
+
+def _chapter_editor_version():
+    return _static_version('chapter-editor/chapter-editor.js')
 
 
 def handle_genesis_chapter(request, book, chapter_num, results, language, source_book):
@@ -548,6 +553,9 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         'failed_translation_count': failed_translation_count,
         'chapter_editor_enabled': chapter_editor_enabled,
         'chapter_editor_version': _chapter_editor_version() if chapter_editor_enabled else '',
+        # Published AI paraphrase for the "Paraphrase" reader view (English only for now).
+        'reader_paraphrase': published_paraphrase(original_book, chapter_num) if language == 'en' else None,
+        'reader_paraphrase_version': _static_version('reader-paraphrase.js'),
     }
 
     context['jsonld_schemas'] = generate_chapter_schema(

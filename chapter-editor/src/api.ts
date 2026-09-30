@@ -6,6 +6,7 @@ export interface EditorConfig {
   csrf: string
   editUrl: string
   apiBase: string
+  paraphraseApiBase: string
 }
 
 export interface VerseData {

@@ -2,7 +2,7 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 from django.urls import include
 
-from . import views, chapter_editor_api
+from . import views, chapter_editor_api, paraphrase_api
 
 urlpatterns = [
 
@@ -37,6 +37,13 @@ urlpatterns = [
     path('api/chapter-editor/chapter/', chapter_editor_api.chapter, name='chapter_editor_chapter'),
     path('api/chapter-editor/verse/', chapter_editor_api.save_verse, name='chapter_editor_save_verse'),
     path('api/chapter-editor/interlinear/', chapter_editor_api.interlinear, name='chapter_editor_interlinear'),
+    path('api/paraphrase/state/', paraphrase_api.state, name='paraphrase_state'),
+    path('api/paraphrase/candidate/', paraphrase_api.candidate, name='paraphrase_candidate'),
+    path('api/paraphrase/generate/', paraphrase_api.generate, name='paraphrase_generate'),
+    path('api/paraphrase/publish/', paraphrase_api.publish, name='paraphrase_publish'),
+    path('api/paraphrase/unpublish/', paraphrase_api.unpublish, name='paraphrase_unpublish'),
+    path('api/paraphrase/delete/', paraphrase_api.delete, name='paraphrase_delete'),
+    path('api/paraphrase/preset/', paraphrase_api.save_preset, name='paraphrase_save_preset'),
     path('api/scrape-lexicon/', views.scrape_lexicon, name='scrape_lexicon'),
     path('api/chat-lexicon/', views.chat_with_lexicon, name='chat_lexicon'),
     path('proxy/biblehub/', views.biblehub_proxy, name='biblehub_proxy'),

@@ -58,10 +58,11 @@ class RateLimitMiddleware:
         if path.startswith('/api/translation/status') or path.startswith('/api/translation/start') or path.startswith('/api/translation/clear-cache') or path.startswith('/api/translation/retry-failed'):
             return self.get_response(request)
 
-        # The inline chapter editor autosaves and prefetches interlinear data on hover,
-        # which would trip the verse/API limits. These endpoints are staff-only (403 otherwise),
+        # The inline chapter editor autosaves and prefetches interlinear data on hover, and the
+        # Paraphrase Studio polls while generating; both would trip the verse/API limits.
+        # These endpoints are staff-only (403 otherwise),
         # and request.user isn't populated yet at this point in the middleware stack.
-        if '/api/chapter-editor/' in path:
+        if '/api/chapter-editor/' in path or '/api/paraphrase/' in path:
             return self.get_response(request)
         
         # If the client has a valid human verification cookie, treat as human and skip rate limits
