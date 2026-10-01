@@ -12,13 +12,13 @@
  * conflict instead of being overwritten.
  */
 import { baseKeymap } from 'prosemirror-commands'
-import { history, redo, undo } from 'prosemirror-history'
+import { history, redo, undo, undoDepth } from 'prosemirror-history'
 import { keymap } from 'prosemirror-keymap'
 import type { Node as PMNode } from 'prosemirror-model'
 import { EditorState, Plugin, TextSelection, type Command } from 'prosemirror-state'
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view'
 import { Api, type EditorConfig, type InterlinearWord } from './api'
-import { applyTool, TOOLS, type Tool } from './commands'
+import { applyTool, TOOLS, typeOutsideEndingMarks, type Tool } from './commands'
 import { parseVerse, roundTrips, sameHtml, schema, serializeDoc } from './schema'
 import { closeText, composeVerse, wrapParentheses } from './verseDom'
 
@@ -26,6 +26,7 @@ const AUTOSAVE_DELAY_MS = 1000
 const HOVER_OPEN_DELAY_MS = 150
 const HOVER_CLOSE_DELAY_MS = 250
 const EDIT_MODE_KEY = 'rbtChapterEditMode'
+const UNDO_LIMIT = 50
 
 export type SaveStatus = 'saved' | 'saving' | 'error' | 'conflict'
 
@@ -60,6 +61,9 @@ interface ActiveEditor {
   originalNodes: Node[]
 }
 
+/** A finished editing session, undoable after leaving the verse: the HTML before it. */
+type UndoEntry = { kind: 'verse'; verse: string; html: string } | { kind: 'paragraph'; index: number; html: string }
+
 export interface VerseStatus {
   /** 'verse' entries are keyed by verse number; there is one 'paraphrase' entry. */
   kind: 'verse' | 'paraphrase'
@@ -75,6 +79,8 @@ export interface Snapshot {
   loadError: string | null
   active: { kind: 'verse' | 'paragraph'; verse: string; view: EditorView; state: EditorState } | null
   statuses: VerseStatus[]
+  /** Something to undo: in the open editor, or an earlier edit to a verse/paragraph. */
+  canUndo: boolean
   notice: { text: string; verse?: string } | null
   hover: { verse: string; anchor: HTMLElement } | null
 }
@@ -119,6 +125,7 @@ export class ChapterEditorController {
   private snapshot: Snapshot
   private verses = new Map<string, VerseRecord>()
   private active: ActiveEditor | null = null
+  private undoStack: UndoEntry[] = []
   private editMode = false
   private loading = false
   private loadError: string | null = null
@@ -182,6 +189,7 @@ export class ChapterEditorController {
       loadError: this.loadError,
       active: this.active && { kind: this.active.kind, verse: this.active.verse, view: this.active.view, state: this.active.view.state },
       statuses,
+      canUndo: (this.active ? undoDepth(this.active.view.state) > 0 : false) || this.undoStack.length > 0,
       notice: this.notice,
       hover: this.hover,
     }
@@ -270,6 +278,12 @@ export class ChapterEditorController {
   // --- DOM events ----------------------------------------------------------
 
   private onDocumentKeyDown = (event: KeyboardEvent) => {
+    if (this.editMode && !this.active && (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z' &&
+      !isTypingTarget(event.target) && this.undoStack.length) {
+      event.preventDefault()
+      this.undoLast()
+      return
+    }
     if (event.key !== 'e' || event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) return
     this.toggleEditMode()
   }
@@ -416,7 +430,7 @@ export class ChapterEditorController {
     const view = new EditorView({ mount: host }, {
       state: EditorState.create({
         doc: parseVerse(html, document),
-        plugins: [history(), keymap(this.editorKeymap()), keymap(baseKeymap)],
+        plugins: this.editorPlugins(),
       }),
       dispatchTransaction: (tr) => {
         view.updateState(view.state.apply(tr))
@@ -521,7 +535,7 @@ export class ChapterEditorController {
 
     const state = EditorState.create({
       doc: parseVerse(html, document),
-      plugins: [history(), keymap(this.editorKeymap()), keymap(baseKeymap), refPlugin],
+      plugins: [...this.editorPlugins(), refPlugin],
     })
     const view = new EditorView({ mount: host }, {
       state,
@@ -555,6 +569,15 @@ export class ChapterEditorController {
     view.dispatch(view.state.tr.setSelection(selection))
     view.focus()
     this.emit()
+  }
+
+  private editorPlugins(): Plugin[] {
+    return [
+      history(),
+      keymap(this.editorKeymap()),
+      keymap(baseKeymap),
+      new Plugin({ props: { handleTextInput: typeOutsideEndingMarks } }),
+    ]
   }
 
   private editorKeymap(): Record<string, Command> {
@@ -626,6 +649,12 @@ export class ChapterEditorController {
     const html = options.revert ? active.startHtml : edited
     if (active.kind === 'paragraph') this.saveParagraph(active.index, html)
     else this.save(active.verse, html)
+    if (!options.revert && !sameHtml(html, active.startHtml, document)) {
+      this.undoStack.push(active.kind === 'paragraph'
+        ? { kind: 'paragraph', index: active.index, html: active.startHtml }
+        : { kind: 'verse', verse: active.verse, html: active.startHtml })
+      if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
+    }
     active.view.destroy()
     if (sameHtml(html, active.startHtml, document)) {
       // Nothing changed this session: put the original DOM back (keeps footnote/tooltip listeners).
@@ -642,6 +671,41 @@ export class ChapterEditorController {
   }
 
   done = () => this.commit()
+
+  /**
+   * The Undo button: step back in the open editor while it has history, otherwise restore
+   * the most recently edited verse or paragraph to how it was before that edit (and save it).
+   */
+  undoLast = () => {
+    const active = this.active
+    if (active && undoDepth(active.view.state) > 0) {
+      this.runCommand(undo)
+      return
+    }
+    if (active) this.commit()
+    const entry = this.undoStack.pop()
+    if (!entry) return
+    let target: HTMLElement | undefined
+    if (entry.kind === 'verse') {
+      this.save(entry.verse, entry.html)
+      target = this.wrapperFor(entry.verse)
+      if (target) this.render(entry.verse, target)
+      this.showNotice(`Verse ${entry.verse}: last edit undone.`)
+    } else {
+      this.saveParagraph(entry.index, entry.html)
+      target = this.paragraphs()[entry.index]
+      if (target) target.innerHTML = entry.html
+      this.showNotice('Paraphrase: last edit undone.')
+    }
+    // The verse wrapper is display: contents, so measure what's inside it.
+    const range = document.createRange()
+    if (target) range.selectNodeContents(target)
+    const box = target && range.getBoundingClientRect()
+    if (box && (box.top < 0 || box.bottom > window.innerHeight)) {
+      window.scrollBy({ top: box.top - window.innerHeight / 3, behavior: 'instant' })
+    }
+    this.emit()
+  }
 
   private render(verse: string, wrapper: HTMLElement, refHtml?: string) {
     const record = this.verses.get(verse)

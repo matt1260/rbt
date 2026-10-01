@@ -6,6 +6,7 @@
  */
 import type { Mark, MarkType } from 'prosemirror-model'
 import { EditorState, TextSelection, type Transaction } from 'prosemirror-state'
+import type { EditorView } from 'prosemirror-view'
 import { newMarkKey, schema, type ElAttrs, type ElSpec } from './schema'
 
 export type Tool =
@@ -150,4 +151,37 @@ function toggleBlock(state: EditorState, spec: ElSpec): Transaction | null {
   const $inner = tr.doc.resolve(tr.mapping.map(range.from, 1))
   tr.setNodeMarkup($inner.before(), undefined, { tag: spec.tag, attrs: spec.attrs })
   return tr.scrollIntoView()
+}
+
+/**
+ * Styling of words (color, bold, italic, hayah), as opposed to spans that lay out a whole
+ * line or verse (last_center, centered, poetry-indent), which typed punctuation stays in.
+ */
+function isWordStyling(mark: Mark): boolean {
+  if (mark.type !== schema.marks.el) return false
+  if (['strong', 'b', 'em', 'i'].includes(mark.attrs.tag)) return true
+  const attrs = mark.attrs.attrs as ElAttrs
+  return isColor(mark) || (mark.attrs.tag === 'span' && Object.keys(attrs).length === 1 && attrs.class === 'hayah')
+}
+
+/** Punctuation and spaces: typed at the end of a colored/bold word they belong after it, not in it. */
+const BOUNDARY_TEXT = /^[\s.,;:!?…)\]—–-]+$/u
+
+/**
+ * handleTextInput: typing "." right after `<span style="color: blue;">the Order</span>`
+ * would otherwise extend the span (marks are inclusive), storing `the Order.</span>`.
+ * Besides coloring the period, a verse that then ends in </span> loses the line break
+ * after it on the chapter page (close_text in handle_nt_chapter).
+ */
+export function typeOutsideEndingMarks(view: EditorView, from: number, to: number, text: string): boolean {
+  const { state } = view
+  if (state.storedMarks || !BOUNDARY_TEXT.test(text)) return false
+  const before = state.doc.resolve(from).nodeBefore
+  if (!before?.isText) return false
+  const afterMarks = state.doc.resolve(to).nodeAfter?.marks ?? []
+  const ending = before.marks.filter((mark) => isWordStyling(mark) && !mark.isInSet(afterMarks))
+  if (!ending.length) return false
+  const marks = before.marks.filter((mark) => !ending.includes(mark))
+  view.dispatch(state.tr.replaceWith(from, to, schema.text(text, marks)).scrollIntoView())
+  return true
 }

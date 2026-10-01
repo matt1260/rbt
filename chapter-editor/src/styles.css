@@ -492,6 +492,31 @@
   color: var(--rbt-ce-gold);
 }
 
+.rbt-ce-undo {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--rbt-ce-rule);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--rbt-ce-ink);
+  cursor: pointer;
+}
+
+.rbt-ce-undo:hover:not(:disabled) {
+  border-color: var(--rbt-ce-gold);
+  color: var(--rbt-ce-gold);
+}
+
+.rbt-ce-undo:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .rbt-ps {
   position: fixed;
   inset: 0;

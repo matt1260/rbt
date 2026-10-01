@@ -80,6 +80,21 @@ export function StatusBar({ controller, snapshot, onOpenStudio }: Props) {
             {snapshot.loadError && <button type="button" onClick={controller.retryLoad}>Retry</button>}
           </span>
         )}
+        {snapshot.editMode && (
+          <button
+            type="button"
+            className="rbt-ce-undo"
+            onClick={controller.undoLast}
+            disabled={!snapshot.canUndo}
+            title="Undo the last change (⌘Z / Ctrl+Z)"
+            aria-label="Undo the last change"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+              <path d="M9 14 4 9l5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
         <button type="button" className="rbt-ce-studio" onClick={onOpenStudio} title="Generate, compare and publish the AI paraphrase of this chapter">
           <span className="rbt-ce-studio__full">Paraphrase studio</span>
           <span className="rbt-ce-studio__short" aria-hidden="true">Studio</span>
