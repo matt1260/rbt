@@ -1,4 +1,4 @@
-/* Inline chapter editor. Colours follow the chapter page's Sanctum tokens. */
+/* Inline chapter editor. Colors follow the chapter page's Sanctum tokens. */
 :root {
   --rbt-ce-gold: var(--sanctum-gold, #b78550);
   --rbt-ce-parchment: var(--sanctum-parchment, #faf7f2);
@@ -157,7 +157,7 @@
 
 .rbt-ce-tool--pink .rbt-ce-swatch { background: #ff00aa; }
 .rbt-ce-tool--blue .rbt-ce-swatch { background: blue; }
-.rbt-ce-tool--nocolour { color: var(--rbt-ce-stone); }
+.rbt-ce-tool--nocolor { color: var(--rbt-ce-stone); }
 
 .rbt-ce-tool--link {
   color: var(--rbt-ce-stone);

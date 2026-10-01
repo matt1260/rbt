@@ -70,11 +70,11 @@ export function Toolbar({ controller, kind, verse, view, state }: Props) {
               className={`rbt-ce-tool rbt-ce-tool--${tool.id}`}
               title={tool.title}
               aria-label={tool.title}
-              aria-pressed={tool.kind === 'colour' && !tool.spec ? undefined : active}
+              aria-pressed={tool.kind === 'color' && !tool.spec ? undefined : active}
               onMouseDown={keepFocus}
               onClick={() => controller.runTool(tool)}
             >
-              {tool.kind === 'colour' && tool.spec ? <span className="rbt-ce-swatch" /> : tool.label}
+              {tool.kind === 'color' && tool.spec ? <span className="rbt-ce-swatch" /> : tool.label}
             </button>
           )
         })}

@@ -7,7 +7,7 @@ compare the results and publish one. Every generation is kept in ChapterParaphra
 
 Pipeline for one generation:
   1. prepare_source(): the chapter's stored RBT verse HTML (new_testament.nt.rbt) is
-     reduced to text plus the colour/hayah spans worth keeping. Images, videos and
+     reduced to text plus the color/hayah spans worth keeping. Images, videos and
      tooltip blocks are pulled out as numbered media items with their captions.
   2. build_system_prompt(): the editable preset (style + word guidance + the shared
      translation glossary) followed by OUTPUT_RULES, which the page depends on and
@@ -74,7 +74,7 @@ OUTPUT FORMAT (required; the page depends on it):
 - Return only an HTML fragment. No markdown, no code fences, no <html>, <head>, <body>, <style> or <script>.
 - Allowed elements: p, blockquote, ul, ol, li, em, strong, span, br, hr, rbt-media. No headings of any kind: the page flows as paragraphs.
 - Put data-v on every paragraph, blockquote or list that carries verse content, giving the verse range it covers: <p data-v="3-5">...</p> or <p data-v="7">...</p>. Together the ranges must cover every verse of the chapter.
-- Keep the RBT colour coding where it still fits by reusing the source's spans exactly: <span style="color: blue;"> and <span style="color: #ff00aa;">. Keep <span class="hayah"> as it is.
+- Keep the RBT color coding where it still fits by reusing the source's spans exactly: <span style="color: blue;"> and <span style="color: #ff00aa;">. Keep <span class="hayah"> as it is.
 - Optional classes: <p class="pp-lead"> for an opening paragraph, <p class="pp-indent"> for an indented paragraph, <blockquote class="pp-poetry"> for poetic or quoted lines (use <br> between lines).
 - Mark every media item exactly once with an inline marker inside the paragraph, right after the sentence it best illustrates (after the sentence's closing punctuation): <rbt-media n="N"></rbt-media>. Readers see a small image cue there that opens the image and its notes, so the text itself stays uninterrupted; never put a marker between paragraphs.
 - Do not invent content, add commentary or explain your choices.

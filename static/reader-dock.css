@@ -156,7 +156,7 @@ body:has(.rbt-dock) {
     color: var(--sanctum-ink, #2b2520);
 }
 
-/* Colour coding dots. */
+/* Color coding dots. */
 .rbt-dock .color-dot {
     display: block;
     flex-shrink: 0;

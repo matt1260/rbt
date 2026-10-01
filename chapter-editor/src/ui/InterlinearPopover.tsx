@@ -11,8 +11,8 @@ interface Props {
 
 type Load = { state: 'loading' } | { state: 'ready'; words: InterlinearWord[] } | { state: 'error'; message: string }
 
-/** Same gender colouring as the verse edit page's interlinear (chapter_views_part1.py). */
-function morphColour(description: string | null): string | undefined {
+/** Same gender coloring as the verse edit page's interlinear (chapter_views_part1.py). */
+function morphColor(description: string | null): string | undefined {
   if (!description) return undefined
   if (description.includes('Feminine')) return '#FF1493'
   if (description.includes('Masculine')) return 'blue'
@@ -69,7 +69,7 @@ export function InterlinearPopover({ controller, verse, anchor }: Props) {
                 <span className="rbt-ce-word__greek">{word.lemma}</span>
                 <span className="rbt-ce-word__translit">{word.translit}</span>
                 <span className="rbt-ce-word__english">{word.english}</span>
-                <span className="rbt-ce-word__morph" style={{ color: morphColour(word.morph_desc) }}>{word.morph}</span>
+                <span className="rbt-ce-word__morph" style={{ color: morphColor(word.morph_desc) }}>{word.morph}</span>
                 <span className="rbt-ce-word__strongs">{word.strongs}</span>
               </div>
             ))}

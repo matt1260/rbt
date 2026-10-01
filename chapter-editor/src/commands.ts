@@ -10,15 +10,15 @@ import { newMarkKey, schema, type ElAttrs, type ElSpec } from './schema'
 
 export type Tool =
   | { kind: 'mark'; id: string; label: string; title: string; spec: ElSpec; aliases?: ElSpec[] }
-  | { kind: 'colour'; id: string; label: string; title: string; spec: ElSpec | null }
+  | { kind: 'color'; id: string; label: string; title: string; spec: ElSpec | null }
   | { kind: 'block'; id: string; label: string; title: string; spec: ElSpec }
 
 const span = (attrs: ElAttrs): ElSpec => ({ tag: 'span', attrs })
 
 export const TOOLS: Tool[] = [
-  { kind: 'colour', id: 'pink', label: '', title: 'Pink text', spec: span({ style: 'color: #ff00aa;' }) },
-  { kind: 'colour', id: 'blue', label: '', title: 'Blue text', spec: span({ style: 'color: blue;' }) },
-  { kind: 'colour', id: 'nocolour', label: '⌀', title: 'Remove colour', spec: null },
+  { kind: 'color', id: 'pink', label: '', title: 'Pink text', spec: span({ style: 'color: #ff00aa;' }) },
+  { kind: 'color', id: 'blue', label: '', title: 'Blue text', spec: span({ style: 'color: blue;' }) },
+  { kind: 'color', id: 'nocolor', label: '⌀', title: 'Remove color', spec: null },
   { kind: 'mark', id: 'bold', label: 'B', title: 'Bold (⌘B)', spec: { tag: 'strong', attrs: {} }, aliases: [{ tag: 'b', attrs: {} }] },
   { kind: 'mark', id: 'hayah', label: 'היה', title: 'Hayah', spec: span({ class: 'hayah' }) },
   { kind: 'block', id: 'h5', label: 'h5', title: 'Heading', spec: { tag: 'h5', attrs: {} } },
@@ -38,8 +38,8 @@ function matches(mark: Mark, spec: ElSpec): boolean {
   return mark.type === schema.marks.el && mark.attrs.tag === spec.tag && sameAttrs(mark.attrs.attrs, spec.attrs)
 }
 
-/** A plain colour span: `<span style="color: …;">` with no other attributes or declarations. */
-function isColour(mark: Mark): boolean {
+/** A plain color span: `<span style="color: …;">` with no other attributes or declarations. */
+function isColor(mark: Mark): boolean {
   if (mark.type !== schema.marks.el || mark.attrs.tag !== 'span') return false
   const attrs = mark.attrs.attrs as ElAttrs
   const keys = Object.keys(attrs)
@@ -114,8 +114,8 @@ export function applyTool(state: EditorState, tool: Tool): Transaction | null {
   const { from, to } = range
   const tr = state.tr
 
-  if (tool.kind === 'colour') {
-    for (const mark of marksInRange(state, from, to, isColour)) tr.removeMark(from, to, mark)
+  if (tool.kind === 'color') {
+    for (const mark of marksInRange(state, from, to, isColor)) tr.removeMark(from, to, mark)
     if (tool.spec) tr.addMark(from, to, createMark(tool.spec))
   } else {
     const specs = [tool.spec, ...(tool.aliases ?? [])]

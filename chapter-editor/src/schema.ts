@@ -1,7 +1,7 @@
 /**
  * Lossless ProseMirror schema for stored verse HTML (new_testament.nt.rbt).
  *
- * Verse HTML is free-form: coloured spans, headings, footnote anchors, tooltip/image
+ * Verse HTML is free-form: colored spans, headings, footnote anchors, tooltip/image
  * blocks, videos. Instead of modelling each construct, the schema is generic:
  *
  *   doc        → block+
@@ -130,7 +130,7 @@ export const schema = new Schema({
   marks: {
     el: {
       attrs: { tag: { default: 'span' }, attrs: { default: {} }, key: { default: 0 } },
-      // Several el marks can overlap (a colour span inside a greek-header span).
+      // Several el marks can overlap (a color span inside a greek-header span).
       excludes: '',
       parseDOM: [{
         tag: MARK_TAGS.join(','),
