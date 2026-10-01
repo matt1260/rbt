@@ -133,14 +133,15 @@
 }
 
 /* Verse ranges stay out of the reading flow; hovering a passage shows them in the margin.
-   An inline-block with a net width of zero (-3.1em margin + 2.6em width + 0.5em gap), so
-   the paragraph itself needn't be positioned. */
+   An inline-block with a net width of zero (-4.6em margin + 4.1em width + 0.5em gap), so
+   the paragraph itself needn't be positioned. 4.1em fits ranges up to "100-102". */
 .rbt-paraphrase [data-v]::before {
     content: attr(data-v);
     display: inline-block;
-    width: 2.6em;
-    margin-left: -3.1em;
+    width: 4.1em;
+    margin-left: -4.6em;
     margin-right: 0.5em;
+    white-space: nowrap;
     text-align: right;
     font: 600 0.68rem/1 'Inter', system-ui, sans-serif;
     color: var(--sanctum-gold, #b78550);
