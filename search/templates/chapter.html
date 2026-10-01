@@ -4,11 +4,15 @@
 {% load static %}
 {% block content %}
 <!-- Preload and apply chapter CSS (Firefox-friendly) to avoid FOUC -->
-<link rel="preload" href="{% static 'chapter-viewer.css' %}" as="style">
-<link rel="stylesheet" href="{% static 'chapter-viewer.css' %}" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="{% static 'chapter-viewer.css' %}"></noscript>
+{% static_version 'chapter-viewer.css' 'chapter-viewer.js' as chapter_viewer_version %}
+<link rel="preload" href="{% static 'chapter-viewer.css' %}?v={{ chapter_viewer_version }}" as="style">
+<link rel="stylesheet" href="{% static 'chapter-viewer.css' %}?v={{ chapter_viewer_version }}" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="{% static 'chapter-viewer.css' %}?v={{ chapter_viewer_version }}"></noscript>
 <script src="{% static 'translation-manager.js' %}"></script>
-<script src="{% static 'chapter-viewer.js' %}" defer></script>
+<script src="{% static 'chapter-viewer.js' %}?v={{ chapter_viewer_version }}" defer></script>
+{% static_version 'reader-dock.js' 'reader-dock.css' as reader_dock_version %}
+<link rel="stylesheet" href="{% static 'reader-dock.css' %}?v={{ reader_dock_version }}">
+<script src="{% static 'reader-dock.js' %}?v={{ reader_dock_version }}" defer></script>
 
 <!-- Language Selection Modal -->
 <div id="languageModal" class="language-modal-overlay" style="display:none;visibility:hidden;opacity:0;">
@@ -159,25 +163,45 @@ function hideTranslationLoading() {
   {{ chapters|safe }}
 </div>
 
-{% with title_prefix=book|title %}
-<div id="toggleButtonsContainer">
-    {# Bracketed letters are keyboard shortcuts. data-label is what chapter-viewer.js re-renders on toggle. #}
-    <div id="h5ToggleButton" data-label="{{ ui.ui_headers|default:'Headers' }} (H)"><i class="fas fa-eye-slash"></i> {{ ui.ui_headers|default:"Headers" }} (H)</div>
-    <div id="imageToggleButton" data-label="{{ ui.ui_images|default:'Images' }} (I)"><i class="fas fa-eye-slash"></i> {{ ui.ui_images|default:"Images" }} (I)</div>
-    <div id="literalToggleButton" data-label="Literal (L)"><i class="fas fa-eye"></i> Literal (L)</div>
-    <div id="verseRefToggleButton" data-label="{{ ui.ui_verse_refs|default:'Verse References' }} (V)"><i class="fas fa-eye-slash"></i> {{ ui.ui_verse_refs|default:"Verse References" }} (V)</div>
-    <div id="parenthesesToggleButton" data-label="{{ ui.ui_names|default:'Names' }} (P)"><i class="fas fa-eye"></i> {{ ui.ui_names|default:"Names" }} (P)</div>
-    <div id="notesToggleButton"><i class="fas fa-book"></i> Notes (N)</div>
-    <div id="fontDecreaseButton"><i class="fas fa-minus"></i></div>
-    <div id="fontIncreaseButton"><i class="fas fa-plus"></i></div>
-    {% if paraphrase %}
-    <div id="languageSelector" class="language-selector" onclick="openLanguageModal()" aria-haspopup="dialog" role="button" title="Select language">
-        <i class="fas fa-language"></i> <span class="language-label">{{ supported_languages|get_item:current_language|default:'English' }}</span>
+{% comment %}
+Reader controls: a floating dock (static/reader-dock.css/.js). The toggles keep the ids
+chapter-viewer.js drives; bracketed letters are keyboard shortcuts and data-label is what
+chapter-viewer.js re-renders on toggle.
+{% endcomment %}
+<div id="toggleButtonsContainer" class="rbt-dock" data-state="closed">
+    <div class="rbt-dock__panel" id="rbtDockPanel" role="group" aria-label="Reading options" hidden>
+        <div class="rbt-dock__section">
+            <p class="rbt-dock__heading">Show</p>
+            <div class="rbt-dock__grid">
+                <div id="h5ToggleButton" class="rbt-dock__item" role="button" tabindex="0" data-label="{{ ui.ui_headers|default:'Headers' }} (H)"><i class="fas fa-eye-slash"></i> {{ ui.ui_headers|default:"Headers" }} (H)</div>
+                <div id="imageToggleButton" class="rbt-dock__item" role="button" tabindex="0" data-label="{{ ui.ui_images|default:'Images' }} (I)"><i class="fas fa-eye-slash"></i> {{ ui.ui_images|default:"Images" }} (I)</div>
+                <div id="literalToggleButton" class="rbt-dock__item" role="button" tabindex="0" data-label="Literal (L)"><i class="fas fa-eye"></i> Literal (L)</div>
+                <div id="verseRefToggleButton" class="rbt-dock__item" role="button" tabindex="0" data-label="{{ ui.ui_verse_refs|default:'Verse References' }} (V)"><i class="fas fa-eye-slash"></i> {{ ui.ui_verse_refs|default:"Verse References" }} (V)</div>
+                <div id="parenthesesToggleButton" class="rbt-dock__item" role="button" tabindex="0" data-label="{{ ui.ui_names|default:'Names' }} (P)"><i class="fas fa-eye"></i> {{ ui.ui_names|default:"Names" }} (P)</div>
+                <div id="notesToggleButton" class="rbt-dock__item" role="button" tabindex="0"><i class="fas fa-book"></i> Notes (N)</div>
+            </div>
+        </div>
+        <div class="rbt-dock__section rbt-dock__row">
+            <div class="rbt-dock__size" role="group" aria-label="Text size">
+                <span class="rbt-dock__size-label">Text size</span>
+                <div id="fontDecreaseButton" class="rbt-dock__icon-btn" role="button" tabindex="0" aria-label="Smaller text (-)" title="Smaller text (-)"><i class="fas fa-minus"></i></div>
+                <div id="fontIncreaseButton" class="rbt-dock__icon-btn" role="button" tabindex="0" aria-label="Larger text (+)" title="Larger text (+)"><i class="fas fa-plus"></i></div>
+            </div>
+            {% if paraphrase %}
+            <div id="languageSelector" class="language-selector" onclick="openLanguageModal()" aria-haspopup="dialog" role="button" tabindex="0" title="Select language">
+                <i class="fas fa-language"></i> <span class="language-label">{{ supported_languages|get_item:current_language|default:'English' }}</span>
+            </div>
+            {% endif %}
+        </div>
     </div>
-    {% endif %}
+    <div class="rbt-dock__bar">
+        <button type="button" class="rbt-dock__toggle" aria-expanded="false" aria-controls="rbtDockPanel" title="Reading options (O)">
+            <i class="fas fa-sliders-h"></i>
+            <span class="rbt-dock__toggle-label">Reading options</span><span class="rbt-dock__toggle-short">Options</span>
+            <i class="fas fa-chevron-up rbt-dock__chevron"></i>
+        </button>
+    </div>
 </div>
-
-{% endwith %}
 <h1>{{ book }} {{ chapter_num }}</h1>
 {% if current_language in 'ar,he,ur,fa' %}
 <style>
@@ -240,59 +264,6 @@ function hideTranslationLoading() {
         color: #666;
     }
 
-    /* Modern toolbar container — Sanctum style */
-    #toggleButtonsContainer {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        gap: 6px;
-        background: var(--sanctum-parchment, #faf7f2);
-        border: 1px solid var(--sanctum-rule, rgba(183,133,80,0.25));
-        border-radius: 4px;
-        padding: 8px 12px;
-        margin-bottom: 15px;
-        position: sticky;
-        top: 0;
-        z-index: 50;
-    }
-
-    #toggleButtonsContainer #languageSelector {
-        text-align: right;
-    }
-
-    /* Toolbar buttons */
-    #toggleButtonsContainer > div {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        font-family: 'Inter', sans-serif;
-        font-size: 0.68rem;
-        font-weight: 500;
-        letter-spacing: 0.09em;
-        text-transform: uppercase;
-        padding: 5px 10px;
-        color: var(--sanctum-stone, #8a7e70);
-        background: transparent;
-        border: 1px solid var(--sanctum-rule, rgba(183,133,80,0.25));
-        border-radius: 3px;
-        cursor: pointer;
-        transition: all 0.2s;
-        user-select: none;
-    }
-
-    /* Hover state */
-    #toggleButtonsContainer > div:hover {
-        background: var(--sanctum-cream, #f0ebe3);
-        color: var(--sanctum-gold, #b78550);
-        border-color: var(--sanctum-gold, #b78550);
-    }
-
-    /* Icon styling */
-    #toggleButtonsContainer i {
-        color: var(--sanctum-stone, #8a7e70);
-        font-size: 11px;
-    }
-
     #paraphraseContainer {
         margin-bottom: 20px;
     }
@@ -317,15 +288,6 @@ function hideTranslationLoading() {
             padding-top: 20px;
         }
         
-        #toggleButtonsContainer {
-            justify-content: center !important;
-            gap: 5px;
-        }
-        
-        #toggleButtonsContainer > div {
-            font-size: 12px !important;
-            padding: 4px 6px !important;
-        }
     }
 
     #notes-pane {

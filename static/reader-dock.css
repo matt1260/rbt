@@ -1,0 +1,261 @@
+/* Reader controls on chapter pages (search/templates/chapter.html, nt_chapter.html): a
+   floating dock instead of a toolbar row. Collapsed it shows the view switch and a
+   "Reading options" button; expanded, a panel of grouped toggles opens above it.
+   The toggles keep the ids chapter-viewer.js drives, so their behaviour and keyboard
+   shortcuts are unchanged. Opening and closing: static/reader-dock.js. */
+
+.rbt-dock {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    max-width: calc(100vw - 32px);
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    color: var(--sanctum-ink, #2b2520);
+}
+
+/* Room at the bottom of the page so the dock never covers the last lines. */
+body:has(.rbt-dock) {
+    padding-bottom: 76px;
+}
+
+.rbt-dock__bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px;
+    background: var(--sanctum-parchment, #faf7f2);
+    border: 1px solid var(--sanctum-rule, rgba(183, 133, 80, 0.25));
+    border-radius: 999px;
+    box-shadow: 0 6px 24px rgba(43, 37, 32, 0.16), 0 1px 3px rgba(43, 37, 32, 0.12);
+    white-space: nowrap;
+}
+
+/* Shared look for every clickable control in the dock. */
+.rbt-dock__toggle,
+.rbt-dock [role="button"] {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    padding: 7px 12px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--sanctum-ink, #2b2520);
+    font: 600 12px/1.2 'Inter', system-ui, sans-serif;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.rbt-dock__toggle:hover,
+.rbt-dock [role="button"]:hover {
+    background: var(--sanctum-cream, #f0ebe3);
+}
+
+.rbt-dock__toggle:focus-visible,
+.rbt-dock [role="button"]:focus-visible {
+    outline: 2px solid var(--sanctum-gold, #b78550);
+    outline-offset: 2px;
+}
+
+.rbt-dock i {
+    font-size: 12px;
+    color: inherit;
+}
+
+.rbt-dock__chevron {
+    transition: transform 0.2s;
+}
+
+.rbt-dock[data-state="open"] .rbt-dock__chevron {
+    transform: rotate(180deg);
+}
+
+.rbt-dock[data-state="open"] .rbt-dock__toggle {
+    background: var(--sanctum-cream, #f0ebe3);
+}
+
+.rbt-dock__toggle-short {
+    display: none;
+}
+
+/* ---- Panel ------------------------------------------------------------------ */
+
+.rbt-dock__panel {
+    width: min(380px, calc(100vw - 32px));
+    max-height: calc(100vh - 110px);
+    overflow-y: auto;
+    padding: 14px;
+    background: #fff;
+    border: 1px solid var(--sanctum-rule, rgba(183, 133, 80, 0.25));
+    border-radius: 14px;
+    box-shadow: 0 10px 36px rgba(43, 37, 32, 0.2), 0 1px 3px rgba(43, 37, 32, 0.12);
+    transform-origin: bottom left;
+}
+
+.rbt-dock__panel[hidden] {
+    display: none;
+}
+
+.rbt-dock[data-state="open"] .rbt-dock__panel {
+    animation: rbt-dock-in 0.16s ease-out;
+}
+
+@keyframes rbt-dock-in {
+    from { opacity: 0; transform: translateY(6px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+}
+
+.rbt-dock__section + .rbt-dock__section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--sanctum-rule, rgba(183, 133, 80, 0.2));
+}
+
+.rbt-dock__heading {
+    margin: 0 0 8px;
+    font: 600 10.5px/1.2 'Inter', system-ui, sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--sanctum-stone, #8a7e70);
+}
+
+.rbt-dock__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+/* Toggles in the panel: a full-width tile; "on" ones are tinted. chapter-viewer.js shows
+   an eye-slash (or open book) icon when the thing is currently visible. */
+.rbt-dock__panel .rbt-dock__item {
+    justify-content: flex-start;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 11px;
+    border: 1px solid var(--sanctum-rule, rgba(183, 133, 80, 0.25));
+    border-radius: 9px;
+    color: var(--sanctum-stone, #8a7e70);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.rbt-dock__panel .rbt-dock__item:has(> .fa-eye-slash),
+.rbt-dock__panel .rbt-dock__item:has(> .fa-book-open),
+.rbt-dock__panel .rbt-dock__item.color-toggle.active {
+    background: var(--sanctum-cream, #f0ebe3);
+    border-color: var(--sanctum-gold, #b78550);
+    color: var(--sanctum-ink, #2b2520);
+}
+
+/* Colour coding dots. */
+.rbt-dock .color-dot {
+    display: block;
+    flex-shrink: 0;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    transition: opacity 0.2s;
+}
+
+.rbt-dock .blue-dot {
+    background: linear-gradient(135deg, #4facfe 0%, #1565c0 100%);
+}
+
+.rbt-dock .magenta-dot {
+    background: linear-gradient(135deg, #ff00aa 0%, #cc00ff 100%);
+}
+
+.rbt-dock .color-toggle:not(.active) .color-dot {
+    opacity: 0.25;
+}
+
+.rbt-dock__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.rbt-dock__size {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.rbt-dock__size-label {
+    margin-right: 4px;
+    color: var(--sanctum-stone, #8a7e70);
+    font-weight: 500;
+}
+
+.rbt-dock__panel .rbt-dock__icon-btn {
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid var(--sanctum-rule, rgba(183, 133, 80, 0.25));
+    border-radius: 50%;
+}
+
+.rbt-dock__panel #languageSelector {
+    border: 1px solid var(--sanctum-rule, rgba(183, 133, 80, 0.25));
+}
+
+/* ---- Phones: a full-width strip at the bottom, the panel as a sheet above it ---- */
+
+@media (max-width: 600px) {
+    .rbt-dock {
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+        max-width: none;
+        align-items: stretch;
+    }
+
+    .rbt-dock__bar {
+        justify-content: space-between;
+    }
+
+    .rbt-dock__panel {
+        width: auto;
+        max-height: 62vh;
+        border-radius: 16px;
+    }
+
+    .rbt-dock__toggle-label {
+        display: none;
+    }
+
+    .rbt-dock__toggle-short {
+        display: inline;
+    }
+
+    /* Sit above the staff editor bar, which also spans the bottom on phones. */
+    body:has(.rbt-ce-status) .rbt-dock {
+        bottom: 66px;
+    }
+
+    body:has(.rbt-dock) {
+        padding-bottom: 72px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rbt-dock[data-state="open"] .rbt-dock__panel {
+        animation: none;
+    }
+
+    .rbt-dock__chevron {
+        transition: none;
+    }
+}

@@ -42,3 +42,20 @@ def generate_seo_link(lang_code, book_name, chapter_num, verse_num=None):
             return reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': chapter_num})
         except Exception:
             return f'?book={book_name}&chapter={chapter_num}'
+
+
+@register.simple_tag
+def static_version(*static_paths):
+    """Cache-busting token for unhashed static files: the newest mtime among them.
+    Usage: {% static_version 'reader-dock.js' 'reader-dock.css' %}"""
+    import os
+    from django.contrib.staticfiles import finders
+    mtimes = []
+    for static_path in static_paths:
+        path = finders.find(static_path)
+        try:
+            if path:
+                mtimes.append(int(os.path.getmtime(path)))
+        except OSError:
+            pass
+    return str(max(mtimes)) if mtimes else ''

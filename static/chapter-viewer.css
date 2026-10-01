@@ -168,51 +168,7 @@
     100% { width: 0%; margin-left: 100%; }
 }
 
-/* Toggle Buttons Container — Sanctum style */
-#toggleButtonsContainer {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
-    background: var(--sanctum-parchment, #faf7f2);
-    border: 1px solid var(--sanctum-rule, rgba(183,133,80,0.25));
-    border-radius: 4px;
-    padding: 8px 12px;
-    margin-bottom: 15px;
-    position: sticky;
-    top: 0;
-    z-index: 50;
-}
-
-#toggleButtonsContainer > div {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.68rem;
-    font-weight: 500;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    padding: 5px 10px;
-    color: var(--sanctum-stone, #8a7e70);
-    background: transparent;
-    border: 1px solid var(--sanctum-rule, rgba(183,133,80,0.25));
-    border-radius: 3px;
-    cursor: pointer;
-    transition: all 0.2s;
-    user-select: none;
-}
-
-#toggleButtonsContainer > div:hover {
-    background: var(--sanctum-cream, #f0ebe3);
-    color: var(--sanctum-gold, #b78550);
-    border-color: var(--sanctum-gold, #b78550);
-}
-
-#toggleButtonsContainer i {
-    color: var(--sanctum-stone, #8a7e70);
-    font-size: 11px;
-}
+/* The reader controls (#toggleButtonsContainer) are styled in reader-dock.css. */
 
 /* Language selector accent styling — makes the selector stand out visually */
 #languageSelector.language-selector {
@@ -542,16 +498,6 @@ a[href*="footnote="]:hover sup {
 
 /* Mobile Styles */
 @media (max-width: 768px) {
-    #toggleButtonsContainer {
-        justify-content: center !important;
-        gap: 5px;
-    }
-    
-    #toggleButtonsContainer > div {
-        font-size: 12px !important;
-        padding: 4px 6px !important;
-    }
-
     .footnote-popup {
         width: 94%;
         max-height: 85vh;

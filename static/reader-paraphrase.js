@@ -161,11 +161,6 @@
             show(reader.hidden, true);
         });
 
-        button.addEventListener('keydown', function (event) {
-            if (event.key !== 'Enter' && event.key !== ' ') return;
-            event.preventDefault();
-            show(reader.hidden, true);
-        });
 
         document.addEventListener('keydown', function (event) {
             if (event.key !== 'r' || event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;

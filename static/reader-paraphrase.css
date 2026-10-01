@@ -5,9 +5,9 @@
    Studio's phone-width preview (a narrow box on a desktop screen) lays out exactly
    like a real phone. */
 
-/* The Paraphrase toggle is the one filled button in the toolbar, so it stands out.
-   Selectors include the container id to outrank nt_chapter.html's toolbar button rules. */
-#toggleButtonsContainer > #paraphraseViewToggle {
+/* The Word for word / Paraphrase switch is the one filled button in the reader dock
+   (static/reader-dock.css), so it stands out. Enter/Space are handled by reader-dock.js. */
+.rbt-dock #paraphraseViewToggle {
     background: var(--sanctum-gold, #b78550);
     border-color: var(--sanctum-gold, #b78550);
     color: #fff;
@@ -15,24 +15,24 @@
     box-shadow: 0 1px 3px rgba(122, 82, 40, 0.35);
 }
 
-#toggleButtonsContainer > #paraphraseViewToggle:hover {
+.rbt-dock #paraphraseViewToggle:hover {
     background: #9c6e3f;
     border-color: #9c6e3f;
     color: #fff;
 }
 
-#toggleButtonsContainer > #paraphraseViewToggle.is-active {
+.rbt-dock #paraphraseViewToggle.is-active {
     background: #6f4a24;
     border-color: #6f4a24;
     box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
-#toggleButtonsContainer > #paraphraseViewToggle:focus-visible {
+.rbt-dock #paraphraseViewToggle:focus-visible {
     outline: 2px solid var(--sanctum-gold, #b78550);
     outline-offset: 2px;
 }
 
-#toggleButtonsContainer #paraphraseViewToggle i {
+.rbt-dock #paraphraseViewToggle i {
     color: #fff;
 }
 
