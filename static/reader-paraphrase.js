@@ -21,11 +21,14 @@
 
     // ---- Image cues ---------------------------------------------------------------
     // Each image in a paraphrase is a small round cue at the end of a sentence
-    // (search/paraphrase.py). Clicking one opens a modal with the image beside its
+    // (search/paraphrase.py). Clicking one opens a modal with that image beside its
     // notes, read from the inert <template> holding the original tooltip block.
     // Works anywhere a .rbt-paraphrase is shown, including the staff studio's previews.
     var modal = null;
-    var viewing = null; // { root, cues, index, opener }
+    var opener = null;
+
+    var CLOSE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">' +
+        '<path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 
     function buildModal() {
         modal = document.createElement('dialog');
@@ -35,32 +38,22 @@
                 '<div class="pp-modal__media"></div>' +
                 '<div class="pp-modal__text"></div>' +
             '</div>' +
-            '<button type="button" class="pp-modal__close" aria-label="Close">&times;</button>' +
-            '<div class="pp-modal__nav">' +
-                '<a class="pp-modal__verse"></a>' +
-                '<button type="button" data-step="-1" aria-label="Previous image">&lsaquo;</button>' +
-                '<span class="pp-modal__count"></span>' +
-                '<button type="button" data-step="1" aria-label="Next image">&rsaquo;</button>' +
-            '</div>';
+            '<button type="button" class="pp-modal__close" aria-label="Close">' + CLOSE_ICON + '</button>';
         // Notes in the chapter's own reading font.
         var area = document.getElementById('paraphrase-area') || document.body;
         modal.style.setProperty('--rbt-reading-font', getComputedStyle(area).fontFamily);
 
         modal.addEventListener('click', function (event) {
-            if (event.target === modal) { modal.close(); return; } // the backdrop
-            if (event.target.closest('.pp-modal__close, .pp-modal__verse')) { modal.close(); return; }
-            var step = event.target.closest('[data-step]');
-            if (step) showImage(viewing.index + Number(step.getAttribute('data-step')));
+            // event.target is the dialog itself only for clicks on the backdrop.
+            if (event.target === modal || event.target.closest('.pp-modal__close')) modal.close();
         });
         modal.addEventListener('keydown', function (event) {
-            if (event.key === 'ArrowRight') showImage(viewing.index + 1);
-            else if (event.key === 'ArrowLeft') showImage(viewing.index - 1);
             // Escape closes just this modal, not the staff studio underneath it.
             if (event.key === 'Escape') event.stopPropagation();
         });
         modal.addEventListener('close', function () {
             modal.querySelector('.pp-modal__media').innerHTML = ''; // stops any video
-            if (viewing && viewing.opener && document.contains(viewing.opener)) viewing.opener.focus();
+            if (opener && document.contains(opener)) opener.focus();
         });
         document.body.appendChild(modal);
     }
@@ -92,17 +85,14 @@
         }
     }
 
-    function showImage(index) {
-        var cues = viewing.cues;
-        index = (index + cues.length) % cues.length;
-        viewing.index = index;
-        var cue = cues[index];
+    function showImage(cue) {
         var mediaBox = modal.querySelector('.pp-modal__media');
         var textBox = modal.querySelector('.pp-modal__text');
         mediaBox.innerHTML = '';
         textBox.innerHTML = '';
 
-        var template = viewing.root.querySelector('template[data-media="' + cue.getAttribute('data-media') + '"]');
+        var root = cue.closest('.rbt-paraphrase');
+        var template = root.querySelector('template[data-media="' + cue.getAttribute('data-media') + '"]');
         if (template) {
             var block = template.content.cloneNode(true);
             var media = block.querySelector('img, video');
@@ -125,18 +115,6 @@
         modal.classList.toggle('pp-modal--no-text', !textBox.textContent.trim());
         modal.setAttribute('aria-label', cue.getAttribute('aria-label') || 'Image');
         textBox.scrollTop = 0;
-
-        var verseLink = modal.querySelector('.pp-modal__verse');
-        var passage = cue.closest('[data-v]');
-        var onPage = viewing.root.id === 'reader-paraphrase';
-        verseLink.hidden = !(passage && onPage);
-        if (passage && onPage) {
-            verseLink.textContent = 'v. ' + passage.getAttribute('data-v');
-            verseLink.href = '#v' + passage.getAttribute('data-v').split('-')[0];
-        }
-        var several = cues.length > 1;
-        modal.querySelectorAll('[data-step], .pp-modal__count').forEach(function (el) { el.hidden = !several; });
-        modal.querySelector('.pp-modal__count').textContent = (index + 1) + ' / ' + cues.length;
     }
 
     document.addEventListener('click', function (event) {
@@ -144,10 +122,8 @@
         if (!cue) return;
         event.preventDefault();
         if (!modal) buildModal();
-        var root = cue.closest('.rbt-paraphrase');
-        var cues = Array.prototype.slice.call(root.querySelectorAll('.pp-cue'));
-        viewing = { root: root, cues: cues, index: 0, opener: cue };
-        showImage(cues.indexOf(cue));
+        opener = cue;
+        showImage(cue);
         if (!modal.open) modal.showModal();
     });
 
