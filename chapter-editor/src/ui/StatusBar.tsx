@@ -56,13 +56,14 @@ export function StatusBar({ controller, snapshot, onOpenStudio }: Props) {
 
       <div className="rbt-ce-pill">
         {snapshot.editMode && (
-          <span className={`rbt-ce-pill__state rbt-ce-pill__state--${tone}`}>
-            {text}
+          <span className={`rbt-ce-pill__state rbt-ce-pill__state--${tone}`} title={text}>
+            <span className="rbt-ce-pill__text">{text}</span>
             {snapshot.loadError && <button type="button" onClick={controller.retryLoad}>Retry</button>}
           </span>
         )}
         <button type="button" className="rbt-ce-studio" onClick={onOpenStudio} title="Generate, compare and publish the AI paraphrase of this chapter">
-          Paraphrase studio
+          <span className="rbt-ce-studio__full">Paraphrase studio</span>
+          <span className="rbt-ce-studio__short" aria-hidden="true">Studio</span>
         </button>
         <button
           type="button"
