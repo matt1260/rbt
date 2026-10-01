@@ -45,12 +45,6 @@
     line-height: 1.75;
 }
 
-.rbt-paraphrase::after {
-    content: '';
-    display: block;
-    clear: both;
-}
-
 .rbt-paraphrase p {
     margin: 0 0 1.05em;
 }
@@ -70,52 +64,75 @@
     border-left: 2px solid var(--sanctum-rule, rgba(183, 133, 80, 0.3));
 }
 
-/* Media: the original tooltip blocks, placed and aligned by the model, at most 250px
-   wide so paragraphs wrap beside them. */
-.rbt-paraphrase .pp-media {
-    width: min(250px, 45%);
-    margin: 0.35em auto 1em;
+/* Image cues: a small round thumbnail at the end of the sentence an image illustrates.
+   Clicking one opens the image and its notes in the modal below (reader-paraphrase.js),
+   so the text flows uninterrupted however many images a chapter has. */
+.rbt-paraphrase .pp-cue {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.45em;
+    height: 1.45em;
+    margin: 0 0.1em 0 0.15em;
+    padding: 0;
+    vertical-align: -0.32em;
+    border: 1.5px solid var(--sanctum-gold, #b78550);
+    border-radius: 50%;
+    background: var(--sanctum-cream, #f0ebe3);
+    color: var(--sanctum-gold, #b78550);
+    cursor: zoom-in;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.rbt-paraphrase .pp-media--left {
-    float: left;
-    margin: 0.35em 1.5em 0.8em 0;
-}
-
-.rbt-paraphrase .pp-media--right {
-    float: right;
-    margin: 0.35em 0 0.8em 1.5em;
-}
-
-.rbt-paraphrase .pp-media--center {
-    clear: both;
-}
-
-.rbt-paraphrase .pp-media .tooltip-container {
+.rbt-paraphrase .pp-cue__thumb {
     display: block;
     width: 100%;
-    float: none !important;
-    padding: 0 !important;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
 }
 
-.rbt-paraphrase .pp-media img,
-.rbt-paraphrase .pp-media video {
-    display: block;
-    width: 100% !important;
-    max-width: 100% !important;
-    height: auto !important;
-    margin: 0 !important;
+.rbt-paraphrase .pp-cue__icon {
+    font-size: 0.62em;
+    line-height: 1;
 }
 
-/* The page's Images (I) toggle hides tooltip blocks; hide their frame too. */
-.rbt-paraphrase .pp-media:has(> .tooltip-container[style*="none"]) {
+/* Hover: the cue grows and a ring ripples out from it. */
+.rbt-paraphrase .pp-cue::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 2px solid var(--sanctum-gold, #b78550);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.rbt-paraphrase .pp-cue:hover,
+.rbt-paraphrase .pp-cue:focus-visible {
+    transform: scale(1.3);
+    box-shadow: 0 2px 8px rgba(122, 82, 40, 0.35);
+    outline: none;
+}
+
+.rbt-paraphrase .pp-cue:hover::after,
+.rbt-paraphrase .pp-cue:focus-visible::after {
+    animation: pp-cue-ripple 0.9s ease-out infinite;
+}
+
+@keyframes pp-cue-ripple {
+    from { transform: scale(1); opacity: 0.7; }
+    to { transform: scale(1.9); opacity: 0; }
+}
+
+.rbt-paraphrase .pp-media-store {
     display: none;
 }
 
 /* Verse ranges stay out of the reading flow; hovering a passage shows them in the margin.
-   The label is an inline-block with a net width of zero (-3.1em margin + 2.6em width +
-   0.5em gap) rather than an absolutely positioned one: a positioned paragraph would paint
-   over the floated image beside it and swallow its hover tooltip. */
+   An inline-block with a net width of zero (-3.1em margin + 2.6em width + 0.5em gap), so
+   the paragraph itself needn't be positioned. */
 .rbt-paraphrase [data-v]::before {
     content: attr(data-v);
     display: inline-block;
@@ -132,11 +149,6 @@
 
 .rbt-paraphrase [data-v]:hover::before {
     opacity: 0.8;
-}
-
-/* Beside a left-floated image the margin is the image itself; don't draw over it. */
-.rbt-paraphrase .pp-media--left + [data-v]::before {
-    visibility: hidden;
 }
 
 .rbt-paraphrase .pp-anchor {
@@ -162,15 +174,6 @@
 }
 
 @container (max-width: 560px) {
-    /* A 250px float would leave a phone only a sliver of text beside it. */
-    .rbt-paraphrase .pp-media--left,
-    .rbt-paraphrase .pp-media--right,
-    .rbt-paraphrase .pp-media--center {
-        float: none;
-        width: min(250px, 100%);
-        margin: 1.2em auto;
-    }
-
     .rbt-paraphrase .pp-indent {
         padding-left: 1em;
     }
@@ -183,10 +186,193 @@
     .rbt-paraphrase [data-v]::before {
         display: none;
     }
+
+    /* A slightly bigger tap target on phones. */
+    .rbt-paraphrase .pp-cue {
+        width: 1.7em;
+        height: 1.7em;
+        vertical-align: -0.42em;
+    }
+}
+
+/* ---- Image modal: one graphic beside its notes ------------------------------- */
+
+.pp-modal {
+    width: min(960px, 94vw);
+    max-height: 90vh;
+    padding: 0;
+    border: 0;
+    border-radius: 14px;
+    background: #fff;
+    color: #2b2520;
+    box-shadow: 0 24px 64px rgba(30, 22, 14, 0.35);
+    overflow: hidden;
+}
+
+.pp-modal[open] {
+    animation: pp-modal-in 0.22s ease-out;
+}
+
+.pp-modal::backdrop {
+    background: rgba(30, 24, 18, 0.6);
+    backdrop-filter: blur(2px);
+}
+
+@keyframes pp-modal-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+}
+
+.pp-modal__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    max-height: 90vh;
+}
+
+.pp-modal--no-text .pp-modal__layout {
+    grid-template-columns: 1fr;
+}
+
+.pp-modal__media {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 260px;
+    padding: 28px;
+    background: var(--sanctum-parchment, #faf7f2);
+}
+
+.pp-modal__media img,
+.pp-modal__media video {
+    display: block;
+    max-width: 100%;
+    max-height: calc(90vh - 56px);
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    object-fit: contain;
+}
+
+.pp-modal__text {
+    overflow-y: auto;
+    max-height: 90vh;
+    padding: 34px 32px 72px;
+    font-family: var(--rbt-reading-font, Georgia, serif);
+    font-size: 1.02rem;
+    line-height: 1.7;
+}
+
+.pp-modal--no-text .pp-modal__text {
+    display: none;
+}
+
+.pp-modal__text > :first-child {
+    margin-top: 0;
+}
+
+/* The notes' opening bold heading, lifted out by reader-paraphrase.js. The site gives every
+   heading its display font with !important, which suits a title here. */
+.pp-modal .pp-modal__title {
+    margin: 0 2.2em 0.6em 0;
+    font-size: 1.35rem;
+    line-height: 1.3;
+    /* Keep the note's own casing: title-casing would turn the Greek "διά" into "Διά". */
+    text-transform: none !important;
+}
+
+.pp-modal__close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.92);
+    color: #5c5045;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.pp-modal__nav {
+    position: absolute;
+    right: 18px;
+    bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font: 500 0.78rem/1 'Inter', system-ui, sans-serif;
+    color: var(--sanctum-stone, #8a7e70);
+}
+
+.pp-modal__nav button {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--sanctum-rule, rgba(183, 133, 80, 0.3));
+    border-radius: 50%;
+    background: #fff;
+    color: var(--sanctum-gold, #b78550);
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.pp-modal__nav button:hover,
+.pp-modal__close:hover {
+    background: var(--sanctum-cream, #f0ebe3);
+}
+
+.pp-modal__verse {
+    color: inherit;
+    text-decoration: none;
+}
+
+.pp-modal__verse:hover {
+    color: var(--sanctum-gold, #b78550);
+}
+
+@media (max-width: 720px) {
+    .pp-modal {
+        width: 100vw;
+        max-width: 100vw;
+        max-height: 100dvh;
+        height: 100dvh;
+        border-radius: 0;
+    }
+
+    .pp-modal__layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+        height: 100%;
+        max-height: none;
+    }
+
+    .pp-modal__media {
+        min-height: 0;
+        padding: 16px;
+    }
+
+    .pp-modal__media img,
+    .pp-modal__media video {
+        max-height: 42dvh;
+    }
+
+    .pp-modal__text {
+        max-height: none;
+        padding: 22px 20px 76px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .rbt-paraphrase [data-v]::before {
+    .rbt-paraphrase [data-v]::before,
+    .rbt-paraphrase .pp-cue {
         transition: none;
+    }
+
+    .rbt-paraphrase .pp-cue:hover::after,
+    .rbt-paraphrase .pp-cue:focus-visible::after,
+    .pp-modal[open] {
+        animation: none;
     }
 }

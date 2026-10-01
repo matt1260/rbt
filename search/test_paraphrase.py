@@ -16,8 +16,9 @@ from search.management.commands.sync_paraphrases import _utc, plan_paraphrases, 
 from translate import paraphrase_api as api
 
 MEDIA = [
-    pp.Media(n=1, verse='1', html='<div class="tooltip-container"><img src="a.jpg"/></div>', kind='image', caption='A'),
-    pp.Media(n=2, verse='4', html='<div class="tooltip-container"><img src="b.jpg"/></div>', kind='image', caption='B'),
+    pp.Media(n=1, verse='1', html='<div class="tooltip-container"><img src="a.jpg"/><div class="tooltip"><b>Seed</b> notes</div></div>',
+             kind='image', caption='Seed notes', title='Seed'),
+    pp.Media(n=2, verse='4', html='<div class="tooltip-container"><video src="b.mp4"></video></div>', kind='video', caption='', title=''),
 ]
 
 
@@ -36,37 +37,47 @@ class FinalizeOutputTests(SimpleTestCase):
         for bad in ('evil', 'onclick', 'color:red', 'color: red', 'script', 'alert', 'iframe', '```'):
             self.assertNotIn(bad, html)
 
-    def test_media_placeholder_inside_paragraph_moves_before_it(self):
-        html, _ = self.finalize('<p data-v="1-4">Text <rbt-media n="1" align="left"></rbt-media> more.</p>')
-        # Before the paragraph, so the floated image has the paragraph wrapping beside it.
-        self.assertTrue(html.startswith('<figure class="pp-media pp-media--left" data-media="1"><div class="tooltip-container"><img src="a.jpg"/>'), html)
-
-    def test_unknown_repeated_and_old_wide_media(self):
-        html, _ = self.finalize(
-            '<p data-v="1-4">x</p><rbt-media n="1" align="right"></rbt-media>'
-            '<rbt-media n="1" align="left"></rbt-media><rbt-media n="9"></rbt-media>'
-            '<rbt-media n="2" align="wide"></rbt-media>'
+    def test_marker_inside_a_sentence_becomes_an_inline_cue(self):
+        html, _ = self.finalize('<p data-v="1-4">First sentence. <rbt-media n="1" align="left"></rbt-media> Second.</p>')
+        self.assertIn(
+            'First sentence. <button aria-label="View image: Seed" class="pp-cue pp-cue--image" data-media="1" '
+            'title="Seed" type="button"><img alt="" class="pp-cue__thumb" decoding="async" loading="lazy" src="a.jpg"/></button> Second.',
+            html,
         )
-        self.assertEqual(html.count('data-media="1"'), 1)
-        self.assertIn('data-media="1"', html.split('pp-media--right')[1][:40])
-        self.assertIn('pp-media--center" data-media="2"', html)  # 'wide' is no longer offered
+        self.assertNotIn('<figure', html)
+        self.assertNotIn('align', html)
+
+    def test_marker_between_paragraphs_joins_the_paragraph_before(self):
+        html, _ = self.finalize('<p data-v="1-2">a</p><rbt-media n="1"></rbt-media><p data-v="3-4">b</p>')
+        self.assertRegex(html, r'a <button[^>]*data-media="1".*?</button></p><p data-v="3-4">')
+
+    def test_unknown_and_repeated_markers_are_dropped(self):
+        html, _ = self.finalize('<p data-v="1-4">x <rbt-media n="1"></rbt-media> y <rbt-media n="1"></rbt-media><rbt-media n="9"></rbt-media></p>')
+        self.assertEqual(html.count('<button'), 2)  # media 1 once, plus media 2 added (it was skipped)
         self.assertNotIn('rbt-media', html)
 
-    def test_media_the_model_skipped_floats_beside_its_verse(self):
-        html, _ = self.finalize('<p data-v="1-2">a</p><rbt-media n="1" align="left"></rbt-media><p data-v="3-4">b</p>')
-        # Media 2 came from verse 4, so it floats just before the block covering 3-4.
-        self.assertIn('<figure class="pp-media pp-media--right" data-media="2"><div class="tooltip-container"><img src="b.jpg"/></div></figure><p data-v="3-4">', html)
+    def test_skipped_media_get_a_cue_at_the_end_of_their_verse(self):
+        html, _ = self.finalize('<p data-v="1-2">a</p><p data-v="3-4">b</p>')
+        self.assertRegex(html, r'a <button[^>]*data-media="1"')
+        # Media 2 is a video from verse 4: a play-icon cue at the end of the 3-4 paragraph.
+        self.assertRegex(html, r'b <button aria-label="View video" class="pp-cue pp-cue--video" data-media="2"[^>]*><span aria-hidden="true" class="pp-cue__icon">\u25b6</span></button></p>')
+
+    def test_original_media_are_kept_inert_for_the_modal(self):
+        html, _ = self.finalize('<p data-v="1-4">a</p>')
+        store = html[html.index('<div class="pp-media-store"'):]
+        self.assertIn('<template data-media="1"><div class="tooltip-container"><img src="a.jpg"/><div class="tooltip"><b>Seed</b> notes</div></div></template>', store)
+        self.assertIn('<template data-media="2">', store)
 
     def test_reports_missing_verses_and_adds_anchors(self):
         html, missing = self.finalize('<p data-v="1">a</p><p data-v="3">c</p>')
         self.assertEqual(missing, [2, 4])
-        self.assertIn('<p data-v="1"><span class="pp-anchor" id="v1"></span>a</p>', html)
+        self.assertIn('<p data-v="1"><span class="pp-anchor" id="v1"></span>a', html)
 
     def test_headings_are_dropped_with_their_text(self):
         html, _ = self.finalize('<h5>Section</h5><h3>Other</h3><p data-v="1-4">Body</p>')
         self.assertNotIn('Section', html)
         self.assertNotIn('Other', html)
-        self.assertIn('Body</p>', html)
+        self.assertIn('</span>Body', html)
 
     def test_rejects_malformed_verse_ranges(self):
         html, missing = self.finalize('<p data-v="1-x">a</p><p data-v="4-2">b</p>')
@@ -87,7 +98,8 @@ class SourceTests(SimpleTestCase):
             '[1] <span style="color: blue;">Word</span> and <span>x</span>',
             '[2] plain <span class="hayah">He Who Is</span>',
         ])
-        self.assertEqual([(m.n, m.verse, m.kind, m.caption) for m in media], [(1, '1', 'image', 'Cap tion'), (2, '2', 'image', 'icon')])
+        self.assertEqual([(m.n, m.verse, m.kind, m.caption, m.title) for m in media],
+                         [(1, '1', 'image', 'Cap tion', 'Cap'), (2, '2', 'image', 'icon', 'icon')])
         self.assertTrue(media[0].html.startswith('<div class="tooltip-container">'))
 
     @mock.patch.object(pp, 'glossary_block', return_value='- "Logos Ratio": a proportion.')

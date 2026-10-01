@@ -14,9 +14,12 @@ Pipeline for one generation:
      staff can't edit.
   3. The model runs in a background thread (a chapter takes minutes; gunicorn times
      requests out at 60s). The row's status moves pending -> running -> done/failed.
-  4. finalize_output(): sanitise to an allowlist, replace <rbt-media n=".."> placeholders
-     with the original media HTML (so a model can never alter an image URL), place any
-     media the model skipped, add #vN anchors, and list verses no data-v range covers.
+  4. finalize_output(): sanitise to an allowlist, turn each <rbt-media n=".."> marker into
+     a small inline image cue (a round thumbnail at the end of the sentence; clicking it
+     opens the image and its notes in a modal, static/reader-paraphrase.js), keep the
+     original media HTML in inert <template>s (so a model can never alter an image URL and
+     nothing loads until opened), add cues for media the model skipped, add #vN anchors,
+     and list verses no data-v range covers.
 """
 import hashlib
 import logging
@@ -68,7 +71,7 @@ OUTPUT FORMAT (required; the page depends on it):
 - Put data-v on every paragraph, blockquote or list that carries verse content, giving the verse range it covers: <p data-v="3-5">...</p> or <p data-v="7">...</p>. Together the ranges must cover every verse of the chapter.
 - Keep the RBT colour coding where it still fits by reusing the source's spans exactly: <span style="color: blue;"> and <span style="color: #ff00aa;">. Keep <span class="hayah"> as it is.
 - Optional classes: <p class="pp-lead"> for an opening paragraph, <p class="pp-indent"> for an indented paragraph, <blockquote class="pp-poetry"> for poetic or quoted lines (use <br> between lines).
-- Place every media item exactly once, where it best illustrates the text, as its own element just before the paragraph it illustrates (never inside a paragraph): <rbt-media n="N" align="left|right|center"></rbt-media>. Images display at most 250px wide, so prefer left or right, alternating sides, so the following paragraph wraps beside the image; use center only between two short paragraphs.
+- Mark every media item exactly once with an inline marker inside the paragraph, right after the sentence it best illustrates (after the sentence's closing punctuation): <rbt-media n="N"></rbt-media>. Readers see a small image cue there that opens the image and its notes, so the text itself stays uninterrupted; never put a marker between paragraphs.
 - Do not invent content, add commentary or explain your choices.
 """.strip()
 
@@ -80,7 +83,7 @@ ALLOWED_ATTRIBUTES = {
     'ol': {'data-v'},
     'li': {'data-v'},
     'span': {'style', 'class'},
-    'rbt-media': {'n', 'align'},
+    'rbt-media': {'n'},
 }
 ALLOWED_CLASSES = {
     'p': {'pp-lead', 'pp-indent'},
@@ -88,7 +91,6 @@ ALLOWED_CLASSES = {
     'span': {'hayah'},
 }
 ALLOWED_STYLES = {'color: blue;', 'color: #ff00aa;'}
-MEDIA_ALIGNS = {'left', 'right', 'center'}
 VERSE_RANGE = re.compile(r'^(\d+)(?:-(\d+))?$')
 
 
@@ -134,6 +136,7 @@ class Media:
     html: str
     kind: str
     caption: str
+    title: str = ''
 
 
 def nt_book_abbrev(book):
@@ -177,8 +180,11 @@ def prepare_source(verses):
         for el in containers + loose:
             caption_el = el.select_one('.tooltip, .tooltip2') if el.name == 'div' else None
             caption = ' '.join((caption_el.get_text(' ', strip=True) if caption_el else el.get('alt', '')).split())
+            heading = caption_el.find(['b', 'strong']) if caption_el else None
+            title = ' '.join(heading.get_text(' ', strip=True).split()) if heading else re.split(r'(?<=[.!?])\s', caption, 1)[0]
             kind = 'video' if (el.name == 'video' or el.find('video')) else 'image'
-            media.append(Media(n=len(media) + 1, verse=verse, html=str(el), kind=kind, caption=caption[:400]))
+            media.append(Media(n=len(media) + 1, verse=verse, html=str(el), kind=kind, caption=caption[:400],
+                               title=title.strip(' .:')[:90]))
             el.decompose()
         for anchor in soup.select('a.sdfootnoteanc, a[href*="footnote="]'):
             anchor.decompose()
@@ -201,7 +207,7 @@ def prepare_source(verses):
 def build_user_prompt(book, chapter, source_text, media):
     parts = [f'CHAPTER: {book} {chapter}', '', 'SOURCE (RBT, one line per verse, verse number in brackets):', source_text]
     if media:
-        parts += ['', 'MEDIA (place each exactly once with <rbt-media n="N" align="..."></rbt-media>):']
+        parts += ['', 'MEDIA (mark each exactly once with <rbt-media n="N"></rbt-media> right after the sentence it illustrates):']
         for item in media:
             caption = f': "{item.caption}"' if item.caption else ''
             parts.append(f'{item.n}. {item.kind}, originally after verse {item.verse}{caption}')
@@ -260,8 +266,6 @@ def _keep_output_attr(tag, attr, value):
         return value.strip() if VERSE_RANGE.match(value.strip()) else None
     if attr == 'n':
         return value if value.isdigit() else None
-    if attr == 'align':
-        return value if value in MEDIA_ALIGNS else None
     return value
 
 
@@ -280,17 +284,40 @@ def verse_range(value):
     return list(range(start, end + 1)) if start <= end <= start + 200 else []
 
 
-def _top_level(node, soup):
-    """The top-level block containing node, so a figure never lands inside a paragraph or list."""
-    while node.parent is not None and node.parent is not soup:
-        node = node.parent
-    return node
+def _cue(soup, item):
+    """Small round thumbnail button that opens the media in the reader's modal."""
+    label = f'View {"video" if item.kind == "video" else "image"}' + (f': {item.title}' if item.title else '')
+    cue = soup.new_tag('button', attrs={
+        'type': 'button', 'class': f'pp-cue pp-cue--{item.kind}', 'data-media': str(item.n),
+        'aria-label': label, 'title': item.title or label,
+    })
+    source = BeautifulSoup(item.html, 'html.parser')
+    img = source.find('img')
+    if item.kind == 'image' and img and img.get('src'):
+        cue.append(soup.new_tag('img', attrs={
+            'class': 'pp-cue__thumb', 'src': img['src'], 'alt': '', 'loading': 'lazy', 'decoding': 'async',
+        }))
+    else:
+        icon = soup.new_tag('span', attrs={'class': 'pp-cue__icon', 'aria-hidden': 'true'})
+        icon.string = '\u25b6' if item.kind == 'video' else '\u25c9'
+        cue.append(icon)
+    return cue
 
 
-def _figure(soup, item, align):
-    figure = soup.new_tag('figure', attrs={'class': f'pp-media pp-media--{align}', 'data-media': str(item.n)})
-    figure.append(BeautifulSoup(item.html, 'html.parser'))
-    return figure
+def _store(soup, media):
+    """The original media HTML, inert until the reader opens a cue (templates don't load images)."""
+    store = soup.new_tag('div', attrs={'class': 'pp-media-store', 'hidden': ''})
+    for item in media:
+        template = soup.new_tag('template', attrs={'data-media': str(item.n)})
+        template.append(BeautifulSoup(item.html, 'html.parser'))
+        store.append(template)
+    return store
+
+
+def _attach_cue(block, cue):
+    """Put a cue at the end of a block's text (before any trailing whitespace)."""
+    block.append(' ')
+    block.append(cue)
 
 
 def finalize_output(raw, media, verse_numbers):
@@ -316,15 +343,21 @@ def finalize_output(raw, media, verse_numbers):
             placeholder.decompose()
             continue
         placed.add(n)
-        figure = _figure(soup, item, placeholder.get('align') or 'center')
-        # A figure inside a paragraph is invalid HTML; move it out, just before the block,
-        # so a floated image still has that paragraph wrapping beside it.
-        if placeholder.parent is soup:
-            placeholder.replace_with(figure)
+        cue = _cue(soup, item)
+        if placeholder.parent is not soup:
+            placeholder.replace_with(cue)
+            continue
+        # A marker left between paragraphs joins the end of the paragraph before it
+        # (or the start of the one after, at the very top).
+        previous = placeholder.find_previous_sibling(lambda tag: tag.name in ('p', 'blockquote', 'ul', 'ol'))
+        following = placeholder.find_next_sibling(lambda tag: tag.name in ('p', 'blockquote', 'ul', 'ol'))
+        placeholder.decompose()
+        if previous:
+            _attach_cue(previous.find_all('li')[-1] if previous.name in ('ul', 'ol') and previous.find('li') else previous, cue)
+        elif following:
+            following.insert(0, cue)
         else:
-            top = _top_level(placeholder, soup)
-            placeholder.decompose()
-            top.insert_before(figure)
+            soup.append(cue)
 
     blocks = soup.find_all(attrs={'data-v': True})
     covered = set()
@@ -336,18 +369,19 @@ def finalize_output(raw, media, verse_numbers):
             if not soup.find(id=f'v{verse}'):
                 block.insert(0, soup.new_tag('span', attrs={'id': f'v{verse}', 'class': 'pp-anchor'}))
 
-    # Media the model left out: floated beside the block covering its original verse
-    # (alternating sides), else at the end.
-    side = 'right'
+    # Media the model left out: a cue at the end of the paragraph covering its verse.
     for item in media:
         if item.n in placed:
             continue
-        target = next((b for b in blocks if int(item.verse) in verse_range(b['data-v'])), None) if item.verse.isdigit() else None
+        target = next((b for b in reversed(blocks) if item.verse.isdigit() and int(item.verse) in verse_range(b['data-v'])), None)
+        target = target or (blocks[-1] if blocks else None)
         if target:
-            _top_level(target, soup).insert_before(_figure(soup, item, side))
-            side = 'left' if side == 'right' else 'right'
+            _attach_cue(target, _cue(soup, item))
         else:
-            soup.append(_figure(soup, item, 'center'))
+            soup.append(_cue(soup, item))
+
+    if media:
+        soup.append(_store(soup, media))
 
     missing = sorted(int(v) for v in verse_numbers if v.isdigit() and int(v) not in covered)
     return str(soup).strip(), missing
