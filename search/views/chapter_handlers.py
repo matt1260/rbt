@@ -51,6 +51,32 @@ def _chapter_editor_version():
     return _static_version('chapter-editor/chapter-editor.js')
 
 
+def _chapter_neighbours(book, chapter_num, chapter_list, language):
+    """Previous/next chapter of the same book for the reader dock's arrows:
+    {'prev_chapter': {'number', 'url'} or None, 'next_chapter': ...}."""
+    numbers = [str(n) for n in (chapter_list or [])]
+    current = str(chapter_num)
+    slug = book_to_slug(book)
+
+    def link(number):
+        if slug:
+            if language and language != 'en':
+                url = reverse('chapter_seo_view_lang', kwargs={'lang_code': language, 'book_slug': slug, 'chapter': number})
+            else:
+                url = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': number})
+        else:
+            url = f"?book={book}&chapter={number}&lang={language}"
+        return {'number': number, 'url': url}
+
+    if current not in numbers:
+        return {'prev_chapter': None, 'next_chapter': None}
+    i = numbers.index(current)
+    return {
+        'prev_chapter': link(numbers[i - 1]) if i > 0 else None,
+        'next_chapter': link(numbers[i + 1]) if i + 1 < len(numbers) else None,
+    }
+
+
 def handle_genesis_chapter(request, book, chapter_num, results, language, source_book):
     """
     Handle Genesis chapter display with Hebrew literal and paraphrase.
@@ -261,6 +287,7 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     
     context = {
         'chapters': chapters,
+        **_chapter_neighbours(original_book, chapter_num, chapter_list, language),
         'html': hebrew_literal,
         'paraphrase': paraphrase,
         'commentary': commentary,
@@ -544,6 +571,7 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     context = {
         'cache_hit': cached_hit,
         'chapters': chapters,
+        **_chapter_neighbours(original_book, chapter_num, chapter_list, language),
         'html': "",  # NT literal
         'paraphrase': paraphrase,
         'book': display_book,
@@ -820,6 +848,7 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     
     context = {
         'chapters': chapters,
+        **_chapter_neighbours(original_book, chapter_num, chapter_list, language),
         'html': hebrew_literal,
         'paraphrase': paraphrase,
         'commentary': commentary,

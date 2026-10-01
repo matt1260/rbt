@@ -87,6 +87,41 @@ body:has(.rbt-dock) {
     display: none;
 }
 
+/* Previous / next chapter, at either end of the bar. */
+.rbt-dock__chapter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--sanctum-rule, rgba(183, 133, 80, 0.3));
+    border-radius: 50%;
+    background: #fff;
+    color: var(--sanctum-gold, #b78550);
+    text-decoration: none;
+    transition: background-color 0.15s, color 0.15s, transform 0.15s;
+}
+
+.rbt-dock__chapter:hover {
+    background: var(--sanctum-gold, #b78550);
+    border-color: var(--sanctum-gold, #b78550);
+    color: #fff;
+}
+
+.rbt-dock__chapter:first-child:hover {
+    transform: translateX(-2px);
+}
+
+.rbt-dock__chapter:last-child:hover {
+    transform: translateX(2px);
+}
+
+.rbt-dock__chapter:focus-visible {
+    outline: 2px solid var(--sanctum-gold, #b78550);
+    outline-offset: 2px;
+}
+
 /* ---- Panel ------------------------------------------------------------------ */
 
 .rbt-dock__panel {

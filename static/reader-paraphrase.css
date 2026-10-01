@@ -8,6 +8,9 @@
 /* The Word for word / Paraphrase switch is the one filled button in the reader dock
    (static/reader-dock.css), so it stands out. Enter/Space are handled by reader-dock.js. */
 .rbt-dock #paraphraseViewToggle {
+    position: relative;
+    overflow: hidden;
+    gap: 8px;
     background: var(--sanctum-gold, #b78550);
     border-color: var(--sanctum-gold, #b78550);
     color: #fff;
@@ -21,10 +24,10 @@
     color: #fff;
 }
 
+/* In the paraphrase, a deeper tone: the button now leads back to the word-for-word text. */
 .rbt-dock #paraphraseViewToggle.is-active {
     background: #6f4a24;
     border-color: #6f4a24;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 .rbt-dock #paraphraseViewToggle:focus-visible {
@@ -34,6 +37,63 @@
 
 .rbt-dock #paraphraseViewToggle i {
     color: #fff;
+    transition: transform 0.2s ease;
+}
+
+.rbt-dock #paraphraseViewToggle:hover i {
+    transform: translateX(-1px) scale(1.12);
+}
+
+/* Shortcut hint, kept small so the action reads first. */
+.rbt-dock #paraphraseViewToggle .pp-toggle__key {
+    padding: 1px 5px;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
+    opacity: 0.85;
+}
+
+/* A soft light sweep every few seconds draws the eye to the switch. */
+.rbt-dock #paraphraseViewToggle::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.38) 50%, transparent 65%);
+    transform: translateX(-120%);
+    animation: pp-toggle-sweep 6s ease-in-out 1.5s infinite;
+    pointer-events: none;
+}
+
+@keyframes pp-toggle-sweep {
+    0%, 78% { transform: translateX(-120%); }
+    100% { transform: translateX(120%); }
+}
+
+/* On each switch the new label slides up into place. */
+.rbt-dock #paraphraseViewToggle.is-switching .pp-toggle__label,
+.rbt-dock #paraphraseViewToggle.is-switching i {
+    animation: pp-toggle-label-in 0.32s ease-out;
+}
+
+@keyframes pp-toggle-label-in {
+    from { opacity: 0; transform: translateY(70%); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rbt-dock #paraphraseViewToggle::after {
+        animation: none;
+        display: none;
+    }
+
+    .rbt-dock #paraphraseViewToggle.is-switching .pp-toggle__label,
+    .rbt-dock #paraphraseViewToggle.is-switching i,
+    .rbt-dock #paraphraseViewToggle i {
+        animation: none;
+        transition: none;
+    }
 }
 
 .rbt-paraphrase {

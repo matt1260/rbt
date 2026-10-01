@@ -195,11 +195,17 @@ chapter-viewer.js re-renders on toggle.
         </div>
     </div>
     <div class="rbt-dock__bar">
+        {% if prev_chapter %}
+        <a class="rbt-dock__chapter" href="{{ prev_chapter.url }}" aria-label="Previous chapter ({{ prev_chapter.number }})" title="Chapter {{ prev_chapter.number }}"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
+        {% endif %}
         <button type="button" class="rbt-dock__toggle" aria-expanded="false" aria-controls="rbtDockPanel" title="Reading options (O)">
             <i class="fas fa-sliders-h"></i>
             <span class="rbt-dock__toggle-label">Reading options</span><span class="rbt-dock__toggle-short">Options</span>
             <i class="fas fa-chevron-up rbt-dock__chevron"></i>
         </button>
+        {% if next_chapter %}
+        <a class="rbt-dock__chapter" href="{{ next_chapter.url }}" aria-label="Next chapter ({{ next_chapter.number }})" title="Chapter {{ next_chapter.number }}"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+        {% endif %}
     </div>
 </div>
 <h1>{{ book }} {{ chapter_num }}</h1>

@@ -141,12 +141,19 @@
             reader.hidden = !on;
             verses.hidden = on;
             button.classList.toggle('is-active', on);
-            button.setAttribute('aria-pressed', on ? 'true' : 'false');
-            // The label names the view being shown; the tooltip says what a click switches to.
-            button.innerHTML = '<i class="fas ' + (on ? 'fa-book-open' : 'fa-list-ol') + '"></i> ' +
-                (on ? 'Paraphrase' : 'Word for word') + ' (R)';
-            button.title = 'Showing the ' + (on ? 'paraphrase' : 'word-for-word translation') +
-                '. Switch to the ' + (on ? 'word-for-word translation' : 'paraphrase') + ' (R)';
+            // The label is the action: what a click switches to.
+            var label = on ? 'Read word for word' : 'Read paraphrase';
+            button.innerHTML = '<i class="fas ' + (on ? 'fa-list-ol' : 'fa-book-open') + '" aria-hidden="true"></i>' +
+                '<span class="pp-toggle__label">' + label + '</span>' +
+                '<span class="pp-toggle__key" aria-hidden="true">R</span>';
+            button.setAttribute('aria-label', label + ' (R)');
+            button.title = (on ? 'You are reading the paraphrase. ' : 'You are reading the word-for-word translation. ') + label + ' (R)';
+            if (remember) {
+                // Replay the label's slide-in on each switch.
+                button.classList.remove('is-switching');
+                void button.offsetWidth;
+                button.classList.add('is-switching');
+            }
             document.body.classList.toggle('rbt-paraphrase-view', on);
             if (remember) saveChoice(on ? 'paraphrase' : 'verses');
         }
