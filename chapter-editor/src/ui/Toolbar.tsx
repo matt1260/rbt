@@ -8,13 +8,16 @@ import type { ChapterEditorController } from '../controller'
 
 interface Props {
   controller: ChapterEditorController
+  kind: 'verse' | 'paragraph'
   verse: string
   view: EditorView
   state: EditorState
 }
 
 /** Floating toolbar pinned above the caret/selection of the verse being edited. */
-export function Toolbar({ controller, verse, view, state }: Props) {
+export function Toolbar({ controller, kind, verse, view, state }: Props) {
+  // Headings and sun blocks belong to verses; a paraphrase paragraph only takes inline formatting.
+  const tools = kind === 'paragraph' ? TOOLS.filter((tool) => tool.kind !== 'block') : TOOLS
   const { refs, floatingStyles, update } = useFloating({
     placement: 'top',
     strategy: 'fixed',
@@ -55,10 +58,10 @@ export function Toolbar({ controller, verse, view, state }: Props) {
         style={floatingStyles}
         className="rbt-ce-toolbar"
         role="toolbar"
-        aria-label={`Format verse ${verse}`}
+        aria-label={kind === 'paragraph' ? 'Format paragraph' : `Format verse ${verse}`}
         data-rbt-ui
       >
-        {TOOLS.map((tool) => {
+        {tools.map((tool) => {
           const active = isToolActive(state, tool)
           return (
             <button
@@ -81,9 +84,11 @@ export function Toolbar({ controller, verse, view, state }: Props) {
         <button type="button" className="rbt-ce-tool" title="Redo (⇧⌘Z)" aria-label="Redo"
           disabled={!redoDepth(state)} onMouseDown={keepFocus} onClick={controller.redo}>↷</button>
         <span className="rbt-ce-divider" />
-        <a className="rbt-ce-tool rbt-ce-tool--link" href={controller.api.editUrl(verse)} title="Open the verse edit page"
-          onMouseDown={keepFocus} onClick={() => controller.done()}>{verse} ↗</a>
-        <button type="button" className="rbt-ce-tool rbt-ce-tool--done" title="Done (Enter). Esc discards this verse's changes."
+        {kind === 'verse' && (
+          <a className="rbt-ce-tool rbt-ce-tool--link" href={controller.api.editUrl(verse)} title="Open the verse edit page"
+            onMouseDown={keepFocus} onClick={() => controller.done()}>{verse} ↗</a>
+        )}
+        <button type="button" className="rbt-ce-tool rbt-ce-tool--done" title={`Done (Enter). Esc discards this ${kind === 'paragraph' ? 'paragraph' : 'verse'}'s changes.`}
           onMouseDown={keepFocus} onClick={controller.done}>Done</button>
       </div>
     </FloatingPortal>

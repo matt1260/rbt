@@ -204,7 +204,7 @@ export function ParaphraseStudio({ api, title, open, onClose }: Props) {
     if (!window.confirm(`Publish the ${candidate.model} paraphrase? Readers will see it immediately.`)) return
     void run('publish', async () => {
       const result = await api.publish(candidate.uid)
-      window.rbtReaderParaphrase?.setHtml(result.html)
+      window.rbtReaderParaphrase?.setHtml(result.html, result.uid, result.hash)
       await refresh()
     }, 'Published. Readers now see this paraphrase.')
   }
@@ -302,7 +302,7 @@ export function ParaphraseStudio({ api, title, open, onClose }: Props) {
                   Include the translation glossary ({state.glossary_terms} active term{state.glossary_terms === 1 ? '' : 's'})
                 </label>
                 <details className="rbt-ps__rules">
-                  <summary>Fixed output rules (always appended)</summary>
+                  <summary>Fixed rules: fidelity and output format (always appended)</summary>
                   <pre>{state.output_rules}</pre>
                 </details>
               </section>

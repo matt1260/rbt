@@ -45,7 +45,12 @@ interface VerseRecord {
 }
 
 interface ActiveEditor {
+  /** A verse of the word-for-word text, or a paragraph of the published paraphrase. */
+  kind: 'verse' | 'paragraph'
+  /** Verse number; for a paragraph, the verse range it covers (for labels only). */
   verse: string
+  /** For a paragraph: its index among the paraphrase's top-level paragraphs. */
+  index: number
   wrapper: HTMLElement
   view: EditorView
   refHtml: string
@@ -56,6 +61,8 @@ interface ActiveEditor {
 }
 
 export interface VerseStatus {
+  /** 'verse' entries are keyed by verse number; there is one 'paraphrase' entry. */
+  kind: 'verse' | 'paraphrase'
   verse: string
   status: SaveStatus
   error?: string
@@ -66,7 +73,7 @@ export interface Snapshot {
   editMode: boolean
   loading: boolean
   loadError: string | null
-  active: { verse: string; view: EditorView; state: EditorState } | null
+  active: { kind: 'verse' | 'paragraph'; verse: string; view: EditorView; state: EditorState } | null
   statuses: VerseStatus[]
   notice: { text: string; verse?: string } | null
   hover: { verse: string; anchor: HTMLElement } | null
@@ -122,6 +129,16 @@ export class ChapterEditorController {
   private hoverOpenTimer = 0
   private hoverCloseTimer = 0
   private interlinearCache = new Map<string, Promise<InterlinearWord[]>>()
+  /** The published paraphrase (#reader-paraphrase); its paragraphs are editable too. */
+  private reader = document.getElementById('reader-paraphrase')
+  /** Paragraph saves run one at a time: each changes the whole paraphrase's hash. */
+  private paragraphSaves = {
+    pending: new Map<number, string>(),
+    saved: new Map<number, string>(),
+    inFlight: false,
+    status: undefined as SaveStatus | undefined,
+    error: undefined as string | undefined,
+  }
 
   constructor(
     config: EditorConfig,
@@ -149,17 +166,21 @@ export class ChapterEditorController {
     for (const record of this.verses.values()) {
       if (!record.status) continue
       statuses.push({
+        kind: 'verse',
         verse: record.verse,
         status: record.status,
         error: record.error,
         conflict: record.conflict && { html: record.conflict.html, mine: record.conflict.mine },
       })
     }
+    if (this.paragraphSaves.status) {
+      statuses.push({ kind: 'paraphrase', verse: 'paraphrase', status: this.paragraphSaves.status, error: this.paragraphSaves.error })
+    }
     return {
       editMode: this.editMode,
       loading: this.loading,
       loadError: this.loadError,
-      active: this.active && { verse: this.active.verse, view: this.active.view, state: this.active.view.state },
+      active: this.active && { kind: this.active.kind, verse: this.active.verse, view: this.active.view, state: this.active.view.state },
       statuses,
       notice: this.notice,
       hover: this.hover,
@@ -186,6 +207,8 @@ export class ChapterEditorController {
       this.area.addEventListener('mouseover', this.onAreaMouseOver)
       this.area.addEventListener('mouseout', this.onAreaMouseOut)
       document.addEventListener('mousedown', this.onDocumentMouseDown, true)
+      this.reader?.addEventListener('mousedown', this.onReaderMouseDown)
+      this.reader?.addEventListener('click', this.onReaderClick)
       this.pointVerseRefsAt('edit')
       if (!this.verses.size) void this.load()
     } else {
@@ -195,6 +218,8 @@ export class ChapterEditorController {
       this.area.removeEventListener('mouseover', this.onAreaMouseOver)
       this.area.removeEventListener('mouseout', this.onAreaMouseOut)
       document.removeEventListener('mousedown', this.onDocumentMouseDown, true)
+      this.reader?.removeEventListener('mousedown', this.onReaderMouseDown)
+      this.reader?.removeEventListener('click', this.onReaderClick)
       this.pointVerseRefsAt('public')
       this.hover = null
     }
@@ -276,6 +301,7 @@ export class ChapterEditorController {
     if (this.active.wrapper.contains(target)) return
     if (target.closest?.('[data-rbt-ui]')) return
     if (target.closest?.('.rbt-verse') && this.area.contains(target)) return // handled by onAreaMouseDown
+    if (this.paragraphOf(target)) return // handled by onReaderMouseDown
     this.commit()
   }
 
@@ -296,7 +322,8 @@ export class ChapterEditorController {
     for (const record of this.verses.values()) {
       if (record.pending !== undefined || record.status === 'error' || record.status === 'conflict') return true
     }
-    return false
+    const paragraphs = this.paragraphSaves
+    return paragraphs.pending.size > 0 || paragraphs.status === 'error' || paragraphs.status === 'conflict'
   }
 
   // --- verse ref hover (interlinear popup) ------------------------------------
@@ -339,6 +366,118 @@ export class ChapterEditorController {
       this.interlinearCache.set(verse, request)
     }
     return request
+  }
+
+  // --- paraphrase paragraphs ---------------------------------------------------
+
+  private paragraphs(): HTMLElement[] {
+    return this.reader
+      ? Array.from(this.reader.children).filter((el): el is HTMLElement => el.matches('p, blockquote'))
+      : []
+  }
+
+  private paragraphOf(target: Element): HTMLElement | null {
+    if (!this.reader?.dataset.uid || !this.reader.contains(target)) return null
+    const block = target.closest<HTMLElement>('p, blockquote')
+    return block && block.parentElement === this.reader ? block : null
+  }
+
+  private onReaderMouseDown = (event: MouseEvent) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    const target = event.target as Element
+    const block = this.paragraphOf(target)
+    if (!block || this.active?.wrapper === block) return
+    // Image cues open their modal; links keep working.
+    if (target.closest('a, button, .pp-cue')) return
+    event.preventDefault()
+    this.commit()
+    this.activateParagraph(block, { left: event.clientX, top: event.clientY })
+  }
+
+  private onReaderClick = (event: MouseEvent) => {
+    const link = (event.target as Element).closest('a')
+    if (link && this.active?.kind === 'paragraph' && this.active.wrapper.contains(link)) event.preventDefault()
+  }
+
+  private activateParagraph(block: HTMLElement, coords: { left: number; top: number }) {
+    const index = this.paragraphs().indexOf(block)
+    const html = block.innerHTML
+    if (index < 0) return
+    if (!roundTrips(html, document)) {
+      this.showNotice('This paragraph has markup the inline editor cannot keep intact.')
+      return
+    }
+    if (!this.paragraphSaves.saved.has(index)) this.paragraphSaves.saved.set(index, html)
+    const originalNodes = Array.from(block.childNodes)
+    const host = document.createElement('div')
+    host.className = 'rbt-verse-editor'
+    block.replaceChildren(host)
+
+    const view = new EditorView({ mount: host }, {
+      state: EditorState.create({
+        doc: parseVerse(html, document),
+        plugins: [history(), keymap(this.editorKeymap()), keymap(baseKeymap)],
+      }),
+      dispatchTransaction: (tr) => {
+        view.updateState(view.state.apply(tr))
+        if (tr.docChanged) this.scheduleAutosave()
+        this.emit()
+      },
+    })
+    this.active = {
+      kind: 'paragraph', verse: block.dataset.v ?? '', index, wrapper: block, view,
+      refHtml: '', startHtml: html, originalNodes,
+    }
+    const hit = view.posAtCoords(coords)
+    view.dispatch(view.state.tr.setSelection(hit ? TextSelection.near(view.state.doc.resolve(hit.pos)) : TextSelection.atEnd(view.state.doc)))
+    view.focus()
+    this.emit()
+  }
+
+  private saveParagraph(index: number, html: string) {
+    const saves = this.paragraphSaves
+    const current = saves.pending.get(index) ?? saves.saved.get(index)
+    if (current !== undefined && sameHtml(html, current, document)) return
+    saves.pending.set(index, html)
+    void this.runParagraphQueue()
+  }
+
+  private async runParagraphQueue() {
+    const saves = this.paragraphSaves
+    const reader = this.reader
+    if (saves.inFlight || !reader?.dataset.uid) return
+    while (saves.pending.size && saves.status !== 'conflict') {
+      const [index, html] = saves.pending.entries().next().value as [number, string]
+      saves.pending.delete(index)
+      saves.inFlight = true
+      saves.status = 'saving'
+      saves.error = undefined
+      this.emit()
+
+      const result = await this.api.saveParaphraseBlock(reader.dataset.uid, index, html, reader.dataset.hash ?? '')
+      saves.inFlight = false
+      if (result.status === 'ok') {
+        reader.dataset.hash = result.hash
+        saves.saved.set(index, result.html)
+        saves.status = saves.pending.size ? 'saving' : 'saved'
+        // Show the server's version (cues rebuilt, anchors re-added) unless it's being edited.
+        const block = this.paragraphs()[index]
+        if (block && this.active?.wrapper !== block) block.innerHTML = result.html
+      } else if (result.status === 'conflict') {
+        saves.status = 'conflict'
+        saves.pending.clear()
+      } else {
+        saves.status = 'error'
+        saves.error = result.message
+        if (!saves.pending.has(index)) saves.pending.set(index, html)
+        break
+      }
+    }
+    this.emit()
+  }
+
+  retryParagraphSaves = () => {
+    if (this.paragraphSaves.status === 'error') void this.runParagraphQueue()
   }
 
   // --- editing ---------------------------------------------------------------
@@ -408,7 +547,7 @@ export class ChapterEditorController {
       },
     })
 
-    this.active = { verse, wrapper, view, refHtml, startHtml: record.target, originalNodes }
+    this.active = { kind: 'verse', verse, index: -1, wrapper, view, refHtml, startHtml: record.target, originalNodes }
     const hit = view.posAtCoords(coords)
     const selection = hit
       ? TextSelection.near(view.state.doc.resolve(hit.pos))
@@ -472,7 +611,9 @@ export class ChapterEditorController {
     window.clearTimeout(this.autosaveTimer)
     const active = this.active
     if (!active) return
-    this.save(active.verse, serializeDoc(active.view.state.doc, document))
+    const html = serializeDoc(active.view.state.doc, document)
+    if (active.kind === 'paragraph') this.saveParagraph(active.index, html)
+    else this.save(active.verse, html)
   }
 
   /** Leave the active verse: save it (or revert it) and render it as plain HTML again. */
@@ -483,16 +624,19 @@ export class ChapterEditorController {
     this.active = null
     const edited = serializeDoc(active.view.state.doc, document)
     const html = options.revert ? active.startHtml : edited
-    this.save(active.verse, html)
+    if (active.kind === 'paragraph') this.saveParagraph(active.index, html)
+    else this.save(active.verse, html)
     active.view.destroy()
     if (sameHtml(html, active.startHtml, document)) {
       // Nothing changed this session: put the original DOM back (keeps footnote/tooltip listeners).
       active.wrapper.replaceChildren(...active.originalNodes)
+    } else if (active.kind === 'paragraph') {
+      active.wrapper.innerHTML = html
     } else {
       this.render(active.verse, active.wrapper, active.refHtml)
     }
     if (options.revert && !sameHtml(edited, active.startHtml, document)) {
-      this.showNotice(`Verse ${active.verse}: changes discarded.`)
+      this.showNotice(active.kind === 'paragraph' ? 'Paragraph: changes discarded.' : `Verse ${active.verse}: changes discarded.`)
     }
     this.emit()
   }

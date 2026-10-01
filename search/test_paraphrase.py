@@ -204,3 +204,63 @@ class StudioApiTests(SimpleTestCase):
             'John', 1, [('gemini', 'gemini-3.8-flash')], instructions='Be smooth.', word_guidance='x',
             include_glossary=False, prompt_name='Default', username='editor',
         )
+
+
+STORED = pp.finalize_output(
+    '<p data-v="1-2">First <rbt-media n="1"></rbt-media> one.</p><blockquote data-v="3">Second</blockquote><p data-v="4">Third.</p>',
+    MEDIA, ['1', '2', '3', '4'],
+)[0]
+
+
+class EditBlockTests(SimpleTestCase):
+    def test_replaces_one_paragraph_and_rebuilds_its_cue(self):
+        # The client sends the paragraph back with its cue (tampered here) and anchors.
+        edited = ('<span class="pp-anchor" id="v1"></span>Edited <em>text</em>. '
+                  '<button class="pp-cue" data-media="1" onclick="x()"><img src="evil.jpg"></button>'
+                  '<script>alert(1)</script>')
+        html, block = pp.replace_block(STORED, 0, edited)
+        self.assertIn('Edited <em>text</em>.', block)
+        self.assertIn('src="a.jpg"', block)          # rebuilt from the stored media
+        self.assertNotIn('evil.jpg', html)
+        self.assertNotIn('onclick', html)
+        self.assertNotIn('script', html)
+        self.assertIn('id="v1"', block)
+        self.assertIn('id="v2"', block)              # anchors re-added for the 1-2 range
+        self.assertIn('<blockquote data-v="3">', html)  # other blocks untouched
+        self.assertIn('Third.', html)
+        self.assertIn('<template data-media="1">', html)
+
+    def test_index_counts_paragraphs_and_quotes_only(self):
+        html, block = pp.replace_block(STORED, 2, 'Changed')
+        self.assertIn('id="v4"', block)
+        self.assertIn('Changed', html)
+        with self.assertRaises(IndexError):
+            pp.replace_block(STORED, 3, 'x')
+
+    @mock.patch.object(api.transaction, 'atomic', mock.MagicMock())
+    def test_endpoint(self):
+        factory = RequestFactory()
+        row = SimpleNamespace(html=STORED, book='John', chapter=1, save=mock.Mock())
+        uid = '00000000-0000-0000-0000-000000000001'
+
+        def post(payload, user=None):
+            request = factory.post('/x/', data=json.dumps(payload), content_type='application/json')
+            request.user = user or staff()
+            return api.edit_block(request)
+
+        self.assertEqual(post({'uid': uid, 'index': 0, 'html': 'x', 'base_hash': 'h'}, user=staff(False)).status_code, 403)
+        with mock.patch.object(api.ChapterParaphrase.objects, 'select_for_update') as select:
+            select.return_value.filter.return_value.first.return_value = row
+            stale = post({'uid': uid, 'index': 0, 'html': 'x', 'base_hash': 'stale'})
+            self.assertEqual(stale.status_code, 409)
+            row.save.assert_not_called()
+
+            good = post({'uid': uid, 'index': 1, 'html': 'New quote', 'base_hash': pp.html_hash(STORED)})
+            self.assertEqual(good.status_code, 200)
+            data = json.loads(good.content)
+            self.assertIn('New quote', data['html'])
+            self.assertEqual(data['hash'], pp.html_hash(row.html))
+            row.save.assert_called_once()
+
+            out_of_range = post({'uid': uid, 'index': 9, 'html': 'x', 'base_hash': pp.html_hash(row.html)})
+            self.assertEqual(out_of_range.status_code, 400)

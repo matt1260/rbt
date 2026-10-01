@@ -51,8 +51,8 @@
     {# Bracketed letters are keyboard shortcuts. data-label is what chapter-viewer.js re-renders on toggle. #}
     {% if reader_paraphrase or chapter_editor_enabled %}
     {# Switches between the verse-by-verse translation and the published AI paraphrase (static/reader-paraphrase.js). #}
-    <div id="paraphraseViewToggle" role="button" tabindex="0" aria-pressed="false" title="Switch between the verse-by-verse translation and the readable paraphrase (R)">
-        <i class="fas fa-book-open"></i> Paraphrase (R)
+    <div id="paraphraseViewToggle" role="button" tabindex="0" aria-pressed="false" title="Switch between the word-for-word translation and the readable paraphrase (R)">
+        <i class="fas fa-list-ol"></i> Word for word (R)
     </div>
     {% endif %}
     <div id="h5ToggleButton" data-label="{{ ui.ui_headers|default:'Headers' }} (H)" style="padding: 6px 10px; text-align: right; color: #ba8666; cursor: pointer;">
@@ -227,7 +227,7 @@ function hideTranslationLoading() {
         {% endif %}
 
         {% if reader_paraphrase or chapter_editor_enabled %}
-        <article id="reader-paraphrase" class="rbt-paraphrase" hidden>
+        <article id="reader-paraphrase" class="rbt-paraphrase" hidden{% if chapter_editor_enabled and reader_paraphrase %} data-uid="{{ reader_paraphrase.uid }}" data-hash="{{ reader_paraphrase_hash }}"{% endif %}>
             {% if reader_paraphrase %}{{ reader_paraphrase.html|safe }}{% else %}
             <p class="rbt-paraphrase__empty">No paraphrase is published for this chapter yet.{% if chapter_editor_enabled %}
                 <button type="button" data-open-paraphrase-studio>Open the Paraphrase Studio</button>{% endif %}</p>

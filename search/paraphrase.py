@@ -62,9 +62,14 @@ You are writing the Reader's Paraphrase of one chapter of the RBT (Real Bible Tr
 - Level of paraphrase: moderate. Clarify and smooth; do not reinterpret or add ideas.
 """.strip()
 
-# Appended to every system prompt. The reader page, the sanitiser and the coverage
-# check all depend on this format, so it isn't part of the editable preset.
+# Appended to every system prompt, whatever the preset: fidelity requirements staff
+# shouldn't be able to edit away, and the format the reader page, the sanitiser and the
+# coverage check depend on.
 OUTPUT_RULES = """
+FIDELITY (required):
+- Preserve the text's deliberate features even where ordinary English would trim or vary them: repetitions ("and he spoke the same, and he did not deny, and he spoke the same" keeps both "he spoke the same"), parallel lines, wordplay and emphatic word order. Smooth the grammar around them, never away.
+- Never drop or merge a clause, a repeated phrase, or a named person or place.
+
 OUTPUT FORMAT (required; the page depends on it):
 - Return only an HTML fragment. No markdown, no code fences, no <html>, <head>, <body>, <style> or <script>.
 - Allowed elements: p, blockquote, ul, ol, li, em, strong, span, br, hr, rbt-media. No headings of any kind: the page flows as paragraphs.
@@ -169,6 +174,16 @@ def _keep_source_attr(tag, attr, value):
     return value
 
 
+def media_item(el, n, verse=''):
+    """A Media item for a tooltip block or a bare image/video element."""
+    caption_el = el.select_one('.tooltip, .tooltip2') if el.name == 'div' else None
+    caption = ' '.join((caption_el.get_text(' ', strip=True) if caption_el else el.get('alt', '')).split())
+    heading = caption_el.find(['b', 'strong']) if caption_el else None
+    title = ' '.join(heading.get_text(' ', strip=True).split()) if heading else re.split(r'(?<=[.!?])\s', caption, 1)[0]
+    kind = 'video' if (el.name == 'video' or el.find('video')) else 'image'
+    return Media(n=n, verse=verse, html=str(el), kind=kind, caption=caption[:400], title=title.strip(' .:')[:90])
+
+
 def prepare_source(verses):
     """Model input text for the chapter, and the media items pulled out of it."""
     media = []
@@ -178,13 +193,7 @@ def prepare_source(verses):
         containers = soup.select('.tooltip-container')
         loose = [el for el in soup.find_all(['img', 'video']) if not el.find_parent(class_='tooltip-container')]
         for el in containers + loose:
-            caption_el = el.select_one('.tooltip, .tooltip2') if el.name == 'div' else None
-            caption = ' '.join((caption_el.get_text(' ', strip=True) if caption_el else el.get('alt', '')).split())
-            heading = caption_el.find(['b', 'strong']) if caption_el else None
-            title = ' '.join(heading.get_text(' ', strip=True).split()) if heading else re.split(r'(?<=[.!?])\s', caption, 1)[0]
-            kind = 'video' if (el.name == 'video' or el.find('video')) else 'image'
-            media.append(Media(n=len(media) + 1, verse=verse, html=str(el), kind=kind, caption=caption[:400],
-                               title=title.strip(' .:')[:90]))
+            media.append(media_item(el, len(media) + 1, verse))
             el.decompose()
         for anchor in soup.select('a.sdfootnoteanc, a[href*="footnote="]'):
             anchor.decompose()
@@ -326,6 +335,13 @@ def _store(soup, media):
     return store
 
 
+def _add_anchors(soup, block):
+    """Anchors so /john/1/#v12 links land on the paragraph holding verse 12."""
+    for verse in reversed(verse_range(block.get('data-v', ''))):
+        if not soup.find(id=f'v{verse}'):
+            block.insert(0, soup.new_tag('span', attrs={'id': f'v{verse}', 'class': 'pp-anchor'}))
+
+
 def _attach_cue(block, cue):
     """Put a cue at the end of a block's text (before any trailing whitespace)."""
     block.append(' ')
@@ -374,12 +390,8 @@ def finalize_output(raw, media, verse_numbers):
     blocks = soup.find_all(attrs={'data-v': True})
     covered = set()
     for block in blocks:
-        verses = verse_range(block['data-v'])
-        covered.update(verses)
-        # Anchors so /john/1/#v12 links land on the paragraph holding verse 12.
-        for verse in reversed(verses):
-            if not soup.find(id=f'v{verse}'):
-                block.insert(0, soup.new_tag('span', attrs={'id': f'v{verse}', 'class': 'pp-anchor'}))
+        covered.update(verse_range(block['data-v']))
+        _add_anchors(soup, block)
 
     # Media the model left out: a cue at the end of the paragraph covering its verse.
     for item in media:
@@ -397,6 +409,64 @@ def finalize_output(raw, media, verse_numbers):
 
     missing = sorted(int(v) for v in verse_numbers if v.isdigit() and int(v) not in covered)
     return str(soup).strip(), missing
+
+
+# ---------------------------------------------------------------------------
+# Editing a paraphrase in place
+
+EDITABLE_BLOCKS = ('p', 'blockquote')
+
+
+def html_hash(html):
+    return hashlib.sha1((html or '').encode('utf-8')).hexdigest()
+
+
+def editable_blocks(soup):
+    """Top-level paragraphs and quotes, in order; the reader page indexes them the same way."""
+    return [node for node in soup.children if getattr(node, 'name', None) in EDITABLE_BLOCKS]
+
+
+def stored_media(soup):
+    """{n: Media} from the paraphrase's inert template store."""
+    media = {}
+    for template in soup.select('.pp-media-store template[data-media]'):
+        element = BeautifulSoup(template.decode_contents(), 'html.parser').find(True)
+        n = template['data-media']
+        if element is not None and n.isdigit():
+            media[int(n)] = media_item(element, int(n))
+    return media
+
+
+def replace_block(html, index, new_inner_html):
+    """The paraphrase HTML with block `index`'s contents replaced by an edit, and the new
+    block contents. The edit is sanitised like model output; image cues in it are rebuilt
+    from the stored media (so an edit can't alter them) and verse anchors are re-added."""
+    soup = BeautifulSoup(html, 'html.parser')
+    blocks = editable_blocks(soup)
+    if not 0 <= index < len(blocks):
+        raise IndexError(f'No paragraph {index}.')
+    block = blocks[index]
+
+    edit = BeautifulSoup(new_inner_html, 'html.parser')
+    for cue in edit.select('button.pp-cue'):
+        n = cue.get('data-media', '')
+        cue.replace_with(edit.new_tag('rbt-media', attrs={'n': n}) if n.isdigit() else '')
+    for anchor in edit.select('span.pp-anchor'):
+        anchor.decompose()
+    clean = BeautifulSoup(nh3.clean(
+        str(edit), tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRIBUTES, attribute_filter=_keep_output_attr,
+        strip_comments=True, link_rel=None, clean_content_tags={'script', 'style'},
+    ), 'html.parser')
+    media = stored_media(soup)
+    for placeholder in clean.find_all('rbt-media'):
+        item = media.get(int(placeholder.get('n') or 0))
+        placeholder.replace_with(_cue(clean, item) if item else '')
+
+    block.clear()
+    for node in list(clean.contents):
+        block.append(node)
+    _add_anchors(soup, block)
+    return str(soup).strip(), block.decode_contents()
 
 
 # ---------------------------------------------------------------------------

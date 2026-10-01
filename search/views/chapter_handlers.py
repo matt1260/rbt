@@ -27,7 +27,7 @@ from search.db_utils import execute_query, get_db_connection
 from hebrewtool.debug_utils import set_debug_context, should_emit_debug
 
 from search.seo_utils import book_to_slug, localized_book_name, _get_verse_url
-from search.paraphrase import published_for as published_paraphrase
+from search.paraphrase import html_hash as paraphrase_html_hash, published_for as published_paraphrase
 
 import os
 from django.contrib.staticfiles import finders
@@ -540,6 +540,7 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     if language != 'en' and language not in SUPPORTED_LANGUAGES:
         needs_translation = False
             
+    reader_paraphrase = published_paraphrase(original_book, chapter_num) if language == 'en' else None
     context = {
         'cache_hit': cached_hit,
         'chapters': chapters,
@@ -559,7 +560,9 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         'chapter_editor_enabled': chapter_editor_enabled,
         'chapter_editor_version': _chapter_editor_version() if chapter_editor_enabled else '',
         # Published AI paraphrase for the "Paraphrase" reader view (English only for now).
-        'reader_paraphrase': published_paraphrase(original_book, chapter_num) if language == 'en' else None,
+        'reader_paraphrase': reader_paraphrase,
+        # Lets the inline editor detect edits made elsewhere (see paraphrase_api.edit_block).
+        'reader_paraphrase_hash': paraphrase_html_hash(reader_paraphrase.html) if reader_paraphrase and chapter_editor_enabled else '',
         'reader_paraphrase_version': _static_version('reader-paraphrase.js', 'reader-paraphrase.css'),
     }
 

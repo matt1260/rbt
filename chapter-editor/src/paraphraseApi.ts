@@ -89,7 +89,7 @@ export class ParaphraseApi {
   }
 
   publish(uid: string) {
-    return this.post<{ uid: string; html: string }>('publish/', { uid })
+    return this.post<{ uid: string; html: string; hash: string }>('publish/', { uid })
   }
 
   unpublish() {

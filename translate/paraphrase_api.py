@@ -198,7 +198,7 @@ def publish(request):
     except ValueError as exc:
         return JsonResponse({'error': str(exc)}, status=400)
     logger.info('[PARAPHRASE] %s published %s %s (%s)', request.user.username, row.book, row.chapter, row.model_name)
-    return JsonResponse({'uid': str(row.uid), 'html': row.html})
+    return JsonResponse({'uid': str(row.uid), 'html': row.html, 'hash': paraphrase.html_hash(row.html)})
 
 
 @require_POST
@@ -250,3 +250,39 @@ def save_preset(request):
             ParaphrasePrompt.objects.filter(pk=prompt.pk).update(is_default=True)
             prompt.refresh_from_db()
     return JsonResponse({'preset': _preset(prompt)})
+
+
+@require_POST
+@staff_json
+def edit_block(request):
+    """
+    POST JSON {uid, index, html, base_hash} → {hash, html}: replace the contents of one
+    paragraph (the index-th top-level <p>/<blockquote>) of a paraphrase, edited inline on
+    the chapter page. base_hash is the hash of the paraphrase HTML the edit started from;
+    if it has changed since (republished, or edited in another tab) nothing is written and
+    a 409 is returned.
+    """
+    data = _json_body(request) or {}
+    if not _is_uuid(data.get('uid')):
+        return JsonResponse({'error': 'uid is required.'}, status=400)
+    index, html, base_hash = data.get('index'), data.get('html'), data.get('base_hash')
+    if not isinstance(index, int) or isinstance(index, bool) or not isinstance(html, str) or not isinstance(base_hash, str):
+        return JsonResponse({'error': 'index, html and base_hash are required.'}, status=400)
+    if len(html) > 100_000:
+        return JsonResponse({'error': 'Paragraph is too long.'}, status=400)
+
+    with transaction.atomic():
+        row = ChapterParaphrase.objects.select_for_update().filter(uid=data['uid']).first()
+        if not row:
+            return JsonResponse({'error': 'Not found.'}, status=404)
+        if paraphrase.html_hash(row.html) != base_hash:
+            return JsonResponse({'error': 'This paraphrase was changed elsewhere.', 'hash': paraphrase.html_hash(row.html)}, status=409)
+        try:
+            new_html, block_html = paraphrase.replace_block(row.html, index, html)
+        except IndexError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+        if new_html != row.html:
+            row.html = new_html
+            row.save(update_fields=['html', 'updated_at'])
+    logger.info('[PARAPHRASE] %s edited %s %s paragraph %s', request.user.username, row.book, row.chapter, index)
+    return JsonResponse({'hash': paraphrase.html_hash(row.html), 'html': block_html})

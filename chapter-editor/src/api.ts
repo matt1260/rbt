@@ -29,6 +29,11 @@ export type SaveResult =
   | { status: 'conflict'; html: string; hash: string }
   | { status: 'error'; message: string }
 
+export type BlockSaveResult =
+  | { status: 'ok'; hash: string; html: string }
+  | { status: 'conflict' }
+  | { status: 'error'; message: string }
+
 export class Api {
   constructor(private config: EditorConfig) {}
 
@@ -71,6 +76,26 @@ export class Api {
     const data = await response.json().catch(() => ({}))
     if (response.ok) return { status: 'ok', hash: data.hash }
     if (response.status === 409) return { status: 'conflict', html: data.html, hash: data.hash }
+    return { status: 'error', message: data.error || `Save failed (${response.status})` }
+  }
+
+  /** Replace one paragraph of a published paraphrase (translate/paraphrase_api.py edit_block). */
+  async saveParaphraseBlock(uid: string, index: number, html: string, baseHash: string): Promise<BlockSaveResult> {
+    let response: Response
+    try {
+      response = await fetch(`${this.config.paraphraseApiBase}edit-block/`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: html.length < 60_000,
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.config.csrf },
+        body: JSON.stringify({ uid, index, html, base_hash: baseHash }),
+      })
+    } catch {
+      return { status: 'error', message: 'Network error' }
+    }
+    const data = await response.json().catch(() => ({}))
+    if (response.ok) return { status: 'ok', hash: data.hash, html: data.html }
+    if (response.status === 409) return { status: 'conflict' }
     return { status: 'error', message: data.error || `Save failed (${response.status})` }
   }
 

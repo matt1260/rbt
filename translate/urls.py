@@ -44,6 +44,7 @@ urlpatterns = [
     path('api/paraphrase/unpublish/', paraphrase_api.unpublish, name='paraphrase_unpublish'),
     path('api/paraphrase/delete/', paraphrase_api.delete, name='paraphrase_delete'),
     path('api/paraphrase/preset/', paraphrase_api.save_preset, name='paraphrase_save_preset'),
+    path('api/paraphrase/edit-block/', paraphrase_api.edit_block, name='paraphrase_edit_block'),
     path('api/scrape-lexicon/', views.scrape_lexicon, name='scrape_lexicon'),
     path('api/chat-lexicon/', views.chat_with_lexicon, name='chat_lexicon'),
     path('proxy/biblehub/', views.biblehub_proxy, name='biblehub_proxy'),

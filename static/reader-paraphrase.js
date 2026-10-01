@@ -142,6 +142,11 @@
             verses.hidden = on;
             button.classList.toggle('is-active', on);
             button.setAttribute('aria-pressed', on ? 'true' : 'false');
+            // The label names the view being shown; the tooltip says what a click switches to.
+            button.innerHTML = '<i class="fas ' + (on ? 'fa-book-open' : 'fa-list-ol') + '"></i> ' +
+                (on ? 'Paraphrase' : 'Word for word') + ' (R)';
+            button.title = 'Showing the ' + (on ? 'paraphrase' : 'word-for-word translation') +
+                '. Switch to the ' + (on ? 'word-for-word translation' : 'paraphrase') + ' (R)';
             document.body.classList.toggle('rbt-paraphrase-view', on);
             if (remember) saveChoice(on ? 'paraphrase' : 'verses');
         }
@@ -170,8 +175,16 @@
 
         // Used by the Paraphrase Studio (staff) to show a newly published paraphrase without a reload.
         window.rbtReaderParaphrase = {
-            setHtml: function (html) {
+            setHtml: function (html, uid, hash) {
                 reader.innerHTML = html;
+                // The inline editor reads these to save paragraph edits (staff only).
+                if (uid) {
+                    reader.dataset.uid = uid;
+                    reader.dataset.hash = hash || '';
+                } else {
+                    delete reader.dataset.uid;
+                    delete reader.dataset.hash;
+                }
             },
             show: function () {
                 show(true, true);

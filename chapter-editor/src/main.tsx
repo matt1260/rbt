@@ -8,7 +8,7 @@ import './styles.css'
 declare global {
   interface Window {
     /** Set by static/reader-paraphrase.js on NT chapter pages. */
-    rbtReaderParaphrase?: { setHtml(html: string): void; show(): void }
+    rbtReaderParaphrase?: { setHtml(html: string, uid?: string, hash?: string): void; show(): void }
   }
 }
 

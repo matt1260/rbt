@@ -14,7 +14,9 @@
 
 /* ---- Page in edit mode ---------------------------------------------------- */
 
-.rbt-edit-mode #paraphrase-area .rbt-verse {
+.rbt-edit-mode #paraphrase-area .rbt-verse,
+.rbt-edit-mode #reader-paraphrase[data-uid] > p,
+.rbt-edit-mode #reader-paraphrase[data-uid] > blockquote {
   cursor: text;
 }
 

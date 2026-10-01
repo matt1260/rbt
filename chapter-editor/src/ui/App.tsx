@@ -39,7 +39,7 @@ export function App({ controller, paraphraseApi, title }: Props) {
   return (
     <>
       {createPortal(<StatusBar controller={controller} snapshot={snapshot} onOpenStudio={openStudio} />, document.body)}
-      {active && <Toolbar controller={controller} verse={active.verse} view={active.view} state={active.state} />}
+      {active && <Toolbar controller={controller} kind={active.kind} verse={active.verse} view={active.view} state={active.state} />}
       {snapshot.editMode && hover && (
         <InterlinearPopover key={hover.verse} controller={controller} verse={hover.verse} anchor={hover.anchor} />
       )}

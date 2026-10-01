@@ -10,7 +10,10 @@ function summary(snapshot: Snapshot): { text: string; tone: 'idle' | 'busy' | 'o
   if (snapshot.loading) return { text: 'Loading chapter…', tone: 'busy' }
   if (snapshot.loadError) return { text: snapshot.loadError, tone: 'bad' }
   const saving = snapshot.statuses.filter((s) => s.status === 'saving')
-  if (saving.length) return { text: `Saving ${saving.map((s) => s.verse).join(', ')}…`, tone: 'busy' }
+  if (saving.length) {
+    const what = saving.map((s) => (s.kind === 'paraphrase' ? 'paraphrase' : s.verse)).join(', ')
+    return { text: `Saving ${what}…`, tone: 'busy' }
+  }
   if (snapshot.statuses.some((s) => s.status === 'saved')) return { text: 'All changes saved', tone: 'ok' }
   if (snapshot.active) return { text: `Editing verse ${snapshot.active.verse}`, tone: 'idle' }
   return { text: 'Click any word to edit', tone: 'idle' }
@@ -25,7 +28,23 @@ export function StatusBar({ controller, snapshot, onOpenStudio }: Props) {
     <div className="rbt-ce-status" data-rbt-ui>
       {snapshot.editMode && problems.map((problem) => (
         <div key={problem.verse} className="rbt-ce-card rbt-ce-card--bad" role="alert">
-          {problem.status === 'conflict' ? (
+          {problem.kind === 'paraphrase' ? (
+            problem.status === 'conflict' ? (
+              <>
+                <strong>The paraphrase was changed elsewhere</strong> (republished, or edited in another tab), so your last edit wasn't saved.
+                <div className="rbt-ce-card__actions">
+                  <button type="button" onClick={() => window.location.reload()}>Reload the page</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <strong>A paraphrase edit didn't save:</strong> {problem.error}
+                <div className="rbt-ce-card__actions">
+                  <button type="button" onClick={controller.retryParagraphSaves}>Retry</button>
+                </div>
+              </>
+            )
+          ) : problem.status === 'conflict' ? (
             <>
               <strong>Verse {problem.verse} was changed elsewhere</strong> (e.g. on the verse edit page) since this chapter loaded.
               <div className="rbt-ce-card__actions">
