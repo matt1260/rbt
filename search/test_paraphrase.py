@@ -60,7 +60,7 @@ class FinalizeOutputTests(SimpleTestCase):
         html, _ = self.finalize('<p data-v="1-2">a</p><p data-v="3-4">b</p>')
         self.assertRegex(html, r'a <button[^>]*data-media="1"')
         # Media 2 is a video from verse 4: a play-icon cue at the end of the 3-4 paragraph.
-        self.assertRegex(html, r'b <button aria-label="View video" class="pp-cue pp-cue--video" data-media="2"[^>]*><span aria-hidden="true" class="pp-cue__icon">\u25b6</span></button></p>')
+        self.assertRegex(html, r'b <button aria-label="View video" class="pp-cue pp-cue--video" data-media="2"[^>]*><svg aria-hidden="true" class="pp-cue__icon"[^>]*><path[^>]*></path></svg></button></p>')
 
     def test_original_media_are_kept_inert_for_the_modal(self):
         html, _ = self.finalize('<p data-v="1-4">a</p>')

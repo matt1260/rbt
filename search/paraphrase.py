@@ -284,6 +284,17 @@ def verse_range(value):
     return list(range(start, end + 1)) if start <= end <= start + 200 else []
 
 
+PLAY_ICON = (
+    '<svg class="pp-cue__icon" viewBox="-3 -3 30 30" aria-hidden="true" focusable="false">'
+    '<path d="M9.5 6.8v10.4l8-5.2z" fill="currentColor"/></svg>'
+)
+IMAGE_ICON = (
+    '<svg class="pp-cue__icon" viewBox="-3 -3 30 30" aria-hidden="true" focusable="false">'
+    '<rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>'
+    '<path d="M6.5 16.5l3.5-4.5 2.8 3 1.9-2 2.8 3.5z" fill="currentColor"/></svg>'
+)
+
+
 def _cue(soup, item):
     """Small round thumbnail button that opens the media in the reader's modal."""
     label = f'View {"video" if item.kind == "video" else "image"}' + (f': {item.title}' if item.title else '')
@@ -298,9 +309,10 @@ def _cue(soup, item):
             'class': 'pp-cue__thumb', 'src': img['src'], 'alt': '', 'loading': 'lazy', 'decoding': 'async',
         }))
     else:
-        icon = soup.new_tag('span', attrs={'class': 'pp-cue__icon', 'aria-hidden': 'true'})
-        icon.string = '\u25b6' if item.kind == 'video' else '\u25c9'
-        cue.append(icon)
+        # An SVG, not a text glyph: a glyph sits on its font baseline, several pixels lower
+        # than the thumbnails, and may render as an emoji. Like a thumbnail it fills the whole
+        # cue (the drawing is inset by the viewBox), so every cue aligns the same way.
+        cue.append(BeautifulSoup(PLAY_ICON if item.kind == 'video' else IMAGE_ICON, 'html.parser'))
     return cue
 
 

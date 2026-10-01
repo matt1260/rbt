@@ -93,9 +93,11 @@
     object-fit: cover;
 }
 
+/* Fills the cue like a thumbnail does, so icon and thumbnail cues align identically. */
 .rbt-paraphrase .pp-cue__icon {
-    font-size: 0.62em;
-    line-height: 1;
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 
 /* Hover: the cue grows and a ring ripples out from it. */
