@@ -3528,6 +3528,17 @@ def find_and_replace_nt(request):
 
                 successful_replacements += int(updated_rows or 0)
 
+                # Clear the reader cache so the chapter view shows the change.
+                if updated_rows:
+                    location = execute_query(
+                        "SELECT book, chapter, startVerse FROM new_testament.nt WHERE verseID = %s;",
+                        (verse_id,),
+                        fetch='one'
+                    )
+                    if location:
+                        book, chapter, start_verse = location
+                        _invalidate_reader_cache(_safe_book_name(book), chapter, start_verse)
+
             context['edit_result'] = (
                 f'<div class="notice-bar">'
                 f'<p><span class="icon"><i class="fas fa-check-circle"></i></span>'
