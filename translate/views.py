@@ -3436,35 +3436,34 @@ def _build_nt_search_pattern(find_text: str, exact: bool = False, allow_html: bo
     """Return a regex for matching text, tolerating HTML wrappers unless HTML mode is requested.
 
     Plain-text searches should still find matches inside HTML fragments such as
-    "Learners of <span>himself</span>" when the user types "Learners of himself".
+    "Learners of <span>himself</span>" or "<a ...>Self</a>-Seeing" when the user
+    types "Learners of himself" or "Self-Seeing".
     """
     if not find_text:
         return ''
 
-    if allow_html:
-        escaped = re.escape(find_text)
-        if exact:
-            return r'\b' + escaped + r'\b'
-        return escaped
+    # Word boundaries only make sense at edges that are word characters, so
+    # "self-" still matches the start of "self-control" in exact mode.
+    lead = r'(?<!\w)' if exact and re.match(r'\w', find_text) else ''
+    trail = r'(?!\w)' if exact and re.search(r'\w$', find_text) else ''
 
-    # Plain-text mode: allow optional HTML tags between words so styles like
-    # <span ...>himself</span> do not block a match.
+    if allow_html:
+        return lead + re.escape(find_text) + trail
+
+    # Plain-text mode: allow HTML tags between words, and between word and
+    # punctuation pieces of a word, so styling markup does not block a match.
     tokens = re.findall(r'\S+', find_text)
     if not tokens:
         return re.escape(find_text)
 
-    parts: list[str] = []
-    for i, token in enumerate(tokens):
-        escaped = re.escape(token)
-        if exact:
-            escaped = rf'(?<![\w]){escaped}(?![\w])'
-        parts.append(rf'(?:<[^>]+>)?{escaped}(?:</[^>]+>)?')
-        if i < len(tokens) - 1:
-            parts.append(r'(?:\s|<[^>]+>|</[^>]+>)*')
-
-    if exact:
-        return rf'(?<!\w){"".join(parts)}(?!\w)'
-    return ''.join(parts)
+    tag = r'</?[^>]+>'
+    token_patterns = [
+        r'(?:<[^>]+>)?'
+        + f'(?:{tag})*'.join(re.escape(piece) for piece in re.findall(r'\w+|[^\w\s]+', token))
+        + r'(?:</[^>]+>)?'
+        for token in tokens
+    ]
+    return lead + rf'(?:\s|{tag})*'.join(token_patterns) + trail
 
 
 def _build_nt_greek_lemma_sql_regex(greek_lemma: str) -> str:
@@ -3559,10 +3558,13 @@ def find_and_replace_nt(request):
             # falls inside an occurrence of any of them (e.g. find "self",
             # exclude "his own self").
             exclude_compiled = [
-                re.compile(_build_nt_search_pattern(term, exact=exact_match, allow_html=allow_html))
+                re.compile(_build_nt_search_pattern(term, exact=exact_match, allow_html=allow_html), re.IGNORECASE)
                 for term in (line.strip() for line in exclude_text.splitlines())
                 if term
             ]
+            if not allow_html:
+                # Never match inside a tag, e.g. the "self" in <a href=".../self/">.
+                exclude_compiled.append(re.compile(r'<[^>]*>'))
 
             lemma_compiled = None
             if greek_lemma:

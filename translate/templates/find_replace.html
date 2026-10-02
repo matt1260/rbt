@@ -50,7 +50,7 @@ height: 16px;
 <br>
 <textarea name="greek_lemma" id="greek_lemma" rows="1" cols="80">{{ greek_lemma|default_if_none:'' }}</textarea>
 <br>
-<label for="exclude_text">Exclude (optional, one phrase per line &mdash; matches inside these phrases are skipped):</label>
+<label for="exclude_text">Exclude (optional, one phrase per line, not case-sensitive &mdash; matches inside these phrases are skipped; e.g. <code>self-</code> skips every self- compound):</label>
 <br>
 <textarea name="exclude_text" id="exclude_text" rows="3" cols="80" placeholder="his own self&#10;her own self">{{ exclude_text|default_if_none:'' }}</textarea>
 <br>
