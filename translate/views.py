@@ -3495,11 +3495,12 @@ def find_and_replace_nt(request):
         find_text = (request.POST.get('find_text') or '').strip()
         greek_lemma = unicodedata.normalize('NFD', (request.POST.get('greek_lemma') or '').strip())
         replace_text = (request.POST.get('replace_text') or '').strip()
+        exclude_text = (request.POST.get('exclude_text') or '').strip()
         exact_match = request.POST.get('exact_match') == '1' or request.POST.get('exact_match') == 'on'
         allow_html = request.POST.get('allow_html') == '1' or request.POST.get('allow_html') == 'on'
 
         # Preserve form values
-        context.update({'find_text': find_text, 'greek_lemma': greek_lemma, 'replace_text': replace_text, 'exact_match': exact_match, 'allow_html': allow_html})
+        context.update({'find_text': find_text, 'greek_lemma': greek_lemma, 'replace_text': replace_text, 'exclude_text': exclude_text, 'exact_match': exact_match, 'allow_html': allow_html})
 
         # Handle approved replacements
         if 'approve_replacements' in request.POST:
@@ -3554,6 +3555,15 @@ def find_and_replace_nt(request):
             search_pattern = _build_nt_search_pattern(find_text, exact=exact_match, allow_html=allow_html)
             compiled = re.compile(search_pattern)
 
+            # Exclusion phrases, one per line: a match is left alone when it
+            # falls inside an occurrence of any of them (e.g. find "self",
+            # exclude "his own self").
+            exclude_compiled = [
+                re.compile(_build_nt_search_pattern(term, exact=exact_match, allow_html=allow_html))
+                for term in (line.strip() for line in exclude_text.splitlines())
+                if term
+            ]
+
             lemma_compiled = None
             if greek_lemma:
                 lemma_compiled = _build_nt_greek_lemma_highlight_regex(greek_lemma)
@@ -3569,20 +3579,32 @@ def find_and_replace_nt(request):
                 if not compiled.search(old_text):
                     continue
 
+                excluded_spans = [
+                    m.span() for pattern in exclude_compiled for m in pattern.finditer(old_text)
+                ]
+
+                def is_excluded(match):
+                    start, end = match.span()
+                    return any(ex_start <= start and end <= ex_end for ex_start, ex_end in excluded_spans)
+
                 book_name = _safe_book_name(book)
 
                 # Create the new text without replacement (for database)
                 # Use a lambda replacement to ensure literal replacement (no backrefs)
-                new_text_raw = compiled.sub(lambda m: replace_text, old_text)
+                new_text_raw = compiled.sub(lambda m: m.group(0) if is_excluded(m) else replace_text, old_text)
 
                 # Create display version with highlighting
                 def highlight_matches(match):
+                    if is_excluded(match):
+                        return match.group(0)
                     return f'<span class="highlight-find">{match.group(0)}</span>'
 
                 display_old = compiled.sub(highlight_matches, old_text)
 
                 # For the "after" preview, show old text with replace highlighted
                 def highlight_replacement(match):
+                    if is_excluded(match):
+                        return match.group(0)
                     return f'<span class="highlight-replace">{replace_text}</span>'
 
                 display_new = compiled.sub(highlight_replacement, old_text)
