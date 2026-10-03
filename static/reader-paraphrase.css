@@ -109,6 +109,11 @@
     margin: 0 0 1.05em;
 }
 
+/* Paragraph headings (added in the inline editor), sized for the paraphrase's larger text. */
+.rbt-paraphrase h5 {
+    font-size: 23px;
+}
+
 .rbt-paraphrase .pp-indent {
     padding-left: 2em;
 }
