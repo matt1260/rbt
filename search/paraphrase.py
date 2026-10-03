@@ -472,18 +472,9 @@ def replace_block(html, index, new_inner_html):
 # ---------------------------------------------------------------------------
 # Providers
 
-def _gemini_keys():
-    """The GEMINI_API_KEYS pool (as the page translator uses), then GEMINI_API_KEY."""
-    keys = [k.strip() for k in os.getenv('GEMINI_API_KEYS', '').split(',') if k.strip()]
-    single = os.getenv('GEMINI_API_KEY', '').strip()
-    if single and single not in keys:
-        keys.append(single)
-    return keys
-
-
 def _gemini_key():
-    keys = _gemini_keys()
-    return keys[0] if keys else ''
+    """GEMINI_API_KEY only; the GEMINI_API_KEYS pool is left to the page translator."""
+    return os.getenv('GEMINI_API_KEY', '').strip()
 
 
 # Waits before retrying when the model is overloaded (503 "high demand" and similar).
@@ -495,33 +486,24 @@ def _is_transient(exc):
     return any(marker in text for marker in ('503', 'UNAVAILABLE', '500 INTERNAL', 'DEADLINE_EXCEEDED', 'overloaded', 'high demand'))
 
 
-def _is_key_problem(exc):
-    """Invalid, revoked or rate-limited key: worth retrying with the next key."""
-    text = str(exc)
-    return any(marker in text for marker in ('API_KEY_INVALID', 'API key not valid', 'PERMISSION_DENIED', '429', 'RESOURCE_EXHAUSTED'))
-
-
 def _call_gemini(model_name, system_prompt, user_prompt):
     from google import genai
     from google.genai import types
     from translate.views import get_ipv4_transport
 
-    keys = _gemini_keys()
-    if not keys:
-        raise RuntimeError('No Gemini API key is configured (GEMINI_API_KEYS or GEMINI_API_KEY).')
-    # Spread simultaneous generations across the pool; move to the next key when one is
-    # rejected or rate-limited, and wait and retry when the model is overloaded.
-    key_index = threading.get_ident() % len(keys)
-    keys_tried = 0
+    api_key = _gemini_key()
+    if not api_key:
+        raise RuntimeError('No Gemini API key is configured (GEMINI_API_KEY).')
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=REQUEST_TIMEOUT_SECONDS * 1000,
+            client_args={'transport': get_ipv4_transport()},
+        ),
+    )
+    # Wait and retry when the model is overloaded.
     transient_retries = 0
     while True:
-        client = genai.Client(
-            api_key=keys[key_index % len(keys)],
-            http_options=types.HttpOptions(
-                timeout=REQUEST_TIMEOUT_SECONDS * 1000,
-                client_args={'transport': get_ipv4_transport()},
-            ),
-        )
         try:
             response = client.models.generate_content(
                 model=model_name,
@@ -530,11 +512,7 @@ def _call_gemini(model_name, system_prompt, user_prompt):
             )
             break
         except Exception as exc:
-            if _is_key_problem(exc) and keys_tried < len(keys) - 1:
-                keys_tried += 1
-                key_index += 1
-                logger.warning('Gemini key rejected or rate-limited for paraphrase; trying the next key')
-            elif _is_transient(exc) and transient_retries < len(TRANSIENT_BACKOFF_SECONDS):
+            if _is_transient(exc) and transient_retries < len(TRANSIENT_BACKOFF_SECONDS):
                 time.sleep(TRANSIENT_BACKOFF_SECONDS[transient_retries])
                 transient_retries += 1
                 logger.warning('Gemini overloaded (%s); retry %d', type(exc).__name__, transient_retries)
