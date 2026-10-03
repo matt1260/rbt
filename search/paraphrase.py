@@ -75,7 +75,7 @@ OUTPUT FORMAT (required; the page depends on it):
 - Allowed elements: p, blockquote, ul, ol, li, em, strong, span, br, hr, rbt-media. No headings of any kind: the page flows as paragraphs.
 - Put data-v on every paragraph, blockquote or list that carries verse content, giving the verse range it covers: <p data-v="3-5">...</p> or <p data-v="7">...</p>. Together the ranges must cover every verse of the chapter.
 - Keep the RBT color coding where it still fits by reusing the source's spans exactly: <span style="color: blue;"> and <span style="color: #ff00aa;">. Keep <span class="hayah"> as it is.
-- Optional classes: <p class="pp-lead"> for an opening paragraph, <p class="pp-indent"> for an indented paragraph, <blockquote class="pp-poetry"> for poetic or quoted lines (use <br> between lines).
+- Optional classes: <p class="pp-indent"> for an indented paragraph, <blockquote class="pp-poetry"> for poetic or quoted lines (use <br> between lines).
 - Mark every media item exactly once with an inline marker inside the paragraph, right after the sentence it best illustrates (after the sentence's closing punctuation): <rbt-media n="N"></rbt-media>. Readers see a small image cue there that opens the image and its notes, so the text itself stays uninterrupted; never put a marker between paragraphs.
 - Do not invent content, add commentary or explain your choices.
 """.strip()
@@ -437,17 +437,10 @@ def stored_media(soup):
     return media
 
 
-def replace_block(html, index, new_inner_html):
-    """The paraphrase HTML with block `index`'s contents replaced by an edit, and the new
-    block contents. The edit is sanitised like model output; image cues in it are rebuilt
-    from the stored media (so an edit can't alter them) and verse anchors are re-added."""
-    soup = BeautifulSoup(html, 'html.parser')
-    blocks = editable_blocks(soup)
-    if not 0 <= index < len(blocks):
-        raise IndexError(f'No paragraph {index}.')
-    block = blocks[index]
-
-    edit = BeautifulSoup(new_inner_html, 'html.parser')
+def _clean_edit(soup, edit_html):
+    """Inline HTML typed in the editor, sanitised like model output, with image cues rebuilt
+    from the stored media (so an edit can't alter them) and verse anchors dropped."""
+    edit = BeautifulSoup(edit_html, 'html.parser')
     for cue in edit.select('button.pp-cue'):
         n = cue.get('data-media', '')
         cue.replace_with(edit.new_tag('rbt-media', attrs={'n': n}) if n.isdigit() else '')
@@ -461,12 +454,63 @@ def replace_block(html, index, new_inner_html):
     for placeholder in clean.find_all('rbt-media'):
         item = media.get(int(placeholder.get('n') or 0))
         placeholder.replace_with(_cue(clean, item) if item else '')
+    return list(clean.contents)
+
+
+def _heading_before(block):
+    """The <h5> directly above a paragraph, if it has one."""
+    previous = block.previous_sibling
+    while isinstance(previous, str) and not previous.strip():
+        previous = previous.previous_sibling
+    return previous if getattr(previous, 'name', None) == 'h5' else None
+
+
+def _leading_heading(edit_html):
+    """(heading inner HTML or None, the rest): an edit may open with <h5>, the paragraph's heading."""
+    edit = BeautifulSoup(edit_html, 'html.parser')
+    first = next((node for node in edit.contents if not (isinstance(node, str) and not node.strip())), None)
+    if getattr(first, 'name', None) != 'h5':
+        return None, edit_html
+    heading = first.extract()
+    return heading.decode_contents(), str(edit)
+
+
+def editor_html(block):
+    """A paragraph as the inline editor edits it: its heading (if any), then its contents."""
+    heading = _heading_before(block)
+    return (str(heading) if heading else '') + block.decode_contents()
+
+
+def replace_block(html, index, new_inner_html):
+    """The paraphrase HTML with block `index`'s contents replaced by an edit, and the block
+    as the editor now sees it (editor_html). The edit is sanitised like model output; image
+    cues in it are rebuilt from the stored media and verse anchors are re-added. A leading
+    <h5> in the edit sets the heading above the paragraph; without one (or with an empty
+    one) the paragraph has no heading."""
+    soup = BeautifulSoup(html, 'html.parser')
+    blocks = editable_blocks(soup)
+    if not 0 <= index < len(blocks):
+        raise IndexError(f'No paragraph {index}.')
+    block = blocks[index]
+    heading_html, body_html = _leading_heading(new_inner_html)
 
     block.clear()
-    for node in list(clean.contents):
+    for node in _clean_edit(soup, body_html):
         block.append(node)
     _add_anchors(soup, block)
-    return str(soup).strip(), block.decode_contents()
+
+    heading = _heading_before(block)
+    contents = _clean_edit(soup, heading_html) if heading_html is not None else []
+    if ''.join(node.get_text() if hasattr(node, 'get_text') else str(node) for node in contents).strip():
+        if heading is None:
+            heading = soup.new_tag('h5')
+            block.insert_before(heading)
+        heading.clear()
+        for node in contents:
+            heading.append(node)
+    elif heading is not None:
+        heading.decompose()
+    return str(soup).strip(), editor_html(block)
 
 
 # ---------------------------------------------------------------------------

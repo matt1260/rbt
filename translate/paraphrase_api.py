@@ -258,7 +258,7 @@ def edit_block(request):
     """
     POST JSON {uid, index, html, base_hash} → {hash, html}: replace the contents of one
     paragraph (the index-th top-level <p>/<blockquote>) of a paraphrase, edited inline on
-    the chapter page. base_hash is the hash of the paraphrase HTML the edit started from;
+    the chapter page. A leading <h5> in html is the heading above that paragraph. base_hash is the hash of the paraphrase HTML the edit started from;
     if it has changed since (republished, or edited in another tab) nothing is written and
     a 409 is returned.
     """

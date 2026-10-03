@@ -18,7 +18,7 @@ import type { Node as PMNode } from 'prosemirror-model'
 import { EditorState, Plugin, TextSelection, type Command } from 'prosemirror-state'
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view'
 import { Api, type EditorConfig, type InterlinearWord } from './api'
-import { applyTool, TOOLS, typeOutsideEndingMarks, type Tool } from './commands'
+import { applyTool, toggleParagraphHeading, TOOLS, typeOutsideEndingMarks, type Tool } from './commands'
 import { parseVerse, roundTrips, sameHtml, schema, serializeDoc } from './schema'
 import { closeText, composeVerse, wrapParentheses } from './verseDom'
 
@@ -59,6 +59,8 @@ interface ActiveEditor {
   startHtml: string
   /** The wrapper's DOM before editing, put back untouched if nothing changed. */
   originalNodes: Node[]
+  /** For a paragraph: the <h5> above it, hidden while it's in the editor. */
+  heading: HTMLElement | null
 }
 
 /** A finished editing session, undoable after leaving the verse: the HTML before it. */
@@ -392,8 +394,40 @@ export class ChapterEditorController {
 
   private paragraphOf(target: Element): HTMLElement | null {
     if (!this.reader?.dataset.uid || !this.reader.contains(target)) return null
+    const heading = target.closest<HTMLElement>('h5')
+    if (heading && heading.parentElement === this.reader) {
+      // A heading is edited with the paragraph below it.
+      const next = heading.nextElementSibling as HTMLElement | null
+      return next?.matches('p, blockquote') ? next : null
+    }
     const block = target.closest<HTMLElement>('p, blockquote')
     return block && block.parentElement === this.reader ? block : null
+  }
+
+  /** The heading above a paraphrase paragraph, if it has one. */
+  private headingOf(block: HTMLElement): HTMLElement | null {
+    const previous = block.previousElementSibling
+    return previous instanceof HTMLElement && previous.tagName === 'H5' ? previous : null
+  }
+
+  /** Show a paragraph's editor HTML (an optional leading <h5>, then its contents) on the page. */
+  private renderParagraph(block: HTMLElement, html: string) {
+    const tpl = document.createElement('template')
+    tpl.innerHTML = html
+    const first = Array.from(tpl.content.childNodes).find((node) => node.nodeType !== 3 || (node.nodeValue ?? '').trim())
+    const lead = first instanceof HTMLElement && first.tagName === 'H5' ? first : null
+    lead?.remove()
+    let heading = this.headingOf(block)
+    if (lead && (lead.textContent ?? '').trim()) {
+      if (!heading) {
+        heading = document.createElement('h5')
+        block.before(heading)
+      }
+      heading.innerHTML = lead.innerHTML
+    } else {
+      heading?.remove()
+    }
+    block.replaceChildren(tpl.content)
   }
 
   private onReaderMouseDown = (event: MouseEvent) => {
@@ -405,7 +439,7 @@ export class ChapterEditorController {
     if (target.closest('a, button, .pp-cue')) return
     event.preventDefault()
     this.commit()
-    this.activateParagraph(block, { left: event.clientX, top: event.clientY })
+    this.activateParagraph(block, { left: event.clientX, top: event.clientY }, !!target.closest('h5'))
   }
 
   private onReaderClick = (event: MouseEvent) => {
@@ -413,9 +447,11 @@ export class ChapterEditorController {
     if (link && this.active?.kind === 'paragraph' && this.active.wrapper.contains(link)) event.preventDefault()
   }
 
-  private activateParagraph(block: HTMLElement, coords: { left: number; top: number }) {
+  private activateParagraph(block: HTMLElement, coords: { left: number; top: number }, onHeading = false) {
     const index = this.paragraphs().indexOf(block)
-    const html = block.innerHTML
+    const heading = this.headingOf(block)
+    // The page may have added attributes to the heading (font scaling); edit just its text.
+    const html = (heading ? `<h5>${heading.innerHTML}</h5>` : '') + block.innerHTML
     if (index < 0) return
     if (!roundTrips(html, document)) {
       this.showNotice('This paragraph has markup the inline editor cannot keep intact.')
@@ -426,6 +462,7 @@ export class ChapterEditorController {
     const host = document.createElement('div')
     host.className = 'rbt-verse-editor'
     block.replaceChildren(host)
+    if (heading) heading.hidden = true
 
     const view = new EditorView({ mount: host }, {
       state: EditorState.create({
@@ -440,10 +477,13 @@ export class ChapterEditorController {
     })
     this.active = {
       kind: 'paragraph', verse: block.dataset.v ?? '', index, wrapper: block, view,
-      refHtml: '', startHtml: html, originalNodes,
+      refHtml: '', startHtml: html, originalNodes, heading,
     }
     const hit = view.posAtCoords(coords)
-    view.dispatch(view.state.tr.setSelection(hit ? TextSelection.near(view.state.doc.resolve(hit.pos)) : TextSelection.atEnd(view.state.doc)))
+    let selection = hit ? TextSelection.near(view.state.doc.resolve(hit.pos)) : TextSelection.atEnd(view.state.doc)
+    // The editor's copy of a clicked heading sits a little lower (its margin), so the click can miss it.
+    if (onHeading && selection.$from.index(0) !== 0) selection = TextSelection.create(view.state.doc, view.state.doc.firstChild!.nodeSize - 1)
+    view.dispatch(view.state.tr.setSelection(selection))
     view.focus()
     this.emit()
   }
@@ -476,7 +516,7 @@ export class ChapterEditorController {
         saves.status = saves.pending.size ? 'saving' : 'saved'
         // Show the server's version (cues rebuilt, anchors re-added) unless it's being edited.
         const block = this.paragraphs()[index]
-        if (block && this.active?.wrapper !== block) block.innerHTML = result.html
+        if (block && this.active?.wrapper !== block) this.renderParagraph(block, result.html)
       } else if (result.status === 'conflict') {
         saves.status = 'conflict'
         saves.pending.clear()
@@ -561,7 +601,7 @@ export class ChapterEditorController {
       },
     })
 
-    this.active = { kind: 'verse', verse, index: -1, wrapper, view, refHtml, startHtml: record.target, originalNodes }
+    this.active = { kind: 'verse', verse, index: -1, wrapper, view, refHtml, startHtml: record.target, originalNodes, heading: null }
     const hit = view.posAtCoords(coords)
     const selection = hit
       ? TextSelection.near(view.state.doc.resolve(hit.pos))
@@ -609,7 +649,9 @@ export class ChapterEditorController {
   runTool(tool: Tool) {
     const view = this.active?.view
     if (!view) return
-    const tr = applyTool(view.state, tool)
+    const tr = this.active?.kind === 'paragraph' && tool.kind === 'block' && tool.spec.tag === 'h5'
+      ? toggleParagraphHeading(view.state, tool.spec)
+      : applyTool(view.state, tool)
     if (tr) view.dispatch(tr)
     view.focus()
   }
@@ -656,11 +698,12 @@ export class ChapterEditorController {
       if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
     }
     active.view.destroy()
+    if (active.heading) active.heading.hidden = false
     if (sameHtml(html, active.startHtml, document)) {
       // Nothing changed this session: put the original DOM back (keeps footnote/tooltip listeners).
       active.wrapper.replaceChildren(...active.originalNodes)
     } else if (active.kind === 'paragraph') {
-      active.wrapper.innerHTML = html
+      this.renderParagraph(active.wrapper, html)
     } else {
       this.render(active.verse, active.wrapper, active.refHtml)
     }
@@ -694,7 +737,7 @@ export class ChapterEditorController {
     } else {
       this.saveParagraph(entry.index, entry.html)
       target = this.paragraphs()[entry.index]
-      if (target) target.innerHTML = entry.html
+      if (target) this.renderParagraph(target, entry.html)
       this.showNotice('Paraphrase: last edit undone.')
     }
     // The verse wrapper is display: contents, so measure what's inside it.

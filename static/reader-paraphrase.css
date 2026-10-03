@@ -101,16 +101,12 @@
     max-width: 46rem;
     margin: 0 auto;
     padding: 0 0 2rem;
-    font-size: 1.08em;
+    font-size: 1.145em;
     line-height: 1.75;
 }
 
 .rbt-paraphrase p {
     margin: 0 0 1.05em;
-}
-
-.rbt-paraphrase .pp-lead {
-    font-size: 1.06em;
 }
 
 .rbt-paraphrase .pp-indent {

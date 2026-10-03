@@ -237,6 +237,32 @@ class EditBlockTests(SimpleTestCase):
         with self.assertRaises(IndexError):
             pp.replace_block(STORED, 3, 'x')
 
+    def test_leading_h5_becomes_the_heading_above_the_paragraph(self):
+        html, block = pp.replace_block(STORED, 2, '<h5><span style="color: blue;">The Lamb</span> <b onclick="x()">x</b></h5>Third.')
+        self.assertIn('<h5><span style="color: blue;">The Lamb</span> x</h5><p data-v="4">', html)
+        self.assertTrue(block.startswith('<h5>'))
+        self.assertIn('id="v4"', block)
+        # Headings don't count as paragraphs, so indexes stay put.
+        html, block = pp.replace_block(html, 2, '<h5>The Lamb of God</h5>Third, edited.')
+        self.assertEqual(html.count('<h5>'), 1)
+        self.assertIn('<h5>The Lamb of God</h5><p data-v="4">', html)
+        self.assertIn('Third, edited.', block)
+        # Untouched paragraphs keep no heading.
+        self.assertNotIn('<h5>', pp.editor_html(pp.editable_blocks(pp.BeautifulSoup(html, 'html.parser'))[1]))
+
+    def test_no_or_empty_heading_removes_it(self):
+        with_heading, _ = pp.replace_block(STORED, 1, '<h5>Quote</h5>Second')
+        self.assertIn('<h5>Quote</h5><blockquote', with_heading)
+        for edit in ('Second', '<h5> </h5>Second', '<h5><span style="color: blue;"></span></h5>Second'):
+            html, block = pp.replace_block(with_heading, 1, edit)
+            self.assertNotIn('<h5>', html)
+            self.assertFalse(block.startswith('<h5>'))
+
+    def test_heading_text_in_mid_paragraph_stays_text(self):
+        html, _ = pp.replace_block(STORED, 2, 'Before <h5>Middle</h5> after')
+        self.assertNotIn('<h5>', html)
+        self.assertIn('Before Middle after', html)
+
     @mock.patch.object(api.transaction, 'atomic', mock.MagicMock())
     def test_endpoint(self):
         factory = RequestFactory()

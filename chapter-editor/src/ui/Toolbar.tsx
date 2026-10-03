@@ -16,8 +16,8 @@ interface Props {
 
 /** Floating toolbar pinned above the caret/selection of the verse being edited. */
 export function Toolbar({ controller, kind, verse, view, state }: Props) {
-  // Headings and sun blocks belong to verses; a paraphrase paragraph only takes inline formatting.
-  const tools = kind === 'paragraph' ? TOOLS.filter((tool) => tool.kind !== 'block') : TOOLS
+  // Sun blocks belong to verses; in a paraphrase paragraph h5 is the heading above it.
+  const tools = kind === 'paragraph' ? TOOLS.filter((tool) => tool.id !== 'sun') : TOOLS
   const { refs, floatingStyles, update } = useFloating({
     placement: 'top',
     strategy: 'fixed',

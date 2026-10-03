@@ -4,7 +4,7 @@
  *
  * With an empty selection a tool applies to the word under the caret.
  */
-import type { Mark, MarkType } from 'prosemirror-model'
+import { Fragment, type Mark, type MarkType, type Node as PMNode } from 'prosemirror-model'
 import { EditorState, TextSelection, type Transaction } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
 import { newMarkKey, schema, type ElAttrs, type ElSpec } from './schema'
@@ -151,6 +151,51 @@ function toggleBlock(state: EditorState, spec: ElSpec): Transaction | null {
   const $inner = tr.doc.resolve(tr.mapping.map(range.from, 1))
   tr.setNodeMarkup($inner.before(), undefined, { tag: spec.tag, attrs: spec.attrs })
   return tr.scrollIntoView()
+}
+
+const HEADING_PLACEHOLDER = 'Heading'
+
+/** Size of the atoms (verse anchors) a block opens with, before its first text. */
+function leadingAtomsSize(block: PMNode): number {
+  let size = 0
+  for (let i = 0; i < block.childCount && block.child(i).type === schema.nodes.raw_inline; i++) size += block.child(i).nodeSize
+  return size
+}
+
+/**
+ * The h5 tool in a paraphrase paragraph, which can have one heading: the line above it
+ * (the editor's first block). In the heading it turns it back into the paragraph's opening
+ * text; on text at the very start of the paragraph it lifts that text into the heading;
+ * anywhere else it adds a heading with its placeholder text selected, ready to type over
+ * (or moves to the existing one).
+ */
+export function toggleParagraphHeading(state: EditorState, spec: ElSpec): Transaction {
+  const first = state.doc.firstChild!
+  const hasHeading = first.type === schema.nodes.block && first.attrs.tag === spec.tag
+  const inFirst = state.selection.$from.index(0) === 0
+  if (hasHeading && inFirst) {
+    if (state.doc.childCount === 1) return state.tr.setNodeMarkup(0, undefined, { tag: null, attrs: {} })
+    const tr = state.tr.delete(0, first.nodeSize)
+    const at = 1 + leadingAtomsSize(tr.doc.firstChild!)
+    tr.insert(at, first.content.append(Fragment.from(schema.text(' '))))
+    return tr.setSelection(TextSelection.create(tr.doc, at + first.content.size)).scrollIntoView()
+  }
+  if (hasHeading) return state.tr.setSelection(TextSelection.create(state.doc, first.nodeSize - 1)).scrollIntoView()
+
+  const range = targetRange(state)
+  if (range && inFirst && range.from <= 1 + leadingAtomsSize(first) && state.doc.resolve(range.to).index(0) === 0) {
+    const lifted = first.content.cut(range.from - 1, range.to - 1)
+    const tr = state.tr.delete(range.from, range.to)
+    // Drop the space the lifted words leave at the start of the paragraph.
+    const next = tr.doc.resolve(range.from).nodeAfter
+    if (next?.isText && next.text?.startsWith(' ')) tr.delete(range.from, range.from + 1)
+    tr.insert(0, schema.nodes.block.create({ tag: spec.tag, attrs: spec.attrs }, lifted))
+    return tr.setSelection(TextSelection.create(tr.doc, 1 + lifted.size)).scrollIntoView()
+  }
+  // Not an empty heading: Chrome puts text typed into an empty <h5> inside a <p> after it.
+  const placeholder = schema.text(HEADING_PLACEHOLDER)
+  const tr = state.tr.insert(0, schema.nodes.block.create({ tag: spec.tag, attrs: spec.attrs }, placeholder))
+  return tr.setSelection(TextSelection.create(tr.doc, 1, 1 + placeholder.nodeSize)).scrollIntoView()
 }
 
 /**
