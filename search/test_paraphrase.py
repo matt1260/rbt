@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest import mock
 
+from bs4 import BeautifulSoup
 from django.test import RequestFactory, SimpleTestCase
 
 from search import paraphrase as pp
@@ -83,6 +84,70 @@ class FinalizeOutputTests(SimpleTestCase):
         html, missing = self.finalize('<p data-v="1-x">a</p><p data-v="4-2">b</p>')
         self.assertNotIn('data-v="1-x"', html)
         self.assertEqual(missing, [1, 2, 3, 4])
+
+
+QUOTE = ('"And I heard <span style="color: #ff00aa;">a mega voice</span> from out of '
+         '<span style="color: blue;">the Throne</span>!"')
+NOTED = pp.Media(
+    n=1, verse='2', kind='image', caption='', title='',
+    html=(f'<div class="tooltip-container"><img src="a.jpg"/><div class="tooltip"><b>The Beat</b>'
+          f'<p>Wreathed Ones: a man sent out.</p><p>{QUOTE}</p>(Revelation 21:3 RBT)'
+          '<center><img src="inner.png"/></center></div></div>'),
+)
+
+
+class NoteVerseTests(SimpleTestCase):
+    """Verses quoted in media notes are paraphrased via exact-match rbt-note edits."""
+
+    def finalize(self, notes):
+        html, _ = pp.finalize_output(f'<p data-v="1-2">Body <rbt-media n="1"></rbt-media></p>{notes}', [NOTED], ['1', '2'])
+        return html
+
+    def note(self, html):
+        return BeautifulSoup(html, 'html.parser').select_one('template[data-media="1"]').decode_contents()
+
+    def test_prompt_sends_notes_that_quote_verses(self):
+        prompt = pp.build_user_prompt('John', 1, '[1] a', [NOTED, MEDIA[0]])
+        self.assertIn('NOTE 1:\n<b>The Beat</b>', prompt)
+        self.assertIn('the Throne</span>!"', prompt)
+        self.assertNotIn('NOTE 2', prompt)  # MEDIA[0]'s note quotes nothing
+
+    def test_quoted_verse_is_replaced_and_the_rest_kept(self):
+        html = self.finalize(
+            f'<rbt-note n="1"><rbt-find>{QUOTE}</rbt-find>'
+            '<rbt-replace>"I heard <span style="color: #ff00aa;">a great voice</span> '
+            '<b onclick="x()">from</b> the Throne!"<script>alert(1)</script></rbt-replace></rbt-note>'
+        )
+        note = self.note(html)
+        self.assertIn('a great voice', note)
+        self.assertNotIn('mega voice', note)
+        self.assertIn('<b>from</b>', note)
+        self.assertNotIn('onclick', html)
+        self.assertNotIn('alert', html)
+        for kept in ('<b>The Beat</b>', 'Wreathed Ones: a man sent out.', '(Revelation 21:3 RBT)', 'inner.png', 'a.jpg'):
+            self.assertIn(kept, note)
+        self.assertNotIn('rbt-', html.replace('rbt-paraphrase', ''))  # no blocks left in the chapter
+        self.assertIn('Body', html)
+
+    def test_passages_that_do_not_match_exactly_are_skipped(self):
+        for edit in (
+            '<rbt-note n="1"><rbt-find>And I heard a mega voice</rbt-find><rbt-replace>X</rbt-replace></rbt-note>',  # tags missing
+            '<rbt-note n="1"><rbt-find>sent out</rbt-find><rbt-replace>X</rbt-replace></rbt-note>',  # too short
+            '<rbt-note n="1"><rbt-find><center><img src="inner.png"/></center></rbt-find><rbt-replace>X</rbt-replace></rbt-note>',
+            f'<rbt-note n="9"><rbt-find>{QUOTE}</rbt-find><rbt-replace>X</rbt-replace></rbt-note>',  # no such media
+        ):
+            note = self.note(self.finalize(edit))
+            self.assertIn('mega voice', note)
+            self.assertIn('inner.png', note)
+
+    def test_whitespace_differences_still_match(self):
+        spaced = QUOTE.replace(' from out of ', '\n   from out of\n ')
+        note = self.note(self.finalize(f'<rbt-note n="1"><rbt-find>{spaced}</rbt-find><rbt-replace>"Paraphrased!"</rbt-replace></rbt-note>'))
+        self.assertIn('"Paraphrased!"', note)
+
+    def test_unclosed_note_block_does_not_leak_into_the_chapter(self):
+        html = self.finalize('<rbt-note n="1"><rbt-find>stray text')
+        self.assertNotIn('stray text', html)
 
 
 class SourceTests(SimpleTestCase):
@@ -248,7 +313,7 @@ class EditBlockTests(SimpleTestCase):
         self.assertIn('<h5>The Lamb of God</h5><p data-v="4">', html)
         self.assertIn('Third, edited.', block)
         # Untouched paragraphs keep no heading.
-        self.assertNotIn('<h5>', pp.editor_html(pp.editable_blocks(pp.BeautifulSoup(html, 'html.parser'))[1]))
+        self.assertNotIn('<h5>', pp.editor_html(pp.editable_blocks(BeautifulSoup(html, 'html.parser'))[1]))
 
     def test_no_or_empty_heading_removes_it(self):
         with_heading, _ = pp.replace_block(STORED, 1, '<h5>Quote</h5>Second')

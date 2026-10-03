@@ -8,7 +8,8 @@ compare the results and publish one. Every generation is kept in ChapterParaphra
 Pipeline for one generation:
   1. prepare_source(): the chapter's stored RBT verse HTML (new_testament.nt.rbt) is
      reduced to text plus the color/hayah spans worth keeping. Images, videos and
-     tooltip blocks are pulled out as numbered media items with their captions.
+     tooltip blocks are pulled out as numbered media items with their captions; notes
+     that quote verses are sent whole so those verses are paraphrased too.
   2. build_system_prompt(): the editable preset (style + word guidance + the shared
      translation glossary) followed by OUTPUT_RULES, which the page depends on and
      staff can't edit.
@@ -19,7 +20,8 @@ Pipeline for one generation:
      opens the image and its notes in a modal, static/reader-paraphrase.js), keep the
      original media HTML in inert <template>s (so a model can never alter an image URL and
      nothing loads until opened), add cues for media the model skipped, add #vN anchors,
-     and list verses no data-v range covers.
+     and list verses no data-v range covers. Verses quoted in notes are swapped for their
+     paraphrases only where the model copied the passage exactly (apply_note_edits).
 """
 import hashlib
 import logging
@@ -28,7 +30,7 @@ import re
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as replace_dataclass
 from datetime import timedelta
 
 import nh3
@@ -72,11 +74,12 @@ FIDELITY (required):
 
 OUTPUT FORMAT (required; the page depends on it):
 - Return only an HTML fragment. No markdown, no code fences, no <html>, <head>, <body>, <style> or <script>.
-- Allowed elements: p, blockquote, ul, ol, li, em, strong, span, br, hr, rbt-media. No headings of any kind: the page flows as paragraphs.
+- Allowed elements: p, blockquote, ul, ol, li, em, strong, span, br, hr, rbt-media, and rbt-note after the chapter (below). No headings of any kind: the page flows as paragraphs.
 - Put data-v on every paragraph, blockquote or list that carries verse content, giving the verse range it covers: <p data-v="3-5">...</p> or <p data-v="7">...</p>. Together the ranges must cover every verse of the chapter.
 - Keep the RBT color coding where it still fits by reusing the source's spans exactly: <span style="color: blue;"> and <span style="color: #ff00aa;">. Keep <span class="hayah"> as it is.
 - Optional classes: <p class="pp-indent"> for an indented paragraph, <blockquote class="pp-poetry"> for poetic or quoted lines (use <br> between lines).
 - Mark every media item exactly once with an inline marker inside the paragraph, right after the sentence it best illustrates (after the sentence's closing punctuation): <rbt-media n="N"></rbt-media>. Readers see a small image cue there that opens the image and its notes, so the text itself stays uninterrupted; never put a marker between paragraphs.
+- If the input has a NOTES section: after the chapter, paraphrase the Bible verses quoted in those notes the same way as the chapter, one block per quoted passage: <rbt-note n="N"><rbt-find>the passage exactly as it appears in note N's HTML, copied character for character with its tags</rbt-find><rbt-replace>its paraphrase</rbt-replace></rbt-note>. Only verse text: leave commentary, titles, definitions and references such as (Revelation 21:3 RBT) out of rbt-find. Keep the color spans where they still fit. Skip notes that quote no verses.
 - Do not invent content, add commentary or explain your choices.
 """.strip()
 
@@ -97,6 +100,14 @@ ALLOWED_CLASSES = {
 }
 ALLOWED_STYLES = {'color: blue;', 'color: #ff00aa;'}
 VERSE_RANGE = re.compile(r'^(\d+)(?:-(\d+))?$')
+
+# Media notes worth sending whole, for the verses they quote: RBT color spans or a reference.
+NOTE_VERSE_HINT = re.compile(r'color:\s*(?:blue|#ff00aa)|\b\d+:\d+\b|\bRBT\b', re.I)
+NOTE_EDIT = re.compile(r'<rbt-note\s+n="(\d+)"\s*>(.*?)</rbt-note>', re.S | re.I)
+NOTE_FIND = re.compile(r'<rbt-find>(.*?)</rbt-find>', re.S | re.I)
+NOTE_REPLACE = re.compile(r'<rbt-replace>(.*?)</rbt-replace>', re.S | re.I)
+# A shorter passage could match the wrong words.
+MIN_NOTE_FIND_CHARS = 12
 
 
 # ---------------------------------------------------------------------------
@@ -220,9 +231,71 @@ def build_user_prompt(book, chapter, source_text, media):
         for item in media:
             caption = f': "{item.caption}"' if item.caption else ''
             parts.append(f'{item.n}. {item.kind}, originally after verse {item.verse}{caption}')
+        notes = [(item.n, note) for item in media if (note := prompt_note(item))]
+        if notes:
+            parts += ['', 'NOTES (the notes shown with media items; paraphrase the verses they quote with rbt-note blocks):']
+            for n, note in notes:
+                parts += [f'NOTE {n}:', note]
     else:
         parts += ['', 'MEDIA: none']
     return '\n'.join(parts)
+
+
+def _canonical(html):
+    """HTML as BeautifulSoup writes it, whitespace runs collapsed: the form notes are
+    shown to the model in and the form its copied passages are matched in."""
+    return ' '.join(str(BeautifulSoup(html, 'html.parser')).split())
+
+
+def _note_element(soup):
+    return soup.select_one('.tooltip, .tooltip2')
+
+
+def prompt_note(item):
+    """The note's HTML for the prompt, or '' when it quotes no verses."""
+    note = _note_element(BeautifulSoup(item.html, 'html.parser'))
+    if note is None:
+        return ''
+    html = _canonical(note.decode_contents())
+    return html if NOTE_VERSE_HINT.search(html) else ''
+
+
+def extract_note_edits(raw):
+    """(raw without the rbt-note blocks, [(n, find, replace)]) from model output."""
+    edits = []
+    for match in NOTE_EDIT.finditer(raw):
+        find, replace = NOTE_FIND.search(match.group(2)), NOTE_REPLACE.search(match.group(2))
+        if find and replace:
+            edits.append((int(match.group(1)), _canonical(find.group(1)), replace.group(1)))
+    return NOTE_EDIT.sub('', raw), edits
+
+
+def apply_note_edits(media, edits):
+    """Media with the quoted verses in their notes replaced by the model's paraphrases.
+    A passage is replaced only where it matches the note exactly (once), so commentary,
+    titles and images can't be altered; the rest are skipped and logged."""
+    by_n = {item.n: item for item in media}
+    updated = {}
+    for n, find, replace in edits:
+        item = updated.get(n) or by_n.get(n)
+        if item is None or len(BeautifulSoup(find, 'html.parser').get_text().strip()) < MIN_NOTE_FIND_CHARS or re.search(r'<(img|video|iframe)\b', find):
+            logger.info('[PARAPHRASE] note edit for media %s skipped', n)
+            continue
+        soup = BeautifulSoup(item.html, 'html.parser')
+        note = _note_element(soup)
+        current = _canonical(note.decode_contents()) if note is not None else ''
+        if find not in current:
+            logger.info('[PARAPHRASE] note edit for media %s did not match the note', n)
+            continue
+        clean = nh3.clean(
+            replace, tags={'span', 'em', 'strong', 'b', 'i', 'br'}, attributes={'span': {'style', 'class'}},
+            attribute_filter=_keep_source_attr, strip_comments=True, link_rel=None,
+            clean_content_tags={'script', 'style'},
+        )
+        note.clear()
+        note.append(BeautifulSoup(current.replace(find, clean, 1), 'html.parser'))
+        updated[n] = replace_dataclass(item, html=str(soup))
+    return [updated.get(item.n, item) for item in media]
 
 
 def glossary_block():
@@ -350,15 +423,18 @@ def _attach_cue(block, cue):
 
 def finalize_output(raw, media, verse_numbers):
     """Sanitised reader HTML and the list of verses no data-v range covers."""
+    raw, note_edits = extract_note_edits(_strip_fences(raw))
+    media = apply_note_edits(media, note_edits)
     clean = nh3.clean(
-        _strip_fences(raw),
+        raw,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
         attribute_filter=_keep_output_attr,
         strip_comments=True,
         link_rel=None,
-        # Headings are dropped with their text: the paraphrase flows as paragraphs.
-        clean_content_tags={'script', 'style', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'},
+        # Headings are dropped with their text: the paraphrase flows as paragraphs. A
+        # malformed rbt-note block goes too rather than leaking into the chapter.
+        clean_content_tags={'script', 'style', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'rbt-note'},
     )
     soup = BeautifulSoup(clean, 'html.parser')
     by_number = {item.n: item for item in media}
