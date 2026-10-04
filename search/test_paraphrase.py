@@ -355,3 +355,47 @@ class EditBlockTests(SimpleTestCase):
 
             out_of_range = post({'uid': uid, 'index': 9, 'html': 'x', 'base_hash': pp.html_hash(row.html)})
             self.assertEqual(out_of_range.status_code, 400)
+
+
+class EditNoteTests(SimpleTestCase):
+    def test_replaces_one_note_and_keeps_its_markup(self):
+        edited = ('<b>Seed</b> rewritten <span style="color: blue;">notes</span><br><center><img src="x.png" onerror="y()"></center>'
+                  '<script>alert(1)</script><a href="javascript:z()">link</a>')
+        html, note = pp.replace_note(STORED, 1, edited)
+        self.assertIn('rewritten <span style="color: blue;">notes</span>', note)
+        self.assertIn('<center><img src="x.png"/></center>', note)
+        for gone in ('onerror', 'alert', 'javascript'):
+            self.assertNotIn(gone, html)
+        self.assertIn('<template data-media="2">', html)  # the other media item untouched
+        self.assertIn('src="a.jpg"', html)                # the image beside the notes untouched
+        self.assertEqual(html.split('<div class="pp-media-store"')[0], STORED.split('<div class="pp-media-store"')[0])
+
+    def test_media_without_notes(self):
+        with self.assertRaises(LookupError):
+            pp.replace_note(STORED, 2, 'x')  # a bare video: no .tooltip
+        with self.assertRaises(LookupError):
+            pp.replace_note(STORED, 7, 'x')
+
+    @mock.patch.object(api.transaction, 'atomic', mock.MagicMock())
+    def test_endpoint(self):
+        factory = RequestFactory()
+        row = SimpleNamespace(html=STORED, book='John', chapter=1, save=mock.Mock())
+        uid = '00000000-0000-0000-0000-000000000001'
+
+        def post(payload, user=None):
+            request = factory.post('/x/', data=json.dumps(payload), content_type='application/json')
+            request.user = user or staff()
+            return api.edit_note(request)
+
+        self.assertEqual(post({'uid': uid, 'n': 1, 'html': 'x', 'base_hash': 'h'}, user=staff(False)).status_code, 403)
+        self.assertEqual(post({'uid': uid, 'n': '1', 'html': 'x', 'base_hash': 'h'}).status_code, 400)
+        with mock.patch.object(api.ChapterParaphrase.objects, 'select_for_update') as select:
+            select.return_value.filter.return_value.first.return_value = row
+            self.assertEqual(post({'uid': uid, 'n': 1, 'html': 'x', 'base_hash': 'stale'}).status_code, 409)
+            row.save.assert_not_called()
+            good = post({'uid': uid, 'n': 1, 'html': 'New notes', 'base_hash': pp.html_hash(STORED)})
+            self.assertEqual(good.status_code, 200)
+            data = json.loads(good.content)
+            self.assertEqual(data['html'], 'New notes')
+            self.assertEqual(data['hash'], pp.html_hash(row.html))
+            self.assertEqual(post({'uid': uid, 'n': 2, 'html': 'x', 'base_hash': pp.html_hash(row.html)}).status_code, 400)

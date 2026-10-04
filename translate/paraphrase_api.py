@@ -286,3 +286,37 @@ def edit_block(request):
             row.save(update_fields=['html', 'updated_at'])
     logger.info('[PARAPHRASE] %s edited %s %s paragraph %s', request.user.username, row.book, row.chapter, index)
     return JsonResponse({'hash': paraphrase.html_hash(row.html), 'html': block_html})
+
+
+@require_POST
+@staff_json
+def edit_note(request):
+    """
+    POST JSON {uid, n, html, base_hash} → {hash, html}: replace the notes of media item n
+    (shown in the reader's image modal) of a paraphrase, edited inline on the chapter page.
+    Conflicts are handled as in edit_block.
+    """
+    data = _json_body(request) or {}
+    if not _is_uuid(data.get('uid')):
+        return JsonResponse({'error': 'uid is required.'}, status=400)
+    n, html, base_hash = data.get('n'), data.get('html'), data.get('base_hash')
+    if not isinstance(n, int) or isinstance(n, bool) or not isinstance(html, str) or not isinstance(base_hash, str):
+        return JsonResponse({'error': 'n, html and base_hash are required.'}, status=400)
+    if len(html) > 100_000:
+        return JsonResponse({'error': 'Note is too long.'}, status=400)
+
+    with transaction.atomic():
+        row = ChapterParaphrase.objects.select_for_update().filter(uid=data['uid']).first()
+        if not row:
+            return JsonResponse({'error': 'Not found.'}, status=404)
+        if paraphrase.html_hash(row.html) != base_hash:
+            return JsonResponse({'error': 'This paraphrase was changed elsewhere.', 'hash': paraphrase.html_hash(row.html)}, status=409)
+        try:
+            new_html, note_html = paraphrase.replace_note(row.html, n, html)
+        except LookupError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+        if new_html != row.html:
+            row.html = new_html
+            row.save(update_fields=['html', 'updated_at'])
+    logger.info('[PARAPHRASE] %s edited %s %s note %s', request.user.username, row.book, row.chapter, n)
+    return JsonResponse({'hash': paraphrase.html_hash(row.html), 'html': note_html})

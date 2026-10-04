@@ -99,6 +99,26 @@ export class Api {
     return { status: 'error', message: data.error || `Save failed (${response.status})` }
   }
 
+  /** Replace the notes of one media item of a published paraphrase (translate/paraphrase_api.py edit_note). */
+  async saveParaphraseNote(uid: string, n: number, html: string, baseHash: string): Promise<BlockSaveResult> {
+    let response: Response
+    try {
+      response = await fetch(`${this.config.paraphraseApiBase}edit-note/`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: html.length < 60_000,
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.config.csrf },
+        body: JSON.stringify({ uid, n, html, base_hash: baseHash }),
+      })
+    } catch {
+      return { status: 'error', message: 'Network error' }
+    }
+    const data = await response.json().catch(() => ({}))
+    if (response.ok) return { status: 'ok', hash: data.hash, html: data.html }
+    if (response.status === 409) return { status: 'conflict' }
+    return { status: 'error', message: data.error || `Save failed (${response.status})` }
+  }
+
   editUrl(verse: string): string {
     const params = new URLSearchParams({ book: this.config.book, chapter: this.config.chapter, verse })
     return `${this.config.editUrl}?${params}`

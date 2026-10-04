@@ -15,7 +15,7 @@ function summary(snapshot: Snapshot): { text: string; tone: 'idle' | 'busy' | 'o
     return { text: `Saving ${what}…`, tone: 'busy' }
   }
   if (snapshot.statuses.some((s) => s.status === 'saved')) return { text: 'All changes saved', tone: 'ok' }
-  if (snapshot.active) return { text: `Editing verse ${snapshot.active.verse}`, tone: 'idle' }
+  if (snapshot.active) return { text: snapshot.active.kind === 'note' ? 'Editing notes' : `Editing verse ${snapshot.active.verse}`, tone: 'idle' }
   return { text: 'Click any word to edit', tone: 'idle' }
 }
 

@@ -16,7 +16,9 @@
 
 .rbt-edit-mode #paraphrase-area .rbt-verse,
 .rbt-edit-mode #reader-paraphrase[data-uid] > p,
-.rbt-edit-mode #reader-paraphrase[data-uid] > blockquote {
+.rbt-edit-mode #reader-paraphrase[data-uid] > blockquote,
+.rbt-edit-mode #reader-paraphrase[data-uid] > h5,
+.rbt-edit-mode .pp-modal[data-source="reader"] .pp-modal__text {
   cursor: text;
 }
 

@@ -114,6 +114,9 @@
         }
         modal.classList.toggle('pp-modal--no-text', !textBox.textContent.trim());
         modal.setAttribute('aria-label', cue.getAttribute('aria-label') || 'Image');
+        // The inline editor (staff) edits the notes of the published paraphrase's cues.
+        modal.dataset.media = cue.getAttribute('data-media');
+        modal.dataset.source = cue.closest('#reader-paraphrase') ? 'reader' : 'preview';
         textBox.scrollTop = 0;
     }
 
@@ -190,6 +193,21 @@
             },
             show: function () {
                 show(true, true);
+            },
+            // The stored notes of media item n, as saved (not the modal's display copy).
+            noteHtml: function (n) {
+                var template = reader.querySelector('template[data-media="' + n + '"]');
+                var notes = template && template.content.querySelector('.tooltip, .tooltip2');
+                return notes ? notes.innerHTML : null;
+            },
+            // Replace them (after an inline edit) and refresh the modal if it shows them.
+            setNote: function (n, html) {
+                var template = reader.querySelector('template[data-media="' + n + '"]');
+                var notes = template && template.content.querySelector('.tooltip, .tooltip2');
+                if (notes) notes.innerHTML = html;
+                if (modal && modal.open && modal.dataset.source === 'reader' && modal.dataset.media === String(n) && opener) {
+                    showImage(opener);
+                }
             },
         };
     });

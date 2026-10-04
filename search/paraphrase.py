@@ -589,6 +589,41 @@ def replace_block(html, index, new_inner_html):
     return str(soup).strip(), editor_html(block)
 
 
+# Notes are staff-written verse HTML (images, lists, centred lines), so an edited note keeps
+# that markup; scripts, event handlers and unknown elements are removed.
+NOTE_TAGS = {
+    'a', 'b', 'big', 'blockquote', 'br', 'center', 'code', 'div', 'em', 'font', 'h3', 'h4', 'h5', 'h6', 'hr',
+    'i', 'img', 'li', 'mark', 'ol', 'p', 'q', 's', 'small', 'source', 'span', 'strong', 'sub', 'sup',
+    'table', 'tbody', 'td', 'th', 'thead', 'tr', 'u', 'ul', 'video',
+}
+NOTE_ATTRIBUTES = {
+    '*': {'class', 'style', 'title'},
+    'a': {'href', 'target'},
+    'font': {'color', 'size'},
+    'img': {'src', 'alt', 'width', 'height', 'loading'},
+    'video': {'src', 'controls', 'width', 'height', 'poster', 'autoplay', 'loop', 'muted', 'playsinline'},
+    'source': {'src', 'type'},
+    'td': {'colspan', 'rowspan'},
+    'th': {'colspan', 'rowspan'},
+}
+
+
+def replace_note(html, n, new_html):
+    """The paraphrase HTML with media item `n`'s notes replaced by an edit, and the new notes."""
+    soup = BeautifulSoup(html, 'html.parser')
+    template = soup.select_one(f'.pp-media-store template[data-media="{int(n)}"]')
+    note = _note_element(template) if template is not None else None
+    if note is None:
+        raise LookupError(f'Media {n} has no notes.')
+    clean = nh3.clean(
+        new_html, tags=NOTE_TAGS, attributes=NOTE_ATTRIBUTES, strip_comments=True, link_rel=None,
+        clean_content_tags={'script', 'style'},
+    )
+    note.clear()
+    note.append(BeautifulSoup(clean, 'html.parser'))
+    return str(soup).strip(), note.decode_contents()
+
+
 # ---------------------------------------------------------------------------
 # Providers
 

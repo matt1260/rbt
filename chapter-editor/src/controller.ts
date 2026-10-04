@@ -46,11 +46,11 @@ interface VerseRecord {
 }
 
 interface ActiveEditor {
-  /** A verse of the word-for-word text, or a paragraph of the published paraphrase. */
-  kind: 'verse' | 'paragraph'
+  /** A verse of the word-for-word text, or a paragraph or media notes of the published paraphrase. */
+  kind: EditKind
   /** Verse number; for a paragraph, the verse range it covers (for labels only). */
   verse: string
-  /** For a paragraph: its index among the paraphrase's top-level paragraphs. */
+  /** For a paragraph: its index among the paraphrase's top-level paragraphs; for notes, the media number. */
   index: number
   wrapper: HTMLElement
   view: EditorView
@@ -64,7 +64,10 @@ interface ActiveEditor {
 }
 
 /** A finished editing session, undoable after leaving the verse: the HTML before it. */
-type UndoEntry = { kind: 'verse'; verse: string; html: string } | { kind: 'paragraph'; index: number; html: string }
+type EditKind = 'verse' | ParaphrasePart
+/** The parts of the published paraphrase edited in place: a paragraph, or the notes shown with an image. */
+type ParaphrasePart = 'paragraph' | 'note'
+type UndoEntry = { kind: 'verse'; verse: string; html: string } | { kind: ParaphrasePart; index: number; html: string }
 
 export interface VerseStatus {
   /** 'verse' entries are keyed by verse number; there is one 'paraphrase' entry. */
@@ -79,7 +82,7 @@ export interface Snapshot {
   editMode: boolean
   loading: boolean
   loadError: string | null
-  active: { kind: 'verse' | 'paragraph'; verse: string; view: EditorView; state: EditorState } | null
+  active: { kind: EditKind; verse: string; view: EditorView; state: EditorState } | null
   statuses: VerseStatus[]
   /** Something to undo: in the open editor, or an earlier edit to a verse/paragraph. */
   canUndo: boolean
@@ -106,6 +109,12 @@ function writeEditModePreference(on: boolean): void {
 function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null
   return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)
+}
+
+const PART_LABEL: Record<ParaphrasePart, string> = { paragraph: 'Paragraph', note: 'Notes' }
+
+function partKey(kind: ParaphrasePart, index: number): string {
+  return `${kind}:${index}`
 }
 
 /** Where the verse number sits inside the editor: after the leading <h5>, else at the start. */
@@ -140,10 +149,13 @@ export class ChapterEditorController {
   private interlinearCache = new Map<string, Promise<InterlinearWord[]>>()
   /** The published paraphrase (#reader-paraphrase); its paragraphs are editable too. */
   private reader = document.getElementById('reader-paraphrase')
-  /** Paragraph saves run one at a time: each changes the whole paraphrase's hash. */
-  private paragraphSaves = {
-    pending: new Map<number, string>(),
-    saved: new Map<number, string>(),
+  /**
+   * Paraphrase saves (paragraphs and notes) run one at a time: each changes the whole
+   * paraphrase's hash. Keyed by partKey().
+   */
+  private paraphraseSaves = {
+    pending: new Map<string, { kind: ParaphrasePart; index: number; html: string }>(),
+    saved: new Map<string, string>(),
     inFlight: false,
     status: undefined as SaveStatus | undefined,
     error: undefined as string | undefined,
@@ -182,8 +194,8 @@ export class ChapterEditorController {
         conflict: record.conflict && { html: record.conflict.html, mine: record.conflict.mine },
       })
     }
-    if (this.paragraphSaves.status) {
-      statuses.push({ kind: 'paraphrase', verse: 'paraphrase', status: this.paragraphSaves.status, error: this.paragraphSaves.error })
+    if (this.paraphraseSaves.status) {
+      statuses.push({ kind: 'paraphrase', verse: 'paraphrase', status: this.paraphraseSaves.status, error: this.paraphraseSaves.error })
     }
     return {
       editMode: this.editMode,
@@ -219,6 +231,7 @@ export class ChapterEditorController {
       document.addEventListener('mousedown', this.onDocumentMouseDown, true)
       this.reader?.addEventListener('mousedown', this.onReaderMouseDown)
       this.reader?.addEventListener('click', this.onReaderClick)
+      document.addEventListener('mousedown', this.onNoteMouseDown)
       this.pointVerseRefsAt('edit')
       if (!this.verses.size) void this.load()
     } else {
@@ -230,6 +243,7 @@ export class ChapterEditorController {
       document.removeEventListener('mousedown', this.onDocumentMouseDown, true)
       this.reader?.removeEventListener('mousedown', this.onReaderMouseDown)
       this.reader?.removeEventListener('click', this.onReaderClick)
+      document.removeEventListener('mousedown', this.onNoteMouseDown)
       this.pointVerseRefsAt('public')
       this.hover = null
     }
@@ -338,8 +352,8 @@ export class ChapterEditorController {
     for (const record of this.verses.values()) {
       if (record.pending !== undefined || record.status === 'error' || record.status === 'conflict') return true
     }
-    const paragraphs = this.paragraphSaves
-    return paragraphs.pending.size > 0 || paragraphs.status === 'error' || paragraphs.status === 'conflict'
+    const saves = this.paraphraseSaves
+    return saves.pending.size > 0 || saves.status === 'error' || saves.status === 'conflict'
   }
 
   // --- verse ref hover (interlinear popup) ------------------------------------
@@ -457,7 +471,8 @@ export class ChapterEditorController {
       this.showNotice('This paragraph has markup the inline editor cannot keep intact.')
       return
     }
-    if (!this.paragraphSaves.saved.has(index)) this.paragraphSaves.saved.set(index, html)
+    const key = partKey('paragraph', index)
+    if (!this.paraphraseSaves.saved.has(key)) this.paraphraseSaves.saved.set(key, html)
     const originalNodes = Array.from(block.childNodes)
     const host = document.createElement('div')
     host.className = 'rbt-verse-editor'
@@ -488,42 +503,101 @@ export class ChapterEditorController {
     this.emit()
   }
 
-  private saveParagraph(index: number, html: string) {
-    const saves = this.paragraphSaves
-    const current = saves.pending.get(index) ?? saves.saved.get(index)
-    if (current !== undefined && sameHtml(html, current, document)) return
-    saves.pending.set(index, html)
-    void this.runParagraphQueue()
+  // --- image notes -------------------------------------------------------------
+
+  /** In edit mode, a click on the notes in the image modal (published paraphrase) edits them. */
+  private onNoteMouseDown = (event: MouseEvent) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    const target = event.target as Element
+    const box = target.closest?.<HTMLElement>('.pp-modal__text')
+    const modal = box?.closest<HTMLDialogElement>('dialog.pp-modal')
+    const n = Number(modal?.dataset.media)
+    if (!box || !modal?.open || modal.dataset.source !== 'reader' || !this.reader?.dataset.uid || !Number.isInteger(n)) return
+    if (this.active?.wrapper === box || target.closest('a, img, video')) return
+    event.preventDefault()
+    this.commit()
+    this.activateNote(box, n, { left: event.clientX, top: event.clientY })
   }
 
-  private async runParagraphQueue() {
-    const saves = this.paragraphSaves
+  private activateNote(box: HTMLElement, n: number, coords: { left: number; top: number }) {
+    const html = window.rbtReaderParaphrase?.noteHtml(n)
+    if (html == null) return
+    if (!roundTrips(html, document)) {
+      this.showNotice('These notes have markup the inline editor cannot keep intact.')
+      return
+    }
+    const key = partKey('note', n)
+    if (!this.paraphraseSaves.saved.has(key)) this.paraphraseSaves.saved.set(key, html)
+    // The modal shows a display copy (title lifted out); the editor works on the stored notes.
+    const originalNodes = Array.from(box.childNodes)
+    const host = document.createElement('div')
+    host.className = 'rbt-verse-editor'
+    box.replaceChildren(host)
+
+    const view = new EditorView({ mount: host }, {
+      state: EditorState.create({ doc: parseVerse(html, document), plugins: this.editorPlugins() }),
+      dispatchTransaction: (tr) => {
+        view.updateState(view.state.apply(tr))
+        if (tr.docChanged) this.scheduleAutosave()
+        this.emit()
+      },
+    })
+    this.active = { kind: 'note', verse: '', index: n, wrapper: box, view, refHtml: '', startHtml: html, originalNodes, heading: null }
+    const hit = view.posAtCoords(coords)
+    view.dispatch(view.state.tr.setSelection(hit ? TextSelection.near(view.state.doc.resolve(hit.pos)) : TextSelection.atEnd(view.state.doc)))
+    view.focus()
+    this.emit()
+  }
+
+  // --- saving paraphrase parts ---------------------------------------------------
+
+  private saveParaphrasePart(kind: ParaphrasePart, index: number, html: string) {
+    const saves = this.paraphraseSaves
+    const key = partKey(kind, index)
+    const current = saves.pending.get(key)?.html ?? saves.saved.get(key)
+    if (current !== undefined && sameHtml(html, current, document)) return
+    saves.pending.set(key, { kind, index, html })
+    void this.runParaphraseQueue()
+  }
+
+  /** Show a saved part on the page (unless it's open in the editor). */
+  private renderParaphrasePart(kind: ParaphrasePart, index: number, html: string) {
+    if (kind === 'note') {
+      if (this.active?.kind !== 'note' || this.active.index !== index) window.rbtReaderParaphrase?.setNote(index, html)
+      return
+    }
+    const block = this.paragraphs()[index]
+    if (block && this.active?.wrapper !== block) this.renderParagraph(block, html)
+  }
+
+  private async runParaphraseQueue() {
+    const saves = this.paraphraseSaves
     const reader = this.reader
     if (saves.inFlight || !reader?.dataset.uid) return
     while (saves.pending.size && saves.status !== 'conflict') {
-      const [index, html] = saves.pending.entries().next().value as [number, string]
-      saves.pending.delete(index)
+      const [key, part] = saves.pending.entries().next().value as [string, { kind: ParaphrasePart; index: number; html: string }]
+      saves.pending.delete(key)
       saves.inFlight = true
       saves.status = 'saving'
       saves.error = undefined
       this.emit()
 
-      const result = await this.api.saveParaphraseBlock(reader.dataset.uid, index, html, reader.dataset.hash ?? '')
+      const save = part.kind === 'note' ? this.api.saveParaphraseNote : this.api.saveParaphraseBlock
+      const result = await save.call(this.api, reader.dataset.uid, part.index, part.html, reader.dataset.hash ?? '')
       saves.inFlight = false
       if (result.status === 'ok') {
         reader.dataset.hash = result.hash
-        saves.saved.set(index, result.html)
+        saves.saved.set(key, result.html)
         saves.status = saves.pending.size ? 'saving' : 'saved'
-        // Show the server's version (cues rebuilt, anchors re-added) unless it's being edited.
-        const block = this.paragraphs()[index]
-        if (block && this.active?.wrapper !== block) this.renderParagraph(block, result.html)
+        // Show the server's version (cues rebuilt, anchors re-added, notes sanitised).
+        this.renderParaphrasePart(part.kind, part.index, result.html)
       } else if (result.status === 'conflict') {
         saves.status = 'conflict'
         saves.pending.clear()
       } else {
         saves.status = 'error'
         saves.error = result.message
-        if (!saves.pending.has(index)) saves.pending.set(index, html)
+        if (!saves.pending.has(key)) saves.pending.set(key, part)
         break
       }
     }
@@ -531,7 +605,7 @@ export class ChapterEditorController {
   }
 
   retryParagraphSaves = () => {
-    if (this.paragraphSaves.status === 'error') void this.runParagraphQueue()
+    if (this.paraphraseSaves.status === 'error') void this.runParaphraseQueue()
   }
 
   // --- editing ---------------------------------------------------------------
@@ -677,8 +751,8 @@ export class ChapterEditorController {
     const active = this.active
     if (!active) return
     const html = serializeDoc(active.view.state.doc, document)
-    if (active.kind === 'paragraph') this.saveParagraph(active.index, html)
-    else this.save(active.verse, html)
+    if (active.kind === 'verse') this.save(active.verse, html)
+    else this.saveParaphrasePart(active.kind, active.index, html)
   }
 
   /** Leave the active verse: save it (or revert it) and render it as plain HTML again. */
@@ -689,12 +763,12 @@ export class ChapterEditorController {
     this.active = null
     const edited = serializeDoc(active.view.state.doc, document)
     const html = options.revert ? active.startHtml : edited
-    if (active.kind === 'paragraph') this.saveParagraph(active.index, html)
-    else this.save(active.verse, html)
+    if (active.kind === 'verse') this.save(active.verse, html)
+    else this.saveParaphrasePart(active.kind, active.index, html)
     if (!options.revert && !sameHtml(html, active.startHtml, document)) {
-      this.undoStack.push(active.kind === 'paragraph'
-        ? { kind: 'paragraph', index: active.index, html: active.startHtml }
-        : { kind: 'verse', verse: active.verse, html: active.startHtml })
+      this.undoStack.push(active.kind === 'verse'
+        ? { kind: 'verse', verse: active.verse, html: active.startHtml }
+        : { kind: active.kind, index: active.index, html: active.startHtml })
       if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
     }
     active.view.destroy()
@@ -704,11 +778,13 @@ export class ChapterEditorController {
       active.wrapper.replaceChildren(...active.originalNodes)
     } else if (active.kind === 'paragraph') {
       this.renderParagraph(active.wrapper, html)
+    } else if (active.kind === 'note') {
+      window.rbtReaderParaphrase?.setNote(active.index, html)
     } else {
       this.render(active.verse, active.wrapper, active.refHtml)
     }
     if (options.revert && !sameHtml(edited, active.startHtml, document)) {
-      this.showNotice(active.kind === 'paragraph' ? 'Paragraph: changes discarded.' : `Verse ${active.verse}: changes discarded.`)
+      this.showNotice(active.kind === 'verse' ? `Verse ${active.verse}: changes discarded.` : `${PART_LABEL[active.kind]}: changes discarded.`)
     }
     this.emit()
   }
@@ -734,8 +810,12 @@ export class ChapterEditorController {
       target = this.wrapperFor(entry.verse)
       if (target) this.render(entry.verse, target)
       this.showNotice(`Verse ${entry.verse}: last edit undone.`)
+    } else if (entry.kind === 'note') {
+      this.saveParaphrasePart('note', entry.index, entry.html)
+      window.rbtReaderParaphrase?.setNote(entry.index, entry.html)
+      this.showNotice('Notes: last edit undone.')
     } else {
-      this.saveParagraph(entry.index, entry.html)
+      this.saveParaphrasePart('paragraph', entry.index, entry.html)
       target = this.paragraphs()[entry.index]
       if (target) this.renderParagraph(target, entry.html)
       this.showNotice('Paraphrase: last edit undone.')
