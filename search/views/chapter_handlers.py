@@ -51,6 +51,25 @@ def _chapter_editor_version():
     return _static_version('chapter-editor/chapter-editor.js')
 
 
+def _chapter_links(book, chapter_list, chapter_num, language):
+    """The chapter selector's links (top and bottom of the page), the current chapter marked."""
+    slug = book_to_slug(book)
+    links = []
+    for number in chapter_list:
+        if slug:
+            if language and language != 'en':
+                href = reverse('chapter_seo_view_lang', kwargs={'lang_code': language, 'book_slug': slug, 'chapter': number})
+            else:
+                href = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': number})
+        else:
+            href = f"?book={book}&chapter={number}&lang={language}"
+        if str(number) == str(chapter_num):
+            links.append(f'<a href="{href}" class="sanctum-chapter-link is-current" aria-current="page">{number}</a>')
+        else:
+            links.append(f'<a href="{href}" class="sanctum-chapter-link">{number}</a>')
+    return ''.join(links)
+
+
 def _chapter_neighbours(book, chapter_num, chapter_list, language):
     """Previous/next chapter of the same book for the reader dock's arrows:
     {'prev_chapter': {'number', 'url'} or None, 'next_chapter': ...}."""
@@ -227,17 +246,7 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     # Store original book name
     original_book = book
 
-    chapters = ""
-    slug = book_to_slug(original_book)
-    for number in chapter_list:
-        if slug:
-            if language and language != 'en':
-                href = reverse('chapter_seo_view_lang', kwargs={'lang_code': language, 'book_slug': slug, 'chapter': number})
-            else:
-                href = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': number})
-        else:
-            href = f"?book={original_book}&chapter={number}&lang={language}"
-        chapters += f'<a href="{href}" class="sanctum-chapter-link">{number}</a>'
+    chapters = _chapter_links(original_book, chapter_list, chapter_num, language)
     notes_html = build_notes_html(notes_sources, source_book, chapter_num, translated_footnotes=translated_footnotes)
 
     # Transform book name for display
@@ -507,17 +516,7 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     # Store original book name BEFORE transformation for API calls
     original_book = book
     
-    chapters = ''
-    slug = book_to_slug(original_book)
-    for number in chapter_list:
-        if slug:
-            if language and language != 'en':
-                href = reverse('chapter_seo_view_lang', kwargs={'lang_code': language, 'book_slug': slug, 'chapter': number})
-            else:
-                href = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': number})
-        else:
-            href = f"?book={original_book}&chapter={number}&lang={language}"
-        chapters += f'<a href="{href}" class="sanctum-chapter-link">{number}</a>'
+    chapters = _chapter_links(original_book, chapter_list, chapter_num, language)
 
     # Transform book name for display only
     standard_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
@@ -789,17 +788,7 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     # Store original book name BEFORE transformation
     original_book = book
     
-    chapters = ''
-    slug = book_to_slug(original_book)
-    for number in chapter_list:
-        if slug:
-            if language and language != 'en':
-                href = reverse('chapter_seo_view_lang', kwargs={'lang_code': language, 'book_slug': slug, 'chapter': number})
-            else:
-                href = reverse('chapter_seo_view', kwargs={'book_slug': slug, 'chapter': number})
-        else:
-            href = f"?book={original_book}&chapter={number}&lang={language}"
-        chapters += f'<a href="{href}" class="sanctum-chapter-link">{number}</a>'
+    chapters = _chapter_links(original_book, chapter_list, chapter_num, language)
 
     # Transform book name for display
     standard_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)

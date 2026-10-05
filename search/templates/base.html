@@ -2223,10 +2223,16 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
   transition: all 0.15s;
 }
 
-.sanctum-chapter-link:hover {
+.sanctum-chapter-link:hover,
+.sanctum-chapter-link.is-current {
   background: var(--sanctum-gold);
   color: #fff;
   border-color: var(--sanctum-gold);
+}
+
+/* The chapter being read (chapter_handlers._chapter_links). */
+.sanctum-chapter-link.is-current {
+  font-weight: 700;
 }
 </style>
 
