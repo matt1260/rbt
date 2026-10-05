@@ -98,7 +98,13 @@ ALLOWED_CLASSES = {
     'blockquote': {'pp-poetry'},
     'span': {'hayah'},
 }
-ALLOWED_STYLES = {'color: blue;', 'color: #ff00aa;'}
+# The only styles kept: the two RBT colors, 'color: blue;' and 'color: #ff00aa;'. Other
+# spellings of them (the page's color toggles leave rgb() behind, models drop spaces) are
+# rewritten to those.
+COLOR_SPELLINGS = {
+    'blue': 'color: blue;', '#00f': 'color: blue;', '#0000ff': 'color: blue;', 'rgb(0,0,255)': 'color: blue;',
+    '#ff00aa': 'color: #ff00aa;', '#f0a': 'color: #ff00aa;', 'rgb(255,0,170)': 'color: #ff00aa;',
+}
 VERSE_RANGE = re.compile(r'^(\d+)(?:-(\d+))?$')
 
 # Media notes worth sending whole, for the verses they quote: RBT color spans or a reference.
@@ -177,9 +183,15 @@ def source_hash(verses):
     return digest.hexdigest()
 
 
+def _color_style(value):
+    """The canonical RBT color style for a style attribute that only sets one, else None."""
+    match = re.fullmatch(r'\s*color\s*:\s*([^;]+?)\s*;?\s*', value or '', re.I)
+    return COLOR_SPELLINGS.get(re.sub(r'\s+', '', match.group(1).lower())) if match else None
+
+
 def _keep_source_attr(tag, attr, value):
     if attr == 'style':
-        return value if value.strip() in ALLOWED_STYLES else None
+        return _color_style(value)
     if attr == 'class':
         return 'hayah' if 'hayah' in value.split() else None
     return value
@@ -343,7 +355,7 @@ def _keep_output_attr(tag, attr, value):
         kept = [c for c in value.split() if c in ALLOWED_CLASSES.get(tag, ())]
         return ' '.join(kept) or None
     if attr == 'style':
-        return value.strip() if value.strip() in ALLOWED_STYLES else None
+        return _color_style(value)
     if attr == 'data-v':
         return value.strip() if VERSE_RANGE.match(value.strip()) else None
     if attr == 'n':
@@ -517,6 +529,9 @@ def _clean_edit(soup, edit_html):
     """Inline HTML typed in the editor, sanitised like model output, with image cues rebuilt
     from the stored media (so an edit can't alter them) and verse anchors dropped."""
     edit = BeautifulSoup(edit_html, 'html.parser')
+    # A word colored while the page's Blue/Magenta toggle hid it: style is "color: inherit".
+    for span in edit.select('span[data-orig-color-magenta], span[data-orig-color-blue]'):
+        span['style'] = 'color: #ff00aa;' if span.has_attr('data-orig-color-magenta') else 'color: blue;'
     for cue in edit.select('button.pp-cue'):
         n = cue.get('data-media', '')
         cue.replace_with(edit.new_tag('rbt-media', attrs={'n': n}) if n.isdigit() else '')

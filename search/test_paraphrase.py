@@ -302,6 +302,20 @@ class EditBlockTests(SimpleTestCase):
         with self.assertRaises(IndexError):
             pp.replace_block(STORED, 3, 'x')
 
+    def test_color_spellings_from_the_page_toggles_are_kept(self):
+        # chapter-viewer.js's Blue/Magenta toggles leave rgb(), or "inherit" while hidden.
+        edit = ('<span style="color: rgb(255, 0, 170);">a</span> <span style="color:#FF00AA">b</span> '
+                '<span style="color: inherit;" data-orig-color-magenta="rgb(255, 0, 170)">c</span> '
+                '<span style="color: inherit;" data-orig-color-blue="blue">d</span> '
+                '<span style="color: rgb(0, 0, 255)">e</span> <span style="color: red;">f</span> '
+                '<span style="display: block; color: blue;">g</span>')
+        _, block = pp.replace_block(STORED, 2, edit)
+        self.assertEqual(block.count('<span style="color: #ff00aa;">'), 3)
+        self.assertEqual(block.count('<span style="color: blue;">'), 2)
+        self.assertNotIn('red', block)
+        self.assertNotIn('display', block)
+        self.assertNotIn('data-orig', block)
+
     def test_leading_h5_becomes_the_heading_above_the_paragraph(self):
         html, block = pp.replace_block(STORED, 2, '<h5><span style="color: blue;">The Lamb</span> <b onclick="x()">x</b></h5>Third.')
         self.assertIn('<h5><span style="color: blue;">The Lamb</span> x</h5><p data-v="4">', html)

@@ -268,6 +268,33 @@ export function serializeDoc(pmDoc: PMNode, doc: Document): string {
 }
 
 // ---------------------------------------------------------------------------
+// Page color toggles
+
+const COLOR_ONLY = /^\s*color\s*:[^;]*;?\s*$/i
+
+/**
+ * Undo the chapter page's Blue/Magenta toggles (chapter-viewer.js) in HTML read from the
+ * page: they rewrite color spans to `color: rgb(255, 0, 170)`, or `color: inherit` with the
+ * original in data-orig-color-*, and the paraphrase sanitiser keeps only the canonical
+ * `color: blue;` / `color: #ff00aa;` spans.
+ */
+export function restoreColorSpans(html: string, doc: Document): string {
+  const tpl = doc.createElement('template')
+  tpl.innerHTML = html
+  for (const span of Array.from(tpl.content.querySelectorAll<HTMLElement>('span[style]'))) {
+    const magenta = span.hasAttribute('data-orig-color-magenta')
+    const blue = span.hasAttribute('data-orig-color-blue')
+    span.removeAttribute('data-orig-color-magenta')
+    span.removeAttribute('data-orig-color-blue')
+    if (!COLOR_ONLY.test(span.getAttribute('style') ?? '')) continue
+    const color = span.style.color
+    if (magenta || color === 'rgb(255, 0, 170)') span.setAttribute('style', 'color: #ff00aa;')
+    else if (blue || color === 'rgb(0, 0, 255)') span.setAttribute('style', 'color: blue;')
+  }
+  return tpl.innerHTML
+}
+
+// ---------------------------------------------------------------------------
 // Round-trip guard
 
 /** Canonical form for comparing verse HTML: browser-serialised, whitespace runs collapsed. */

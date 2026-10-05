@@ -19,7 +19,7 @@ import { EditorState, Plugin, TextSelection, type Command } from 'prosemirror-st
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view'
 import { Api, type EditorConfig, type InterlinearWord } from './api'
 import { applyTool, toggleParagraphHeading, TOOLS, typeOutsideEndingMarks, type Tool } from './commands'
-import { parseVerse, roundTrips, sameHtml, schema, serializeDoc } from './schema'
+import { parseVerse, restoreColorSpans, roundTrips, sameHtml, schema, serializeDoc } from './schema'
 import { closeText, composeVerse, wrapParentheses } from './verseDom'
 
 const AUTOSAVE_DELAY_MS = 1000
@@ -465,7 +465,8 @@ export class ChapterEditorController {
     const index = this.paragraphs().indexOf(block)
     const heading = this.headingOf(block)
     // The page may have added attributes to the heading (font scaling); edit just its text.
-    const html = (heading ? `<h5>${heading.innerHTML}</h5>` : '') + block.innerHTML
+    // Read from the page, so undo what its color toggles did to the color spans.
+    const html = restoreColorSpans((heading ? `<h5>${heading.innerHTML}</h5>` : '') + block.innerHTML, document)
     if (index < 0) return
     if (!roundTrips(html, document)) {
       this.showNotice('This paragraph has markup the inline editor cannot keep intact.')
