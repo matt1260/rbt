@@ -158,8 +158,18 @@ function hideTranslationLoading() {
     });
 </script>
 
-<!-- make this a python generated variable depending on book i.e. 'Genesis Chapters: '-->
 <div class="sanctum-chapters">
+{# The book's traditional name in the page's language (seo_utils.localized_book_name), for readers and search. #}
+<style>
+    .rbt-chapter-book {
+        flex-basis: 100%; /* its own row in the .sanctum-chapters flex strip */
+        margin: 0 0 6px;
+        font-size: 1.15rem;
+        letter-spacing: 0.02em;
+        text-transform: none;
+    }
+</style>
+<h2 class="rbt-chapter-book">{{ standard_book }} {{ chapter_num }}</h2>
   {{ chapters|safe }}
 </div>
 
@@ -208,23 +218,7 @@ chapter-viewer.js re-renders on toggle.
         {% endif %}
     </div>
 </div>
-{# The RBT title, with the book's traditional name in the page's language (seo_utils.localized_book_name) for readers and search. #}
-<style>
-    .rbt-chapter-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 1.5rem; }
-    .rbt-chapter-head > h1 { margin-right: 0; }
-    .rbt-chapter-head__standard {
-        margin: 0 0 0 auto;
-        font-size: 1.05rem;
-        font-weight: 600;
-        letter-spacing: 0.04em;
-        opacity: 0.6;
-        text-transform: none;
-    }
-</style>
-<header class="rbt-chapter-head">
-    <h1>{{ book }} {{ chapter_num }}</h1>
-    {% if standard_book and standard_book != book %}<h2 class="rbt-chapter-head__standard">{{ standard_book }} {{ chapter_num }}</h2>{% endif %}
-</header>
+<h1>{{ book }} {{ chapter_num }}</h1>
 {% if current_language in 'ar,he,ur,fa' %}
 <style>
     /* RTL support for Arabic, Hebrew, Urdu, Persian */
