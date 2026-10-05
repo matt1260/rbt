@@ -13,7 +13,8 @@ RENAMED_BOOKS = ['Isaiah', 'Jeremiah', 'Jude', 'Gospel of Judas']
 
 def mark_stale(apps, schema_editor):
     VerseTranslation = apps.get_model('search', 'VerseTranslation')
-    titles = VerseTranslation.objects.filter(chapter=0, footnote_id__isnull=True)
+    # Only rows never fingerprinted: run after a refresh, this must not undo it.
+    titles = VerseTranslation.objects.filter(chapter=0, footnote_id__isnull=True, source_hash__isnull=True)
     titles.filter(verse=0, book__in=RENAMED_BOOKS).update(source_hash=STALE)
     titles.filter(verse=3, book='Gospel of Judas').update(source_hash=STALE)
 

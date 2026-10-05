@@ -6,7 +6,7 @@ Each row records a fingerprint of the English it was translated from (source_has
 title changed in search/rbt_titles.py shows up as stale: pages then fall back to the
 English title, and refresh_stale_titles() (the translation dashboard's "Refresh titles")
 re-translates every stale one. Rows saved before titles had a fingerprint (NULL) are
-trusted, as for verses; a migration marks the ones known to be out of date with STALE.
+trusted, as for verses, except for the titles renamed since (RENAMED_BEFORE_FINGERPRINTS).
 """
 import logging
 import re
@@ -23,8 +23,15 @@ TITLE_VERSE = 0
 JUDAS_HEADING_VERSE = 3
 # Display titles for books rbt_books doesn't cover.
 TITLE_OVERRIDES = {JUDAS_BOOK: 'Gospel of Praised One (Judas)'}
-# source_hash of a translation known to be out of date (set by a migration).
+# source_hash of a translation known to be out of date (set by migration 0017).
 STALE = 'stale'
+# Titles renamed before their translations carried a fingerprint: an unfingerprinted
+# (NULL) translation of one of these is of the old title. (Covered here rather than only
+# by migration 0017, which production may not have run.)
+RENAMED_BEFORE_FINGERPRINTS = {
+    ('Isaiah', TITLE_VERSE), ('Jeremiah', TITLE_VERSE), ('Jude', TITLE_VERSE),
+    (JUDAS_BOOK, TITLE_VERSE), (JUDAS_BOOK, JUDAS_HEADING_VERSE),
+}
 
 
 def english_title(book):
@@ -40,6 +47,8 @@ def title_source(book, verse):
 
 def is_current(row):
     """True unless the row was translated from different English than the title has now."""
+    if row.source_hash is None and (row.book, row.verse) in RENAMED_BEFORE_FINGERPRINTS:
+        return False
     return is_translation_current(row.source_hash, source_fingerprint(title_source(row.book, row.verse)))
 
 
@@ -49,8 +58,15 @@ def current_text(row):
 
 
 def _title_rows():
-    rows = VerseTranslation.objects.filter(chapter=0, footnote_id__isnull=True, source_hash__isnull=False)
-    return rows.filter(verse=TITLE_VERSE) | rows.filter(book=JUDAS_BOOK, verse=JUDAS_HEADING_VERSE)
+    """Title rows that can be stale: fingerprinted ones, and unfingerprinted ones of renamed titles."""
+    from django.db.models import Q
+
+    rows = VerseTranslation.objects.filter(chapter=0, footnote_id__isnull=True)
+    titles = Q(verse=TITLE_VERSE) | Q(book=JUDAS_BOOK, verse=JUDAS_HEADING_VERSE)
+    renamed = Q()
+    for book, verse in RENAMED_BEFORE_FINGERPRINTS:
+        renamed |= Q(book=book, verse=verse)
+    return rows.filter(titles).filter(Q(source_hash__isnull=False) | (Q(source_hash__isnull=True) & renamed))
 
 
 def stale_titles():

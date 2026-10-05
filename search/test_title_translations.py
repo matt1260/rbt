@@ -30,7 +30,9 @@ class TitleTranslationTests(SimpleTestCase):
         self.assertTrue(titles.is_current(fresh))
         self.assertFalse(titles.is_current(old))
         self.assertFalse(titles.is_current(row('Jude', source_hash=titles.STALE)))
-        self.assertTrue(titles.is_current(row('Jude')))  # saved before fingerprints: trusted
+        self.assertTrue(titles.is_current(row('John')))  # saved before fingerprints: trusted
+        self.assertFalse(titles.is_current(row('Jude')))  # ...unless the title was renamed since
+        self.assertFalse(titles.is_current(row('Gospel of Judas', 3)))
         heading = row('Gospel of Judas', 3, source_hash=source_fingerprint('Gospel of Praised One'))
         self.assertTrue(titles.is_current(heading))
 
