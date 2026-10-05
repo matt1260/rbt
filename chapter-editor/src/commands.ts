@@ -23,6 +23,8 @@ export const TOOLS: Tool[] = [
   { kind: 'mark', id: 'bold', label: 'B', title: 'Bold (⌘B)', spec: { tag: 'strong', attrs: {} }, aliases: [{ tag: 'b', attrs: {} }] },
   { kind: 'mark', id: 'hayah', label: 'היה', title: 'Hayah', spec: span({ class: 'hayah' }) },
   { kind: 'block', id: 'h5', label: 'h5', title: 'Heading', spec: { tag: 'h5', attrs: {} } },
+  // Paraphrase paragraphs only (toggleParagraphQuote).
+  { kind: 'block', id: 'quote', label: '❝', title: 'Quote: the selected text, or the whole paragraph', spec: { tag: 'blockquote', attrs: { class: 'pp-poetry' } } },
   { kind: 'mark', id: 'hebrew-header', label: 'א', title: 'Hebrew header', spec: span({ class: 'hebrew-header' }) },
   { kind: 'mark', id: 'greek-header', label: 'Ω', title: 'Greek header', spec: span({ class: 'greek-header' }) },
   { kind: 'mark', id: 'center', label: '≡', title: 'Center line', spec: span({ style: 'display: block; text-align: center;' }) },
@@ -94,6 +96,7 @@ function currentBlock(state: EditorState) {
 }
 
 export function isToolActive(state: EditorState, tool: Tool): boolean {
+  if (tool.id === 'quote') return currentBlock(state).node.attrs.tag === 'blockquote'
   if (tool.kind === 'block') {
     const { node } = currentBlock(state)
     return node.attrs.tag === tool.spec.tag && sameAttrs(node.attrs.attrs ?? {}, tool.spec.attrs)
@@ -174,7 +177,7 @@ export function toggleParagraphHeading(state: EditorState, spec: ElSpec): Transa
   const hasHeading = first.type === schema.nodes.block && first.attrs.tag === spec.tag
   const inFirst = state.selection.$from.index(0) === 0
   if (hasHeading && inFirst) {
-    if (state.doc.childCount === 1) return state.tr.setNodeMarkup(0, undefined, { tag: null, attrs: {} })
+    if (state.doc.childCount === 1) return state.tr.setNodeMarkup(0, undefined, { tag: 'p', attrs: {} })
     const tr = state.tr.delete(0, first.nodeSize)
     const at = 1 + leadingAtomsSize(tr.doc.firstChild!)
     tr.insert(at, first.content.append(Fragment.from(schema.text(' '))))
@@ -196,6 +199,76 @@ export function toggleParagraphHeading(state: EditorState, spec: ElSpec): Transa
   const placeholder = schema.text(HEADING_PLACEHOLDER)
   const tr = state.tr.insert(0, schema.nodes.block.create({ tag: spec.tag, attrs: spec.attrs }, placeholder))
   return tr.setSelection(TextSelection.create(tr.doc, 1, 1 + placeholder.nodeSize)).scrollIntoView()
+}
+
+/** Delete line breaks and spaces at the start and end of the doc's index-th block. */
+function trimBlockEdges(tr: Transaction, index: number) {
+  let pos = 0
+  for (let i = 0; i < index; i++) pos += tr.doc.child(i).nodeSize
+  const block = tr.doc.child(index)
+  const end = pos + block.nodeSize - 1
+  let cut = end
+  for (let i = block.childCount - 1; i >= 0; i--) {
+    const child = block.child(i)
+    const text = child.isText ? child.text ?? '' : null
+    const kept = text?.replace(/\s+$/u, '')
+    if (child.type !== schema.nodes.hard_break && kept === undefined) break
+    cut -= kept === undefined ? child.nodeSize : text!.length - kept.length
+    if (kept) break
+  }
+  if (cut < end) tr.delete(cut, end)
+  const start = pos + 1
+  let lead = start
+  for (let i = 0; i < block.childCount; i++) {
+    const child = block.child(i)
+    const text = child.isText ? child.text ?? '' : null
+    const kept = text?.replace(/^\s+/u, '')
+    if (child.type !== schema.nodes.hard_break && kept === undefined) break
+    lead += kept === undefined ? child.nodeSize : text!.length - kept.length
+    if (kept) break
+  }
+  if (lead > start) tr.delete(start, lead)
+}
+
+/**
+ * The Quote tool in a paraphrase paragraph. With text selected inside one block, that text
+ * becomes its own quote (or, inside a quote, its own paragraph again), splitting the block
+ * around it; with just a caret, or a selection across blocks, whole blocks switch between
+ * paragraph and quote. Blocks keep their verse range (data-v).
+ */
+export function toggleParagraphQuote(state: EditorState): Transaction | null {
+  const { $from, $to, empty } = state.selection
+  const isBody = (tag: unknown) => tag === 'p' || tag === 'blockquote'
+  if (!isBody($from.parent.attrs.tag)) return null // e.g. the heading
+  const toQuote = $from.parent.attrs.tag !== 'blockquote'
+  const markup = (attrs: ElAttrs) => {
+    const verses = attrs['data-v'] ? { 'data-v': attrs['data-v'] } : {}
+    return toQuote ? { tag: 'blockquote', attrs: { class: 'pp-poetry', ...verses } } : { tag: 'p', attrs: verses }
+  }
+  const tr = state.tr
+  // Split only where there's text on that side (not just verse anchors, spaces or line breaks).
+  const splitBefore = !!$from.parent.textBetween(0, $from.parentOffset).trim()
+  const splitAfter = !!$to.parent.textBetween($to.parentOffset, $to.parent.content.size).trim()
+  if (empty || $from.parent !== $to.parent || (!splitBefore && !splitAfter)) {
+    state.doc.nodesBetween($from.pos, $to.pos, (node, pos) => {
+      if (node.type === schema.nodes.block && isBody(node.attrs.tag)) tr.setNodeMarkup(pos, undefined, markup(node.attrs.attrs))
+      return false
+    })
+    return tr.scrollIntoView()
+  }
+  const attrs = $from.parent.attrs.attrs as ElAttrs
+  const index = $from.index(0)
+  if (splitAfter) tr.split($to.pos)
+  if (splitBefore) tr.split($from.pos)
+  const middle = index + (splitBefore ? 1 : 0)
+  let pos = 0
+  for (let i = 0; i < middle; i++) pos += tr.doc.child(i).nodeSize
+  tr.setNodeMarkup(pos, undefined, markup(attrs))
+  // The line breaks and spaces left at the cut belong to neither piece.
+  for (let i = middle + (splitAfter ? 1 : 0); i >= middle - (splitBefore ? 1 : 0); i--) trimBlockEdges(tr, i)
+  let start = 0
+  for (let i = 0; i < middle; i++) start += tr.doc.child(i).nodeSize
+  return tr.setSelection(TextSelection.create(tr.doc, start + tr.doc.child(middle).nodeSize - 1)).scrollIntoView()
 }
 
 /**

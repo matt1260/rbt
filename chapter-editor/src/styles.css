@@ -22,6 +22,11 @@
   cursor: text;
 }
 
+/* A paraphrase paragraph's edit, shown until its save lands. */
+.rbt-pp-pending {
+  opacity: 0.6;
+}
+
 /* Verse numbers are always visible while editing (normally toggled with V). */
 .rbt-edit-mode #paraphrase-area .verse_ref {
   display: inline !important;

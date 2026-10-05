@@ -125,6 +125,12 @@
     border-left: 2px solid var(--sanctum-rule, rgba(183, 133, 80, 0.3));
 }
 
+/* The site's blockquote style (base.html) adds giant quote marks; the rule above marks quotes here. */
+.rbt-paraphrase blockquote::before,
+.rbt-paraphrase blockquote::after {
+    content: none;
+}
+
 /* Image cues: a small round thumbnail at the end of the sentence an image illustrates.
    Clicking one opens the image and its notes in the modal below (reader-paraphrase.js),
    so the text flows uninterrupted however many images a chapter has. */

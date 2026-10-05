@@ -79,8 +79,11 @@ export class Api {
     return { status: 'error', message: data.error || `Save failed (${response.status})` }
   }
 
-  /** Replace one paragraph of a published paraphrase (translate/paraphrase_api.py edit_block). */
-  async saveParaphraseBlock(uid: string, index: number, html: string, baseHash: string): Promise<BlockSaveResult> {
+  /**
+   * Replace `count` paragraphs of a published paraphrase, from `index`, with html: an optional
+   * <h5> then one or more <p>/<blockquote> (translate/paraphrase_api.py edit_block).
+   */
+  async saveParaphraseBlock(uid: string, index: number, count: number, html: string, baseHash: string): Promise<BlockSaveResult> {
     let response: Response
     try {
       response = await fetch(`${this.config.paraphraseApiBase}edit-block/`, {
@@ -88,7 +91,7 @@ export class Api {
         credentials: 'same-origin',
         keepalive: html.length < 60_000,
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.config.csrf },
-        body: JSON.stringify({ uid, index, html, base_hash: baseHash }),
+        body: JSON.stringify({ uid, index, count, html, base_hash: baseHash }),
       })
     } catch {
       return { status: 'error', message: 'Network error' }

@@ -256,9 +256,11 @@ def save_preset(request):
 @staff_json
 def edit_block(request):
     """
-    POST JSON {uid, index, html, base_hash} → {hash, html}: replace the contents of one
-    paragraph (the index-th top-level <p>/<blockquote>) of a paraphrase, edited inline on
-    the chapter page. A leading <h5> in html is the heading above that paragraph. base_hash is the hash of the paraphrase HTML the edit started from;
+    POST JSON {uid, index, count, html, base_hash} → {hash, html, count}: replace `count`
+    consecutive paragraphs (top-level <p>/<blockquote>, from the index-th) of a paraphrase,
+    edited inline on the chapter page, with html: an optional <h5> (the heading above them)
+    and one or more <p>/<blockquote> blocks (paraphrase.replace_blocks). Without count, html
+    is the contents of the one paragraph at index (the editor's earlier form). base_hash is the hash of the paraphrase HTML the edit started from;
     if it has changed since (republished, or edited in another tab) nothing is written and
     a 409 is returned.
     """
@@ -270,6 +272,9 @@ def edit_block(request):
         return JsonResponse({'error': 'index, html and base_hash are required.'}, status=400)
     if len(html) > 100_000:
         return JsonResponse({'error': 'Paragraph is too long.'}, status=400)
+    count = data.get('count')
+    if count is not None and (not isinstance(count, int) or isinstance(count, bool) or not 1 <= count <= 50):
+        return JsonResponse({'error': 'count must be a small positive integer.'}, status=400)
 
     with transaction.atomic():
         row = ChapterParaphrase.objects.select_for_update().filter(uid=data['uid']).first()
@@ -278,14 +283,18 @@ def edit_block(request):
         if paraphrase.html_hash(row.html) != base_hash:
             return JsonResponse({'error': 'This paraphrase was changed elsewhere.', 'hash': paraphrase.html_hash(row.html)}, status=409)
         try:
-            new_html, block_html = paraphrase.replace_block(row.html, index, html)
+            if count is None:
+                new_html, block_html = paraphrase.replace_block(row.html, index, html)
+                new_count = 1
+            else:
+                new_html, block_html, new_count = paraphrase.replace_blocks(row.html, index, count, html)
         except IndexError as exc:
             return JsonResponse({'error': str(exc)}, status=400)
         if new_html != row.html:
             row.html = new_html
             row.save(update_fields=['html', 'updated_at'])
     logger.info('[PARAPHRASE] %s edited %s %s paragraph %s', request.user.username, row.book, row.chapter, index)
-    return JsonResponse({'hash': paraphrase.html_hash(row.html), 'html': block_html})
+    return JsonResponse({'hash': paraphrase.html_hash(row.html), 'html': block_html, 'count': new_count})
 
 
 @require_POST

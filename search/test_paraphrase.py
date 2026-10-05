@@ -413,3 +413,78 @@ class EditNoteTests(SimpleTestCase):
             self.assertEqual(data['html'], 'New notes')
             self.assertEqual(data['hash'], pp.html_hash(row.html))
             self.assertEqual(post({'uid': uid, 'n': 2, 'html': 'x', 'base_hash': pp.html_hash(row.html)}).status_code, 400)
+
+
+class ReplaceBlocksTests(SimpleTestCase):
+    """Structural paragraph edits: quote/unquote, split part out, merge back."""
+
+    def blocks(self, html):
+        return [(b.name, b.get('class'), b.get('data-v'), b.get_text()) for b in pp.editable_blocks(BeautifulSoup(html, 'html.parser'))]
+
+    def test_whole_paragraph_becomes_a_quote(self):
+        html, unit, count = pp.replace_blocks(STORED, 2, 1, '<blockquote class="pp-poetry evil" data-v="4" onclick="x()">Third.</blockquote>')
+        self.assertEqual(count, 1)
+        self.assertEqual(self.blocks(html)[2], ('blockquote', ['pp-poetry'], '4', 'Third.'))
+        self.assertTrue(unit.startswith('<blockquote class="pp-poetry" data-v="4"><span class="pp-anchor" id="v4">'))
+        self.assertNotIn('onclick', html)
+
+    def test_part_of_a_quote_is_split_out_and_merged_back(self):
+        html, unit, count = pp.replace_blocks(STORED, 1, 1, '<p data-v="3">Intro:</p><blockquote class="pp-poetry" data-v="3">Quoted<br>line</blockquote>')
+        self.assertEqual(count, 2)
+        self.assertEqual([b[:3] for b in self.blocks(html)], [
+            ('p', None, '1-2'), ('p', None, '3'), ('blockquote', ['pp-poetry'], '3'), ('p', None, '4')])
+        self.assertEqual(html.count('id="v3"'), 1)  # one anchor for the verse
+        self.assertIn('Quoted<br/>line', unit)
+        # The editor sends both blocks back as one unit to merge them again.
+        html, unit, count = pp.replace_blocks(html, 1, 2, '<blockquote class="pp-poetry" data-v="3">Intro: Quoted</blockquote>')
+        self.assertEqual(count, 1)
+        self.assertEqual([b[:2] for b in self.blocks(html)], [('p', None), ('blockquote', ['pp-poetry']), ('p', None)])
+        self.assertIn('id="v3"', unit)
+
+    def test_empty_pieces_are_dropped(self):
+        html, _, count = pp.replace_blocks(STORED, 1, 1, '<blockquote data-v="3"><span class="pp-anchor" id="v3"></span> <br></blockquote><p data-v="3">Kept</p>')
+        self.assertEqual(count, 1)
+        self.assertEqual(self.blocks(html)[1][0], 'p')
+        self.assertIn('<p data-v="3"><span class="pp-anchor" id="v3"></span>Kept</p>', html)
+
+    def test_missing_or_bad_verse_range_and_loose_text(self):
+        html, _, count = pp.replace_blocks(STORED, 2, 1, 'Loose <em>text</em><p data-v="x">Para</p>')
+        self.assertEqual(count, 2)
+        self.assertEqual([b[2:] for b in self.blocks(html)[2:]], [('4', 'Loose text'), ('4', 'Para')])
+
+    def test_heading_moves_with_the_unit(self):
+        html, _ = pp.replace_block(STORED, 2, '<h5>Head</h5>Third.')
+        html, unit, _ = pp.replace_blocks(html, 2, 1, '<h5>Head</h5><blockquote class="pp-poetry" data-v="4">Third.</blockquote>')
+        self.assertIn('<h5>Head</h5><blockquote class="pp-poetry" data-v="4">', html)
+        self.assertTrue(unit.startswith('<h5>Head</h5><blockquote'))
+        html, unit, _ = pp.replace_blocks(html, 2, 1, '<blockquote class="pp-poetry" data-v="4">Third.</blockquote>')
+        self.assertNotIn('<h5>', html)
+
+    def test_range_is_checked(self):
+        html, _, count = pp.replace_blocks(STORED, 2, 1, '<p> </p>')  # emptied: one empty paragraph stays
+        self.assertEqual((count, len(self.blocks(html))), (1, 3))
+        for index, count in ((2, 2), (-1, 1), (0, 0), (3, 1)):
+            with self.assertRaises(IndexError):
+                pp.replace_blocks(STORED, index, count, '<p>x</p>')
+
+    @mock.patch.object(api.transaction, 'atomic', mock.MagicMock())
+    def test_endpoint_with_count(self):
+        factory = RequestFactory()
+        row = SimpleNamespace(html=STORED, book='John', chapter=1, save=mock.Mock())
+
+        def post(payload):
+            request = factory.post('/x/', data=json.dumps({'uid': '00000000-0000-0000-0000-000000000001', 'index': 1,
+                                                          'base_hash': pp.html_hash(row.html), **payload}),
+                                   content_type='application/json')
+            request.user = staff()
+            return api.edit_block(request)
+
+        with mock.patch.object(api.ChapterParaphrase.objects, 'select_for_update') as select:
+            select.return_value.filter.return_value.first.return_value = row
+            self.assertEqual(post({'count': 0, 'html': '<p>x</p>'}).status_code, 400)
+            self.assertEqual(post({'count': True, 'html': '<p>x</p>'}).status_code, 400)
+            good = post({'count': 1, 'html': '<p data-v="3">Intro:</p><blockquote class="pp-poetry" data-v="3">Q</blockquote>'})
+            self.assertEqual(good.status_code, 200)
+            data = json.loads(good.content)
+            self.assertEqual(data['count'], 2)
+            self.assertTrue(data['html'].startswith('<p data-v="3">'))

@@ -17,8 +17,8 @@ import { keymap } from 'prosemirror-keymap'
 import type { Node as PMNode } from 'prosemirror-model'
 import { EditorState, Plugin, TextSelection, type Command } from 'prosemirror-state'
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view'
-import { Api, type EditorConfig, type InterlinearWord } from './api'
-import { applyTool, toggleParagraphHeading, TOOLS, typeOutsideEndingMarks, type Tool } from './commands'
+import { Api, type BlockSaveResult, type EditorConfig, type InterlinearWord } from './api'
+import { applyTool, toggleParagraphHeading, toggleParagraphQuote, TOOLS, typeOutsideEndingMarks, type Tool } from './commands'
 import { parseVerse, restoreColorSpans, roundTrips, sameHtml, schema, serializeDoc } from './schema'
 import { closeText, composeVerse, wrapParentheses } from './verseDom'
 
@@ -57,17 +57,37 @@ interface ActiveEditor {
   refHtml: string
   /** Stored HTML when this editing session began; Escape reverts to it. */
   startHtml: string
-  /** The wrapper's DOM before editing, put back untouched if nothing changed. */
+  /** The wrapper's DOM before editing, put back untouched if nothing changed (verses, notes). */
   originalNodes: Node[]
-  /** For a paragraph: the <h5> above it, hidden while it's in the editor. */
-  heading: HTMLElement | null
+  /** For a paragraph: the page elements it edits. */
+  unit?: ParagraphUnit
 }
+
+/**
+ * A paragraph of the published paraphrase being edited: its heading and its top-level
+ * <p>/<blockquote> elements (one, or more once a quote is split out of it). The page only
+ * changes shape when a save returns, so the position of these elements among the reader's
+ * paragraphs is always the index the server's copy has them at.
+ */
+interface ParagraphUnit {
+  heading: HTMLElement | null
+  blocks: HTMLElement[]
+  /** The editor, then a preview of the edit until it's saved; the elements stay hidden meanwhile. */
+  overlay: HTMLElement | null
+  /** The unit as the server last had it (editor HTML: heading, then the blocks). */
+  saved: string
+}
+
+type PendingSave = { kind: 'paragraph'; unit: ParagraphUnit; html: string } | { kind: 'note'; index: number; html: string }
 
 /** A finished editing session, undoable after leaving the verse: the HTML before it. */
 type EditKind = 'verse' | ParaphrasePart
 /** The parts of the published paraphrase edited in place: a paragraph, or the notes shown with an image. */
 type ParaphrasePart = 'paragraph' | 'note'
-type UndoEntry = { kind: 'verse'; verse: string; html: string } | { kind: ParaphrasePart; index: number; html: string }
+type UndoEntry =
+  | { kind: 'verse'; verse: string; html: string }
+  | { kind: 'paragraph'; unit: ParagraphUnit; html: string }
+  | { kind: 'note'; index: number; html: string }
 
 export interface VerseStatus {
   /** 'verse' entries are keyed by verse number; there is one 'paraphrase' entry. */
@@ -151,11 +171,13 @@ export class ChapterEditorController {
   private reader = document.getElementById('reader-paraphrase')
   /**
    * Paraphrase saves (paragraphs and notes) run one at a time: each changes the whole
-   * paraphrase's hash. Keyed by partKey().
+   * paraphrase's hash. Keyed by the paragraph's unit, or partKey('note', n).
    */
   private paraphraseSaves = {
-    pending: new Map<string, { kind: ParaphrasePart; index: number; html: string }>(),
-    saved: new Map<string, string>(),
+    pending: new Map<ParagraphUnit | string, PendingSave>(),
+    current: null as PendingSave | null,
+    /** Notes as the server last had them, by media number. */
+    notes: new Map<number, string>(),
     inFlight: false,
     status: undefined as SaveStatus | undefined,
     error: undefined as string | undefined,
@@ -424,24 +446,79 @@ export class ChapterEditorController {
     return previous instanceof HTMLElement && previous.tagName === 'H5' ? previous : null
   }
 
-  /** Show a paragraph's editor HTML (an optional leading <h5>, then its contents) on the page. */
-  private renderParagraph(block: HTMLElement, html: string) {
+  /** A unit's editor HTML from the page: its heading's text, then each block with its class and verse range. */
+  private unitHtml(heading: HTMLElement | null, blocks: HTMLElement[]): string {
+    const parts = blocks.map((block) => {
+      const copy = document.createElement(block.tagName.toLowerCase())
+      for (const name of ['class', 'data-v']) {
+        const value = block.getAttribute(name)
+        if (value) copy.setAttribute(name, value)
+      }
+      copy.innerHTML = block.innerHTML
+      return copy.outerHTML
+    })
+    // The page may have added attributes to the heading (font scaling); edit just its text.
+    // Read from the page, so undo what its color toggles did to the color spans.
+    return restoreColorSpans((heading ? `<h5>${heading.innerHTML}</h5>` : '') + parts.join(''), document)
+  }
+
+  private setUnitHidden(unit: ParagraphUnit, hidden: boolean) {
+    for (const el of [unit.heading, ...unit.blocks]) if (el) el.hidden = hidden
+  }
+
+  /** Open in the editor, or waiting for a save: its elements stay hidden under the overlay. */
+  private unitBusy(unit: ParagraphUnit): boolean {
+    const saves = this.paraphraseSaves
+    return this.active?.unit === unit || saves.pending.has(unit) || (saves.current?.kind === 'paragraph' && saves.current.unit === unit)
+  }
+
+  /** Show `html` (editor HTML) in place of the unit while it saves. */
+  private previewUnit(unit: ParagraphUnit, html: string) {
+    if (!unit.overlay) {
+      unit.overlay = document.createElement('div')
+      ;(unit.heading ?? unit.blocks[0]).before(unit.overlay)
+      this.setUnitHidden(unit, true)
+    }
+    unit.overlay.className = 'rbt-pp-pending'
+    unit.overlay.innerHTML = html
+  }
+
+  /** Drop the overlay and show the unit's elements, unless it's still open or saving. */
+  private settleUnit(unit: ParagraphUnit) {
+    if (this.unitBusy(unit)) return
+    unit.overlay?.remove()
+    unit.overlay = null
+    this.setUnitHidden(unit, false)
+  }
+
+  /** Replace the unit's elements with the server's version of it (editor HTML). */
+  private renderUnit(unit: ParagraphUnit, html: string) {
     const tpl = document.createElement('template')
     tpl.innerHTML = html
-    const first = Array.from(tpl.content.childNodes).find((node) => node.nodeType !== 3 || (node.nodeValue ?? '').trim())
-    const lead = first instanceof HTMLElement && first.tagName === 'H5' ? first : null
-    lead?.remove()
-    let heading = this.headingOf(block)
-    if (lead && (lead.textContent ?? '').trim()) {
-      if (!heading) {
-        heading = document.createElement('h5')
-        block.before(heading)
-      }
-      heading.innerHTML = lead.innerHTML
-    } else {
-      heading?.remove()
+    const nodes = Array.from(tpl.content.children) as HTMLElement[]
+    const lead = nodes[0]?.tagName === 'H5' ? nodes.shift()! : null
+    const heading = lead && (lead.textContent ?? '').trim() ? lead : null
+    const blocks = nodes.filter((el) => el.matches('p, blockquote'))
+    const first = unit.heading ?? unit.blocks[0]
+    const hidden = this.unitBusy(unit)
+    for (const el of [heading, ...blocks]) {
+      if (!el) continue
+      el.hidden = hidden
+      first.before(el)
     }
-    block.replaceChildren(tpl.content)
+    const oldBlocks = unit.blocks
+    for (const el of [unit.heading, ...oldBlocks]) el?.remove()
+    // Earlier sessions on the same paragraph (in the undo stack) follow its new elements.
+    for (const entry of this.undoStack) {
+      if (entry.kind === 'paragraph' && entry.unit !== unit && entry.unit.blocks.length === oldBlocks.length &&
+        entry.unit.blocks.every((block, i) => block === oldBlocks[i])) {
+        entry.unit.heading = heading
+        entry.unit.blocks = blocks
+      }
+    }
+    unit.heading = heading
+    unit.blocks = blocks
+    this.settleUnit(unit)
   }
 
   private onReaderMouseDown = (event: MouseEvent) => {
@@ -462,23 +539,20 @@ export class ChapterEditorController {
   }
 
   private activateParagraph(block: HTMLElement, coords: { left: number; top: number }, onHeading = false) {
-    const index = this.paragraphs().indexOf(block)
     const heading = this.headingOf(block)
-    // The page may have added attributes to the heading (font scaling); edit just its text.
-    // Read from the page, so undo what its color toggles did to the color spans.
-    const html = restoreColorSpans((heading ? `<h5>${heading.innerHTML}</h5>` : '') + block.innerHTML, document)
-    if (index < 0) return
+    const html = this.unitHtml(heading, [block])
     if (!roundTrips(html, document)) {
       this.showNotice('This paragraph has markup the inline editor cannot keep intact.')
       return
     }
-    const key = partKey('paragraph', index)
-    if (!this.paraphraseSaves.saved.has(key)) this.paraphraseSaves.saved.set(key, html)
-    const originalNodes = Array.from(block.childNodes)
+    const unit: ParagraphUnit = { heading, blocks: [block], overlay: null, saved: html }
+    // The editor sits above the paragraph's elements, which stay on the page (hidden) until
+    // a save replaces them, so the reader's paragraph count only changes with the server's.
     const host = document.createElement('div')
-    host.className = 'rbt-verse-editor'
-    block.replaceChildren(host)
-    if (heading) heading.hidden = true
+    host.className = 'rbt-verse-editor rbt-pp-editor'
+    ;(heading ?? block).before(host)
+    unit.overlay = host
+    this.setUnitHidden(unit, true)
 
     const view = new EditorView({ mount: host }, {
       state: EditorState.create({
@@ -492,12 +566,12 @@ export class ChapterEditorController {
       },
     })
     this.active = {
-      kind: 'paragraph', verse: block.dataset.v ?? '', index, wrapper: block, view,
-      refHtml: '', startHtml: html, originalNodes, heading,
+      kind: 'paragraph', verse: block.dataset.v ?? '', index: -1, wrapper: host, view,
+      refHtml: '', startHtml: html, originalNodes: [], unit,
     }
     const hit = view.posAtCoords(coords)
     let selection = hit ? TextSelection.near(view.state.doc.resolve(hit.pos)) : TextSelection.atEnd(view.state.doc)
-    // The editor's copy of a clicked heading sits a little lower (its margin), so the click can miss it.
+    // Clicked the heading: put the caret in it even if the click landed just outside the editor's copy.
     if (onHeading && selection.$from.index(0) !== 0) selection = TextSelection.create(view.state.doc, view.state.doc.firstChild!.nodeSize - 1)
     view.dispatch(view.state.tr.setSelection(selection))
     view.focus()
@@ -527,8 +601,7 @@ export class ChapterEditorController {
       this.showNotice('These notes have markup the inline editor cannot keep intact.')
       return
     }
-    const key = partKey('note', n)
-    if (!this.paraphraseSaves.saved.has(key)) this.paraphraseSaves.saved.set(key, html)
+    if (!this.paraphraseSaves.notes.has(n)) this.paraphraseSaves.notes.set(n, html)
     // The modal shows a display copy (title lifted out); the editor works on the stored notes.
     const originalNodes = Array.from(box.childNodes)
     const host = document.createElement('div')
@@ -543,7 +616,7 @@ export class ChapterEditorController {
         this.emit()
       },
     })
-    this.active = { kind: 'note', verse: '', index: n, wrapper: box, view, refHtml: '', startHtml: html, originalNodes, heading: null }
+    this.active = { kind: 'note', verse: '', index: n, wrapper: box, view, refHtml: '', startHtml: html, originalNodes }
     const hit = view.posAtCoords(coords)
     view.dispatch(view.state.tr.setSelection(hit ? TextSelection.near(view.state.doc.resolve(hit.pos)) : TextSelection.atEnd(view.state.doc)))
     view.focus()
@@ -552,23 +625,22 @@ export class ChapterEditorController {
 
   // --- saving paraphrase parts ---------------------------------------------------
 
-  private saveParaphrasePart(kind: ParaphrasePart, index: number, html: string) {
+  private saveUnit(unit: ParagraphUnit, html: string) {
     const saves = this.paraphraseSaves
-    const key = partKey(kind, index)
-    const current = saves.pending.get(key)?.html ?? saves.saved.get(key)
-    if (current !== undefined && sameHtml(html, current, document)) return
-    saves.pending.set(key, { kind, index, html })
+    const inFlight = saves.current?.kind === 'paragraph' && saves.current.unit === unit ? saves.current.html : undefined
+    const latest = saves.pending.get(unit)?.html ?? inFlight ?? unit.saved
+    if (sameHtml(html, latest, document)) return
+    saves.pending.set(unit, { kind: 'paragraph', unit, html })
     void this.runParaphraseQueue()
   }
 
-  /** Show a saved part on the page (unless it's open in the editor). */
-  private renderParaphrasePart(kind: ParaphrasePart, index: number, html: string) {
-    if (kind === 'note') {
-      if (this.active?.kind !== 'note' || this.active.index !== index) window.rbtReaderParaphrase?.setNote(index, html)
-      return
-    }
-    const block = this.paragraphs()[index]
-    if (block && this.active?.wrapper !== block) this.renderParagraph(block, html)
+  private saveNote(n: number, html: string) {
+    const saves = this.paraphraseSaves
+    const key = partKey('note', n)
+    const current = saves.pending.get(key)?.html ?? saves.notes.get(n)
+    if (current !== undefined && sameHtml(html, current, document)) return
+    saves.pending.set(key, { kind: 'note', index: n, html })
+    void this.runParaphraseQueue()
   }
 
   private async runParaphraseQueue() {
@@ -576,22 +648,37 @@ export class ChapterEditorController {
     const reader = this.reader
     if (saves.inFlight || !reader?.dataset.uid) return
     while (saves.pending.size && saves.status !== 'conflict') {
-      const [key, part] = saves.pending.entries().next().value as [string, { kind: ParaphrasePart; index: number; html: string }]
+      const [key, part] = saves.pending.entries().next().value as [ParagraphUnit | string, PendingSave]
       saves.pending.delete(key)
       saves.inFlight = true
+      saves.current = part
       saves.status = 'saving'
       saves.error = undefined
       this.emit()
 
-      const save = part.kind === 'note' ? this.api.saveParaphraseNote : this.api.saveParaphraseBlock
-      const result = await save.call(this.api, reader.dataset.uid, part.index, part.html, reader.dataset.hash ?? '')
+      let result: BlockSaveResult
+      if (part.kind === 'note') {
+        result = await this.api.saveParaphraseNote(reader.dataset.uid, part.index, part.html, reader.dataset.hash ?? '')
+      } else {
+        // Where the unit's elements are now is where the server has them.
+        const index = this.paragraphs().indexOf(part.unit.blocks[0])
+        result = index < 0 || part.unit.blocks.some((block) => !block.isConnected)
+          ? { status: 'error', message: 'This paragraph is no longer on the page. Reload to edit it.' }
+          : await this.api.saveParaphraseBlock(reader.dataset.uid, index, part.unit.blocks.length, part.html, reader.dataset.hash ?? '')
+      }
       saves.inFlight = false
+      saves.current = null
       if (result.status === 'ok') {
         reader.dataset.hash = result.hash
-        saves.saved.set(key, result.html)
         saves.status = saves.pending.size ? 'saving' : 'saved'
         // Show the server's version (cues rebuilt, anchors re-added, notes sanitised).
-        this.renderParaphrasePart(part.kind, part.index, result.html)
+        if (part.kind === 'note') {
+          saves.notes.set(part.index, result.html)
+          if (this.active?.kind !== 'note' || this.active.index !== part.index) window.rbtReaderParaphrase?.setNote(part.index, result.html)
+        } else {
+          part.unit.saved = result.html
+          this.renderUnit(part.unit, result.html)
+        }
       } else if (result.status === 'conflict') {
         saves.status = 'conflict'
         saves.pending.clear()
@@ -676,7 +763,7 @@ export class ChapterEditorController {
       },
     })
 
-    this.active = { kind: 'verse', verse, index: -1, wrapper, view, refHtml, startHtml: record.target, originalNodes, heading: null }
+    this.active = { kind: 'verse', verse, index: -1, wrapper, view, refHtml, startHtml: record.target, originalNodes }
     const hit = view.posAtCoords(coords)
     const selection = hit
       ? TextSelection.near(view.state.doc.resolve(hit.pos))
@@ -724,8 +811,9 @@ export class ChapterEditorController {
   runTool(tool: Tool) {
     const view = this.active?.view
     if (!view) return
-    const tr = this.active?.kind === 'paragraph' && tool.kind === 'block' && tool.spec.tag === 'h5'
-      ? toggleParagraphHeading(view.state, tool.spec)
+    const paragraph = this.active?.kind === 'paragraph' && tool.kind === 'block'
+    const tr = paragraph && tool.id === 'h5' ? toggleParagraphHeading(view.state, tool.spec)
+      : paragraph && tool.id === 'quote' ? toggleParagraphQuote(view.state)
       : applyTool(view.state, tool)
     if (tr) view.dispatch(tr)
     view.focus()
@@ -753,7 +841,8 @@ export class ChapterEditorController {
     if (!active) return
     const html = serializeDoc(active.view.state.doc, document)
     if (active.kind === 'verse') this.save(active.verse, html)
-    else this.saveParaphrasePart(active.kind, active.index, html)
+    else if (active.kind === 'note') this.saveNote(active.index, html)
+    else this.saveUnit(active.unit!, html)
   }
 
   /** Leave the active verse: save it (or revert it) and render it as plain HTML again. */
@@ -765,20 +854,23 @@ export class ChapterEditorController {
     const edited = serializeDoc(active.view.state.doc, document)
     const html = options.revert ? active.startHtml : edited
     if (active.kind === 'verse') this.save(active.verse, html)
-    else this.saveParaphrasePart(active.kind, active.index, html)
+    else if (active.kind === 'note') this.saveNote(active.index, html)
+    else this.saveUnit(active.unit!, html)
     if (!options.revert && !sameHtml(html, active.startHtml, document)) {
-      this.undoStack.push(active.kind === 'verse'
-        ? { kind: 'verse', verse: active.verse, html: active.startHtml }
-        : { kind: active.kind, index: active.index, html: active.startHtml })
+      this.undoStack.push(active.kind === 'verse' ? { kind: 'verse', verse: active.verse, html: active.startHtml }
+        : active.kind === 'note' ? { kind: 'note', index: active.index, html: active.startHtml }
+        : { kind: 'paragraph', unit: active.unit!, html: active.startHtml })
       if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
     }
     active.view.destroy()
-    if (active.heading) active.heading.hidden = false
-    if (sameHtml(html, active.startHtml, document)) {
+    if (active.kind === 'paragraph') {
+      // Until the save lands the edit shows as a preview over the paragraph's elements.
+      const unit = active.unit!
+      if (this.unitBusy(unit)) this.previewUnit(unit, html)
+      else this.settleUnit(unit)
+    } else if (sameHtml(html, active.startHtml, document)) {
       // Nothing changed this session: put the original DOM back (keeps footnote/tooltip listeners).
       active.wrapper.replaceChildren(...active.originalNodes)
-    } else if (active.kind === 'paragraph') {
-      this.renderParagraph(active.wrapper, html)
     } else if (active.kind === 'note') {
       window.rbtReaderParaphrase?.setNote(active.index, html)
     } else {
@@ -812,13 +904,19 @@ export class ChapterEditorController {
       if (target) this.render(entry.verse, target)
       this.showNotice(`Verse ${entry.verse}: last edit undone.`)
     } else if (entry.kind === 'note') {
-      this.saveParaphrasePart('note', entry.index, entry.html)
+      this.saveNote(entry.index, entry.html)
       window.rbtReaderParaphrase?.setNote(entry.index, entry.html)
       this.showNotice('Notes: last edit undone.')
     } else {
-      this.saveParaphrasePart('paragraph', entry.index, entry.html)
-      target = this.paragraphs()[entry.index]
-      if (target) this.renderParagraph(target, entry.html)
+      const unit = entry.unit
+      if (!unit.blocks.length || unit.blocks.some((block) => !block.isConnected)) {
+        this.showNotice('That paragraph has changed since, so the edit can no longer be undone.')
+        this.emit()
+        return
+      }
+      this.saveUnit(unit, entry.html)
+      if (this.unitBusy(unit)) this.previewUnit(unit, entry.html)
+      target = unit.overlay ?? unit.blocks[0]
       this.showNotice('Paraphrase: last edit undone.')
     }
     // The verse wrapper is display: contents, so measure what's inside it.

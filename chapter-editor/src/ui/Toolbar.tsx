@@ -16,11 +16,11 @@ interface Props {
 
 /** Floating toolbar pinned above the caret/selection of the verse being edited. */
 export function Toolbar({ controller, kind, verse, view, state }: Props) {
-  // Sun blocks belong to verses; in a paraphrase paragraph h5 is the heading above it; image
-  // notes take inline formatting only.
+  // Sun blocks belong to verses, quotes to paraphrase paragraphs (where h5 is the heading
+  // above the paragraph); image notes take inline formatting only.
   const tools = kind === 'paragraph' ? TOOLS.filter((tool) => tool.id !== 'sun')
     : kind === 'note' ? TOOLS.filter((tool) => tool.kind !== 'block')
-    : TOOLS
+    : TOOLS.filter((tool) => tool.id !== 'quote')
   const { refs, floatingStyles, update } = useFloating({
     placement: 'top',
     strategy: 'fixed',

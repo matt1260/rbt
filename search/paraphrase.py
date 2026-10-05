@@ -572,24 +572,8 @@ def editor_html(block):
     return (str(heading) if heading else '') + block.decode_contents()
 
 
-def replace_block(html, index, new_inner_html):
-    """The paraphrase HTML with block `index`'s contents replaced by an edit, and the block
-    as the editor now sees it (editor_html). The edit is sanitised like model output; image
-    cues in it are rebuilt from the stored media and verse anchors are re-added. A leading
-    <h5> in the edit sets the heading above the paragraph; without one (or with an empty
-    one) the paragraph has no heading."""
-    soup = BeautifulSoup(html, 'html.parser')
-    blocks = editable_blocks(soup)
-    if not 0 <= index < len(blocks):
-        raise IndexError(f'No paragraph {index}.')
-    block = blocks[index]
-    heading_html, body_html = _leading_heading(new_inner_html)
-
-    block.clear()
-    for node in _clean_edit(soup, body_html):
-        block.append(node)
-    _add_anchors(soup, block)
-
+def _set_heading(soup, block, heading_html):
+    """Give `block` the heading heading_html (sanitised) above it, or none if that's empty."""
     heading = _heading_before(block)
     contents = _clean_edit(soup, heading_html) if heading_html is not None else []
     if ''.join(node.get_text() if hasattr(node, 'get_text') else str(node) for node in contents).strip():
@@ -601,7 +585,92 @@ def replace_block(html, index, new_inner_html):
             heading.append(node)
     elif heading is not None:
         heading.decompose()
+
+
+def replace_block(html, index, new_inner_html):
+    """The paraphrase HTML with block `index`'s contents replaced by an edit, and the block
+    as the editor now sees it (editor_html). The edit is sanitised like model output; image
+    cues in it are rebuilt from the stored media and verse anchors are re-added. A leading
+    <h5> in the edit sets the heading above the paragraph; without one (or with an empty
+    one) the paragraph has no heading. (The form editors before replace_blocks sent.)"""
+    soup = BeautifulSoup(html, 'html.parser')
+    blocks = editable_blocks(soup)
+    if not 0 <= index < len(blocks):
+        raise IndexError(f'No paragraph {index}.')
+    block = blocks[index]
+    heading_html, body_html = _leading_heading(new_inner_html)
+
+    block.clear()
+    for node in _clean_edit(soup, body_html):
+        block.append(node)
+    _add_anchors(soup, block)
+    _set_heading(soup, block, heading_html)
     return str(soup).strip(), editor_html(block)
+
+
+def replace_blocks(html, index, count, unit_html):
+    """
+    Replace `count` consecutive paragraphs/quotes from `index` (and the heading above the
+    first) with an edited unit: an optional <h5>, then one or more <p>/<blockquote> blocks,
+    so an edit can turn a paragraph into a quote or split part of it out. Blocks keep their
+    allowed classes and data-v (a block without a valid one takes the first replaced
+    block's); loose inline content becomes a paragraph. Returns the new HTML, the unit as
+    the editor now sees it (heading + blocks), and how many blocks it has.
+    """
+    soup = BeautifulSoup(html, 'html.parser')
+    blocks = editable_blocks(soup)
+    if count < 1 or not 0 <= index or index + count > len(blocks):
+        raise IndexError(f'No paragraphs {index}-{index + count - 1}.')
+    old = blocks[index:index + count]
+    default_v = old[0].get('data-v', '')
+    heading_html, body_html = _leading_heading(unit_html)
+
+    new_blocks = []
+    loose = []
+
+    def add(tag, classes, data_v, inner, keep_empty=False):
+        block = soup.new_tag(tag)
+        kept = [c for c in (classes or []) if c in ALLOWED_CLASSES.get(tag, ())]
+        if kept:
+            block['class'] = ' '.join(kept)
+        data_v = (data_v or '').strip()
+        data_v = data_v if VERSE_RANGE.match(data_v) else default_v
+        if data_v:
+            block['data-v'] = data_v
+        for node in _clean_edit(soup, inner):
+            block.append(node)
+        # A piece left with no text (only spaces or line breaks) after a split is dropped.
+        if keep_empty or block.get_text().strip() or block.find('button'):
+            new_blocks.append(block)
+
+    def flush_loose():
+        if ''.join(str(node) for node in loose).strip():
+            add('p', None, '', ''.join(str(node) for node in loose))
+        loose.clear()
+
+    for node in list(BeautifulSoup(body_html, 'html.parser').contents):
+        if getattr(node, 'name', None) in EDITABLE_BLOCKS:
+            flush_loose()
+            add(node.name, node.get('class'), node.get('data-v'), node.decode_contents())
+        else:
+            loose.append(node)
+    flush_loose()
+    if not new_blocks:
+        add('p', None, '', '', keep_empty=True)
+
+    heading = _heading_before(old[0])
+    if heading is not None:
+        heading.decompose()
+    for block in new_blocks:
+        old[0].insert_before(block)
+    for block in old:
+        block.decompose()
+    for block in new_blocks:
+        _add_anchors(soup, block)
+    _set_heading(soup, new_blocks[0], heading_html)
+    heading = _heading_before(new_blocks[0])
+    unit = (str(heading) if heading else '') + ''.join(str(block) for block in new_blocks)
+    return str(soup).strip(), unit, len(new_blocks)
 
 
 # Notes are staff-written verse HTML (images, lists, centred lines), so an edited note keeps
