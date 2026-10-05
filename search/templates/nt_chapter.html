@@ -203,6 +203,26 @@ function hideTranslationLoading() {
 {% endif %}
 {% endif %}
 
+{% if reader_paraphrase or chapter_editor_enabled %}
+{# Pick the reader view before the text paints, so a chapter opened in the paraphrase view
+   doesn't flash the word-for-word text first. Same choice as static/reader-paraphrase.js,
+   which takes over (and drops this class) once it loads. #}
+<style>
+    html.rbt-start-paraphrase #paraphrase-area { display: none !important; }
+    html.rbt-start-paraphrase #reader-paraphrase[hidden] { display: block; }
+</style>
+<script>
+(function () {
+    var param = new URLSearchParams(location.search).get('view');
+    var choice = null;
+    try { choice = localStorage.getItem('rbtReaderView'); } catch (e) { /* private mode */ }
+    var wanted = param ? param === 'paraphrase' : (/^#v\d+$/.test(location.hash) || choice === 'paraphrase');
+    if (wanted && ({{ reader_paraphrase|yesno:'true,false' }} || param === 'paraphrase')) {
+        document.documentElement.classList.add('rbt-start-paraphrase');
+    }
+})();
+</script>
+{% endif %}
 <h1>{{ book }} {{ chapter_num }}</h1>
 
 {% if current_language in 'ar,he,ur,fa' %}

@@ -142,6 +142,8 @@
         }
 
         function show(on, remember) {
+            // The view chosen before the page painted (nt_chapter.html) is now set here.
+            document.documentElement.classList.remove('rbt-start-paraphrase');
             reader.hidden = !on;
             verses.hidden = on;
             button.classList.toggle('is-active', on);
