@@ -202,6 +202,32 @@
     </div>
   </div>
 
+  <!-- ── Translated titles ─────────────────────────────────────────── -->
+  <div class="td-card" id="titles-card">
+    <h2>Translated titles</h2>
+    <div class="td-body">
+      <p class="td-note" style="margin-top:0;">
+        Book titles and the Gospel of Judas heading are translated once per language. When an
+        English title changes (search/rbt_titles.py) its translations go stale and pages show the
+        English title until they're refreshed here &mdash; one model call per title and language.
+      </p>
+      <div id="titles-list">
+        {% if title_summary.total %}
+        <table class="td" style="margin-bottom:14px;">
+          <thead><tr><th>English title</th><th class="n">Stale languages</th></tr></thead>
+          <tbody>
+            {% for t in title_summary.titles %}<tr><td>{{ t.english }}</td><td class="n">{{ t.languages }}</td></tr>{% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p style="margin:0 0 14px;">All translated titles are current.</p>
+        {% endif %}
+      </div>
+      <button type="button" id="titles-refresh" {% if not title_summary.total %}disabled{% endif %}>Refresh titles</button>
+      <span id="titles-status" class="td-note" style="margin-left:10px;"></span>
+    </div>
+  </div>
+
   <!-- ── API status ────────────────────────────────────────────────── -->
   <div class="td-card">
     <h2>API status</h2>
@@ -403,6 +429,66 @@
             }
         });
     }
+})();
+</script>
+
+<script>
+// Translated titles card: re-translate stale titles, then poll until none are left.
+(function () {
+    var btn = document.getElementById('titles-refresh');
+    var list = document.getElementById('titles-list');
+    var status = document.getElementById('titles-status');
+    if (!btn) return;
+
+    function esc(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function render(d) {
+        var stale = d.stale || { total: 0, titles: [] };
+        if (stale.total) {
+            list.innerHTML = '<table class="td" style="margin-bottom:14px;"><thead><tr><th>English title</th>' +
+                '<th class="n">Stale languages</th></tr></thead><tbody>' +
+                stale.titles.map(function (t) { return '<tr><td>' + esc(t.english) + '</td><td class="n">' + t.languages + '</td></tr>'; }).join('') +
+                '</tbody></table>';
+        } else {
+            list.innerHTML = '<p style="margin:0 0 14px;">All translated titles are current.</p>';
+        }
+        btn.disabled = d.running || !stale.total;
+        if (d.running) {
+            status.textContent = 'Refreshing\u2026 ' + stale.total + ' left';
+        } else if (d.last && d.last.error) {
+            status.textContent = 'Last refresh failed: ' + d.last.error;
+        } else if (d.last) {
+            status.textContent = 'Last refresh: ' + d.last.refreshed + ' translated' +
+                (d.last.failed ? ', ' + d.last.failed + ' failed (try again)' : '') + '.';
+        }
+        return d.running;
+    }
+
+    function poll() {
+        fetch('/api/translation/titles/', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { if (render(d)) setTimeout(poll, 4000); })
+            .catch(function () { status.textContent = 'Could not load the title status.'; });
+    }
+
+    btn.addEventListener('click', function () {
+        if (!window.confirm('Re-translate every stale title? This makes one model call per title and language.')) return;
+        btn.disabled = true;
+        status.textContent = 'Starting\u2026';
+        fetch('/api/translation/titles/', { method: 'POST', credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (d.status !== 'ok') { status.textContent = d.message || 'Could not start'; btn.disabled = false; return; }
+                setTimeout(poll, 1500);
+            })
+            .catch(function () { status.textContent = 'Could not start'; btn.disabled = false; });
+    });
+
+    poll();
 })();
 </script>
 {% endblock %}

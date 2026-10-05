@@ -5046,7 +5046,7 @@ def get_aseneth_chapter(chapter_num):
 
 
 # ---------------------------------------------------------------------------
-# Gospel of Judas (Confessor) editor
+# Gospel of Judas (Praised One) editor
 # ---------------------------------------------------------------------------
 
 JUDAS_CODEX_RANGE = list(range(33, 59))
@@ -5078,7 +5078,7 @@ def get_judas_prose():
 @login_required
 def edit_judas(request):
     """
-    Edit view for Gospel of Judas (Confessor) translation database.
+    Edit view for Gospel of Judas (Praised One) translation database.
 
     Handles:
       - Find/replace across all prose content (preview → confirm flow)
@@ -5086,7 +5086,7 @@ def edit_judas(request):
       - Codex page browsing             (?codex=N)
       - Default: find/replace input form
     """
-    book_name = "Gospel of Confessor (Judas)"
+    book_name = "Gospel of Praised One (Judas)"
     codex_query = request.GET.get('codex')
     line_query = request.GET.get('line')
 
@@ -5471,7 +5471,7 @@ def get_judas_line_context(codex_num, line_num):
 
             return {
                 'line_data': line_data,
-                'book': 'Gospel of Confessor (Judas)',
+                'book': 'Gospel of Praised One (Judas)',
                 'codex': codex_int,
                 'line_num': line_int,
                 'max_line': max_line,
@@ -5533,7 +5533,7 @@ def get_judas_codex_view(codex_num):
                 'html': prose_html,
                 'prose_text': prose_html,
                 'interlinear_html': il_html,
-                'book': 'Gospel of Confessor (Judas)',
+                'book': 'Gospel of Praised One (Judas)',
                 'codex_num': codex_int,
                 'codex_links': codex_links,
                 'cached_hit': False,

@@ -49,6 +49,7 @@ from .translation_views import (
     translation_dashboard,
     translation_coverage_api,
     prompt_config_api,
+    title_translations_api,
 )
 
 # Chapter views (PARTIAL - core functions only)
@@ -64,7 +65,7 @@ from .storehouse_views import (
     storehouse_view,
 )
 
-# Gospel of Judas (Confessor) view
+# Gospel of Judas (Praised One) view
 from .judas_views import (
     judas_view,
 )

@@ -27,8 +27,8 @@ rbt_books: dict[str, str] = {
     'Proverbs': 'Comparisons',
     'Ecclesiastes': 'Alignments of the Assembler',
     'Song of Solomon': 'The Song of Singers',
-    'Isaiah': 'He Who Is Liberates Himself',
-    'Jeremiah': 'He Who Is Lifts Up Himself',
+    'Isaiah': 'He Who Is Liberates',
+    'Jeremiah': 'He Who Is Lifts Up',
     'Lamentations': 'How She Sat Desolate!',
     'Ezekiel': 'God Holds Strongly',
     'Daniel': 'God Has Judged',
@@ -69,6 +69,6 @@ rbt_books: dict[str, str] = {
     '1 John': 'First Favored',
     '2 John': 'Second Favored',
     '3 John': 'Third Favored',
-    'Jude': 'Confessor',
+    'Jude': 'Praised',
     'Revelation': 'The Unveiling',
 }

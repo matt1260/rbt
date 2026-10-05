@@ -18,6 +18,7 @@ from translate.translator import (
     old_testament_books,
     new_testament_books,
 )
+from search import title_translations
 from search.rbt_titles import rbt_books
 from search.seo_utils import generate_chapter_schema
 from search.translation_utils import (
@@ -253,7 +254,8 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
     display_book = rbt_books.get(book, book)
     
     # Apply translated book name if available
-    if language != 'en' and book_name_translation and book_name_translation.verse_text:
+    # A title translated before the English title changed shows in English until refreshed.
+    if language != 'en' and title_translations.current_text(book_name_translation):
         display_book = book_name_translation.verse_text
 
     standard_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
@@ -523,7 +525,8 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     display_book = rbt_books.get(standard_book, standard_book)
     
     # Apply translated book name if available for page display only
-    if language != 'en' and book_name_translation and book_name_translation.verse_text:
+    # A title translated before the English title changed shows in English until refreshed.
+    if language != 'en' and title_translations.current_text(book_name_translation):
         display_book = book_name_translation.verse_text
         
     # Traditional name in the page's language, so a translated page's <title>
@@ -795,7 +798,8 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     display_book = rbt_books.get(standard_book, standard_book)
     
     # Apply translated book name if available for page display only
-    if language != 'en' and book_name_translation and book_name_translation.verse_text:
+    # A title translated before the English title changed shows in English until refreshed.
+    if language != 'en' and title_translations.current_text(book_name_translation):
         display_book = book_name_translation.verse_text
     
     # Traditional name in the page's language, so a translated page's <title>

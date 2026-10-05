@@ -1,5 +1,5 @@
 """
-Gospel of Judas (Confessor) text viewer.
+Gospel of Judas (Praised One) text viewer.
 
 Public reader for the Gospel of Judas with codex-page-based navigation.
 Displays prose translation with right-column panels for Greek, Coptic,
@@ -14,7 +14,9 @@ from django.core.cache import cache
 
 from search.db_utils import get_db_connection
 from search.translation_utils import SUPPORTED_LANGUAGES
+from search import title_translations
 from search.models import VerseTranslation
+from search import title_translations
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +28,12 @@ CODEX_RANGE = list(range(CODEX_MIN, CODEX_MAX + 1))
 # Valid right-panel modes
 PANEL_MODES = {'greek', 'coptic', 'notes', 'commentary'}
 
-CACHE_VERSION = 'v3'
+CACHE_VERSION = 'v4'
 
 
 def judas_view(request, codex_num=None, panel_code=None, lang_code=None):
     """
-    Public reader for Gospel of Judas (Confessor) text.
+    Public reader for Gospel of Judas (Praised One) text.
 
     Displays codex-page-based view with prose translation, plus a
     toggleable right column for Greek, Coptic, Notes, or Commentary.
@@ -40,7 +42,7 @@ def judas_view(request, codex_num=None, panel_code=None, lang_code=None):
         codex_num : int   — Codex page number 33-58
         panel_code : str  — Right-column content: greek|coptic|notes|commentary
     """
-    book_name = "Gospel of Confessor (Judas)"
+    book_name = "Gospel of Praised One (Judas)"
     internal_book_name = "Gospel of Judas"
 
     # If it is a query param request, redirect to SEO route
@@ -190,7 +192,7 @@ def judas_view(request, codex_num=None, panel_code=None, lang_code=None):
         error_message = str(exc)
 
     # If non-English, look up translated book name from VerseTranslation (chapter=0, verse=0)
-    heading_prefix = "Gospel of Confessor"
+    heading_prefix = "Gospel of Praised One"
     if language != 'en':
         try:
             book_name_trans = VerseTranslation.objects.filter(
@@ -200,7 +202,7 @@ def judas_view(request, codex_num=None, panel_code=None, lang_code=None):
                 language_code=language,
                 footnote_id__isnull=True,
             ).first()
-            if book_name_trans and book_name_trans.verse_text:
+            if title_translations.current_text(book_name_trans):
                 book_name = book_name_trans.verse_text
         except Exception:
             logger.exception("Error looking up Judas book name translation for lang %s", language)
@@ -215,7 +217,7 @@ def judas_view(request, codex_num=None, panel_code=None, lang_code=None):
                 language_code=language,
                 footnote_id__isnull=True,
             ).first()
-            if heading_trans and heading_trans.verse_text:
+            if title_translations.current_text(heading_trans):
                 heading_prefix = heading_trans.verse_text
         except Exception:
             logger.exception("Error looking up Judas heading translation for lang %s", language)

@@ -35,6 +35,7 @@ urlpatterns = [
     path('translation/dashboard/', views.translation_dashboard, name='translation_dashboard'),
     path('translation/coverage/', views.translation_coverage_api, name='translation_coverage_api'),
     path('translation/prompt-config/', views.prompt_config_api, name='prompt_config_api'),
+    path('translation/titles/', views.title_translations_api, name='title_translations_api'),
 
     # Aeon Bot API endpoints
     path('gemini/dashboard/', translate_views.gemini_dashboard_view, name='gemini_dashboard'),

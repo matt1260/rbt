@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.cache import cache
 from search.db_utils import invalidate_cached_render
 from search.models import VerseTranslation
+from search import title_translations
 from translate.translator import (
     book_abbreviations, new_testament_books, old_testament_books,
     nt_abbrev, convert_book_name
@@ -298,19 +299,19 @@ def _translate_nt_chapter(book, chapter_num, language, results):
         if needs_retranslation(existing_translations, int(vrs), source_hash):
             verses_to_translate[int(vrs)] = html_verse
     
-    # Check if book name needs translation (stored with verse=0)
-    book_name_exists = VerseTranslation.objects.filter(
+    # Check if book name needs translation (stored with verse=0): missing, or translated
+    # from an earlier version of the title
+    book_name_row = VerseTranslation.objects.filter(
         book=book,
         chapter=0,
         verse=0,
         language_code=language,
         status='completed',
         footnote_id__isnull=True
-    ).exists()
+    ).first()
     
-    if not book_name_exists:
-        display_book_en = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
-        display_book_en = rbt_books.get(display_book_en, display_book_en)
+    if not (book_name_row and title_translations.is_current(book_name_row)):
+        display_book_en = title_translations.english_title(book)
         verses_to_translate[0] = display_book_en
         print(f"[API DEBUG] Book name needs translation: {display_book_en}")
     
@@ -501,16 +502,15 @@ def _translate_ot_chapter(book, chapter_num, language, results):
             if paraphrase_content and needs_retranslation(existing_translations, verse_num, source_fingerprint(paraphrase_content)):
                 verses_to_translate[verse_num] = paraphrase_content
     
-    # Check if book name needs translation
-    book_name_exists = VerseTranslation.objects.filter(
+    # Check if book name needs translation: missing, or translated from an earlier title
+    book_name_row = VerseTranslation.objects.filter(
         book=book, chapter=0, verse=0,
         language_code=language, status='completed',
         footnote_id__isnull=True
-    ).exists()
+    ).first()
     
-    if not book_name_exists:
-        display_book_en = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
-        display_book_en = rbt_books.get(display_book_en, display_book_en)
+    if not (book_name_row and title_translations.is_current(book_name_row)):
+        display_book_en = title_translations.english_title(book)
         verses_to_translate[0] = display_book_en
     
     if verses_to_translate:
@@ -1250,6 +1250,7 @@ def translation_dashboard(request):
         'sample_lang_name': SUPPORTED_LANGUAGES.get(sample_lang, sample_lang),
         'glossary_preview': build_glossary_section(sample_lang),
         'supported_languages': SUPPORTED_LANGUAGES,
+        'title_summary': title_translations.stale_summary(),
     }
     return render(request, 'translation_dashboard.html', context)
 
@@ -1481,4 +1482,52 @@ def prompt_config_api(request):
         'status': 'ok',
         'message': f'Saved {total_rules} rule(s) and {len(glossary)} glossary term(s).',
         'config': _prompt_config_payload(),
+    })
+
+
+TITLE_REFRESH_LOCK = 'title_translation_refresh_running'
+TITLE_REFRESH_RESULT = 'title_translation_refresh_result'
+
+
+@csrf_exempt
+def title_translations_api(request):
+    """Translated book titles and the Judas heading that are out of date (search/title_translations.py).
+
+    GET  -> {'stale': {total, titles}, 'running', 'last'}.
+    POST -> re-translate every stale one in a background thread (one model call per
+            title and language). Signed-in staff only, like the other dashboard tools.
+    """
+    import threading
+    from django.db import close_old_connections
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'status': 'error', 'message': 'Sign in to manage title translations.'}, status=403)
+
+    if request.method == 'POST':
+        # Shared lock (the cache is the database), so a double click or another app
+        # instance doesn't translate everything twice. Expires in case a worker dies.
+        if not cache.add(TITLE_REFRESH_LOCK, True, 30 * 60):
+            return JsonResponse({'status': 'ok', 'message': 'A refresh is already running.', 'running': True})
+
+        def run():
+            close_old_connections()
+            try:
+                refreshed, failed = title_translations.refresh_stale_titles()
+                cache.set(TITLE_REFRESH_RESULT, {'refreshed': refreshed, 'failed': failed}, 24 * 60 * 60)
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).exception('Title translation refresh failed')
+                cache.set(TITLE_REFRESH_RESULT, {'error': str(exc)}, 24 * 60 * 60)
+            finally:
+                cache.delete(TITLE_REFRESH_LOCK)
+                close_old_connections()
+
+        threading.Thread(target=run, name='title-translation-refresh', daemon=True).start()
+        return JsonResponse({'status': 'ok', 'message': 'Refreshing titles…', 'running': True})
+
+    return JsonResponse({
+        'status': 'ok',
+        'stale': title_translations.stale_summary(),
+        'running': bool(cache.get(TITLE_REFRESH_LOCK)),
+        'last': cache.get(TITLE_REFRESH_RESULT),
     })

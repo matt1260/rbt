@@ -351,34 +351,24 @@ class TranslationWorker:
             print(f"[WORKER] Error translating Judas commentary: {e}")
 
     def _translate_judas_heading(self, language):
-        """Translate the heading phrase 'Gospel of Confessor' (chapter=0, verse=3) per language."""
+        """Translate the heading phrase 'Gospel of Praised One' (chapter=0, verse=3) per language."""
         from search.models import VerseTranslation
-        from search.translation_utils import translate_chapter_batch
+        from search import title_translations as titles
 
-        book = "Gospel of Judas"
+        book, verse = titles.JUDAS_BOOK, titles.JUDAS_HEADING_VERSE
         existing = VerseTranslation.objects.filter(
-            book=book, chapter=0, verse=3,
+            book=book, chapter=0, verse=verse,
             language_code=language, footnote_id__isnull=True,
             status='completed',
-        ).exists()
-        if existing:
+        ).first()
+        if existing and titles.is_current(existing):
             print(f"[WORKER] Judas heading already translated to {language}")
             return
 
-        heading_text = "Gospel of Confessor"
-        translated = translate_chapter_batch({3: heading_text}, language)
-        for verse_num, translated_text in translated.items():
-            if '[Translation unavailable' not in translated_text:
-                VerseTranslation.objects.update_or_create(
-                    book=book, chapter=0, verse=verse_num,
-                    language_code=language, footnote_id=None,
-                    defaults={
-                        'verse_text': translated_text,
-                        'status': 'completed',
-                        'generated_by': 'gemini-3.8-flash',
-                    }
-                )
-        print(f"[WORKER] Judas heading translated to {language}")
+        translated = titles.translate_title(book, verse, language)
+        if translated:
+            titles.save_title(book, verse, language, translated)
+            print(f"[WORKER] Judas heading translated to {language}")
 
     def _extract_storehouse_content(self, book, chapter_num, language):
         """Extract translatable content from Joseph and Aseneth (storehouse)"""
@@ -584,54 +574,30 @@ class TranslationWorker:
     def _translate_book_name(self, book, language):
         """Translate book name and save as verse=0, chapter=0"""
         from search.models import VerseTranslation
-        from search.translation_utils import translate_chapter_batch, SUPPORTED_LANGUAGES
-        from search.rbt_titles import rbt_books
-        import re
-        
-        # Skip if already translated
+        from search import title_translations as titles
+
+        # Skip if already translated from the title as it is now
         existing = VerseTranslation.objects.filter(
             book=book, chapter=0, verse=0, language_code=language,
             status='completed', footnote_id__isnull=True
         ).first()
-        
-        if existing:
+        if existing and titles.is_current(existing):
             print(f"[WORKER] Book name '{book}' already translated to {language}")
             return
-        
-        # Get English book name (with space between number and letters)
-        display_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
-        # Special display names not in rbt_books
-        _display_overrides = {
-            'Gospel of Judas': 'Gospel of Confessor (Judas)',
-        }
-        english_name = _display_overrides.get(display_book) or rbt_books.get(display_book, display_book)
-        
+
+        english_name = titles.english_title(book)
         print(f"[WORKER] Translating book name '{english_name}' ({book}) to {language}")
-        
         try:
-            # Use batch translation with verse=0 to trigger book name translation logic
-            # This function rotates through multiple API keys automatically
-            result = translate_chapter_batch({0: english_name}, language)
-            translated_name = result.get(0, '')
-            
-            # Check if translation was successful (not an error message)
-            if translated_name and not translated_name.startswith('[Translation'):
-                # Save translation
-                VerseTranslation.objects.create(
-                    book=book,
-                    chapter=0,
-                    verse=0,
-                    language_code=language,
-                    verse_text=translated_name,
-                    status='completed'
-                )
+            translated_name = titles.translate_title(book, 0, language)
+            if translated_name:
+                titles.save_title(book, 0, language, translated_name)
                 print(f"[WORKER] Book name translated: '{english_name}' -> '{translated_name}'")
             else:
-                print(f"[WORKER] Failed to translate book name: {translated_name}")
+                print(f"[WORKER] Failed to translate book name '{english_name}' to {language}")
         except Exception as e:
             print(f"[WORKER] Error translating book name: {e}")
             logger.error(f"Error translating book name {book} to {language}: {e}")
-    
+
     def _translate_verses(self, job, verses_to_translate, book, chapter_num, language):
         """Translate verses and save incrementally"""
         from search.models import VerseTranslation
