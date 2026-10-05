@@ -292,6 +292,8 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
         'paraphrase': paraphrase,
         'commentary': commentary,
         'book': display_book,
+        # The traditional name in the page's language, shown beside the RBT title for search.
+        'standard_book': seo_book,
         'original_book': original_book,
         'chapter_num': chapter_num,
         'chapter_list': chapter_list,
@@ -575,6 +577,8 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         'html': "",  # NT literal
         'paraphrase': paraphrase,
         'book': display_book,
+        # The traditional name in the page's language, shown beside the RBT title for search.
+        'standard_book': seo_book,
         'original_book': original_book,
         'chapter_num': chapter_num,
         'chapter_list': chapter_list,
@@ -853,6 +857,8 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
         'paraphrase': paraphrase,
         'commentary': commentary,
         'book': display_book,
+        # The traditional name in the page's language, shown beside the RBT title for search.
+        'standard_book': seo_book,
         'original_book': original_book,
         'chapter_num': chapter_num,
         'chapter_list': chapter_list,
