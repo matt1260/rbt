@@ -491,7 +491,12 @@ html.rbt-view-switching #reader-paraphrase {
     }
 }
 
-/* Without view transitions: the incoming text sharpens in. */
+/* Without view transitions (and in Firefox): the outgoing text blurs out, then the
+   incoming one sharpens in. */
+.rbt-view-leave {
+    animation: rbt-view-blur-out 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
 .rbt-view-enter {
     animation: rbt-view-blur-in 0.45s cubic-bezier(0.2, 0, 0, 1) both;
 }
@@ -499,6 +504,7 @@ html.rbt-view-switching #reader-paraphrase {
 @media (prefers-reduced-motion: reduce) {
     ::view-transition-old(rbt-reading),
     ::view-transition-new(rbt-reading),
+    .rbt-view-leave,
     .rbt-view-enter {
         animation: none;
     }

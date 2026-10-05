@@ -167,9 +167,28 @@
         // ---- Switching views ---------------------------------------------------------
         // The outgoing text blurs and dissolves while the incoming one sharpens in behind a
         // soft wipe (a view transition, styled in reader-paraphrase.css), and the toggle's
-        // label decodes from scrambled glyphs. Browsers without view transitions get a
-        // blur-in; reduced motion gets an instant switch.
+        // label decodes from scrambled glyphs. Firefox, whose view transitions drop the blur
+        // and jump the scroll position, and browsers without them get the same blur out and
+        // in as plain CSS animations, one after the other; reduced motion switches instantly.
         var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+        var useViewTransition = !!document.startViewTransition && !/\bFirefox\//.test(navigator.userAgent);
+        var leaving = null;
+        // The view being switched to, while a switch is still animating.
+        var pendingOn = null;
+
+        function toggle() {
+            show(pendingOn !== null ? !pendingOn : reader.hidden, true);
+        }
+
+        // Swapping which text is shown must not scroll the page (browsers' scroll anchoring
+        // otherwise nudges it).
+        function applyKeepingScroll(on, remember) {
+            var y = window.scrollY;
+            document.documentElement.style.overflowAnchor = 'none';
+            apply(on, remember);
+            window.scrollTo(window.scrollX, y);
+            document.documentElement.style.overflowAnchor = '';
+        }
         var GLYPHS = 'ΑΒΓΔΘΛΞΠΣΦΨΩאבגדהוזחטמנסעפצקרשת';
         var scrambleTimer = 0;
 
@@ -206,23 +225,51 @@
                 return;
             }
             var root = document.documentElement;
-            if (document.startViewTransition) {
+            if (useViewTransition) {
                 // The two texts share a transition name only while switching, so moving
                 // between chapters keeps its plain crossfade.
                 root.classList.add('rbt-view-switching');
-                var transition = document.startViewTransition(function () { apply(on, remember); });
+                pendingOn = on;
+                var transition = document.startViewTransition(function () {
+                    pendingOn = null;
+                    applyKeepingScroll(on, remember);
+                });
+                // A transition skipped by a quicker second press is fine.
+                transition.ready.catch(function () {});
                 transition.finished.then(
                     function () { root.classList.remove('rbt-view-switching'); },
                     function () { root.classList.remove('rbt-view-switching'); }
                 );
             } else {
-                apply(on, remember);
-                var incoming = on ? reader : verses;
+                swapWithAnimations(on, remember);
+            }
+            scrambleLabel();
+        }
+
+        function swapWithAnimations(on, remember) {
+            var outgoing = on ? verses : reader;
+            var incoming = on ? reader : verses;
+            if (leaving) leaving();  // a second press finishes the first switch at once
+            pendingOn = on;
+            var done = false;
+            function onEnd(event) {
+                if (event.target === outgoing) leaving();
+            }
+            leaving = function () {
+                if (done) return;
+                done = true;
+                leaving = null;
+                pendingOn = null;
+                outgoing.removeEventListener('animationend', onEnd);
+                outgoing.classList.remove('rbt-view-leave');
+                applyKeepingScroll(on, remember);
                 incoming.classList.remove('rbt-view-enter');
                 void incoming.offsetWidth;
                 incoming.classList.add('rbt-view-enter');
-            }
-            scrambleLabel();
+            };
+            outgoing.addEventListener('animationend', onEnd);
+            setTimeout(leaving, 300);
+            outgoing.classList.add('rbt-view-leave');
         }
 
         var param = new URLSearchParams(window.location.search).get('view');
@@ -231,15 +278,13 @@
         show(Boolean(wanted) && (hasContent() || param === 'paraphrase'), false);
         if (verseLink && !reader.hidden) verseLink.scrollIntoView();
 
-        button.addEventListener('click', function () {
-            show(reader.hidden, true);
-        });
+        button.addEventListener('click', toggle);
 
 
         document.addEventListener('keydown', function (event) {
             if (event.key !== 'r' || event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
             if (modal && modal.open) return;
-            show(reader.hidden, true);
+            toggle();
         });
 
         // Used by the Paraphrase Studio (staff) to show a newly published paraphrase without a reload.
