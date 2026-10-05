@@ -122,7 +122,8 @@
 
     document.addEventListener('click', function (event) {
         var cue = event.target.closest && event.target.closest('.rbt-paraphrase .pp-cue');
-        if (!cue) return;
+        // In the inline editor (staff) a click selects the cue, to move or remove it.
+        if (!cue || cue.closest('.ProseMirror')) return;
         event.preventDefault();
         if (!modal) buildModal();
         opener = cue;

@@ -15,7 +15,7 @@ import { baseKeymap } from 'prosemirror-commands'
 import { history, redo, undo, undoDepth } from 'prosemirror-history'
 import { keymap } from 'prosemirror-keymap'
 import type { Node as PMNode } from 'prosemirror-model'
-import { EditorState, Plugin, TextSelection, type Command } from 'prosemirror-state'
+import { EditorState, NodeSelection, Plugin, TextSelection, type Command } from 'prosemirror-state'
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view'
 import { Api, type BlockSaveResult, type EditorConfig, type InterlinearWord } from './api'
 import { applyTool, toggleParagraphHeading, toggleParagraphQuote, TOOLS, typeOutsideEndingMarks, type Tool } from './commands'
@@ -96,6 +96,22 @@ export interface VerseStatus {
   status: SaveStatus
   error?: string
   conflict?: { html: string; mine: string }
+}
+
+/** An image or video of the chapter, which a paraphrase paragraph can show as a cue. */
+export interface MediaChoice {
+  n: number
+  title: string
+  thumb: string | null
+  /** Cues for it in the paraphrase now (the paragraph being edited included). */
+  placed: number
+}
+
+/** True when the editor's selection is one image cue (a selected atom). */
+export function selectedCue(state: EditorState): boolean {
+  const { selection } = state
+  return selection instanceof NodeSelection && selection.node.type === schema.nodes.raw_inline &&
+    /class="pp-cue\b/.test(selection.node.attrs.html)
 }
 
 export interface Snapshot {
@@ -576,6 +592,72 @@ export class ChapterEditorController {
     view.dispatch(view.state.tr.setSelection(selection))
     view.focus()
     this.emit()
+  }
+
+  // --- image cues --------------------------------------------------------------
+
+  /** The chapter's images (the paraphrase's media store), for the paragraph toolbar's picker. */
+  mediaChoices(): MediaChoice[] {
+    const reader = this.reader
+    if (!reader) return []
+    const counts = new Map<number, number>()
+    const count = (n: number) => counts.set(n, (counts.get(n) ?? 0) + 1)
+    // Cues on the page, except in the paragraph being edited (hidden), which the editor counts.
+    for (const cue of Array.from(reader.querySelectorAll<HTMLElement>(':scope > p .pp-cue, :scope > blockquote .pp-cue'))) {
+      if (!cue.closest<HTMLElement>('p, blockquote')!.hidden) count(Number(cue.dataset.media))
+    }
+    this.active?.view.state.doc.descendants((node) => {
+      const match = node.type === schema.nodes.raw_inline && /class="pp-cue\b[^>]*data-media="(\d+)"|data-media="(\d+)"[^>]*class="pp-cue\b/.exec(node.attrs.html)
+      if (match) count(Number(match[1] ?? match[2]))
+    })
+    return Array.from(reader.querySelectorAll<HTMLTemplateElement>('.pp-media-store template[data-media]')).map((template) => {
+      const n = Number(template.dataset.media)
+      const cue = reader.querySelector<HTMLElement>(`.pp-cue[data-media="${n}"]`)
+      // Like the server's titles: the notes' bold heading, else their first sentence.
+      const notes = template.content.querySelector('.tooltip, .tooltip2')
+      const heading = (notes?.querySelector('b, strong')?.textContent ?? '').trim()
+      const sentence = (notes?.textContent ?? '').trim().replace(/\s+/g, ' ').split(/(?<=[.!?])\s/)[0].slice(0, 90)
+      const title = cue?.title || heading || sentence || `Image ${n}`
+      const img = template.content.querySelector('img')
+      return { n, title, thumb: img?.getAttribute('src') ?? null, placed: counts.get(n) ?? 0 }
+    })
+  }
+
+  /** The cue markup for media item n; the server rebuilds it from the stored media on save. */
+  private cueHtml(n: number): string {
+    const existing = this.reader?.querySelector<HTMLElement>(`.pp-cue[data-media="${n}"]`)
+    if (existing) return existing.outerHTML
+    const choice = this.mediaChoices().find((item) => item.n === n)
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'pp-cue pp-cue--image'
+    button.dataset.media = String(n)
+    button.title = choice?.title ?? ''
+    if (choice?.thumb) {
+      const img = document.createElement('img')
+      img.className = 'pp-cue__thumb'
+      img.alt = ''
+      img.src = choice.thumb
+      button.append(img)
+    }
+    return button.outerHTML
+  }
+
+  /** Put media item n's cue at the caret of the paragraph being edited. */
+  insertCue = (n: number) => {
+    const view = this.active?.kind === 'paragraph' ? this.active.view : null
+    if (!view) return
+    const node = schema.nodes.raw_inline.create({ html: this.cueHtml(n) })
+    view.dispatch(view.state.tr.replaceSelectionWith(node, false).scrollIntoView())
+    view.focus()
+  }
+
+  /** Remove the selected cue (the image stays in the chapter's media, so it can be put back). */
+  removeSelectedCue = () => {
+    const view = this.active?.view
+    if (!view || !selectedCue(view.state)) return
+    view.dispatch(view.state.tr.deleteSelection().scrollIntoView())
+    view.focus()
   }
 
   // --- image notes -------------------------------------------------------------
