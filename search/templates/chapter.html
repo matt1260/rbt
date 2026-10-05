@@ -2,12 +2,48 @@
 {% block title %}Real Bible Translation - {{ page_title }}{% endblock %}
 {% load custom_tags %}
 {% load static %}
-{% block content %}
-<!-- Preload and apply chapter CSS (Firefox-friendly) to avoid FOUC -->
+{% block extra_head %}
+{% comment %}
+Chapter styles load here, before the first paint, so the text never shows unstyled
+(full-size images, plain headings). The chapter fades in once its heading and dock
+fonts are ready (at most 1.2 s), and in browsers with cross-document view transitions
+moving between chapters crossfades, holding the new page until its content is parsed.
+{% endcomment %}
 {% static_version 'chapter-viewer.css' 'chapter-viewer.js' as chapter_viewer_version %}
-<link rel="preload" href="{% static 'chapter-viewer.css' %}?v={{ chapter_viewer_version }}" as="style">
-<link rel="stylesheet" href="{% static 'chapter-viewer.css' %}?v={{ chapter_viewer_version }}" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="{% static 'chapter-viewer.css' %}?v={{ chapter_viewer_version }}"></noscript>
+<link rel="stylesheet" href="{% static 'chapter-viewer.css' %}?v={{ chapter_viewer_version }}">
+<link rel="expect" href="#rbt-chapter-end" blocking="render">
+<style>
+    @view-transition { navigation: auto; }
+    ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.2s; }
+    .rbt-chapter-page { transition: opacity 0.2s ease; }
+    html.rbt-chapter-loading .rbt-chapter-page { opacity: 0; }
+</style>
+<script>
+(function () {
+    var root = document.documentElement;
+    var shown = false;
+    function show() {
+        if (shown) return;
+        shown = true;
+        root.classList.remove('rbt-chapter-loading');
+    }
+    root.classList.add('rbt-chapter-loading');
+    setTimeout(show, 1200);
+    // A view transition already fades the page in.
+    window.addEventListener('pagereveal', function (event) { if (event.viewTransition) show(); });
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!document.fonts || !document.fonts.load) return show();
+        Promise.all([
+            document.fonts.load('600 1em "Cormorant Garamond"'),
+            document.fonts.load('500 1em "Inter"'),
+        ]).then(show, show);
+    });
+})();
+</script>
+{% endblock %}
+{% block content %}
+<div class="rbt-chapter-page">
+{% static_version 'chapter-viewer.css' 'chapter-viewer.js' as chapter_viewer_version %}
 <script src="{% static 'translation-manager.js' %}"></script>
 <script src="{% static 'chapter-viewer.js' %}?v={{ chapter_viewer_version }}" defer></script>
 {% static_version 'reader-dock.js' 'reader-dock.css' as reader_dock_version %}
@@ -1030,4 +1066,6 @@ chapter-viewer.js re-renders on toggle.
 </script>
 {% endif %}
 
+<div id="rbt-chapter-end"></div>
+</div>
 {% endblock %}
