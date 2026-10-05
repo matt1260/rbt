@@ -436,3 +436,70 @@
         animation: none;
     }
 }
+
+/* ---- Switching between word-for-word and paraphrase (reader-paraphrase.js show()) ----
+   The outgoing text blurs, drifts up and dissolves; the incoming one sharpens out of a
+   blur behind a soft top-to-bottom wipe. The shared name is set only while switching. */
+html.rbt-view-switching #paraphrase-area,
+html.rbt-view-switching #reader-paraphrase {
+    view-transition-name: rbt-reading;
+}
+
+::view-transition-group(rbt-reading) {
+    animation-duration: 0.55s;
+    animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+::view-transition-old(rbt-reading) {
+    animation: rbt-view-blur-out 0.32s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+::view-transition-new(rbt-reading) {
+    animation:
+        rbt-view-blur-in 0.55s cubic-bezier(0.2, 0, 0, 1) 0.08s both,
+        rbt-view-wipe 0.6s cubic-bezier(0.2, 0, 0, 1) 0.04s both;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 40%, transparent 60%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 40%, transparent 60%, transparent 100%);
+    -webkit-mask-size: 100% 250%;
+    mask-size: 100% 250%;
+}
+
+@keyframes rbt-view-blur-out {
+    to {
+        opacity: 0;
+        filter: blur(14px);
+        transform: translateY(-8px) scale(0.985);
+    }
+}
+
+@keyframes rbt-view-blur-in {
+    from {
+        opacity: 0;
+        filter: blur(14px);
+        transform: translateY(10px) scale(1.01);
+    }
+}
+
+@keyframes rbt-view-wipe {
+    from {
+        -webkit-mask-position: 0 100%;
+        mask-position: 0 100%;
+    }
+    to {
+        -webkit-mask-position: 0 0;
+        mask-position: 0 0;
+    }
+}
+
+/* Without view transitions: the incoming text sharpens in. */
+.rbt-view-enter {
+    animation: rbt-view-blur-in 0.45s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(rbt-reading),
+    ::view-transition-new(rbt-reading),
+    .rbt-view-enter {
+        animation: none;
+    }
+}

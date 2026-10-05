@@ -141,7 +141,7 @@
             return !reader.querySelector('.rbt-paraphrase__empty');
         }
 
-        function show(on, remember) {
+        function apply(on, remember) {
             // The view chosen before the page painted (nt_chapter.html) is now set here.
             document.documentElement.classList.remove('rbt-start-paraphrase');
             reader.hidden = !on;
@@ -162,6 +162,67 @@
             }
             document.body.classList.toggle('rbt-paraphrase-view', on);
             if (remember) saveChoice(on ? 'paraphrase' : 'verses');
+        }
+
+        // ---- Switching views ---------------------------------------------------------
+        // The outgoing text blurs and dissolves while the incoming one sharpens in behind a
+        // soft wipe (a view transition, styled in reader-paraphrase.css), and the toggle's
+        // label decodes from scrambled glyphs. Browsers without view transitions get a
+        // blur-in; reduced motion gets an instant switch.
+        var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+        var GLYPHS = 'ΑΒΓΔΘΛΞΠΣΦΨΩאבגדהוזחטמנסעפצקרשת';
+        var scrambleTimer = 0;
+
+        function scrambleLabel() {
+            var label = button.querySelector('.pp-toggle__label');
+            if (!label) return;
+            var target = label.textContent;
+            var start = performance.now();
+            var duration = 420;
+            // Hold the label at its final width so the glyphs don't resize the dock.
+            label.style.display = 'inline-block';
+            label.style.width = label.getBoundingClientRect().width + 'px';
+            label.style.overflow = 'hidden';
+            label.style.verticalAlign = 'bottom';
+            window.cancelAnimationFrame(scrambleTimer);
+            (function frame(now) {
+                var settled = Math.floor(target.length * Math.min(1, (now - start) / duration));
+                var text = target.slice(0, settled);
+                for (var i = settled; i < target.length; i++) {
+                    text += target[i] === ' ' ? ' ' : GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+                }
+                label.textContent = text;
+                if (settled < target.length) {
+                    scrambleTimer = window.requestAnimationFrame(frame);
+                } else {
+                    label.removeAttribute('style');
+                }
+            })(start);
+        }
+
+        function show(on, remember) {
+            if (!remember || (reducedMotion && reducedMotion.matches)) {
+                apply(on, remember);
+                return;
+            }
+            var root = document.documentElement;
+            if (document.startViewTransition) {
+                // The two texts share a transition name only while switching, so moving
+                // between chapters keeps its plain crossfade.
+                root.classList.add('rbt-view-switching');
+                var transition = document.startViewTransition(function () { apply(on, remember); });
+                transition.finished.then(
+                    function () { root.classList.remove('rbt-view-switching'); },
+                    function () { root.classList.remove('rbt-view-switching'); }
+                );
+            } else {
+                apply(on, remember);
+                var incoming = on ? reader : verses;
+                incoming.classList.remove('rbt-view-enter');
+                void incoming.offsetWidth;
+                incoming.classList.add('rbt-view-enter');
+            }
+            scrambleLabel();
         }
 
         var param = new URLSearchParams(window.location.search).get('view');
