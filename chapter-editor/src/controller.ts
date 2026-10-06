@@ -63,6 +63,8 @@ interface ActiveEditor {
   unit?: ParagraphUnit
   /** For a footnote: which one. */
   footnote?: FootnoteRef
+  /** For a verse's image notes: the verse's HTML when editing began (what Undo restores). */
+  verseStart?: string
 }
 
 /**
@@ -83,7 +85,31 @@ interface ParagraphUnit {
 type PendingSave = { kind: 'paragraph'; unit: ParagraphUnit; html: string } | { kind: 'note'; index: number; html: string }
 
 /** A finished editing session, undoable after leaving the verse: the HTML before it. */
-type EditKind = 'verse' | ParaphrasePart | 'footnote'
+/** 'verseNote': the notes of an image in a verse of the word-for-word text, edited in the image pop-up. */
+type EditKind = 'verse' | ParaphrasePart | 'footnote' | 'verseNote'
+
+/** A verse's image blocks (.tooltip-container) in document order, as media-modal.js counts them. */
+function verseMediaBlocks(root: ParentNode): Element[] {
+  return Array.from(root.querySelectorAll('.tooltip-container')).filter((block) => !block.parentElement?.closest('.tooltip, .tooltip2'))
+}
+
+/** The notes of a verse's index-th image block, or null. */
+function verseNoteHtml(verseHtml: string, index: number): string | null {
+  const tpl = document.createElement('template')
+  tpl.innerHTML = verseHtml
+  const notes = verseMediaBlocks(tpl.content)[index]?.querySelector('.tooltip, .tooltip2')
+  return notes ? notes.innerHTML : null
+}
+
+/** The verse HTML with its index-th image block's notes replaced, or null. */
+function withVerseNote(verseHtml: string, index: number, notesHtml: string): string | null {
+  const tpl = document.createElement('template')
+  tpl.innerHTML = verseHtml
+  const notes = verseMediaBlocks(tpl.content)[index]?.querySelector('.tooltip, .tooltip2')
+  if (!notes) return null
+  notes.innerHTML = notesHtml
+  return tpl.innerHTML
+}
 
 /** A footnote of the chapter, as its link names it: ?footnote=2-5-70a (chapter-verse-ref). */
 interface FootnoteRef {
@@ -706,12 +732,68 @@ export class ChapterEditorController {
     const target = event.target as Element
     const box = target.closest?.<HTMLElement>('.pp-modal__text')
     const modal = box?.closest<HTMLDialogElement>('dialog.pp-modal')
-    const n = Number(modal?.dataset.media)
-    if (!box || !modal?.open || modal.dataset.source !== 'reader' || !this.reader?.dataset.uid || !Number.isInteger(n)) return
-    if (this.active?.wrapper === box || target.closest('a, img, video')) return
+    if (!box || !modal?.open || this.active?.wrapper === box || target.closest('a, img, video')) return
+    const coords = { left: event.clientX, top: event.clientY }
+    if (modal.dataset.source === 'verse') {
+      // An image in the word-for-word text: its notes are part of the verse's HTML.
+      const index = Number(modal.dataset.index)
+      if (!modal.dataset.verse || !Number.isInteger(index) || index < 0) return
+      event.preventDefault()
+      this.commit()
+      this.activateVerseNote(box, modal.dataset.verse, index, coords)
+      return
+    }
+    const n = Number(modal.dataset.media)
+    if (modal.dataset.source !== 'reader' || !this.reader?.dataset.uid || !Number.isInteger(n)) return
     event.preventDefault()
     this.commit()
-    this.activateNote(box, n, { left: event.clientX, top: event.clientY })
+    this.activateNote(box, n, coords)
+  }
+
+  private activateVerseNote(box: HTMLElement, verse: string, index: number, coords: { left: number; top: number }) {
+    const record = this.verses.get(verse)
+    if (!record) {
+      this.showNotice(this.loading ? 'The chapter is still loading; try again in a moment.' : `Verse ${verse} isn't loaded for editing.`)
+      return
+    }
+    if (record.conflict) {
+      this.showNotice(`Verse ${verse} was changed elsewhere. Resolve the conflict first.`, verse)
+      return
+    }
+    const html = verseNoteHtml(record.target, index)
+    if (html == null) return
+    if (!roundTrips(html, document)) {
+      this.showNotice('These notes have markup the inline editor cannot keep intact.')
+      return
+    }
+    const originalNodes = Array.from(box.childNodes)
+    const host = document.createElement('div')
+    host.className = 'rbt-verse-editor'
+    box.replaceChildren(host)
+    const view = new EditorView({ mount: host }, {
+      state: EditorState.create({ doc: parseVerse(html, document), plugins: this.editorPlugins() }),
+      dispatchTransaction: (tr) => {
+        view.updateState(view.state.apply(tr))
+        if (tr.docChanged) this.scheduleAutosave()
+        this.emit()
+      },
+    })
+    this.active = { kind: 'verseNote', verse, index, wrapper: box, view, refHtml: '', startHtml: html, originalNodes, verseStart: record.target }
+    const hit = view.posAtCoords(coords)
+    view.dispatch(view.state.tr.setSelection(hit ? TextSelection.near(view.state.doc.resolve(hit.pos)) : TextSelection.atEnd(view.state.doc)))
+    view.focus()
+    this.emit()
+  }
+
+  /** Save edited image notes as part of their verse, and show the verse with them. */
+  private saveVerseNote(verse: string, index: number, notesHtml: string) {
+    const record = this.verses.get(verse)
+    const html = record && withVerseNote(record.target, index, notesHtml)
+    if (!record || html == null) return
+    if (sameHtml(html, record.target, document)) return
+    this.save(verse, html)
+    const wrapper = this.wrapperFor(verse)
+    if (wrapper) this.render(verse, wrapper)
   }
 
   private activateNote(box: HTMLElement, n: number, coords: { left: number; top: number }) {
@@ -1069,6 +1151,7 @@ export class ChapterEditorController {
     const html = serializeDoc(active.view.state.doc, document)
     if (active.kind === 'verse') this.save(active.verse, html)
     else if (active.kind === 'note') this.saveNote(active.index, html)
+    else if (active.kind === 'verseNote') this.saveVerseNote(active.verse, active.index, html)
     else if (active.kind === 'footnote') this.saveFootnote(active.footnote!, html)
     else this.saveUnit(active.unit!, html)
   }
@@ -1083,10 +1166,13 @@ export class ChapterEditorController {
     const html = options.revert ? active.startHtml : edited
     if (active.kind === 'verse') this.save(active.verse, html)
     else if (active.kind === 'note') this.saveNote(active.index, html)
+    else if (active.kind === 'verseNote') this.saveVerseNote(active.verse, active.index, html)
     else if (active.kind === 'footnote') this.saveFootnote(active.footnote!, html)
     else this.saveUnit(active.unit!, html)
     if (!options.revert && !sameHtml(html, active.startHtml, document)) {
       this.undoStack.push(active.kind === 'verse' ? { kind: 'verse', verse: active.verse, html: active.startHtml }
+        // Undo restores the whole verse as it was before these notes were edited.
+        : active.kind === 'verseNote' ? { kind: 'verse', verse: active.verse, html: active.verseStart! }
         : active.kind === 'note' ? { kind: 'note', index: active.index, html: active.startHtml }
         : active.kind === 'footnote' ? { kind: 'footnote', footnote: active.footnote!, html: active.startHtml }
         : { kind: 'paragraph', unit: active.unit!, html: active.startHtml })
@@ -1106,12 +1192,15 @@ export class ChapterEditorController {
     } else if (active.kind === 'footnote') {
       active.wrapper.replaceChildren()
       window.rbtFootnotes?.setContent(active.footnote!.id, html)
+    } else if (active.kind === 'verseNote') {
+      window.rbtMediaModal?.setNotes(html)
     } else {
       this.render(active.verse, active.wrapper, active.refHtml)
     }
     if (options.revert && !sameHtml(edited, active.startHtml, document)) {
       this.showNotice(active.kind === 'verse' ? `Verse ${active.verse}: changes discarded.`
         : active.kind === 'footnote' ? `Footnote ${active.footnote!.ref}: changes discarded.`
+        : active.kind === 'verseNote' ? `Verse ${active.verse} notes: changes discarded.`
         : `${PART_LABEL[active.kind]}: changes discarded.`)
     }
     this.emit()

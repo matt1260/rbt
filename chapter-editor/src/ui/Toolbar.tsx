@@ -8,7 +8,7 @@ import { selectedCue, type ChapterEditorController } from '../controller'
 
 interface Props {
   controller: ChapterEditorController
-  kind: 'verse' | 'paragraph' | 'note' | 'footnote'
+  kind: 'verse' | 'paragraph' | 'note' | 'verseNote' | 'footnote'
   verse: string
   view: EditorView
   state: EditorState
@@ -19,7 +19,7 @@ export function Toolbar({ controller, kind, verse, view, state }: Props) {
   // Sun blocks belong to verses, quotes to paraphrase paragraphs (where h5 is the heading
   // above the paragraph); image notes take inline formatting only.
   const tools = kind === 'paragraph' ? TOOLS.filter((tool) => tool.id !== 'sun')
-    : kind === 'note' || kind === 'footnote' ? TOOLS.filter((tool) => tool.kind !== 'block')
+    : kind === 'note' || kind === 'verseNote' || kind === 'footnote' ? TOOLS.filter((tool) => tool.kind !== 'block')
     : TOOLS.filter((tool) => tool.id !== 'quote')
   const [picking, setPicking] = useState(false)
   const cueSelected = kind === 'paragraph' && selectedCue(state)
@@ -59,14 +59,14 @@ export function Toolbar({ controller, kind, verse, view, state }: Props) {
   return (
     // Inside the image modal when editing its notes: a modal <dialog> sits above everything else.
     // (The footnote pop-up is an ordinary transformed box, so its toolbar stays in the body, above it.)
-    <FloatingPortal root={kind === 'note' ? view.dom.closest<HTMLElement>('dialog') : undefined}>
+    <FloatingPortal root={kind === 'note' || kind === 'verseNote' ? view.dom.closest<HTMLElement>('dialog') : undefined}>
       {/* The row scrolls sideways on narrow screens, so the image picker hangs off this
           wrapper instead (a scrolling box would clip it). */}
       <div ref={refs.setFloating} style={floatingStyles} className="rbt-ce-toolbar-wrap" data-rbt-ui>
         <div
           className="rbt-ce-toolbar"
           role="toolbar"
-          aria-label={kind === 'verse' ? `Format verse ${verse}` : kind === 'note' ? 'Format notes' : kind === 'footnote' ? 'Format footnote' : 'Format paragraph'}
+          aria-label={kind === 'verse' ? `Format verse ${verse}` : kind === 'note' || kind === 'verseNote' ? 'Format notes' : kind === 'footnote' ? 'Format footnote' : 'Format paragraph'}
           data-rbt-ui
         >
           {tools.map((tool) => {
@@ -108,7 +108,7 @@ export function Toolbar({ controller, kind, verse, view, state }: Props) {
             <a className="rbt-ce-tool rbt-ce-tool--link" href={controller.api.editUrl(verse)} title="Open the verse edit page"
               onMouseDown={keepFocus} onClick={() => controller.done()}>{verse} ↗</a>
           )}
-          <button type="button" className="rbt-ce-tool rbt-ce-tool--done" title={`Done (Enter). Esc discards ${kind === 'note' ? 'these notes\'' : `this ${kind}'s`} changes.`}
+          <button type="button" className="rbt-ce-tool rbt-ce-tool--done" title={`Done (Enter). Esc discards ${kind === 'note' || kind === 'verseNote' ? 'these notes\'' : `this ${kind}'s`} changes.`}
             onMouseDown={keepFocus} onClick={controller.done}>Done</button>
         </div>
         {picking && kind === 'paragraph' && (

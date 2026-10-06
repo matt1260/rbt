@@ -17,6 +17,8 @@ declare global {
     }
     /** Set by static/chapter-viewer.js: update a footnote's text after it's edited. */
     rbtFootnotes?: { setContent(footnoteId: string, html: string): void }
+    /** Set by static/media-modal.js: the image pop-up. */
+    rbtMediaModal?: { setNotes(html: string): void }
   }
 }
 

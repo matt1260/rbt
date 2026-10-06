@@ -99,6 +99,8 @@
         modal.setAttribute('aria-label', item.label || 'Image');
         delete modal.dataset.media;
         delete modal.dataset.source;
+        delete modal.dataset.verse;
+        delete modal.dataset.index;
         var data = item.data || {};
         for (var key in data) {
             if (Object.prototype.hasOwnProperty.call(data, key)) modal.dataset[key] = data[key];
@@ -107,8 +109,18 @@
         if (!modal.open) modal.showModal();
     }
 
+    // Replace the notes the pop-up shows (after the inline editor saves them).
+    function setNotes(html) {
+        if (!modal) return;
+        var textBox = modal.querySelector('.pp-modal__text');
+        textBox.innerHTML = html || '';
+        liftTitle(textBox);
+        modal.classList.toggle('pp-modal--no-text', !textBox.textContent.trim());
+    }
+
     window.rbtMediaModal = {
         open: open,
+        setNotes: setNotes,
         isOpen: function () { return !!modal && modal.open; },
         dialog: function () { return modal; },
         opener: function () { return opener; },
@@ -194,13 +206,24 @@
         }
     }
 
+    // A verse's image blocks in document order (the order of its stored HTML).
+    function verseMediaBlocks(verse) {
+        return Array.prototype.filter.call(verse.querySelectorAll('.tooltip-container'), function (block) {
+            return !block.parentElement.closest('.tooltip, .tooltip2');
+        });
+    }
+
     function itemFrom(container) {
         var media = mediaOf(container).cloneNode(true);
         var notes = notesOf(container);
+        // On staff pages each verse is wrapped (.rbt-verse): the inline editor edits these
+        // notes in the verse's own HTML, found by verse and position.
+        var verse = container.closest('.rbt-verse[data-verse]');
         return {
             media: media,
             notesHtml: notes ? notes.innerHTML : '',
             label: container.getAttribute('aria-label') || 'Image',
+            data: verse ? { source: 'verse', verse: verse.dataset.verse, index: String(verseMediaBlocks(verse).indexOf(container)) } : {},
         };
     }
 
