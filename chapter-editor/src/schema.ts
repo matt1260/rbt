@@ -45,6 +45,17 @@ const BLOCK_TAGS = new Set([
 ])
 // Top-level blocks that become editable text blocks when they hold only inline content.
 const TEXT_BLOCK_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'div', 'center', 'blockquote'])
+const HEADING_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+
+/**
+ * A heading with nothing in it: what deleting a heading's text used to store. It has no
+ * text to click into, so it's dropped when a verse opens (and so removed on its next save),
+ * and a heading emptied in the editor isn't saved. Other empty elements are kept: an empty
+ * <div class="sun-icon"> is an icon drawn by CSS.
+ */
+function isEmptyHeading(el: Element): boolean {
+  return HEADING_TAGS.has(el.tagName.toLowerCase()) && !(el.textContent ?? '').trim() && !el.querySelector('*')
+}
 // Inline formatting elements represented as `el` marks.
 const MARK_TAGS = [
   'span', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'sub', 'sup', 'font', 'small', 'big',
@@ -216,6 +227,7 @@ export function parseVerse(html: string, doc: Document): PMNode {
     }
     flushRun()
     const el = child as Element
+    if (isEmptyHeading(el)) continue
     if (TEXT_BLOCK_TAGS.has(tag) && !hasBlockDescendant(el) && (el.textContent ?? '').trim()) {
       parseInto(Array.from(el.childNodes), tag, elementAttrs(el))
     } else {
@@ -255,6 +267,8 @@ export function serializeDoc(pmDoc: PMNode, doc: Document): string {
       out.appendChild(htmlToElement(block.attrs.html, doc))
       return
     }
+    if (HEADING_TAGS.has(block.attrs.tag) && !block.textContent.trim() &&
+      !block.content.content.some((node) => node.type === schema.nodes.raw_inline)) return
     const inline = serializer.serializeFragment(block.content, { document: doc })
     if (block.attrs.tag) {
       const el = createElement(block.attrs.tag, block.attrs.attrs, doc)
@@ -312,10 +326,16 @@ export function normalizeHtml(html: string, doc: Document): string {
   return container.innerHTML
 }
 
-/** True when the editor would store this verse back unchanged (modulo whitespace). */
+/**
+ * True when the editor would store this verse back unchanged (modulo whitespace), apart
+ * from dropping empty headings (isEmptyHeading).
+ */
 export function roundTrips(html: string, doc: Document): boolean {
   try {
-    return normalizeHtml(serializeDoc(parseVerse(html, doc), doc), doc) === normalizeHtml(html, doc)
+    const container = doc.createElement('div')
+    container.innerHTML = html
+    for (const el of Array.from(container.children)) if (isEmptyHeading(el)) el.remove()
+    return normalizeHtml(serializeDoc(parseVerse(html, doc), doc), doc) === normalizeHtml(container.innerHTML, doc)
   } catch {
     return false
   }
