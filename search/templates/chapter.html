@@ -425,38 +425,7 @@ chapter-viewer.js re-renders on toggle.
         font-style: italic;
     }
 
-    /* Modern footnote reference badge styling */
-    a[href*="footnote="] {
-        color: #b78550;
-        text-decoration: none;
-        cursor: pointer;
-    }
-
-    a[href*="footnote="] sup {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 9px;
-        font-weight: 600;
-        font-style: normal;
-        color: #885616;
-        background: #d4a57473;
-        padding: 1px 4px;
-        border-radius: 3px;
-        margin: 0 1px;
-        vertical-align: super;
-        position: relative;
-        top: -4px;
-        min-width: 14px;
-        text-align: center;
-        transition: all 0.2s ease;
-        line-height: 1.2;
-    }
-
-    a[href*="footnote="]:hover sup {
-        background: #d0d0d0;
-        color: #333;
-    }
+    /* Footnote markers: a note icon, styled in chapter-viewer.css. */
 
     /* Footnote popup overlay */
     .footnote-popup-overlay {

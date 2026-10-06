@@ -524,3 +524,52 @@ a[href*="footnote="]:hover sup {
         display: none;
     }
 }
+
+
+/* ---- Footnote markers --------------------------------------------------------------
+   Footnotes open in a pop-up, so the marker in the text is a small note icon rather than
+   its number. The number stays in the link for screen readers; the chapter's notes table
+   (#notes-pane) keeps its numbered links. */
+:is(a.sdfootnoteanc, a.footnote-link, a[href*="footnote="]):not(#notes-pane *) {
+    display: inline-block;
+    position: relative;
+    width: 0.82em;
+    height: 0.82em;
+    margin: 0 0.12em 0 0.18em;
+    vertical-align: 0.42em;
+    color: var(--sanctum-gold, #b78550);
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 3.5h15a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2H12l-5.2 4v-4H4.5a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2z' fill='none' stroke='black' stroke-width='2.3' stroke-linejoin='round'/%3E%3Cpath d='M7 8.5h10M7 12.2h6.5' stroke='black' stroke-width='2.3' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 3.5h15a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2H12l-5.2 4v-4H4.5a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2z' fill='none' stroke='black' stroke-width='2.3' stroke-linejoin='round'/%3E%3Cpath d='M7 8.5h10M7 12.2h6.5' stroke='black' stroke-width='2.3' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+    opacity: 0.7;
+    text-decoration: none !important;
+    cursor: pointer;
+    transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+:is(a.sdfootnoteanc, a.footnote-link, a[href*="footnote="]):not(#notes-pane *):is(:hover, :focus-visible) {
+    opacity: 1;
+    color: #8a5a22;
+    transform: translateY(-1px) scale(1.18);
+}
+
+:is(a.sdfootnoteanc, a.footnote-link, a[href*="footnote="]):not(#notes-pane *):focus-visible {
+    outline: 2px solid var(--sanctum-gold, #b78550);
+    outline-offset: 2px;
+}
+
+/* The reference number: hidden, but still read out. */
+:is(a.sdfootnoteanc, a.footnote-link, a[href*="footnote="]):not(#notes-pane *) sup {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :is(a.sdfootnoteanc, a.footnote-link, a[href*="footnote="]):not(#notes-pane *) {
+        transition: none;
+    }
+}
