@@ -21,114 +21,37 @@
 
     // ---- Image cues ---------------------------------------------------------------
     // Each image in a paraphrase is a small round cue at the end of a sentence
-    // (search/paraphrase.py). Clicking one opens a modal with that image beside its
-    // notes, read from the inert <template> holding the original tooltip block.
-    // Works anywhere a .rbt-paraphrase is shown, including the staff studio's previews.
-    var modal = null;
-    var opener = null;
-
-    var CLOSE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">' +
-        '<path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-
-    function buildModal() {
-        modal = document.createElement('dialog');
-        modal.className = 'pp-modal';
-        modal.innerHTML =
-            '<div class="pp-modal__layout">' +
-                '<div class="pp-modal__media"></div>' +
-                '<div class="pp-modal__text"></div>' +
-            '</div>' +
-            '<button type="button" class="pp-modal__close" aria-label="Close">' + CLOSE_ICON + '</button>';
-        // Notes in the chapter's own reading font.
-        var area = document.getElementById('paraphrase-area') || document.body;
-        modal.style.setProperty('--rbt-reading-font', getComputedStyle(area).fontFamily);
-
-        modal.addEventListener('click', function (event) {
-            // event.target is the dialog itself only for clicks on the backdrop.
-            if (event.target === modal || event.target.closest('.pp-modal__close')) modal.close();
-        });
-        modal.addEventListener('keydown', function (event) {
-            // Escape closes just this modal, not the staff studio underneath it.
-            if (event.key === 'Escape') event.stopPropagation();
-        });
-        modal.addEventListener('close', function () {
-            modal.querySelector('.pp-modal__media').innerHTML = ''; // stops any video
-            if (opener && document.contains(opener)) opener.focus();
-        });
-        document.body.appendChild(modal);
-    }
-
-    // Notes usually open with a bold heading ("<b>Her Night and Day</b>. The ..."). Make it a
-    // real title and drop the punctuation or line break that followed it.
-    function liftTitle(box) {
-        var node = box.firstChild;
-        while (node && node.nodeType === 3 && !node.textContent.trim()) node = node.nextSibling;
-        if (!node || node.nodeType !== 1 || !/^(B|STRONG)$/.test(node.tagName)) return;
-        var title = document.createElement('h3');
-        title.className = 'pp-modal__title';
-        title.textContent = node.textContent.trim().replace(/[.:]+$/, '');
-        var next = node.nextSibling;
-        box.replaceChild(title, node);
-        while (next) {
-            var after = next.nextSibling;
-            if (next.nodeType === 3 && /^[\s.:;,\u2014-]*$/.test(next.textContent)) {
-                next.remove();
-            } else if (next.nodeType === 3) {
-                next.textContent = next.textContent.replace(/^[\s.:;,\u2014-]+/, '');
-                break;
-            } else if (next.nodeName === 'BR') {
-                next.remove();
-            } else {
-                break;
-            }
-            next = after;
-        }
-    }
-
-    function showImage(cue) {
-        var mediaBox = modal.querySelector('.pp-modal__media');
-        var textBox = modal.querySelector('.pp-modal__text');
-        mediaBox.innerHTML = '';
-        textBox.innerHTML = '';
-
+    // (search/paraphrase.py). Clicking one opens the image pop-up (static/media-modal.js)
+    // with that image beside its notes, read from the inert <template> holding the original
+    // tooltip block. Works anywhere a .rbt-paraphrase is shown, including the staff studio's
+    // previews.
+    function cueItem(cue) {
         var root = cue.closest('.rbt-paraphrase');
         var template = root.querySelector('template[data-media="' + cue.getAttribute('data-media') + '"]');
-        if (template) {
-            var block = template.content.cloneNode(true);
-            var media = block.querySelector('img, video');
-            var notes = block.querySelector('.tooltip, .tooltip2');
-            if (media) {
-                media.removeAttribute('style');
-                media.removeAttribute('width');
-                media.removeAttribute('height');
-                if (media.tagName === 'VIDEO') {
-                    media.controls = true;
-                    media.setAttribute('playsinline', '');
-                }
-                mediaBox.appendChild(media);
-            }
-            if (notes) {
-                textBox.innerHTML = notes.innerHTML;
-                liftTitle(textBox);
-            }
-        }
-        modal.classList.toggle('pp-modal--no-text', !textBox.textContent.trim());
-        modal.setAttribute('aria-label', cue.getAttribute('aria-label') || 'Image');
-        // The inline editor (staff) edits the notes of the published paraphrase's cues.
-        modal.dataset.media = cue.getAttribute('data-media');
-        modal.dataset.source = cue.closest('#reader-paraphrase') ? 'reader' : 'preview';
-        textBox.scrollTop = 0;
+        var block = template ? template.content.cloneNode(true) : null;
+        var notes = block && block.querySelector('.tooltip, .tooltip2');
+        return {
+            media: block && block.querySelector('img, video'),
+            notesHtml: notes ? notes.innerHTML : '',
+            label: cue.getAttribute('aria-label') || 'Image',
+            // The inline editor (staff) edits the notes of the published paraphrase's cues.
+            data: {
+                media: cue.getAttribute('data-media'),
+                source: cue.closest('#reader-paraphrase') ? 'reader' : 'preview',
+            },
+        };
+    }
+
+    function modalOpen() {
+        return !!(window.rbtMediaModal && window.rbtMediaModal.isOpen());
     }
 
     document.addEventListener('click', function (event) {
         var cue = event.target.closest && event.target.closest('.rbt-paraphrase .pp-cue');
         // In the inline editor (staff) a click selects the cue, to move or remove it.
-        if (!cue || cue.closest('.ProseMirror')) return;
+        if (!cue || cue.closest('.ProseMirror') || !window.rbtMediaModal) return;
         event.preventDefault();
-        if (!modal) buildModal();
-        opener = cue;
-        showImage(cue);
-        if (!modal.open) modal.showModal();
+        window.rbtMediaModal.open(cueItem(cue), cue);
     });
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -283,7 +206,7 @@
 
         document.addEventListener('keydown', function (event) {
             if (event.key !== 'r' || event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
-            if (modal && modal.open) return;
+            if (modalOpen()) return;
             toggle();
         });
 
@@ -314,8 +237,10 @@
                 var template = reader.querySelector('template[data-media="' + n + '"]');
                 var notes = template && template.content.querySelector('.tooltip, .tooltip2');
                 if (notes) notes.innerHTML = html;
-                if (modal && modal.open && modal.dataset.source === 'reader' && modal.dataset.media === String(n) && opener) {
-                    showImage(opener);
+                var dialog = window.rbtMediaModal && window.rbtMediaModal.dialog();
+                var cue = window.rbtMediaModal && window.rbtMediaModal.opener();
+                if (modalOpen() && dialog.dataset.source === 'reader' && dialog.dataset.media === String(n) && cue) {
+                    window.rbtMediaModal.open(cueItem(cue), cue);
                 }
             },
         };

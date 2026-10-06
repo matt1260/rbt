@@ -11,6 +11,10 @@ moving between chapters crossfades, holding the new page until its content is pa
 {% endcomment %}
 {% static_version 'chapter-viewer.css' 'chapter-viewer.js' as chapter_viewer_version %}
 <link rel="stylesheet" href="{% static 'chapter-viewer.css' %}?v={{ chapter_viewer_version }}">
+{# Image thumbnails and the image pop-up (word-for-word text and paraphrase). #}
+{% static_version 'media-modal.js' 'media-modal.css' as media_modal_version %}
+<link rel="stylesheet" href="{% static 'media-modal.css' %}?v={{ media_modal_version }}">
+<script src="{% static 'media-modal.js' %}?v={{ media_modal_version }}" defer></script>
 {% if reader_paraphrase or chapter_editor_enabled %}
 {% static_version 'reader-paraphrase.js' 'reader-paraphrase.css' as reader_paraphrase_version %}
 <link rel="stylesheet" href="{% static 'reader-paraphrase.css' %}?v={{ reader_paraphrase_version }}">
@@ -618,27 +622,6 @@ which takes over (and drops this class) once it loads.
         }
     }
     
-    /* Mobile: Ensure all images and videos scale responsively */
-    @media (max-width: 768px) {
-        .tooltip-container img, .tooltip-container video {
-            width: 100% !important;
-            height: auto !important;
-            max-width: 100% !important;
-            display: block;
-            margin: 0 auto;
-            background: #fff;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-    }
-
-     /* Ensure all images and videos scale responsively */
-    .tooltip-container img, .tooltip-container video {
-        max-width: 500px;
-        display: block;
-        margin: 0 auto;
-        background: #fff;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
 
 </style>
 <!-- Main chapter viewer UI scripts loaded from chapter-viewer.js -->

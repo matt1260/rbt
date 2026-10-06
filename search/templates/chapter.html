@@ -11,6 +11,10 @@ moving between chapters crossfades, holding the new page until its content is pa
 {% endcomment %}
 {% static_version 'chapter-viewer.css' 'chapter-viewer.js' as chapter_viewer_version %}
 <link rel="stylesheet" href="{% static 'chapter-viewer.css' %}?v={{ chapter_viewer_version }}">
+{# Image thumbnails and the image pop-up (word-for-word text and paraphrase). #}
+{% static_version 'media-modal.js' 'media-modal.css' as media_modal_version %}
+<link rel="stylesheet" href="{% static 'media-modal.css' %}?v={{ media_modal_version }}">
+<script src="{% static 'media-modal.js' %}?v={{ media_modal_version }}" defer></script>
 <link rel="expect" href="#rbt-chapter-end" blocking="render">
 <style>
     @view-transition { navigation: auto; }

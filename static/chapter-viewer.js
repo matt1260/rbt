@@ -299,13 +299,14 @@ document.addEventListener("DOMContentLoaded", function() {
 
     if (imageToggleButton) {
         imageToggleButton.addEventListener("click", function() {
-            const tooltipContainers = document.querySelectorAll(".tooltip-container");
+            // Image blocks, and the thumbnail rows media-modal.js gathers them into.
+            const tooltipContainers = document.querySelectorAll(".rbt-media-row, .tooltip-container");
             tooltipContainers.forEach(function(container) {
                 if (isImageVisible) {
                     container.style.display = "none";
                     imageToggleButton.innerHTML = toggleLabel(imageToggleButton, 'fa-eye', 'Images (I)');
                 } else {
-                    container.style.display = "block";
+                    container.style.display = "";
                     imageToggleButton.innerHTML = toggleLabel(imageToggleButton, 'fa-eye-slash', 'Images (I)');
                 }
             });

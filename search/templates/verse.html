@@ -1,6 +1,13 @@
 {% extends 'base.html' %}
 {% block title %}Real Bible Translation - {{ page_title }}{% endblock %}
 {% load custom_tags %}
+{% load static %}
+{% block extra_head %}
+{# Image thumbnails and the image pop-up. #}
+{% static_version 'media-modal.js' 'media-modal.css' as media_modal_version %}
+<link rel="stylesheet" href="{% static 'media-modal.css' %}?v={{ media_modal_version }}">
+<script src="{% static 'media-modal.js' %}?v={{ media_modal_version }}" defer></script>
+{% endblock %}
 {% block content %}
 
 <style>
@@ -1024,7 +1031,7 @@ Wescott & Hort Greek NT:
             var clone = rootEl.cloneNode(true);
             var drop = clone.querySelectorAll(
                 'h1, h2, h3, h4, h5, h6, ' +          // section headings
-                '.tooltip-container, .tooltip, .tooltip2, ' +  // popup blocks
+                '.rbt-media-row, .tooltip-container, .tooltip, .tooltip2, ' +  // image blocks
                 '.touch-indicator, ' +
                 'a.sdfootnoteanc, sup, ' +            // footnote reference numbers
                 '.verse_ref, .note-location, ' +      // verse numbers / note labels
