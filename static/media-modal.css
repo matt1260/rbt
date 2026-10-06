@@ -177,14 +177,16 @@
    run into a .rbt-media-row. */
 .tooltip-container > img,
 .tooltip-container > video {
-    width: auto !important;
-    max-width: min(220px, 100%) !important;
+    /* A round frame with a round shadow: most images are circular artwork on white, which
+       a square card would box in. The pop-up shows the whole image. */
+    width: 140px !important;
+    max-width: 100% !important;
     height: 140px !important;
     object-fit: cover;
     margin: 0 !important;
-    border-radius: 10px;
+    border-radius: 50%;
     background: #fff;
-    box-shadow: 0 1px 4px rgba(43, 37, 32, 0.14);
+    box-shadow: 0 2px 10px rgba(43, 37, 32, 0.22);
     transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
@@ -196,13 +198,13 @@
     margin: 14px 0 18px;
 }
 
+/* Caption width follows the 140px circle. */
 .rbt-media-row .tooltip-container {
     display: flex;
     flex-direction: column;
-    max-width: 220px;
+    max-width: 140px;
     margin: 0;
     cursor: zoom-in;
-    border-radius: 10px;
     -webkit-tap-highlight-color: transparent;
 }
 
@@ -210,11 +212,16 @@
 .rbt-media-row .tooltip-container:hover > video,
 .rbt-media-row .tooltip-container:focus-visible > img,
 .rbt-media-row .tooltip-container:focus-visible > video {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(43, 37, 32, 0.2);
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 8px 20px rgba(43, 37, 32, 0.26);
 }
 
 .rbt-media-row .tooltip-container:focus-visible {
+    outline: none;
+}
+
+.rbt-media-row .tooltip-container:focus-visible > img,
+.rbt-media-row .tooltip-container:focus-visible > video {
     outline: 2px solid var(--sanctum-gold, #b78550);
     outline-offset: 3px;
 }
@@ -254,14 +261,14 @@
     font-family: var(--rbt-ce-ui-font, Inter, system-ui, sans-serif);
     font-size: 12.5px;
     line-height: 1.35;
-    text-align: left;
+    text-align: center;
 }
 
 @media (max-width: 600px) {
     .tooltip-container > img,
     .tooltip-container > video {
+        width: 104px !important;
         height: 104px !important;
-        max-width: min(42vw, 100%) !important;
     }
 
     .rbt-media-row {
@@ -269,7 +276,7 @@
     }
 
     .rbt-media-row .tooltip-container {
-        max-width: 42vw;
+        max-width: 104px;
     }
 
     .rbt-media-row .tooltip-container:has(> video)::before {
