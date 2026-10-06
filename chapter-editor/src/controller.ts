@@ -1005,12 +1005,18 @@ export class ChapterEditorController {
 
   private editorKeymap(): Record<string, Command> {
     const bold = TOOLS.find((tool) => tool.id === 'bold')!
+    const italic = TOOLS.find((tool) => tool.id === 'italic')!
     return {
       'Mod-z': undo,
       'Shift-Mod-z': redo,
       'Mod-y': redo,
       'Mod-b': (state, dispatch) => {
         const tr = applyTool(state, bold)
+        if (tr && dispatch) dispatch(tr)
+        return !!tr
+      },
+      'Mod-i': (state, dispatch) => {
+        const tr = applyTool(state, italic)
         if (tr && dispatch) dispatch(tr)
         return !!tr
       },

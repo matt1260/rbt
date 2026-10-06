@@ -156,6 +156,7 @@
 }
 
 .rbt-ce-tool--bold { font-weight: 700; }
+.rbt-ce-tool--italic { font-style: italic; font-family: Georgia, serif; }
 .rbt-ce-tool--wide { width: auto; padding: 0 8px; font-size: 12px; }
 
 /* Image picker under the paragraph toolbar. */

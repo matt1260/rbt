@@ -21,6 +21,7 @@ export const TOOLS: Tool[] = [
   { kind: 'color', id: 'blue', label: '', title: 'Blue text', spec: span({ style: 'color: blue;' }) },
   { kind: 'color', id: 'nocolor', label: '⌀', title: 'Remove color', spec: null },
   { kind: 'mark', id: 'bold', label: 'B', title: 'Bold (⌘B)', spec: { tag: 'strong', attrs: {} }, aliases: [{ tag: 'b', attrs: {} }] },
+  { kind: 'mark', id: 'italic', label: 'I', title: 'Italic (⌘I)', spec: { tag: 'em', attrs: {} }, aliases: [{ tag: 'i', attrs: {} }] },
   { kind: 'mark', id: 'hayah', label: 'היה', title: 'Hayah', spec: span({ class: 'hayah' }) },
   { kind: 'block', id: 'h5', label: 'h5', title: 'Heading', spec: { tag: 'h5', attrs: {} } },
   // Paraphrase paragraphs only (toggleParagraphQuote).
