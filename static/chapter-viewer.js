@@ -711,7 +711,8 @@ function initializeFootnotePopups() {
     });
 
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && footnotePopup.classList.contains('active')) {
+        // Not when Escape was taken by the inline editor (staff), which discards its edit.
+        if (e.key === 'Escape' && footnotePopup.classList.contains('active') && !e.defaultPrevented) {
             closeFootnotePopup();
         }
     });
@@ -827,6 +828,10 @@ function initializeFootnotePopups() {
                 const currentBook = linkBook || urlParams.get('book') || '';
                 
                 const cacheKey = footnoteId + '_' + currentBook + '_' + currentLang;
+                // Which footnote is showing: the inline editor (staff) edits it in place.
+                footnotePopup.dataset.footnote = footnoteId;
+                footnotePopup.dataset.book = currentBook;
+                footnotePopup.dataset.lang = currentLang;
                 
                 if (footnoteCache[cacheKey]) {
                     showFootnotePopup(footnoteId, footnoteCache[cacheKey].content, footnoteCache[cacheKey].title);
@@ -868,6 +873,30 @@ function initializeFootnotePopups() {
     }
 
     attachFootnotePopupHandlers();
+
+    // After the inline editor (staff) saves a footnote: show the new text in the pop-up (if
+    // it's showing that footnote), in later pop-ups and in the chapter's notes table.
+    window.rbtFootnotes = {
+        setContent: function (footnoteId, html) {
+            const sanitized = sanitizeFootnoteContent(html);
+            Object.keys(footnoteCache).forEach(key => {
+                if (key === footnoteId || key.startsWith(footnoteId + '_')) footnoteCache[key].content = sanitized;
+            });
+            if (footnotePopup.classList.contains('active') && footnotePopup.dataset.footnote === footnoteId &&
+                !footnotePopupContent.querySelector('.ProseMirror')) {
+                footnotePopupContent.innerHTML = sanitized;
+            }
+            document.querySelectorAll('#notes-pane a[href*="footnote=' + footnoteId + '"]').forEach(link => {
+                const href = link.getAttribute('href') || '';
+                if (!new RegExp('[?&]footnote=' + footnoteId + '(&|$)').test(href)) return;
+                const cell = link.closest('tr') && link.closest('tr').cells[1];
+                if (!cell) return;
+                const location = cell.querySelector('.note-location');
+                cell.innerHTML = (location ? location.outerHTML : '') + html;
+                if (cell.hasAttribute('data-full-content')) cell.setAttribute('data-full-content', html);
+            });
+        },
+    };
 
     const footnotePopupObserver = new MutationObserver(attachFootnotePopupHandlers);
     footnotePopupObserver.observe(document.body, { childList: true, subtree: true });

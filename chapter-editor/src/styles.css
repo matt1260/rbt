@@ -97,7 +97,8 @@
 /* ---- Floating toolbar ------------------------------------------------------ */
 
 .rbt-ce-toolbar-wrap {
-  z-index: 9000;
+  /* Above the footnote pop-up (z-index 10001, chapter-viewer.css). */
+  z-index: 10002;
 }
 
 .rbt-ce-toolbar {

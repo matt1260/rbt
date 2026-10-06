@@ -2,22 +2,27 @@
 JSON endpoints for the inline NT chapter editor (chapter-editor/ React app).
 
 Staff only. The editor loads a chapter's verse HTML straight from the DB (bypassing
-the reader cache), saves one verse at a time with optimistic concurrency, and
-fetches the Greek interlinear for the verse-ref hover popup.
+the reader cache), saves one verse at a time with optimistic concurrency, edits the
+footnotes shown in the chapter's footnote pop-up the same way, and fetches the Greek
+interlinear for the verse-ref hover popup.
 """
 import hashlib
 import json
 import logging
 import re
+from datetime import datetime
 from functools import wraps
 
+from bs4 import BeautifulSoup
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
 from search.views.chapter_views_part1 import fetch_greek_interlinear_rows
 from translate.db_utils import execute_query
 from translate.translator import book_abbreviations, new_testament_books
-from translate.views import save_nt_verse_html
+from search.views.translation_views import _nt_footnote_table
+from search.models import TranslationUpdates
+from translate.views import _invalidate_reader_cache, _safe_save_update, save_nt_verse_html
 
 logger = logging.getLogger(__name__)
 
@@ -165,3 +170,91 @@ def interlinear(request):
         for word in fetch_greek_interlinear_rows(book, chapter_num, verse_num)
     ]
     return JsonResponse({'words': words})
+
+
+# A footnote's own reference within its book: "70a" in ?footnote=2-5-70a&book=Joh.
+_FOOTNOTE_REF_RE = re.compile(r'^[0-9]+[a-z]{0,3}$', re.I)
+
+
+def _footnote_location(book_abbrev, ref):
+    """(table, footnote_id) of an NT footnote, e.g. ('joh_footnotes', 'Joh-70a')."""
+    return _nt_footnote_table(book_abbrev), f'{book_abbrev}-{ref}'
+
+
+def _normalize_footnote_html(html):
+    """As the footnote edit page saves it (translate/views.py edit_footnote): no editor
+    attributes, and paragraphs and lists carry the rbt_footnote class."""
+    soup = BeautifulSoup(_strip_editor_artifacts(html), 'html.parser')
+    for tag in soup.find_all(True):
+        for attr in ('data-start', 'data-end'):
+            tag.attrs.pop(attr, None)
+    for tag in soup.find_all(['p', 'ul']):
+        classes = tag.get('class', [])
+        if 'rbt_footnote' not in classes:
+            tag['class'] = classes + ['rbt_footnote']
+    return str(soup)
+
+
+@staff_json
+def footnote(request):
+    """
+    GET ?book=&ref= → {html, hash}: one NT footnote's stored HTML.
+    POST JSON {book, chapter, verse, ref, html, base_hash} → {hash, html}: save it. As with
+    verses, a footnote changed elsewhere since base_hash is not overwritten (409).
+    """
+    if request.method == 'GET':
+        book, ref = request.GET.get('book', ''), request.GET.get('ref', '')
+    elif request.method == 'POST':
+        try:
+            payload = json.loads(request.body)
+        except (ValueError, UnicodeDecodeError):
+            return JsonResponse({'error': 'Invalid JSON.'}, status=400)
+        book, ref = payload.get('book', ''), str(payload.get('ref', ''))
+    else:
+        return JsonResponse({'error': 'GET or POST only.'}, status=405)
+
+    book_abbrev = _nt_book_abbrev(book)
+    if not book_abbrev or not _FOOTNOTE_REF_RE.match(ref):
+        return JsonResponse({'error': 'Unknown NT book or footnote.'}, status=400)
+    table, footnote_id = _footnote_location(book_abbrev, ref)
+    row = execute_query(
+        f'SELECT footnote_html FROM new_testament.{table} WHERE footnote_id = %s',
+        (footnote_id,),
+        fetch='one',
+    )
+    if not row:
+        return JsonResponse({'error': 'Footnote not found.'}, status=404)
+    current_html = row[0] or ''
+
+    if request.method == 'GET':
+        return JsonResponse({'html': current_html, 'hash': _verse_hash(current_html)})
+
+    chapter_num = _parse_int(payload.get('chapter'))
+    verse_num = _parse_int(payload.get('verse'))
+    html = payload.get('html')
+    base_hash = payload.get('base_hash')
+    if chapter_num is None or verse_num is None or not isinstance(html, str) or not isinstance(base_hash, str):
+        return JsonResponse({'error': 'chapter, verse, html and base_hash are required.'}, status=400)
+    if len(html) > MAX_VERSE_HTML_LENGTH:
+        return JsonResponse({'error': 'Footnote HTML is too long.'}, status=400)
+    if _verse_hash(current_html) != base_hash:
+        return JsonResponse(
+            {'error': 'This footnote was changed elsewhere.', 'html': current_html, 'hash': _verse_hash(current_html)},
+            status=409,
+        )
+
+    html = _normalize_footnote_html(html)
+    if html != current_html:
+        execute_query(
+            f'UPDATE new_testament.{table} SET footnote_html = %s WHERE footnote_id = %s',
+            (html, footnote_id),
+        )
+        _safe_save_update(TranslationUpdates(
+            date=datetime.now(),
+            version='New Testament Footnote',
+            reference=f'{book} {chapter_num}:{verse_num} - {footnote_id}',
+            update_text=f'Updated footnote for Footnote <b>{footnote_id}</b>:<br> {html}.',
+        ))
+        _invalidate_reader_cache(book, chapter_num, verse_num)
+        logger.info('[CHAPTER EDITOR] %s saved footnote %s (%s %s:%s)', request.user.username, footnote_id, book, chapter_num, verse_num)
+    return JsonResponse({'hash': _verse_hash(html), 'html': html})

@@ -15,6 +15,8 @@ declare global {
       noteHtml(n: number): string | null
       setNote(n: number, html: string): void
     }
+    /** Set by static/chapter-viewer.js: update a footnote's text after it's edited. */
+    rbtFootnotes?: { setContent(footnoteId: string, html: string): void }
   }
 }
 

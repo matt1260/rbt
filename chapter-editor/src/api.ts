@@ -122,6 +122,36 @@ export class Api {
     return { status: 'error', message: data.error || `Save failed (${response.status})` }
   }
 
+  /** One footnote of this chapter's book, as stored (translate/chapter_editor_api.py footnote). */
+  async footnote(ref: string): Promise<{ html: string; hash: string } | { error: string }> {
+    try {
+      const response = await fetch(this.url('footnote/', { book: this.config.book, ref }), { credentials: 'same-origin' })
+      const data = await response.json().catch(() => ({}))
+      return response.ok ? { html: data.html ?? '', hash: data.hash ?? '' } : { error: data.error || `Loading failed (${response.status})` }
+    } catch {
+      return { error: 'Network error' }
+    }
+  }
+
+  async saveFootnote(chapter: string, verse: string, ref: string, html: string, baseHash: string): Promise<BlockSaveResult> {
+    let response: Response
+    try {
+      response = await fetch(`${this.config.apiBase}footnote/`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: html.length < 60_000,
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.config.csrf },
+        body: JSON.stringify({ book: this.config.book, chapter, verse, ref, html, base_hash: baseHash }),
+      })
+    } catch {
+      return { status: 'error', message: 'Network error' }
+    }
+    const data = await response.json().catch(() => ({}))
+    if (response.ok) return { status: 'ok', hash: data.hash, html: data.html }
+    if (response.status === 409) return { status: 'conflict' }
+    return { status: 'error', message: data.error || `Save failed (${response.status})` }
+  }
+
   editUrl(verse: string): string {
     const params = new URLSearchParams({ book: this.config.book, chapter: this.config.chapter, verse })
     return `${this.config.editUrl}?${params}`

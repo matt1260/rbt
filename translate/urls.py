@@ -37,6 +37,7 @@ urlpatterns = [
     path('api/chapter-editor/chapter/', chapter_editor_api.chapter, name='chapter_editor_chapter'),
     path('api/chapter-editor/verse/', chapter_editor_api.save_verse, name='chapter_editor_save_verse'),
     path('api/chapter-editor/interlinear/', chapter_editor_api.interlinear, name='chapter_editor_interlinear'),
+    path('api/chapter-editor/footnote/', chapter_editor_api.footnote, name='chapter_editor_footnote'),
     path('api/paraphrase/state/', paraphrase_api.state, name='paraphrase_state'),
     path('api/paraphrase/candidate/', paraphrase_api.candidate, name='paraphrase_candidate'),
     path('api/paraphrase/generate/', paraphrase_api.generate, name='paraphrase_generate'),

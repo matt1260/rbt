@@ -11,11 +11,14 @@ function summary(snapshot: Snapshot): { text: string; tone: 'idle' | 'busy' | 'o
   if (snapshot.loadError) return { text: snapshot.loadError, tone: 'bad' }
   const saving = snapshot.statuses.filter((s) => s.status === 'saving')
   if (saving.length) {
-    const what = saving.map((s) => (s.kind === 'paraphrase' ? 'paraphrase' : s.verse)).join(', ')
+    const what = saving.map((s) => (s.kind === 'paraphrase' ? 'paraphrase' : s.kind === 'footnote' ? `footnote ${s.verse.split('-').pop()}` : s.verse)).join(', ')
     return { text: `Saving ${what}…`, tone: 'busy' }
   }
   if (snapshot.statuses.some((s) => s.status === 'saved')) return { text: 'All changes saved', tone: 'ok' }
-  if (snapshot.active) return { text: snapshot.active.kind === 'note' ? 'Editing notes' : `Editing verse ${snapshot.active.verse}`, tone: 'idle' }
+  if (snapshot.active) {
+    const what = snapshot.active.kind === 'note' ? 'notes' : snapshot.active.kind === 'footnote' ? 'footnote' : `verse ${snapshot.active.verse}`
+    return { text: `Editing ${what}`, tone: 'idle' }
+  }
   return { text: 'Click any word to edit', tone: 'idle' }
 }
 
@@ -28,7 +31,23 @@ export function StatusBar({ controller, snapshot, onOpenStudio }: Props) {
     <div className="rbt-ce-status" data-rbt-ui>
       {snapshot.editMode && problems.map((problem) => (
         <div key={problem.verse} className="rbt-ce-card rbt-ce-card--bad" role="alert">
-          {problem.kind === 'paraphrase' ? (
+          {problem.kind === 'footnote' ? (
+            problem.status === 'conflict' ? (
+              <>
+                <strong>Footnote {problem.verse.split('-').pop()} was changed elsewhere</strong> (e.g. on the footnote edit page), so your last edit wasn't saved.
+                <div className="rbt-ce-card__actions">
+                  <button type="button" onClick={() => window.location.reload()}>Reload the page</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <strong>Footnote {problem.verse.split('-').pop()} didn't save:</strong> {problem.error}
+                <div className="rbt-ce-card__actions">
+                  <button type="button" onClick={() => controller.retryFootnote(problem.verse)}>Retry</button>
+                </div>
+              </>
+            )
+          ) : problem.kind === 'paraphrase' ? (
             problem.status === 'conflict' ? (
               <>
                 <strong>The paraphrase was changed elsewhere</strong> (republished, or edited in another tab), so your last edit wasn't saved.

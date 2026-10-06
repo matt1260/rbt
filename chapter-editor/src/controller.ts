@@ -61,6 +61,8 @@ interface ActiveEditor {
   originalNodes: Node[]
   /** For a paragraph: the page elements it edits. */
   unit?: ParagraphUnit
+  /** For a footnote: which one. */
+  footnote?: FootnoteRef
 }
 
 /**
@@ -81,17 +83,44 @@ interface ParagraphUnit {
 type PendingSave = { kind: 'paragraph'; unit: ParagraphUnit; html: string } | { kind: 'note'; index: number; html: string }
 
 /** A finished editing session, undoable after leaving the verse: the HTML before it. */
-type EditKind = 'verse' | ParaphrasePart
+type EditKind = 'verse' | ParaphrasePart | 'footnote'
+
+/** A footnote of the chapter, as its link names it: ?footnote=2-5-70a (chapter-verse-ref). */
+interface FootnoteRef {
+  id: string
+  chapter: string
+  verse: string
+  ref: string
+}
+
+/** A footnote's save state; one save at a time per footnote. */
+interface FootnoteSave {
+  footnote: FootnoteRef
+  /** The stored HTML's hash, sent so a footnote changed elsewhere isn't overwritten. */
+  hash: string
+  /** The footnote as the server last had it. */
+  saved: string
+  pending?: string
+  inFlight: boolean
+  status?: SaveStatus
+  error?: string
+}
+
+function parseFootnoteRef(id: string | undefined): FootnoteRef | null {
+  const match = /^(\d+)-(\d+)-([0-9]+[a-z]{0,3})$/i.exec(id ?? '')
+  return match ? { id: id!, chapter: match[1], verse: match[2], ref: match[3] } : null
+}
 /** The parts of the published paraphrase edited in place: a paragraph, or the notes shown with an image. */
 type ParaphrasePart = 'paragraph' | 'note'
 type UndoEntry =
   | { kind: 'verse'; verse: string; html: string }
   | { kind: 'paragraph'; unit: ParagraphUnit; html: string }
   | { kind: 'note'; index: number; html: string }
+  | { kind: 'footnote'; footnote: FootnoteRef; html: string }
 
 export interface VerseStatus {
-  /** 'verse' entries are keyed by verse number; there is one 'paraphrase' entry. */
-  kind: 'verse' | 'paraphrase'
+  /** 'verse' entries are keyed by verse number, 'footnote' ones by footnote id; there is one 'paraphrase' entry. */
+  kind: 'verse' | 'paraphrase' | 'footnote'
   verse: string
   status: SaveStatus
   error?: string
@@ -199,6 +228,10 @@ export class ChapterEditorController {
     error: undefined as string | undefined,
   }
 
+  /** Footnotes edited in the chapter's footnote pop-up, by id. */
+  private footnoteSaves = new Map<string, FootnoteSave>()
+  private footnoteLoading = false
+
   constructor(
     config: EditorConfig,
     private area: HTMLElement,
@@ -235,6 +268,9 @@ export class ChapterEditorController {
     if (this.paraphraseSaves.status) {
       statuses.push({ kind: 'paraphrase', verse: 'paraphrase', status: this.paraphraseSaves.status, error: this.paraphraseSaves.error })
     }
+    for (const save of this.footnoteSaves.values()) {
+      if (save.status) statuses.push({ kind: 'footnote', verse: save.footnote.id, status: save.status, error: save.error })
+    }
     return {
       editMode: this.editMode,
       loading: this.loading,
@@ -270,6 +306,7 @@ export class ChapterEditorController {
       this.reader?.addEventListener('mousedown', this.onReaderMouseDown)
       this.reader?.addEventListener('click', this.onReaderClick)
       document.addEventListener('mousedown', this.onNoteMouseDown)
+      document.addEventListener('mousedown', this.onFootnoteMouseDown)
       this.pointVerseRefsAt('edit')
       if (!this.verses.size) void this.load()
     } else {
@@ -282,6 +319,7 @@ export class ChapterEditorController {
       this.reader?.removeEventListener('mousedown', this.onReaderMouseDown)
       this.reader?.removeEventListener('click', this.onReaderClick)
       document.removeEventListener('mousedown', this.onNoteMouseDown)
+      document.removeEventListener('mousedown', this.onFootnoteMouseDown)
       this.pointVerseRefsAt('public')
       this.hover = null
     }
@@ -705,6 +743,107 @@ export class ChapterEditorController {
     this.emit()
   }
 
+  // --- footnotes --------------------------------------------------------------------
+
+  /** In edit mode, a click on the text of the chapter's footnote pop-up edits that footnote. */
+  private onFootnoteMouseDown = (event: MouseEvent) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    const target = event.target as Element
+    const box = target.closest?.<HTMLElement>('.footnote-popup.active .footnote-popup-content')
+    const popup = box?.closest<HTMLElement>('.footnote-popup')
+    const footnote = parseFootnoteRef(popup?.dataset.footnote)
+    // Only the English footnotes are stored here; a translated one isn't edited in place.
+    if (!box || !popup || !footnote || (popup.dataset.lang && popup.dataset.lang !== 'en')) return
+    if (this.active?.wrapper === box || target.closest('a')) return
+    event.preventDefault()
+    this.commit()
+    void this.activateFootnote(box, popup, footnote, { left: event.clientX, top: event.clientY })
+  }
+
+  private async activateFootnote(box: HTMLElement, popup: HTMLElement, footnote: FootnoteRef, coords: { left: number; top: number }) {
+    if (this.footnoteLoading) return
+    let save = this.footnoteSaves.get(footnote.id)
+    if (!save) {
+      // The pop-up shows a display copy; edit the stored footnote.
+      this.footnoteLoading = true
+      const loaded = await this.api.footnote(footnote.ref)
+      this.footnoteLoading = false
+      if ('error' in loaded) {
+        this.showNotice(`Footnote ${footnote.ref}: ${loaded.error}`)
+        return
+      }
+      save = { footnote, hash: loaded.hash, saved: loaded.html, inFlight: false }
+      this.footnoteSaves.set(footnote.id, save)
+    }
+    // The pop-up may have closed or moved on while the footnote loaded.
+    if (this.active || !box.isConnected || !popup.classList.contains('active') || popup.dataset.footnote !== footnote.id) return
+    const html = save.pending ?? save.saved
+    if (!roundTrips(html, document)) {
+      this.showNotice(`Footnote ${footnote.ref} has markup the inline editor cannot keep intact.`)
+      return
+    }
+    const originalNodes = Array.from(box.childNodes)
+    const host = document.createElement('div')
+    host.className = 'rbt-verse-editor'
+    box.replaceChildren(host)
+    const view = new EditorView({ mount: host }, {
+      state: EditorState.create({ doc: parseVerse(html, document), plugins: this.editorPlugins() }),
+      dispatchTransaction: (tr) => {
+        view.updateState(view.state.apply(tr))
+        if (tr.docChanged) this.scheduleAutosave()
+        this.emit()
+      },
+    })
+    this.active = { kind: 'footnote', verse: footnote.id, index: -1, wrapper: box, view, refHtml: '', startHtml: html, originalNodes, footnote }
+    const hit = view.posAtCoords(coords)
+    view.dispatch(view.state.tr.setSelection(hit ? TextSelection.near(view.state.doc.resolve(hit.pos)) : TextSelection.atEnd(view.state.doc)))
+    view.focus()
+    this.emit()
+  }
+
+  private saveFootnote(footnote: FootnoteRef, html: string) {
+    const save = this.footnoteSaves.get(footnote.id)
+    if (!save || sameHtml(html, save.pending ?? save.saved, document)) return
+    save.pending = html
+    void this.runFootnoteQueue(save)
+  }
+
+  private async runFootnoteQueue(save: FootnoteSave) {
+    if (save.inFlight) return
+    while (save.pending !== undefined && save.status !== 'conflict') {
+      const html = save.pending
+      save.pending = undefined
+      save.inFlight = true
+      save.status = 'saving'
+      save.error = undefined
+      this.emit()
+      const { chapter, verse, ref, id } = save.footnote
+      const result = await this.api.saveFootnote(chapter, verse, ref, html, save.hash)
+      save.inFlight = false
+      if (result.status === 'ok') {
+        save.hash = result.hash
+        save.saved = result.html
+        save.status = save.pending === undefined ? 'saved' : 'saving'
+        // Show the stored version (normalised on save), unless it's open in the editor.
+        if (this.active?.footnote?.id !== id) window.rbtFootnotes?.setContent(id, result.html)
+      } else if (result.status === 'conflict') {
+        save.status = 'conflict'
+        save.pending = undefined
+      } else {
+        save.status = 'error'
+        save.error = result.message
+        save.pending ??= html
+        break
+      }
+    }
+    this.emit()
+  }
+
+  retryFootnote = (id: string) => {
+    const save = this.footnoteSaves.get(id)
+    if (save?.status === 'error') void this.runFootnoteQueue(save)
+  }
+
   // --- saving paraphrase parts ---------------------------------------------------
 
   private saveUnit(unit: ParagraphUnit, html: string) {
@@ -924,6 +1063,7 @@ export class ChapterEditorController {
     const html = serializeDoc(active.view.state.doc, document)
     if (active.kind === 'verse') this.save(active.verse, html)
     else if (active.kind === 'note') this.saveNote(active.index, html)
+    else if (active.kind === 'footnote') this.saveFootnote(active.footnote!, html)
     else this.saveUnit(active.unit!, html)
   }
 
@@ -937,10 +1077,12 @@ export class ChapterEditorController {
     const html = options.revert ? active.startHtml : edited
     if (active.kind === 'verse') this.save(active.verse, html)
     else if (active.kind === 'note') this.saveNote(active.index, html)
+    else if (active.kind === 'footnote') this.saveFootnote(active.footnote!, html)
     else this.saveUnit(active.unit!, html)
     if (!options.revert && !sameHtml(html, active.startHtml, document)) {
       this.undoStack.push(active.kind === 'verse' ? { kind: 'verse', verse: active.verse, html: active.startHtml }
         : active.kind === 'note' ? { kind: 'note', index: active.index, html: active.startHtml }
+        : active.kind === 'footnote' ? { kind: 'footnote', footnote: active.footnote!, html: active.startHtml }
         : { kind: 'paragraph', unit: active.unit!, html: active.startHtml })
       if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
     }
@@ -955,11 +1097,16 @@ export class ChapterEditorController {
       active.wrapper.replaceChildren(...active.originalNodes)
     } else if (active.kind === 'note') {
       window.rbtReaderParaphrase?.setNote(active.index, html)
+    } else if (active.kind === 'footnote') {
+      active.wrapper.replaceChildren()
+      window.rbtFootnotes?.setContent(active.footnote!.id, html)
     } else {
       this.render(active.verse, active.wrapper, active.refHtml)
     }
     if (options.revert && !sameHtml(edited, active.startHtml, document)) {
-      this.showNotice(active.kind === 'verse' ? `Verse ${active.verse}: changes discarded.` : `${PART_LABEL[active.kind]}: changes discarded.`)
+      this.showNotice(active.kind === 'verse' ? `Verse ${active.verse}: changes discarded.`
+        : active.kind === 'footnote' ? `Footnote ${active.footnote!.ref}: changes discarded.`
+        : `${PART_LABEL[active.kind]}: changes discarded.`)
     }
     this.emit()
   }
@@ -989,6 +1136,10 @@ export class ChapterEditorController {
       this.saveNote(entry.index, entry.html)
       window.rbtReaderParaphrase?.setNote(entry.index, entry.html)
       this.showNotice('Notes: last edit undone.')
+    } else if (entry.kind === 'footnote') {
+      this.saveFootnote(entry.footnote, entry.html)
+      window.rbtFootnotes?.setContent(entry.footnote.id, entry.html)
+      this.showNotice(`Footnote ${entry.footnote.ref}: last edit undone.`)
     } else {
       const unit = entry.unit
       if (!unit.blocks.length || unit.blocks.some((block) => !block.isConnected)) {
