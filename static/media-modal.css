@@ -183,7 +183,7 @@
     max-width: 100% !important;
     height: 140px !important;
     object-fit: cover;
-    margin: 0 !important;
+    margin: 0 auto !important;
     /* !important: videos carry their own inline border-radius. */
     border-radius: 50% !important;
     background: #fff;
@@ -194,6 +194,7 @@
 .rbt-media-row {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     align-items: flex-start;
     gap: 14px;
     margin: 14px 0 18px;
