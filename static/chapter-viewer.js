@@ -706,8 +706,14 @@ function initializeFootnotePopups() {
     
     footnotePopupOverlay.addEventListener('click', closeFootnotePopup);
     
+    const touchScreen = window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)');
     footnotePopup.addEventListener('click', function(e) {
         e.stopPropagation();
+        // On a phone or tablet a tap anywhere on the pop-up closes it (not on a link, and not
+        // in edit mode, where tapping the footnote edits it).
+        if (touchScreen && touchScreen.matches && !document.body.classList.contains('rbt-edit-mode') && !e.target.closest('a, [data-rbt-ui]')) {
+            closeFootnotePopup();
+        }
     });
 
     document.addEventListener('keydown', function(e) {

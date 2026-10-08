@@ -28,7 +28,7 @@
 
         modal.addEventListener('click', function (event) {
             // event.target is the dialog itself only for clicks on the backdrop.
-            if (event.target === modal || event.target.closest('.pp-modal__close')) modal.close();
+            if (event.target === modal || event.target.closest('.pp-modal__close') || tapCloses(event)) modal.close();
         });
         modal.addEventListener('keydown', function (event) {
             // Escape closes just this modal, not the staff studio underneath it.
@@ -39,6 +39,17 @@
             if (opener && document.contains(opener)) opener.focus();
         });
         document.body.appendChild(modal);
+    }
+
+    var touchScreen = window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)');
+
+    // On a phone or tablet a tap anywhere on the pop-up closes it, except on a link, a video
+    // (its controls) or the editor's toolbar, and not in edit mode, where tapping the notes
+    // edits them (staff).
+    function tapCloses(event) {
+        return !!(touchScreen && touchScreen.matches) &&
+            !document.body.classList.contains('rbt-edit-mode') &&
+            !event.target.closest('a, video, [data-rbt-ui]');
     }
 
     // Notes usually open with a bold heading ("<b>Her Night and Day</b>. The ..."). Make it a
