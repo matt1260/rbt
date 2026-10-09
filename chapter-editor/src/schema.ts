@@ -4,11 +4,12 @@
  * Verse HTML is free-form: colored spans, headings, footnote anchors, tooltip/image
  * blocks, videos. Instead of modelling each construct, the schema is generic:
  *
- *   doc        → block+
+ *   doc        → one or more editable blocks, lists, or preserved raw blocks.
  *   block      → one top-level text block. attrs.tag is null for a bare run of inline
  *                content (serialised without a wrapper) or e.g. 'h5' / 'div' / 'p'.
- *   raw_block  → any other top-level element (tooltip containers, videos, lists...),
- *                kept as its original outerHTML and not editable.
+ *   raw_block  → any other top-level element (tooltip containers, videos...), kept as
+ *                its original outerHTML and not editable.
+ *   bullet_list / ordered_list → list containers with editable list_item children.
  *   raw_inline → inline element that can't hold editable text (footnote anchors,
  *                images, empty icons, blocks nested in inline elements).
  *   hard_break → <br>
@@ -91,11 +92,15 @@ export function newMarkKey(): number {
 
 export const schema = new Schema({
   nodes: {
-    doc: { content: 'block+' },
+    doc: { content: 'block_content+' },
     block: {
-      group: 'block',
+      group: 'block_content',
       content: 'inline*',
       attrs: { tag: { default: null }, attrs: { default: {} } },
+      parseDOM: [...TEXT_BLOCK_TAGS].map((tag) => ({
+        tag,
+        getAttrs: (el: HTMLElement) => ({ tag, attrs: elementAttrs(el) }),
+      })),
       toDOM: (node) => {
         const el = node.attrs.tag
           ? createElement(node.attrs.tag, node.attrs.attrs, document)
@@ -104,7 +109,7 @@ export const schema = new Schema({
       },
     },
     raw_block: {
-      group: 'block',
+      group: 'block_content',
       atom: true,
       selectable: false,
       attrs: { html: { default: '' } },
@@ -113,6 +118,36 @@ export const schema = new Schema({
         const el = htmlToElement(node.attrs.html, document)
         if (el instanceof HTMLElement) el.contentEditable = 'false'
         return el as HTMLElement
+      },
+    },
+    bullet_list: {
+      group: 'block_content',
+      content: 'list_item+',
+      attrs: { attrs: { default: {} } },
+      parseDOM: [{ tag: 'ul', getAttrs: (el: HTMLElement) => ({ attrs: elementAttrs(el) }) }],
+      toDOM: (node) => {
+        const el = createElement('ul', node.attrs.attrs, document)
+        return { dom: el, contentDOM: el }
+      },
+    },
+    ordered_list: {
+      group: 'block_content',
+      content: 'list_item+',
+      attrs: { attrs: { default: {} } },
+      parseDOM: [{ tag: 'ol', getAttrs: (el: HTMLElement) => ({ attrs: elementAttrs(el) }) }],
+      toDOM: (node) => {
+        const el = createElement('ol', node.attrs.attrs, document)
+        return { dom: el, contentDOM: el }
+      },
+    },
+    list_item: {
+      content: 'block_content+',
+      defining: true,
+      attrs: { attrs: { default: {} } },
+      parseDOM: [{ tag: 'li', getAttrs: (el: HTMLElement) => ({ attrs: elementAttrs(el) }) }],
+      toDOM: (node) => {
+        const el = createElement('li', node.attrs.attrs, document)
+        return { dom: el, contentDOM: el }
       },
     },
     text: { group: 'inline' },
@@ -196,6 +231,40 @@ function prepareInline(node: Node, doc: Document): Node | null {
   return copy
 }
 
+function prepareListElement(list: Element, doc: Document): Element {
+  const preparedList = list.cloneNode(false) as Element
+  for (const item of Array.from(list.children)) {
+    if (item.tagName.toLowerCase() !== 'li') {
+      preparedList.appendChild(item.cloneNode(true))
+      continue
+    }
+    const preparedItem = item.cloneNode(false) as Element
+    for (const child of Array.from(item.childNodes)) {
+      if (child.nodeType === 1) {
+        const element = child as Element
+        const tag = element.tagName.toLowerCase()
+        if (tag === 'ul' || tag === 'ol') {
+          preparedItem.appendChild(prepareListElement(element, doc))
+          continue
+        }
+        if (TEXT_BLOCK_TAGS.has(tag) && !hasBlockDescendant(element)) {
+          const preparedBlock = element.cloneNode(false) as Element
+          for (const inline of Array.from(element.childNodes)) {
+            const prepared = prepareInline(inline, doc)
+            if (prepared) preparedBlock.appendChild(prepared)
+          }
+          preparedItem.appendChild(preparedBlock)
+          continue
+        }
+      }
+      const prepared = prepareInline(child, doc)
+      if (prepared) preparedItem.appendChild(prepared)
+    }
+    preparedList.appendChild(preparedItem)
+  }
+  return preparedList
+}
+
 export function parseVerse(html: string, doc: Document): PMNode {
   const container = doc.createElement('div')
   container.innerHTML = html
@@ -230,6 +299,12 @@ export function parseVerse(html: string, doc: Document): PMNode {
     if (isEmptyHeading(el)) continue
     if (TEXT_BLOCK_TAGS.has(tag) && !hasBlockDescendant(el) && (el.textContent ?? '').trim()) {
       parseInto(Array.from(el.childNodes), tag, elementAttrs(el))
+    } else if ((tag === 'ul' || tag === 'ol') && el.querySelector('li')) {
+      const type = tag === 'ul' ? schema.nodes.bullet_list : schema.nodes.ordered_list
+      blocks.push(parser.parse(prepareListElement(el, doc), {
+        topNode: type.create({ attrs: elementAttrs(el) }),
+        preserveWhitespace: 'full',
+      }))
     } else {
       blocks.push(schema.nodes.raw_block.create({ html: el.outerHTML }))
     }
@@ -245,10 +320,28 @@ export function parseVerse(html: string, doc: Document): PMNode {
 function inlineSerializer(doc: Document): DOMSerializer {
   return new DOMSerializer(
     {
+      block: (node) => {
+        const el = node.attrs.tag
+          ? createElement(node.attrs.tag, node.attrs.attrs, doc)
+          : createElement('span', { class: 'rbt-run' }, doc)
+        return { dom: el, contentDOM: el }
+      },
       // DOMOutputSpec accepts any DOM node; its type only admits elements.
       text: (node) => doc.createTextNode(node.text ?? '') as unknown as HTMLElement,
       hard_break: () => doc.createElement('br'),
       raw_inline: (node) => htmlToElement(node.attrs.html, doc) as HTMLElement,
+      bullet_list: (node) => {
+        const el = createElement('ul', node.attrs.attrs, doc)
+        return { dom: el, contentDOM: el }
+      },
+      ordered_list: (node) => {
+        const el = createElement('ol', node.attrs.attrs, doc)
+        return { dom: el, contentDOM: el }
+      },
+      list_item: (node) => {
+        const el = createElement('li', node.attrs.attrs, doc)
+        return { dom: el, contentDOM: el }
+      },
     },
     {
       el: (mark: Mark) => {
@@ -259,12 +352,41 @@ function inlineSerializer(doc: Document): DOMSerializer {
   )
 }
 
+function serializeList(node: PMNode, doc: Document, serializer: DOMSerializer): HTMLElement {
+  const list = createElement(node.type === schema.nodes.bullet_list ? 'ul' : 'ol', node.attrs.attrs, doc)
+  node.forEach((item) => {
+    const li = createElement('li', item.attrs.attrs, doc)
+    item.forEach((child) => {
+      if (child.type === schema.nodes.bullet_list || child.type === schema.nodes.ordered_list) {
+        li.appendChild(serializeList(child, doc, serializer))
+      } else if (child.type === schema.nodes.raw_block) {
+        li.appendChild(htmlToElement(child.attrs.html, doc))
+      } else {
+        const inline = serializer.serializeFragment(child.content, { document: doc })
+        if (child.attrs.tag) {
+          const block = createElement(child.attrs.tag, child.attrs.attrs, doc)
+          block.appendChild(inline)
+          li.appendChild(block)
+        } else {
+          li.appendChild(inline)
+        }
+      }
+    })
+    list.appendChild(li)
+  })
+  return list
+}
+
 export function serializeDoc(pmDoc: PMNode, doc: Document): string {
   const out = doc.createElement('div')
   const serializer = inlineSerializer(doc)
   pmDoc.forEach((block) => {
     if (block.type === schema.nodes.raw_block) {
       out.appendChild(htmlToElement(block.attrs.html, doc))
+      return
+    }
+    if (block.type === schema.nodes.bullet_list || block.type === schema.nodes.ordered_list) {
+      out.appendChild(serializeList(block, doc, serializer))
       return
     }
     if (HEADING_TAGS.has(block.attrs.tag) && !block.textContent.trim() &&
@@ -319,7 +441,12 @@ export function normalizeHtml(html: string, doc: Document): string {
   const texts: Text[] = []
   while (walker.nextNode()) texts.push(walker.currentNode as Text)
   for (const text of texts) {
-    const value = (text.nodeValue ?? '').replace(WHITESPACE_RUN, ' ')
+    const original = text.nodeValue ?? ''
+    if (!original.trim() && ['ul', 'ol'].includes(text.parentElement?.tagName.toLowerCase() ?? '')) {
+      text.remove()
+      continue
+    }
+    const value = original.replace(WHITESPACE_RUN, ' ')
     if (value) text.nodeValue = value
     else text.remove()
   }

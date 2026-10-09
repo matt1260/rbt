@@ -5,6 +5,7 @@
  * With an empty selection a tool applies to the word under the caret.
  */
 import { Fragment, type Mark, type MarkType, type Node as PMNode } from 'prosemirror-model'
+import { liftListItem, wrapInList } from 'prosemirror-schema-list'
 import { EditorState, TextSelection, type Transaction } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
 import { newMarkKey, schema, type ElAttrs, type ElSpec } from './schema'
@@ -13,6 +14,7 @@ export type Tool =
   | { kind: 'mark'; id: string; label: string; title: string; spec: ElSpec; aliases?: ElSpec[] }
   | { kind: 'color'; id: string; label: string; title: string; spec: ElSpec | null }
   | { kind: 'block'; id: string; label: string; title: string; spec: ElSpec }
+  | { kind: 'list'; id: string; label: string; title: string; node: 'bullet_list' | 'ordered_list' }
 
 const span = (attrs: ElAttrs): ElSpec => ({ tag: 'span', attrs })
 
@@ -24,6 +26,8 @@ export const TOOLS: Tool[] = [
   { kind: 'mark', id: 'italic', label: 'I', title: 'Italic (⌘I)', spec: { tag: 'em', attrs: {} }, aliases: [{ tag: 'i', attrs: {} }] },
   { kind: 'mark', id: 'hayah', label: 'היה', title: 'Hayah', spec: span({ class: 'hayah' }) },
   { kind: 'block', id: 'h5', label: 'h5', title: 'Heading', spec: { tag: 'h5', attrs: {} } },
+  { kind: 'list', id: 'bullet-list', label: '•', title: 'Bulleted list', node: 'bullet_list' },
+  { kind: 'list', id: 'ordered-list', label: '1.', title: 'Numbered list', node: 'ordered_list' },
   // Paraphrase paragraphs only (toggleParagraphQuote).
   { kind: 'block', id: 'quote', label: '❝', title: 'Quote: the selected text, or the whole paragraph', spec: { tag: 'blockquote', attrs: { class: 'pp-poetry' } } },
   { kind: 'mark', id: 'hebrew-header', label: 'א', title: 'Hebrew header', spec: span({ class: 'hebrew-header' }) },
@@ -100,6 +104,13 @@ function currentBlock(state: EditorState) {
 
 export function isToolActive(state: EditorState, tool: Tool): boolean {
   if (tool.id === 'quote') return currentBlock(state).node.attrs.tag === 'blockquote'
+  if (tool.kind === 'list') {
+    for (let depth = state.selection.$from.depth; depth > 0; depth--) {
+      const type = state.selection.$from.node(depth).type
+      if (type === schema.nodes.bullet_list || type === schema.nodes.ordered_list) return type === schema.nodes[tool.node]
+    }
+    return false
+  }
   if (tool.kind === 'block') {
     const { node } = currentBlock(state)
     return node.attrs.tag === tool.spec.tag && sameAttrs(node.attrs.attrs ?? {}, tool.spec.attrs)
@@ -116,6 +127,7 @@ export function isToolActive(state: EditorState, tool: Tool): boolean {
 /** Build the transaction for a toolbar click, or null when the tool can't apply here. */
 export function applyTool(state: EditorState, tool: Tool): Transaction | null {
   if (tool.kind === 'block') return toggleBlock(state, tool.spec)
+  if (tool.kind === 'list') return toggleList(state, tool.node)
   const range = targetRange(state)
   if (!range) return null
   const { from, to } = range
@@ -134,6 +146,26 @@ export function applyTool(state: EditorState, tool: Tool): Transaction | null {
   }
   // Keep the caret where it was; a word-expanded range shouldn't turn into a selection.
   return tr.setSelection(TextSelection.create(tr.doc, state.selection.from, state.selection.to)).scrollIntoView()
+}
+
+function toggleList(state: EditorState, nodeName: 'bullet_list' | 'ordered_list'): Transaction | null {
+  const listType = schema.nodes[nodeName]
+  const itemType = schema.nodes.list_item
+  const { $from } = state.selection
+  for (let depth = $from.depth; depth > 0; depth--) {
+    const node = $from.node(depth)
+    if (node.type !== schema.nodes.bullet_list && node.type !== schema.nodes.ordered_list) continue
+    const pos = $from.before(depth)
+    if (node.type === listType) {
+      let transaction: Transaction | null = null
+      liftListItem(itemType)(state, (tr) => { transaction = tr })
+      return transaction
+    }
+    return state.tr.setNodeMarkup(pos, listType, node.attrs).scrollIntoView()
+  }
+  let transaction: Transaction | null = null
+  wrapInList(listType)(state, (tr) => { transaction = tr })
+  return transaction
 }
 
 /**
