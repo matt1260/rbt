@@ -83,6 +83,24 @@
     margin-top: 0;
 }
 
+.pp-modal__text ul,
+.pp-modal__text ol {
+    margin: 0.65em 0 !important;
+    padding-inline-start: 1.5em !important;
+}
+
+.pp-modal__text ul {
+    list-style: disc outside !important;
+}
+
+.pp-modal__text ol {
+    list-style: decimal outside !important;
+}
+
+.pp-modal__text li + li {
+    margin-top: 0.2em;
+}
+
 /* The notes' opening bold heading, lifted out by media-modal.js. The site gives every
    heading its display font with !important, which suits a title here. */
 .pp-modal .pp-modal__title {

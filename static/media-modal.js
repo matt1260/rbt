@@ -79,6 +79,13 @@
         }
     }
 
+    function revealPopupParentheticals(box) {
+        var spans = box.querySelectorAll('.paren-hide');
+        for (var i = 0; i < spans.length; i++) {
+            spans[i].style.setProperty('display', 'inline', 'important');
+        }
+    }
+
     /**
      * Show one item in the pop-up: {media: <img>/<video> to show (it's moved in), notesHtml,
      * label, data: {key: value} copied onto the dialog's dataset (the staff note editor reads
@@ -104,6 +111,7 @@
         }
         if (item.notesHtml) {
             textBox.innerHTML = item.notesHtml;
+            revealPopupParentheticals(textBox);
             liftTitle(textBox);
         }
         modal.classList.toggle('pp-modal--no-text', !textBox.textContent.trim());
@@ -125,6 +133,7 @@
         if (!modal) return;
         var textBox = modal.querySelector('.pp-modal__text');
         textBox.innerHTML = html || '';
+        revealPopupParentheticals(textBox);
         liftTitle(textBox);
         modal.classList.toggle('pp-modal--no-text', !textBox.textContent.trim());
     }

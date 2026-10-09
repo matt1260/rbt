@@ -15,6 +15,7 @@ import { baseKeymap } from 'prosemirror-commands'
 import { history, redo, undo, undoDepth } from 'prosemirror-history'
 import { keymap } from 'prosemirror-keymap'
 import type { Node as PMNode } from 'prosemirror-model'
+import { splitListItem } from 'prosemirror-schema-list'
 import { EditorState, NodeSelection, Plugin, TextSelection, type Command } from 'prosemirror-state'
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view'
 import { Api, type BlockSaveResult, type EditorConfig, type InterlinearWord } from './api'
@@ -1106,7 +1107,8 @@ export class ChapterEditorController {
         dispatch?.(state.tr.replaceSelectionWith(schema.nodes.hard_break.create()).scrollIntoView())
         return true
       },
-      Enter: () => {
+      Enter: (state, dispatch) => {
+        if (splitListItem(schema.nodes.list_item)(state, dispatch)) return true
         this.commit()
         return true
       },
