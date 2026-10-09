@@ -31,6 +31,8 @@ export const TOOLS: Tool[] = [
   { kind: 'mark', id: 'center', label: '≡', title: 'Center line', spec: span({ style: 'display: block; text-align: center;' }) },
   { kind: 'mark', id: 'last-center', label: '≡ₗ', title: 'Center last line', spec: span({ class: 'last_center' }) },
   { kind: 'block', id: 'sun', label: '☀', title: 'Sun', spec: { tag: 'div', attrs: { class: 'sun-icon' } } },
+  // Outside verses (paraphrase paragraphs, notes, footnotes) the sun wraps the words inline.
+  { kind: 'mark', id: 'sun-inline', label: '☀', title: 'Sun', spec: span({ class: 'sun-icon' }) },
 ]
 
 function sameAttrs(a: ElAttrs, b: ElAttrs): boolean {
@@ -280,7 +282,7 @@ function isWordStyling(mark: Mark): boolean {
   if (mark.type !== schema.marks.el) return false
   if (['strong', 'b', 'em', 'i'].includes(mark.attrs.tag)) return true
   const attrs = mark.attrs.attrs as ElAttrs
-  return isColor(mark) || (mark.attrs.tag === 'span' && Object.keys(attrs).length === 1 && attrs.class === 'hayah')
+  return isColor(mark) || (mark.attrs.tag === 'span' && Object.keys(attrs).length === 1 && (attrs.class === 'hayah' || attrs.class === 'sun-icon'))
 }
 
 /** Punctuation and spaces: typed at the end of a colored/bold word they belong after it, not in it. */

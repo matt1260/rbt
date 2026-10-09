@@ -18,9 +18,10 @@ interface Props {
 export function Toolbar({ controller, kind, verse, view, state }: Props) {
   // Sun blocks belong to verses, quotes to paraphrase paragraphs (where h5 is the heading
   // above the paragraph); image notes take inline formatting only.
+  // Outside verses the sun is the inline one.
   const tools = kind === 'paragraph' ? TOOLS.filter((tool) => tool.id !== 'sun')
     : kind === 'note' || kind === 'verseNote' || kind === 'footnote' ? TOOLS.filter((tool) => tool.kind !== 'block')
-    : TOOLS.filter((tool) => tool.id !== 'quote')
+    : TOOLS.filter((tool) => tool.id !== 'quote' && tool.id !== 'sun-inline')
   const [picking, setPicking] = useState(false)
   const cueSelected = kind === 'paragraph' && selectedCue(state)
   const { refs, floatingStyles, update } = useFloating({

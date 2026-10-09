@@ -316,6 +316,11 @@ class EditBlockTests(SimpleTestCase):
         self.assertNotIn('display', block)
         self.assertNotIn('data-orig', block)
 
+    def test_sun_spans_are_kept(self):
+        _, block = pp.replace_block(STORED, 2, 'The <span class="sun-icon">Daylight</span> <span class="sun-icon evil">x</span>')
+        self.assertIn('<span class="sun-icon">Daylight</span>', block)
+        self.assertNotIn('evil', block)
+
     def test_leading_h5_becomes_the_heading_above_the_paragraph(self):
         html, block = pp.replace_block(STORED, 2, '<h5><span style="color: blue;">The Lamb</span> <b onclick="x()">x</b></h5>Third.')
         self.assertIn('<h5><span style="color: blue;">The Lamb</span> x</h5><p data-v="4">', html)

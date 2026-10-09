@@ -96,7 +96,7 @@ ALLOWED_ATTRIBUTES = {
 ALLOWED_CLASSES = {
     'p': {'pp-lead', 'pp-indent'},
     'blockquote': {'pp-poetry'},
-    'span': {'hayah'},
+    'span': {'hayah', 'sun-icon'},  # sun-icon: the glowing sun behind a word (base.html)
 }
 # The only styles kept: the two RBT colors, 'color: blue;' and 'color: #ff00aa;'. Other
 # spellings of them (the page's color toggles leave rgb() behind, models drop spaces) are
