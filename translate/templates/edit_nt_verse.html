@@ -143,11 +143,14 @@
         font-weight: 600;
         margin: 0;
     }
-    #chapter-content img {
-        max-width: 100%;
-        width: 100%;
-        height: auto;
+    #chapter-content img,
+    #chapter-content video {
+        max-width: 140px !important;
+        max-height: 140px !important;
+        width: auto !important;
+        height: auto !important;
         display: block;
+        object-fit: contain;
         border-radius: 4px;
         margin-top: 4px;
     }
