@@ -50,6 +50,8 @@ from .translation_views import (
     translation_coverage_api,
     prompt_config_api,
     title_translations_api,
+    paraphrase_coverage_api,
+    paraphrase_translation_api,
 )
 
 # Chapter views (PARTIAL - core functions only)

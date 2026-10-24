@@ -19,6 +19,7 @@ def row(book, verse=0, text='T', source_hash=None):
 class TitleTranslationTests(SimpleTestCase):
     def test_english_titles(self):
         self.assertEqual(titles.english_title('Isaiah'), 'He Who Is Liberates')
+        self.assertEqual(titles.english_title('Genesis'), 'In the Summit')
         self.assertEqual(titles.english_title('1John'), 'First Favored')  # stored without the space
         self.assertEqual(titles.english_title('Gospel of Judas'), 'Gospel of Praised One (Judas)')
         self.assertEqual(titles.title_source('Gospel of Judas', 3), 'Gospel of Praised One')
@@ -32,6 +33,7 @@ class TitleTranslationTests(SimpleTestCase):
         self.assertFalse(titles.is_current(row('Jude', source_hash=titles.STALE)))
         self.assertTrue(titles.is_current(row('John')))  # saved before fingerprints: trusted
         self.assertFalse(titles.is_current(row('Jude')))  # ...unless the title was renamed since
+        self.assertFalse(titles.is_current(row('Genesis')))  # renamed from "In the Head"
         self.assertFalse(titles.is_current(row('Gospel of Judas', 3)))
         heading = row('Gospel of Judas', 3, source_hash=source_fingerprint('Gospel of Praised One'))
         self.assertTrue(titles.is_current(heading))

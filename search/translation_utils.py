@@ -3,7 +3,42 @@
 import os
 import hashlib
 from google import genai
+from google.genai import types
 from .models import VerseTranslation, GeminiUsageLog
+
+
+def _try_next_key(error_str):
+    """Whether a (lowercased) Gemini error means the request should go to the next key: this
+    key is spent or no longer valid, or the model is briefly overloaded (503 "high demand",
+    504), which the next attempt often gets past. Other errors mean the request failed."""
+    return any(sign in error_str for sign in (
+        'quota', 'rate limit', 'resource exhausted', 'api key not valid', 'api_key_invalid',
+        'api key expired', 'permission_denied', 'unavailable', 'high demand', 'overloaded',
+        'deadline_exceeded', 'deadline exceeded',
+    ))
+
+
+# Seconds before a request is abandoned (the next key is then tried): without a limit a stalled
+# request holds a translation thread forever.
+REQUEST_TIMEOUT_SECONDS = 300
+
+
+def _client(api_key):
+    return genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_SECONDS * 1000))
+
+
+def _generate(prompt, model='models/gemini-3.8-flash'):
+    """One request, trying each key in turn until one can be used."""
+    error = None
+    for api_key in GEMINI_API_KEYS:
+        try:
+            response = _client(api_key).models.generate_content(model=model, contents=prompt)
+            return (response.text or '').strip()  # type: ignore
+        except Exception as e:
+            error = e
+            if not _try_next_key(str(e).lower()):
+                raise
+    raise error or RuntimeError('No Gemini API key configured')
 
 
 def source_fingerprint(source_text):
@@ -38,6 +73,11 @@ def needs_retranslation(existing_hashes, key, current_hash):
 # Format: GEMINI_API_KEYS="key1,key2,key3,..."
 GEMINI_API_KEYS_STR = os.getenv('GEMINI_API_KEYS', '')
 GEMINI_API_KEYS = [k.strip() for k in GEMINI_API_KEYS_STR.split(',') if k.strip()]
+# GEMINI_API_KEY (the Paraphrase Studio's key) goes last, as a fallback: a pool of spent or
+# revoked keys then slows translation down instead of stopping it.
+_GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '').strip()
+if _GEMINI_API_KEY and _GEMINI_API_KEY not in GEMINI_API_KEYS:
+    GEMINI_API_KEYS.append(_GEMINI_API_KEY)
 ENABLE_VERBOSE_DEBUG = os.getenv('ENABLE_VERBOSE_DEBUG', 'False') == 'True'
 
 # Debug: Print what we loaded (only first few chars of each key for security)
@@ -443,7 +483,7 @@ Return ONLY the translated phrase, no explanation or extra text."""
         for api_key in GEMINI_API_KEYS:
             try:
                 print(f"[TRANSLATION DEBUG] Translating book name: {book_name}")
-                client = genai.Client(api_key=api_key)
+                client = _client(api_key)
                 response = client.models.generate_content(
                     model='models/gemini-3.8-flash',
                     contents=book_prompt
@@ -457,7 +497,7 @@ Return ONLY the translated phrase, no explanation or extra text."""
                 error_str = str(e).lower()
                 status_code = 429 if 'quota' in error_str or 'rate limit' in error_str or 'resource exhausted' in error_str else 500
                 _log_gemini_usage(api_key, 'book_name', target_language_code, book=book_name, status_code=status_code, error_message=str(e))
-                if 'quota' in error_str or 'rate limit' in error_str or 'resource exhausted' in error_str:
+                if _try_next_key(error_str):
                     print(f"[TRANSLATION DEBUG] Book name API key exhausted, trying next...")
                     continue
                 else:
@@ -533,7 +573,7 @@ Return ONLY the translated verses with all HTML tags and <<<VERSE_N>>> markers p
     for api_key in api_keys:
         try:
             print(f"[TRANSLATION DEBUG] Calling Gemini API with key ending in ...{api_key[-4:] if api_key else 'None'}")
-            client = genai.Client(api_key=api_key)
+            client = _client(api_key)
             translated_text = _call_model(client, 'models/gemini-3.8-flash', prompt)
             print(f"[TRANSLATION DEBUG] API Response received. Length: {len(translated_text)}")
             _log_gemini_usage(api_key, 'chapter', target_language_code, book=book_name, chapter=chapter)
@@ -567,7 +607,7 @@ Return ONLY the translated verses with all HTML tags and <<<VERSE_N>>> markers p
             status_code = 429 if 'quota' in error_str or 'rate limit' in error_str or 'resource exhausted' in error_str else 500
             _log_gemini_usage(api_key, 'chapter', target_language_code, book=book_name, chapter=chapter, status_code=status_code, error_message=str(e))
             # Check for quota/rate limit errors - if so, try next key
-            if 'quota' in error_str or 'rate limit' in error_str or 'resource exhausted' in error_str:
+            if _try_next_key(error_str):
                 print(f"[TRANSLATION DEBUG] API key exhausted, trying next key...")
                 continue
             else:
@@ -635,7 +675,7 @@ Return the translated footnotes with <<<FOOTNOTE_X>>> markers and ALL HTML prese
     for key_idx, api_key in enumerate(api_keys):
         try:
             print(f"[TRANSLATION DEBUG] Footnotes: Trying API key {key_idx + 1}/{len(api_keys)} (ending ...{api_key[-4:] if api_key else 'None'})")
-            client = genai.Client(api_key=api_key)
+            client = _client(api_key)
             response = client.models.generate_content(
                 model='models/gemini-3.8-flash',
                 contents=prompt
@@ -698,7 +738,7 @@ Return the translated footnotes with <<<FOOTNOTE_X>>> markers and ALL HTML prese
             error_str = str(e).lower()
             last_error = e
             # Check for quota/rate limit errors - if so, try next key
-            if 'quota' in error_str or 'rate limit' in error_str or 'resource exhausted' in error_str:
+            if _try_next_key(error_str):
                 print(f"[TRANSLATION DEBUG] API key {key_idx + 1}/{len(api_keys)} exhausted, trying next key...")
                 continue
             else:
@@ -735,12 +775,7 @@ English text:
 Return only the translated text with HTML tags preserved."""
     
     try:
-        client = genai.Client(api_key=GEMINI_API_KEYS[0])
-        response = client.models.generate_content(
-            model='models/gemini-3.8-flash',
-            contents=prompt
-        )
-        return (response.text or '').strip() # type: ignore
+        return _generate(prompt)
     except Exception as e:
         return f"[Translation error: {str(e)}]"
 
@@ -769,12 +804,7 @@ English footnote:
 Return only the translated text with HTML tags preserved."""
     
     try:
-        client = genai.Client(api_key=GEMINI_API_KEYS[0])
-        response = client.models.generate_content(
-            model='models/gemini-3.8-flash',
-            contents=prompt
-        )
-        return (response.text or '').strip() # type: ignore
+        return _generate(prompt)
     except Exception as e:
         return f"[Translation error: {str(e)}]"
 

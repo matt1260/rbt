@@ -5,7 +5,7 @@ can import from a single location.
 """
 
 rbt_books: dict[str, str] = {
-    'Genesis': 'In the Head',
+    'Genesis': 'In the Summit',
     'Exodus': 'And a Mighty One of Names',
     'Leviticus': 'And He is Summoning',
     'Numbers': 'And He is Aligning',

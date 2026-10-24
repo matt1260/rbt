@@ -64,7 +64,59 @@
             return !reader.querySelector('.rbt-paraphrase__empty');
         }
 
+        // ---- Translated paraphrase ---------------------------------------------------
+        // On a page in another language whose paraphrase isn't translated yet, or was
+        // translated from an older English text (data-translate), opening the view asks for
+        // a translation (search/paraphrase_translation.py). A missing one replaces the
+        // "Translating" note as soon as it's ready; a stale one is updated for later visits.
+        var translateState = reader.dataset.translate || '';
+        var TRANSLATION_URL = '/api/translation/paraphrase/';
+        var POLL_MS = 4000;
+        var MAX_POLLS = 90;
+
+        function translationParams() {
+            return 'book=' + encodeURIComponent(reader.dataset.book) +
+                '&chapter=' + encodeURIComponent(reader.dataset.chapter) +
+                '&lang=' + encodeURIComponent(reader.dataset.lang);
+        }
+
+        function translationFailed() {
+            var note = reader.querySelector('.rbt-paraphrase__translating');
+            if (note) note.textContent = "The paraphrase couldn't be translated right now. Please try again later.";
+        }
+
+        function settleTranslation(data, polls) {
+            if (data.status === 'done') {
+                reader.innerHTML = data.html;
+                delete reader.dataset.translate;
+            } else if ((data.status === 'running' || data.status === 'missing') && polls < MAX_POLLS) {
+                setTimeout(function () {
+                    fetch(TRANSLATION_URL + '?' + translationParams())
+                        .then(function (response) { return response.json(); })
+                        .then(function (next) { settleTranslation(next, polls + 1); })
+                        .catch(translationFailed);
+                }, POLL_MS);
+            } else {
+                translationFailed();
+            }
+        }
+
+        function requestTranslation() {
+            if (!translateState) return;
+            var missing = translateState === 'missing';
+            translateState = '';
+            fetch(TRANSLATION_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: translationParams(),
+            })
+                .then(function (response) { return response.json(); })
+                .then(function (data) { if (missing) settleTranslation(data, 0); })
+                .catch(function () { if (missing) translationFailed(); });
+        }
+
         function apply(on, remember) {
+            if (on) requestTranslation();
             // The view chosen before the page painted (nt_chapter.html) is now set here.
             document.documentElement.classList.remove('rbt-start-paraphrase');
             reader.hidden = !on;

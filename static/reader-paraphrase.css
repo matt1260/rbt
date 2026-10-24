@@ -231,6 +231,36 @@
     font-style: italic;
 }
 
+/* Shown while the paraphrase is being translated into the page's language. */
+.rbt-paraphrase__translating {
+    display: flex;
+    align-items: center;
+    gap: 0.75em;
+    padding: 2rem 0;
+    color: var(--sanctum-stone, #8a7e70);
+    font-style: italic;
+}
+
+.rbt-paraphrase__spinner {
+    flex: none;
+    width: 1em;
+    height: 1em;
+    border: 2px solid var(--sanctum-rule, rgba(183, 133, 80, 0.3));
+    border-top-color: var(--sanctum-gold, #b78550);
+    border-radius: 50%;
+    animation: rbt-paraphrase-spin 0.9s linear infinite;
+}
+
+@keyframes rbt-paraphrase-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rbt-paraphrase__spinner {
+        animation: none;
+    }
+}
+
 .rbt-paraphrase__empty button {
     margin-left: 0.5em;
     padding: 4px 12px;

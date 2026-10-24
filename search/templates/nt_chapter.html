@@ -15,7 +15,7 @@ moving between chapters crossfades, holding the new page until its content is pa
 {% static_version 'media-modal.js' 'media-modal.css' as media_modal_version %}
 <link rel="stylesheet" href="{% static 'media-modal.css' %}?v={{ media_modal_version }}">
 <script src="{% static 'media-modal.js' %}?v={{ media_modal_version }}" defer></script>
-{% if reader_paraphrase or chapter_editor_enabled %}
+{% if paraphrase_view %}
 {% static_version 'reader-paraphrase.js' 'reader-paraphrase.css' as reader_paraphrase_version %}
 <link rel="stylesheet" href="{% static 'reader-paraphrase.css' %}?v={{ reader_paraphrase_version }}">
 {% endif %}
@@ -144,7 +144,7 @@ chapter-viewer.js re-renders on toggle.
         {% if prev_chapter %}
         <a class="rbt-dock__chapter" href="{{ prev_chapter.url }}" aria-label="Previous chapter ({{ prev_chapter.number }})" title="Chapter {{ prev_chapter.number }}"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
         {% endif %}
-        {% if reader_paraphrase or chapter_editor_enabled %}
+        {% if paraphrase_view %}
         {# Switches between the verse-by-verse translation and the published AI paraphrase (static/reader-paraphrase.js). #}
         <div id="paraphraseViewToggle" role="button" tabindex="0" aria-label="Read paraphrase (R)" title="You are reading the word-for-word translation. Read paraphrase (R)">
             <i class="fas fa-book-open" aria-hidden="true"></i><span class="pp-toggle__label">Read paraphrase</span><span class="pp-toggle__key" aria-hidden="true">R</span>
@@ -247,7 +247,7 @@ function hideTranslationLoading() {
 {% endif %}
 {% endif %}
 
-{% if reader_paraphrase or chapter_editor_enabled %}
+{% if paraphrase_view %}
 {% comment %}
 Pick the reader view before the text paints, so a chapter opened in the paraphrase view
 doesn't flash the word-for-word text first. Same choice as static/reader-paraphrase.js,
@@ -263,7 +263,7 @@ which takes over (and drops this class) once it loads.
     var choice = null;
     try { choice = localStorage.getItem('rbtReaderView'); } catch (e) { /* private mode */ }
     var wanted = param ? param === 'paraphrase' : (/^#v\d+$/.test(location.hash) || choice === 'paraphrase');
-    if (wanted && ({{ reader_paraphrase|yesno:'true,false' }} || param === 'paraphrase')) {
+    if (wanted && ({{ paraphrase_offered|yesno:'true,false' }} || param === 'paraphrase')) {
         document.documentElement.classList.add('rbt-start-paraphrase');
     }
 })();
@@ -322,9 +322,11 @@ which takes over (and drops this class) once it loads.
             {% endif %}
         {% endif %}
 
-        {% if reader_paraphrase or chapter_editor_enabled %}
-        <article id="reader-paraphrase" class="rbt-paraphrase" hidden{% if chapter_editor_enabled and reader_paraphrase %} data-uid="{{ reader_paraphrase.uid }}" data-hash="{{ reader_paraphrase_hash }}"{% endif %}>
-            {% if reader_paraphrase %}{{ reader_paraphrase.html|safe }}{% else %}
+        {% if paraphrase_view %}
+        <article id="reader-paraphrase" class="rbt-paraphrase" hidden{% if chapter_editor_enabled and reader_paraphrase %} data-uid="{{ reader_paraphrase.uid }}" data-hash="{{ reader_paraphrase_hash }}"{% endif %}{% if paraphrase_translation_state %} data-translate="{{ paraphrase_translation_state }}" data-book="{{ original_book }}" data-chapter="{{ chapter_num }}" data-lang="{{ current_language }}"{% endif %}>
+            {% if reader_paraphrase %}{{ reader_paraphrase.html|safe }}{% elif paraphrase_translation_state == 'missing' %}
+            <p class="rbt-paraphrase__translating" role="status"><span class="rbt-paraphrase__spinner" aria-hidden="true"></span>Translating the paraphrase…</p>
+            {% else %}
             <p class="rbt-paraphrase__empty">No paraphrase is published for this chapter yet.{% if chapter_editor_enabled %}
                 <button type="button" data-open-paraphrase-studio>Open the Paraphrase Studio</button>{% endif %}</p>
             {% endif %}
@@ -369,7 +371,7 @@ which takes over (and drops this class) once it loads.
         {{ chapters|safe }}
 </div>
 
-{% if reader_paraphrase or chapter_editor_enabled %}
+{% if paraphrase_view %}
 <script src="{% static 'reader-paraphrase.js' %}?v={{ reader_paraphrase_version }}" defer></script>
 {% endif %}
 

@@ -29,6 +29,7 @@ from hebrewtool.debug_utils import set_debug_context, should_emit_debug
 
 from search.seo_utils import book_to_slug, localized_book_name, _get_verse_url
 from search.paraphrase import html_hash as paraphrase_html_hash, published_for as published_paraphrase
+from search import paraphrase_translation
 
 import os
 from django.contrib.staticfiles import finders
@@ -571,7 +572,15 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
     if language != 'en' and language not in SUPPORTED_LANGUAGES:
         needs_translation = False
             
-    reader_paraphrase = published_paraphrase(original_book, chapter_num) if language == 'en' else None
+    # The paraphrase view: the published English paraphrase, or its translation into the
+    # page's language (search/paraphrase_translation.py). A missing translation is made when
+    # a reader first opens the view; a stale one (English edited since) shows meanwhile.
+    reader_paraphrase = published_paraphrase(original_book, chapter_num)
+    paraphrase_translation_state = ''
+    if language != 'en' and reader_paraphrase:
+        reader_paraphrase, paraphrase_translation_state = paraphrase_translation.state(
+            original_book, chapter_num, language, english=reader_paraphrase)
+    paraphrase_offered = bool(reader_paraphrase) or paraphrase_translation_state == 'missing'
     context = {
         'cache_hit': cached_hit,
         'chapters': chapters,
@@ -593,8 +602,12 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
         'failed_translation_count': failed_translation_count,
         'chapter_editor_enabled': chapter_editor_enabled,
         'chapter_editor_version': _chapter_editor_version() if chapter_editor_enabled else '',
-        # Published AI paraphrase for the "Paraphrase" reader view (English only for now).
+        # Published AI paraphrase for the "Paraphrase" reader view.
         'reader_paraphrase': reader_paraphrase,
+        'paraphrase_offered': paraphrase_offered,
+        'paraphrase_view': paraphrase_offered or chapter_editor_enabled,
+        # 'missing' or 'stale': reader-paraphrase.js asks for a translation when the view opens.
+        'paraphrase_translation_state': paraphrase_translation_state if paraphrase_translation_state in ('missing', 'stale') else '',
         # Lets the inline editor detect edits made elsewhere (see paraphrase_api.edit_block).
         'reader_paraphrase_hash': paraphrase_html_hash(reader_paraphrase.html) if reader_paraphrase and chapter_editor_enabled else '',
         'reader_paraphrase_version': _static_version('reader-paraphrase.js', 'reader-paraphrase.css'),

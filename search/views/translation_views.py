@@ -1321,6 +1321,64 @@ def translation_coverage_api(request):
     return response
 
 
+PARAPHRASE_COVERAGE_KEY = 'paraphrase_coverage_v1'
+
+
+def paraphrase_coverage():
+    """{book: [chapters]} with a published English paraphrase. Books are keyed without
+    spaces ("1John"), as the landing page names them; rows store either form."""
+    from search.models import ChapterParaphrase
+
+    books = {}
+    rows = ChapterParaphrase.objects.filter(is_published=True, language_code='en').values_list('book', 'chapter')
+    for book, chapter in rows:
+        books.setdefault(book.replace(' ', ''), set()).add(chapter)
+    return {book: sorted(chapters) for book, chapters in sorted(books.items())}
+
+
+@csrf_exempt
+def paraphrase_coverage_api(request):
+    """Public JSON for the landing page's chapter grid (www.realbible.tech): which chapters
+    have a published paraphrase. Cached a few minutes, so a newly published one shows soon."""
+    data = cache.get(PARAPHRASE_COVERAGE_KEY)
+    if data is None:
+        try:
+            data = paraphrase_coverage()
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Coverage unavailable'})
+        cache.set(PARAPHRASE_COVERAGE_KEY, data, 5 * 60)
+    response = JsonResponse({'status': 'ok', 'books': data})
+    response['Access-Control-Allow-Origin'] = '*'
+    response['Cache-Control'] = 'public, max-age=300'
+    return response
+
+
+@csrf_exempt
+def paraphrase_translation_api(request):
+    """The paraphrase of a chapter in another language (search/paraphrase_translation.py).
+    GET ?book=&chapter=&lang= reports it; POST with the same parameters starts translating
+    it if it is missing or older than the English."""
+    from search import paraphrase_translation
+
+    params = request.POST if request.method == 'POST' else request.GET
+    book = params.get('book') or ''
+    language = params.get('lang') or ''
+    try:
+        chapter = int(params.get('chapter') or '')
+    except ValueError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'}, status=400)
+    if book not in new_testament_books:
+        return JsonResponse({'status': 'error', 'message': 'Unknown book'}, status=400)
+    try:
+        if request.method == 'POST':
+            return JsonResponse(paraphrase_translation.start(book, chapter, language))
+        return JsonResponse(paraphrase_translation.status(book, chapter, language))
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception('Paraphrase translation request failed for %s %s (%s)', book, chapter, language)
+        return JsonResponse({'status': 'error', 'message': 'Translation unavailable'}, status=500)
+
+
 def _prompt_config_payload():
     """Current editable prompt configuration, as a JSON-friendly dict."""
     from search.models import PromptRule, PromptGlossaryTerm

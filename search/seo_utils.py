@@ -223,7 +223,7 @@ def chapter_url(request, book_name: str, chapter_num, language: str = None) -> s
     """Absolute URL of a chapter page, matching the page's own canonical tag.
 
     `book_name` must be an English book name -- a translated display name such as
-    "In the Head" has no slug and would fall back to a query-string URL that no
+    "In the Summit" has no slug and would fall back to a query-string URL that no
     longer resolves.
     """
     slug = book_to_slug(book_name)
