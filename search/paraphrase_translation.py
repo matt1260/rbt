@@ -103,6 +103,10 @@ def start(book, chapter, language):
         ).exists()
         if how == 'current' or busy:
             return status(book, chapter, language)
+        # Earlier failed attempts are replaced by this one rather than piling up.
+        ChapterParaphrase.objects.filter(
+            book=book, chapter=chapter, language_code=language, status='failed',
+        ).delete()
         job = ChapterParaphrase.objects.create(
             batch_id=uuid.uuid4(), book=book, chapter=chapter, language_code=language,
             provider=PROVIDER, model_name=MODEL, prompt_name=PROMPT_NAME, created_by=CREATED_BY,

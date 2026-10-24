@@ -1054,7 +1054,7 @@ def nt_dashboard_stats():
     """
     from search.db_utils import execute_query
     from search.models import GeminiUsageLog
-    from django.db.models import Count, Q
+    from django.db.models import BooleanField, Case, Count, Q, Value, When
     from django.utils import timezone
 
     # new_testament_books is a membership list carrying BOTH spellings of the
@@ -1089,11 +1089,15 @@ def nt_dashboard_stats():
     err_q = translation_error_q('verse_text')
 
     # --- verses: one grouped query over NT books only ----------------------
+    # Streamed, with the error check done in SQL: there are hundreds of thousands of
+    # rows, and loading them with their text at once ran the container out of memory.
     source_hashes = current_nt_source_hashes()
-    verse_rows = list(
+    verse_rows = (
         VerseTranslation.objects
         .filter(status='completed', footnote_id__isnull=True, verse__gt=0, book__in=new_testament_books)
-        .values('book', 'chapter', 'verse', 'source_hash', 'language_code', 'verse_text')
+        .annotate(is_error=Case(When(err_q, then=Value(True)), default=Value(False), output_field=BooleanField()))
+        .values_list('book', 'chapter', 'verse', 'source_hash', 'language_code', 'is_error')
+        .iterator(chunk_size=5000)
     )
 
     # --- footnotes: same shape --------------------------------------------
@@ -1110,11 +1114,9 @@ def nt_dashboard_stats():
     # --- roll up per language ---------------------------------------------
     per_lang = {}
     per_book = {}
-    for r in verse_rows:
-        lang, book = r['language_code'], r['book']
-        source_key = (convert_book_name(book) or book, int(r['chapter']), int(r['verse']))
-        is_current = is_translation_current(r['source_hash'], source_hashes.get(source_key))
-        is_error = str(r['verse_text'] or '').startswith(TRANSLATION_ERROR_PREFIXES)
+    for book, chapter, verse, source_hash, lang, is_error in verse_rows:
+        source_key = (convert_book_name(book) or book, int(chapter), int(verse))
+        is_current = is_translation_current(source_hash, source_hashes.get(source_key))
         d = per_lang.setdefault(lang, {'ok': 0, 'err': 0, 'stale': 0, 'books': set()})
         if is_current and is_error:
             d['err'] += 1
@@ -1309,13 +1311,20 @@ def public_translation_coverage():
     }
 
 
+TRANSLATION_COVERAGE_KEY = 'translation_coverage_v1'
+
+
 @csrf_exempt
 def translation_coverage_api(request):
-    """Public JSON: which languages exist and how far along they are."""
-    try:
-        data = public_translation_coverage()
-    except Exception:
-        return JsonResponse({'status': 'error', 'message': 'Coverage unavailable'})
+    """Public JSON: which languages exist and how far along they are. Cached: it walks every
+    NT verse translation, and anyone (scrapers included) can ask for it."""
+    data = cache.get(TRANSLATION_COVERAGE_KEY)
+    if data is None:
+        try:
+            data = public_translation_coverage()
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Coverage unavailable'})
+        cache.set(TRANSLATION_COVERAGE_KEY, data, 10 * 60)
     response = JsonResponse({'status': 'ok', **data})
     response['Access-Control-Allow-Origin'] = '*'
     return response
