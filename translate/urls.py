@@ -2,7 +2,7 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 from django.urls import include
 
-from . import views, chapter_editor_api, paraphrase_api
+from . import views, chapter_editor_api, paraphrase_api, ot_editor
 
 urlpatterns = [
 
@@ -38,6 +38,13 @@ urlpatterns = [
     path('api/chapter-editor/verse/', chapter_editor_api.save_verse, name='chapter_editor_save_verse'),
     path('api/chapter-editor/interlinear/', chapter_editor_api.interlinear, name='chapter_editor_interlinear'),
     path('api/chapter-editor/footnote/', chapter_editor_api.footnote, name='chapter_editor_footnote'),
+    path('ot/', ot_editor.ot_editor, name='ot_editor'),
+    path('api/ot/gloss/', ot_editor.save_gloss, name='ot_editor_gloss'),
+    path('api/ot/morphology/', ot_editor.save_morphology, name='ot_editor_morphology'),
+    path('api/ot/gender/', ot_editor.save_gender, name='ot_editor_gender'),
+    path('api/ot/verse/', ot_editor.save_verse, name='ot_editor_verse'),
+    path('api/ot/verse-state/', ot_editor.verse_state, name='ot_editor_verse_state'),
+    path('api/ot/footnote/', ot_editor.footnote, name='ot_editor_footnote'),
     path('api/paraphrase/state/', paraphrase_api.state, name='paraphrase_state'),
     path('api/paraphrase/candidate/', paraphrase_api.candidate, name='paraphrase_candidate'),
     path('api/paraphrase/generate/', paraphrase_api.generate, name='paraphrase_generate'),

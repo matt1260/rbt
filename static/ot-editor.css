@@ -1,0 +1,470 @@
+/* Old Testament verse editor (/translate/ot/). Colors follow the Sanctum tokens in base.html. */
+:root {
+  --ote-gold: var(--sanctum-gold, #b78550);
+  --ote-gold-light: var(--sanctum-gold-light, #d4a96a);
+  --ote-parchment: var(--sanctum-parchment, #faf7f2);
+  --ote-cream: var(--sanctum-cream, #f0ebe3);
+  --ote-stone: var(--sanctum-stone, #8a7e70);
+  --ote-rule: var(--sanctum-rule, rgba(183, 133, 80, 0.25));
+  --ote-ink: var(--sanctum-ink, #1a1611);
+  --ote-ink-soft: var(--sanctum-ink-soft, #4a3f33);
+  --ote-ok: #3d7a4a;
+  --ote-bad: #b3261e;
+  --ote-warn: #8a6100;
+  --ote-masc: #2f6fd6;
+  --ote-fem: #d4267a;
+  --ote-shadow: 0 6px 24px rgba(43, 37, 32, 0.16), 0 1px 3px rgba(43, 37, 32, 0.12);
+  --ote-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ote-heb: 'SBL Hebrew', 'Ezra SIL', 'Times New Roman', serif;
+}
+
+/* Full width: the theme's reading column is far too narrow for word cards. */
+.nv-content-wrap, .container.single-page-container { max-width: 100% !important; }
+.container.single-page-container { padding: 0 20px !important; }
+
+.ote {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 8px 0 60px;
+  font-family: var(--ote-ui);
+  font-size: 14px;
+  color: var(--ote-ink);
+  line-height: 1.45;
+}
+.ote * { box-sizing: border-box; }
+.ote [hidden] { display: none !important; }
+.ote button { font-family: inherit; }
+
+/* ---- Buttons ----------------------------------------------------------- */
+.ote-btn, .ote-iconbtn, .tb-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 30px; height: 30px; padding: 0 10px;
+  font-size: 13px; line-height: 1; color: var(--ote-ink);
+  background: #fff; border: 1px solid #d9d2c6; border-radius: 6px;
+  cursor: pointer; text-decoration: none;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.ote-btn:hover, .ote-iconbtn:hover, .tb-btn:hover:not(:disabled) { background: var(--ote-cream); border-color: var(--ote-gold-light); color: var(--ote-ink); }
+.tb-btn:disabled { opacity: .45; cursor: not-allowed; }
+.ote-btn--primary { background: var(--ote-gold); border-color: var(--ote-gold); color: #fff; font-weight: 600; }
+.ote-btn--primary:hover { background: #a2733f; border-color: #a2733f; color: #fff; }
+.ote-iconbtn { width: 32px; padding: 0; border-radius: 50%; }
+.ote-iconbtn--sm { width: 26px; min-width: 26px; height: 26px; font-size: 12px; }
+.tb-btn--save { background: var(--ote-ok); border-color: var(--ote-ok); color: #fff; font-weight: 700; padding: 0 16px; }
+.tb-btn--save:hover:not(:disabled) { background: #2f6239; border-color: #2f6239; color: #fff; }
+.tb-btn--ghost { background: transparent; border-style: dashed; color: #6b6258; }
+.tb-btn--swatch { padding: 0 8px; }
+.tb-btn--pink i { color: #ff00aa; font-size: 14px; }
+.tb-btn--blue i { color: #2f6fd6; font-size: 14px; }
+.tb-btn--red i { color: #dc3545; font-size: 14px; }
+.tb-btn__text { font-size: 11px; }
+.tb-btn--ai { font-weight: 700; color: #fff; }
+.tb-btn--gemini { background: #4a6cf7; border-color: #4a6cf7; }
+.tb-btn--gemini:hover:not(:disabled) { background: #3a58d4; border-color: #3a58d4; color: #fff; }
+.tb-btn--chatgpt { background: #10a37f; border-color: #10a37f; }
+.tb-btn--chatgpt:hover:not(:disabled) { background: #0d8568; border-color: #0d8568; color: #fff; }
+.tb-split { display: inline-flex; }
+.tb-btn--split-main { border-radius: 6px 0 0 6px; }
+.tb-btn--split-cfg { border-radius: 0 6px 6px 0; border-left: 1px solid rgba(255,255,255,.35); min-width: 28px; padding: 0 8px; }
+.tb-btn[aria-pressed="true"] { background: var(--ote-ink); border-color: var(--ote-ink); color: #fff; }
+.hdr-icon.hebrew { font-family: var(--ote-heb); color: #6b1e1e; font-weight: 700; font-size: 18px; line-height: 1; }
+
+.ote-link { color: var(--ote-gold); text-decoration: none; font-size: 13px; font-weight: 600; }
+.ote-link:hover { text-decoration: underline; }
+.ote-link--muted { color: var(--ote-stone); font-weight: 400; }
+.ote-muted { color: var(--ote-stone); }
+.ote-fineprint { font-size: 12px; color: var(--ote-stone); margin: 0 0 10px; }
+.ote-hint { font-size: 12px; color: var(--ote-stone); }
+.ote-input {
+  height: 32px; padding: 0 10px; font: inherit; font-size: 13px; color: var(--ote-ink);
+  background: #fff; border: 1px solid #d9d2c6; border-radius: 6px; min-width: 0;
+}
+.ote-input:focus { outline: none; border-color: var(--ote-gold); box-shadow: 0 0 0 3px rgba(183,133,80,.15); }
+textarea.ote-input { height: auto; padding: 8px 10px; }
+.ote-input--heb { font-family: var(--ote-heb); font-size: 18px; }
+.ote-label { display: inline-flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ote-ink-soft); font-weight: 600; }
+.ote-form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.ote-form-row > .ote-input { flex: 1 1 140px; }
+.ote-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; color: var(--ote-ink-soft); }
+.ote-switch input { margin: 0; accent-color: var(--ote-gold); }
+
+/* ---- Top bar ------------------------------------------------------------ */
+.ote-bar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px;
+  padding: 10px 14px; margin-bottom: 14px;
+  background: rgba(250, 247, 242, .96); backdrop-filter: blur(6px);
+  border: 1px solid var(--ote-rule); border-radius: 10px;
+}
+.ote-bar__nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ote-ref { margin: 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -.01em; color: var(--ote-ink); font-family: var(--ote-ui); }
+.ote-jump { display: inline-flex; gap: 6px; margin-left: 10px; }
+.ote-jump input { height: 30px; width: 200px; padding: 0 10px; font-size: 13px; border: 1px solid #d9d2c6; border-radius: 6px; }
+.ote-jump input:focus { outline: none; border-color: var(--ote-gold); }
+.ote-bar__tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ote-alert { padding: 12px 16px; background: #fbeeea; color: var(--ote-bad); border: 1px solid #f0c6bf; border-radius: 8px; margin-bottom: 14px; }
+
+/* ---- Hebrew line -------------------------------------------------------- */
+.ote-hebrew {
+  font-family: var(--ote-heb); font-size: 36px; line-height: 1.6; text-align: right;
+  padding: 14px 20px; margin-bottom: 14px;
+  background: #fff; border: 1px solid var(--ote-rule); border-radius: 10px;
+}
+.ote-hebrew__word { cursor: pointer; border-radius: 6px; padding: 0 3px; transition: background .12s; }
+.ote-hebrew__word:hover, .ote-hebrew__word.is-active { background: rgba(183,133,80,.18); }
+.ote-hebrew__word[data-gender="m"] { color: var(--ote-masc); }
+.ote-hebrew__word[data-gender="f"] { color: var(--ote-fem); }
+/* Niqqud off by default on the Hebrew line too; the toggle in the top bar shows it. */
+.ote-heb-line--niqqud { display: none; }
+.ote.show-niqqud .ote-heb-line--niqqud { display: inline; }
+.ote.show-niqqud .ote-heb-line--plain { display: none; }
+.use-hebrew-font .ote-heb-line--plain { font-family: 'siloam_hebrew', var(--ote-heb) !important; }
+
+/* ---- Section heads ------------------------------------------------------ */
+.ote-section-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 0 0 10px; }
+.ote-h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ote-stone); font-family: var(--ote-ui); }
+.ote-scope { font-size: 12px; color: var(--ote-ink-soft); display: inline-flex; align-items: center; gap: 6px; }
+.ote-scope select { font-size: 12px; height: 26px; padding: 0 6px; border: 1px solid #d9d2c6; border-radius: 5px; background: #fff; }
+
+/* ---- Word cards --------------------------------------------------------- */
+/* An even grid: every column the same width, a short last row doesn't stretch. */
+.ote-words { margin-bottom: 18px; }
+.ote-cards { display: grid; grid-template-columns: repeat(var(--ote-cols, auto-fill), minmax(min(100%, 200px), 1fr)); gap: 8px; align-items: stretch; }
+.ote-card {
+  min-width: 0; display: flex; flex-direction: column;
+  background: #fff; border: 1px solid #e6dfd3; border-radius: 9px;
+  box-shadow: 0 1px 2px rgba(43,37,32,.05);
+  transition: border-color .15s, box-shadow .15s;
+}
+.ote-card.is-active, .ote-card:focus-within { border-color: var(--ote-gold); box-shadow: 0 0 0 3px rgba(183,133,80,.14); }
+.ote-card.has-note-open { grid-column: 1 / -1; }
+.ote-card__head {
+  display: flex; align-items: center; gap: 6px; min-height: 28px;
+  padding: 2px 4px 2px 9px; background: var(--ote-parchment); border-bottom: 1px solid #f0e9de; border-radius: 9px 9px 0 0;
+}
+.ote-card__num { font-family: ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 700; color: var(--ote-gold); }
+.ote-count { font-size: 10.5px; color: var(--ote-stone); font-variant-numeric: tabular-nums; }
+.ote-tag { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: #8a7355; background: #f1e7d8; border-radius: 8px; padding: 1px 5px; }
+.ote-card__tools { margin-left: auto; display: inline-flex; align-items: center; gap: 1px; }
+/* The theme styles every <select>; these overrides keep the gender picker a small pill. */
+.ote .ote-gender {
+  -webkit-appearance: none; appearance: none; box-sizing: border-box;
+  width: 26px !important; height: 20px !important; min-height: 0 !important; margin: 0 2px 0 0 !important; padding: 0 !important;
+  font: 700 11px/18px var(--ote-ui) !important; text-align: center; text-align-last: center;
+  color: var(--ote-stone); background: #fff !important; border: 1px solid #e2d9cb !important; border-radius: 10px !important;
+  box-shadow: none !important; cursor: pointer;
+}
+.ote .ote-card[data-gender="m"] .ote-gender { color: #fff; background: var(--ote-masc) !important; border-color: var(--ote-masc) !important; }
+.ote .ote-card[data-gender="f"] .ote-gender { color: #fff; background: var(--ote-fem) !important; border-color: var(--ote-fem) !important; }
+.ote-mini {
+  display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0;
+  font-size: 11px; color: #b3a590; background: transparent; border: none; border-radius: 5px; cursor: pointer; text-decoration: none;
+}
+.ote-mini:hover { background: var(--ote-cream); color: var(--ote-ink); }
+.ote-note-btn.has-note { color: var(--ote-gold); }
+
+.ote-card__hebrew { padding: 4px 10px 0; font-family: var(--ote-heb); text-align: right; }
+.ote-heb { display: block; font-size: 26px; line-height: 1.3; overflow-wrap: anywhere; }
+.ote-heb--plain { display: none; color: var(--ote-ink); }
+.ote:not(.show-niqqud) .ote-heb--niqqud { display: none; }
+.ote:not(.show-niqqud) .ote-heb--plain { display: block; }
+.ote-card[data-gender="m"] .ote-heb--plain { color: var(--ote-masc); }
+.ote-card[data-gender="f"] .ote-heb--plain { color: var(--ote-fem); }
+/* Paleo font only where there are no vowel points (as the old cards did). */
+.use-hebrew-font .ote-heb--plain { font-family: 'siloam_hebrew', var(--ote-heb) !important; }
+
+.ote-field__label { display: block; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #a69782; margin-bottom: 2px; }
+.ote-gloss, .ote-morph {
+  border-radius: 5px; border: 1px solid transparent; cursor: text;
+  transition: background .12s, border-color .12s; overflow-wrap: anywhere;
+}
+.ote-gloss { margin: 1px 4px 0; padding: 2px 6px; min-height: 26px; font-size: 15px; font-weight: 500; color: var(--ote-ink); line-height: 1.35; }
+.ote-morph-line { margin: 0 4px; padding: 0 6px 4px; font-size: 11.5px; line-height: 1.4; color: #6b6156; }
+.ote-morph { display: inline; padding: 1px 3px; margin-left: -3px; }
+.ote-morph-code { font-size: 9.5px; color: #b7aa97; background: none; padding: 0; white-space: nowrap; }
+.ote-gloss:hover, .ote-morph:hover { background: #fbf6ee; border-color: #efe3d1; }
+.ote-gloss:focus, .ote-morph:focus, .ote-gloss.is-editing, .ote-morph.is-editing {
+  outline: none; background: #fff; border-color: var(--ote-gold); box-shadow: 0 0 0 3px rgba(183,133,80,.15);
+}
+.ote-gloss.is-saving, .ote-morph.is-saving { opacity: .55; }
+.ote-gloss.is-saved, .ote-morph.is-saved { border-color: var(--ote-ok); background: #eef7f0; }
+.ote-gloss.is-error, .ote-morph.is-error { border-color: var(--ote-bad); background: #fbeeea; }
+.ote-gloss:empty::before { content: 'gloss…'; color: #c4b8a6; }
+.ote-morph:empty::before { content: 'morphology…'; color: #c4b8a6; }
+.ote-morph .ote-morph__m { color: var(--ote-masc); }
+.ote-morph .ote-morph__f { color: var(--ote-fem); }
+
+.ote-lxx {
+  margin: 0 10px 4px; font-size: 12px; color: #2e5984;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ote-lxx a { color: #2e5984; text-decoration: none; margin-right: 3px; font-family: 'Palatino Linotype', Georgia, serif; font-size: 12.5px; }
+.ote-lxx a:hover { text-decoration: underline; }
+.ote-lxx__label { font-size: 9px; font-weight: 700; letter-spacing: .08em; color: #a69782; margin-right: 4px; }
+
+/* Lexicon chips: one short row, pinned to the card's foot so rows of cards line up.
+   The server renders hover pop-ups; here a chip opens the lexicon side panel instead. */
+.ote-card__lex { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; margin-top: auto; padding: 4px 6px 6px; border-top: 1px dashed #f0e7da; }
+.ote-card__lex .popup-container { display: inline-flex; }
+.ote-card__lex .popup-content { display: none !important; }
+.ote-card__lex .strongs-trigger, .ote-card__lex .fuerst-trigger, .ote-card__lex .gesenius-trigger,
+.ote-card__lex .bdb-trigger, .ote-card__lex .lxx-trigger, .ote-chip {
+  display: inline-flex; align-items: center; height: 19px; padding: 0 5px;
+  font-family: var(--ote-ui); font-size: 10px; font-weight: 700; letter-spacing: 0; text-transform: none;
+  color: #7a4b24; background: #fbf3e8; border: 1px solid #ecd9bf; border-radius: 999px; cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.ote-card__lex .popup-container:hover > :first-child, .ote-chip:hover { background: #f3e2c9; border-color: var(--ote-gold-light); }
+.ote-card__lex .popup-container.is-open > :first-child { background: var(--ote-gold); border-color: var(--ote-gold); color: #fff; }
+.ote-chip--ghost { background: transparent; border-style: dashed; color: var(--ote-stone); }
+
+/* Footnote drawer inside a card */
+.ote-footnote { border-top: 1px solid #efe8dc; padding: 8px 10px 10px; background: #fcfaf6; border-radius: 0 0 10px 10px; }
+.ote-footnote__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ote-footnote__status { font-size: 12px; color: var(--ote-stone); }
+.ote-footnote__status.is-ok { color: var(--ote-ok); }
+.ote-footnote__status.is-bad { color: var(--ote-bad); }
+.ote-minibar { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.ote-minibar .tb-btn { height: 26px; min-width: 26px; padding: 0 7px; font-size: 12px; }
+.ote-footnote__editor {
+  min-height: 70px; padding: 8px 10px; background: #fff; border: 1px solid #d9d2c6; border-radius: 6px;
+  font-family: Georgia, 'Times New Roman', serif; font-size: 14px; line-height: 1.5; outline: none;
+}
+.ote-footnote__editor:focus { border-color: var(--ote-gold); box-shadow: 0 0 0 3px rgba(183,133,80,.15); }
+.ote-footnote__editor p { margin: 0 0 .5em; }
+.ote-footnote__editor:empty::before { content: 'No footnote. Type to add one.'; color: #c4b8a6; }
+.ote-footnote__tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.ote-marker { font-size: 11px; color: var(--ote-stone); background: #f1ebe1; padding: 2px 6px; border-radius: 4px; }
+
+/* ---- Paraphrase --------------------------------------------------------- */
+.ote-para { background: #fff; border: 1px solid var(--ote-rule); border-radius: 10px; padding: 14px 16px 16px; margin-bottom: 18px; }
+.ote-status { font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--ote-cream); color: var(--ote-stone); }
+.ote-status--saved { background: #e8f3ea; color: var(--ote-ok); }
+.ote-status--dirty { background: #fdf3d6; color: var(--ote-warn); }
+.ote-status--saving { background: var(--ote-cream); color: var(--ote-stone); }
+.ote-status--error, .ote-status--conflict { background: #fbdedf; color: var(--ote-bad); }
+
+.editor-toolbar.ote-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+  margin: 0 0 12px; padding: 8px 10px;
+  background: var(--ote-parchment); border: 1px solid var(--ote-rule); border-radius: 8px;
+}
+.toolbar-group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 30px; }
+.toolbar-group + .toolbar-group { border-left: 1px solid #e1d8ca; padding-left: 14px; }
+.toolbar-group__label { font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #a69782; margin-right: 2px; user-select: none; }
+
+.ote-conflict { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; margin-bottom: 10px; background: #fbdedf; color: var(--ote-bad); border-radius: 8px; font-weight: 600; }
+
+.ote-verse {
+  min-height: 120px; padding: 16px 20px;
+  font-family: Georgia, 'Times New Roman', serif; font-size: 17px; line-height: 1.7; color: var(--ote-ink);
+  background: #fff; border: 1px solid #d9d2c6; border-radius: 8px; outline: none; white-space: normal;
+  caret-color: var(--ote-gold);
+}
+.ote-verse:focus { border-color: var(--ote-gold); box-shadow: 0 0 0 3px rgba(183,133,80,.15); }
+.ote-verse p { margin: 0 0 .8em; }
+.ote-verse h5 { font-size: 1.3em; font-weight: 600; margin: .6em 0 .3em; }
+.ote-verse img, .ote-verse video { max-width: 320px !important; max-height: 220px !important; width: auto !important; height: auto !important; display: block; }
+/* Image and video blocks: one compact row each (thumbnail, kind, start of the notes) that
+   can't be typed into; clicking opens the image pop-up. The block stays a block, as in the reader. */
+.ote-verse .tooltip-container {
+  display: flex !important; align-items: center; gap: 10px;
+  max-width: 480px; margin: 8px 0; padding: 4px 10px 4px 4px;
+  background: var(--ote-parchment); border: 1px solid var(--ote-rule); border-radius: 10px;
+  font-family: var(--ote-ui); font-size: 12px; line-height: 1.35; color: var(--ote-ink-soft);
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: border-color .12s, box-shadow .12s, background .12s;
+}
+.ote-verse .tooltip-container:hover { border-color: var(--ote-gold-light); background: #fff; }
+.ote-verse .tooltip-container.is-selected { border-color: var(--ote-gold); box-shadow: 0 0 0 3px rgba(183,133,80,.18); background: #fff; }
+.ote-verse .tooltip-container img, .ote-verse .tooltip-container video {
+  width: 48px !important; height: 48px !important; max-width: 48px !important; max-height: 48px !important;
+  flex: none; object-fit: cover; margin: 0 !important; border-radius: 7px !important; display: block !important;
+  background: #fff; box-shadow: none !important; transform: none !important;
+}
+.ote-verse .tooltip-container .tooltip, .ote-verse .tooltip-container .tooltip2,
+.ote-verse .tooltip-container .touch-indicator { display: none !important; }
+.ote-verse .tooltip-container::after {
+  content: attr(data-ote-label); display: block !important; order: 2; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; position: static !important;
+}
+.ote-verse .tooltip-container::before {
+  content: 'Edit'; order: 3; flex: none; display: block; position: static;
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--ote-gold);
+}
+
+/* Image pop-up */
+.gemini-modal__content.ote-media-dialog { width: min(860px, 94%); }
+.ote-media-dialog__layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.ote-media-dialog__preview { display: flex; align-items: center; justify-content: center; min-height: 220px; background: var(--ote-parchment); border: 1px solid var(--ote-rule); border-radius: 10px; padding: 10px; }
+.ote-media-dialog__preview img, .ote-media-dialog__preview video { max-width: 100%; max-height: 52vh; border-radius: 8px; display: block; }
+.ote-media-dialog__fields { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ote-media-dialog__fields .ote-label { width: 100%; }
+.ote-media-dialog__fields .ote-label .ote-input { width: 100%; font-weight: 400; }
+.ote-media-dialog__fields .ote-field__label { margin-top: 6px; }
+.ote-media-notes {
+  min-height: 150px; padding: 10px 12px; background: #fff; border: 1px solid #d9d2c6; border-radius: 6px;
+  font-family: Georgia, 'Times New Roman', serif; font-size: 15px; line-height: 1.55; outline: none; overflow-wrap: anywhere;
+}
+.ote-media-notes:focus { border-color: var(--ote-gold); box-shadow: 0 0 0 3px rgba(183,133,80,.15); }
+.ote-media-notes p { margin: 0 0 .6em; }
+.ote-media-notes:empty::before { content: 'Write what readers see beside the image…'; color: #c4b8a6; }
+.gemini-modal__actions button.ote-danger { background: #fff !important; color: var(--ote-bad) !important; border: 1px solid #efc9c4 !important; }
+.gemini-modal__actions button.ote-danger:hover { background: #fbeeea !important; }
+.ote-grow { flex: 1; }
+@media (max-width: 760px) { .ote-media-dialog__layout { grid-template-columns: minmax(0, 1fr); } }
+.ote-verse a.sdfootnoteanc { color: var(--ote-gold); text-decoration: none; }
+.ote-verse a.sdfootnoteanc sup { font-size: .7em; }
+.ote-verse .ote-insert-flash { background: rgba(183,133,80,.25); }
+.ote-source { width: 100%; min-height: 180px; padding: 12px; font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; color: var(--ote-ink); border: 1px solid #d9d2c6; border-radius: 8px; resize: vertical; }
+.ote-source:focus { outline: none; border-color: var(--ote-gold); }
+
+.ote-aux { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 14px 0 0; font-size: 14px; }
+.ote-aux dt { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #a69782; padding-top: 3px; }
+.ote-aux dd { margin: 0; color: var(--ote-ink-soft); line-height: 1.55; }
+.ote-aux dd#oteLiteral { font-family: Georgia, serif; }
+
+.ote-notes { background: #fff; border: 1px solid var(--ote-rule); border-radius: 10px; padding: 0; margin-bottom: 18px; }
+.ote-notes summary { cursor: pointer; padding: 12px 16px; font-weight: 600; font-size: 13px; }
+.ote-notes__body { padding: 0 16px 16px; font-size: 14px; }
+.ote-notes__body td { padding: 6px 10px 6px 0; vertical-align: top; }
+.ote-notes__body .note-location { font-size: 11px; color: var(--ote-stone); }
+.ote-foot { font-size: 13px; }
+.ote-foot a { color: var(--ote-gold); }
+
+/* ---- Slide-out panels --------------------------------------------------- */
+.ote-panel {
+  position: fixed; top: 0; bottom: 0; width: 440px; max-width: 94vw; z-index: 3000;
+  display: flex; flex-direction: column;
+  background: #fff; box-shadow: var(--ote-shadow); font-size: 14px;
+  transition: transform .28s ease; will-change: transform;
+}
+.ote-panel--left { left: 0; transform: translateX(-100%); width: 380px; }
+.ote-panel--right { right: 0; transform: translateX(100%); }
+.ote-panel.is-open { transform: translateX(0); }
+.ote-panel__head {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  padding: 10px 14px; background: var(--ote-ink); color: var(--ote-parchment);
+}
+.ote-panel__title { font-weight: 700; font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ote-panel__chapter { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ote-cream); }
+.ote-panel__chapter select { height: 26px; min-width: 64px; font-size: 12px; border-radius: 4px; border: 1px solid #5a5044; background: #2b2520; color: #fff; }
+.ote-panel__close { background: none; border: none; color: inherit; font-size: 24px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.ote-panel__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 12px 14px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.ote-scrim { position: fixed; inset: 0; z-index: 2900; background: rgba(26,22,17,.18); }
+@media (min-width: 1100px) { .ote-scrim { display: none !important; } }
+
+.ote-tabs { display: flex; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--ote-rule); background: var(--ote-parchment); flex-shrink: 0; }
+.ote-tab { padding: 8px 14px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ote-stone); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; margin-bottom: -1px; }
+.ote-tab:hover { color: var(--ote-ink); }
+.ote-tab.is-active { color: var(--ote-gold); border-bottom-color: var(--ote-gold); }
+.ote-tabpane { display: none; }
+.ote-tabpane.is-active { display: block; }
+
+.ote-chapter__row { display: flex; gap: 8px; align-items: baseline; padding: 6px 8px; border-radius: 6px; font-size: 13px; line-height: 1.5; font-family: Georgia, serif; }
+.ote-chapter__row.is-current { background: rgba(183,133,80,.14); }
+.ote-chapter__num { flex-shrink: 0; font-family: var(--ote-ui); font-weight: 700; font-size: 11px; color: var(--ote-gold); text-decoration: none; min-width: 20px; }
+.ote-chapter__num:hover { text-decoration: underline; }
+.ote-chapter__text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ote-chapter__text img, .ote-chapter__text video { max-width: 120px !important; max-height: 120px !important; width: auto !important; height: auto !important; display: block; border-radius: 4px; margin-top: 4px; }
+.ote-chapter__text .tooltip { display: none !important; }
+.ote-chapter__text h5 { font-size: 1.1em; margin: 0; }
+
+.ote-lex-word { font-family: var(--ote-heb); font-size: 30px; line-height: 1.3; text-align: right; color: var(--ote-ink); min-height: 0; }
+.ote-lex-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.ote-lex-content { font-size: 13px; line-height: 1.5; color: #2f2f2f; }
+.ote-lex-content .popup-content { display: block !important; position: static !important; width: auto !important; left: auto !important; opacity: 1 !important; transform: none !important; border: none; box-shadow: none; padding: 0; }
+.ote-lexicon-title, .ote-lex-content .strongs-title, .ote-lex-content .fuerst-title, .ote-lex-content .gesenius-title, .ote-lex-content .bdb-title {
+  font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ote-gold); margin-bottom: 8px;
+}
+.ote-lex-content .strongs-entry, .ote-lex-content .fuerst-entry, .ote-lex-content .gesenius-entry, .ote-lex-content .bdb-entry { padding: 10px 0; border-top: 1px dashed var(--ote-rule); }
+.ote-lex-content .strongs-entry:first-of-type, .ote-lex-content .fuerst-entry:first-of-type, .ote-lex-content .gesenius-entry:first-of-type, .ote-lex-content .bdb-entry:first-of-type { border-top: none; padding-top: 0; }
+.ote-lex-content .strongs-headword, .ote-lex-content .fuerst-headword, .ote-lex-content .gesenius-headword { font-family: var(--ote-heb); font-size: 26px; font-weight: 600; color: var(--ote-ink); }
+.ote-lex-content .strong-xlit, .ote-lex-content .fuerst-meta, .ote-lex-content .gesenius-meta, .ote-lex-content .strongs-meta { font-size: 12px; color: var(--ote-stone); font-style: italic; margin-top: 2px; }
+.ote-lex-content dl.strong-details { margin: 8px 0 0; }
+.ote-lex-content .strong-details dt { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #a69782; margin-top: 8px; }
+.ote-lex-content .strong-details dd { margin: 2px 0 0; }
+.ote-lex-content .fuerst-definition, .ote-lex-content .gesenius-definition, .ote-lex-content .bdb-definition { margin-top: 6px; }
+.ote-lex-content .fuerst-note, .ote-lex-content .gesenius-note { font-size: 12px; background: var(--ote-parchment); border-left: 3px solid var(--ote-gold-light); padding: 4px 8px; margin-top: 6px; }
+.ote-lex-content .strong-citation { margin-top: 10px; padding-top: 6px; border-top: 1px dashed var(--ote-rule); font-size: 11px; color: var(--ote-stone); }
+.ote-lex-content a { color: #a4491d; text-decoration: none; font-weight: 600; }
+.ote-lex-content a:hover { text-decoration: underline; }
+.ote-lex-content .bdb-definition { max-height: none !important; overflow: visible !important; }
+.ote-lex-content .bdb-definition h3, .ote-lex-content .bdb-definition h4, .ote-lex-content .bdb-definition h5 { font-size: 14px; margin: 10px 0 4px; }
+.ote-lex-content .edit-lexicon-btn { background: var(--ote-ok); color: #fff; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px; }
+.lxx-stats-section { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--ote-rule); }
+.lxx-stats-section:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+.lxx-strongs { font-weight: 700; font-size: 11px; color: #a69782; margin-bottom: 4px; }
+.lxx-stats-row { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 4px; }
+.lxx-word { min-width: 110px; font-family: 'Palatino Linotype', Georgia, serif; font-size: 14px; }
+.lxx-bar { display: inline-block; width: 90px; height: 8px; background: var(--ote-cream); border-radius: 4px; overflow: hidden; }
+.lxx-bar span { display: block; height: 100%; background: linear-gradient(90deg, #4a90a4, #2e5984); min-width: 2px; }
+.lxx-info { color: var(--ote-stone); font-size: 11px; }
+
+.ote-search-results { font-size: 13px; }
+.ote-result { padding: 8px 0; border-bottom: 1px solid #eee6d9; display: flex; gap: 10px; align-items: flex-start; }
+.ote-result__ref { flex-shrink: 0; min-width: 90px; font-weight: 700; color: var(--ote-gold); text-decoration: none; font-size: 12px; }
+.ote-result__ref:hover { text-decoration: underline; }
+.ote-result__heb { flex: 1; font-family: var(--ote-heb); font-size: 17px; direction: rtl; text-align: right; line-height: 1.7; }
+.search-highlight { background: #2f6239; color: #fff; padding: 0 3px; border-radius: 2px; }
+.search-highlight-2 { background: #b3261e; color: #fff; padding: 0 3px; border-radius: 2px; }
+.ote-map-word { display: flex; flex-direction: column; align-items: flex-end; font-family: var(--ote-heb); font-size: 26px; line-height: 1.3; margin-bottom: 10px; }
+.ote-map-word .ote-muted { font-size: 18px; }
+.ote-lex-entry { background: var(--ote-parchment); border: 1px solid var(--ote-rule); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+.ote-lex-entry__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.ote-lex-entry__heb { font-family: var(--ote-heb); font-size: 22px; font-weight: 600; }
+.ote-lex-entry__meta { font-size: 11px; color: var(--ote-stone); margin: 4px 0 6px; }
+.ote-lex-entry__def { font-size: 13px; color: #444; line-height: 1.45; }
+.ote-lex-section h5 { margin: 12px 0 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ote-gold); }
+
+/* ---- Popover, modals, toast --------------------------------------------- */
+.ote-pop { position: fixed; z-index: 3100; width: 320px; padding: 12px; background: #fff; border: 1px solid var(--ote-rule); border-radius: 10px; box-shadow: var(--ote-shadow); display: flex; flex-direction: column; gap: 10px; }
+.ote-pop .ote-label { width: 100%; }
+.ote-pop .ote-input { width: 100%; }
+.gemini-modal { position: fixed; inset: 0; background: rgba(26,22,17,.55); display: none; align-items: center; justify-content: center; z-index: 4000; }
+.gemini-modal.is-visible { display: flex; }
+.gemini-modal__content { background: #fff; border-radius: 12px; padding: 20px; width: min(620px, 92%); max-height: 92vh; overflow-y: auto; box-shadow: var(--ote-shadow); font-family: var(--ote-ui); }
+.ote-modal__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.ote-modal__head h3 { margin: 0; font-size: 18px; }
+.ote-modal__head .ote-panel__close { color: var(--ote-stone); }
+.gemini-modal__content textarea { width: 100%; min-height: 200px; border: 1px solid #d9d2c6; border-radius: 8px; padding: 10px; font: 13px/1.5 ui-monospace, Menlo, monospace; }
+.gemini-modal__actions { margin-top: 14px; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.gemini-modal__actions button { border: none; border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 13px; }
+.gemini-modal__actions .primary { background: var(--ote-gold); color: #fff; font-weight: 600; }
+.gemini-modal__actions .secondary { background: var(--ote-cream); color: var(--ote-ink); }
+.gemini-modal__status { margin-top: 8px; font-size: 13px; color: var(--ote-bad); min-height: 1em; }
+.gemini-modal__field { margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
+.gemini-modal__field label { font-size: 12px; font-weight: 600; color: var(--ote-ink-soft); display: flex; flex-direction: column; gap: 4px; }
+.gemini-modal__field input, .gemini-modal__field select { border: 1px solid #d9d2c6; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+.gemini-modal__note { margin: 0 0 10px; font-size: 12px; color: var(--ote-stone); }
+.gemini-modal__note code { background: var(--ote-cream); padding: 1px 5px; border-radius: 3px; }
+.ote-keyboard { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; margin: 4px 0 10px; background: var(--ote-parchment); border: 1px solid var(--ote-rule); border-radius: 8px; }
+.ote-key { min-width: 32px; height: 32px; padding: 0 6px; font-family: var(--ote-heb); font-size: 18px; background: #fff; border: 1px solid #d9d2c6; border-radius: 5px; cursor: pointer; }
+.ote-key:hover { background: var(--ote-cream); }
+.ote-key--special { font-family: var(--ote-ui); font-size: 13px; color: var(--ote-ink-soft); }
+.ote-key--vowel { border-color: var(--ote-gold-light); }
+.ote-keyboard__vowels { display: contents; }
+.ote-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 5000; padding: 10px 16px; background: var(--ote-ink); color: #fff; border-radius: 8px; font-size: 13px; box-shadow: var(--ote-shadow); max-width: 90vw; }
+.ote-toast.is-error { background: var(--ote-bad); }
+
+@media (max-width: 760px) {
+  .container.single-page-container { padding: 0 10px !important; }
+  .ote-hebrew { font-size: 28px; padding: 10px 12px; }
+  .ote-cards { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); }
+  .toolbar-group + .toolbar-group { border-left: none; padding-left: 0; }
+  .ote-panel { width: 100vw; max-width: 100vw; }
+  .ote-aux { grid-template-columns: 1fr; }
+}
+
+/* ---- Verse texts (paraphrase; Genesis also its RBT Hebrew literal) ------- */
+.ote-texts { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1100px) { .ote-texts--two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.ote-text { min-width: 0; padding: 10px 12px 12px; border: 1px solid #eee6d9; border-radius: 10px; background: #fdfbf8; transition: border-color .15s, background .15s; }
+.ote-text.is-active { border-color: var(--ote-gold-light); background: #fff; }
+.ote-text__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.ote-text__label { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ote-ink-soft); }
+.ote-text.is-active .ote-text__label { color: var(--ote-gold); }
+.ote-text__tools { margin-left: auto; display: inline-flex; gap: 4px; }
+.tb-btn--sm { height: 26px; min-width: 26px; padding: 0 8px; font-size: 12px; }
+.ote-text .ote-verse { min-height: 110px; }
+.ote-text .ote-conflict { margin-bottom: 8px; }

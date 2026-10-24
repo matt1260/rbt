@@ -1,0 +1,445 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}OT Editor · {{ page_title }}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'ot-editor.css' %}">
+{% endblock %}
+{% block content %}
+{% csrf_token %}
+<div id="ote" class="ote"
+     data-book="{{ book }}" data-chapter="{{ chapter_num }}" data-verse="{{ verse_num }}"
+     data-verse-ref="{{ verse_ref }}"
+     data-api-gloss="{% url 'ot_editor_gloss' %}"
+     data-api-morphology="{% url 'ot_editor_morphology' %}"
+     data-api-gender="{% url 'ot_editor_gender' %}"
+     data-api-verse="{% url 'ot_editor_verse' %}"
+     data-api-verse-state="{% url 'ot_editor_verse_state' %}"
+     data-api-footnote="{% url 'ot_editor_footnote' %}"
+     data-api-consonantal="{% url 'search_consonantal' %}"
+     data-api-search-lexicon="{% url 'search_lexicon' %}"
+     data-api-add-mapping="{% url 'add_manual_lexicon_mapping' %}"
+     data-api-lexicon-strongs="{% url 'get_lexicon_strongs' %}"
+     data-api-update-lexicon="{% url 'update_lexicon_entry' %}"
+     data-api-gemini="{% url 'gemini_translate_api' %}"
+     data-api-gemini-prefs="{% url 'gemini_save_preferences' %}"
+     data-api-chatgpt="{% url 'chatgpt_translate_api' %}"
+     data-gemini-model="{{ default_gemini_model }}"
+     data-chatgpt-model="{{ default_chatgpt_model }}">
+
+  <!-- ===================================================== top bar -->
+  <header class="ote-bar">
+    <nav class="ote-bar__nav" aria-label="Verse navigation">
+      <a class="ote-iconbtn" href="{{ prev_ref|default:'#' }}" title="Previous verse" aria-label="Previous verse"><i class="fas fa-chevron-left"></i></a>
+      <h1 class="ote-ref">{{ verse_label|default:page_title }}</h1>
+      <a class="ote-iconbtn" href="{{ next_ref|default:'#' }}" title="Next verse" aria-label="Next verse"><i class="fas fa-chevron-right"></i></a>
+      <form class="ote-jump" method="get" action="./" role="search">
+        <input type="text" name="q" placeholder="Go to… e.g. Exodus 3:2" aria-label="Go to reference" autocomplete="off">
+        <button type="submit" class="ote-btn">Go</button>
+      </form>
+    </nav>
+    <div class="ote-bar__tools">
+      <button type="button" class="ote-btn" data-toggle-panel="chapter"><i class="fas fa-book-open"></i> Chapter</button>
+      <button type="button" class="ote-btn" data-toggle-panel="lexicon"><i class="fas fa-scroll"></i> Lexicon</button>
+      <label class="ote-switch" title="Show vowel points on the Hebrew line and the word cards"><input type="checkbox" id="oteNiqqud"> Niqqud</label>
+      <label class="ote-switch" title="Paleo Hebrew font"><input type="checkbox" id="toggleHebrewFont"> Paleo</label>
+      {% if reader_url %}<a class="ote-link" href="{{ reader_url }}" target="_blank" rel="noopener">Reader <i class="fas fa-arrow-up-right-from-square"></i></a>{% endif %}
+      {% if old_editor_url %}<a class="ote-link ote-link--muted" href="{{ old_editor_url }}" title="The previous editor for this verse">Old editor</a>{% endif %}
+    </div>
+  </header>
+
+  {% if invalid_message %}
+  <div class="ote-alert" role="alert">{{ invalid_message }}</div>
+  {% endif %}
+
+  {% if tokens %}
+  <!-- ===================================================== hebrew line -->
+  <section class="ote-hebrew" dir="rtl" aria-label="Hebrew text">
+    {% for t in tokens %}<span class="ote-hebrew__word" data-token="{{ t.id }}" data-gender="{{ t.gender }}" title="{{ t.english|striptags }}"><span class="ote-heb-line--niqqud">{{ t.hebrew_niqqud }}</span><span class="ote-heb-line--plain">{{ t.hebrew_plain }}</span></span> {% endfor %}
+  </section>
+
+  <!-- ===================================================== word cards -->
+  <section class="ote-words" aria-label="Words">
+    <div class="ote-section-head">
+      <h2 class="ote-h2">Words</h2>
+      <label class="ote-scope">Gloss edits apply to
+        <select id="oteScope">
+          <option value="consonantal" selected>every word with these consonants</option>
+          <option value="niqqud">every word with this pointing</option>
+          <option value="word">this word only</option>
+        </select>
+      </label>
+      <span class="ote-hint">Click a gloss or morphology to edit · Enter saves · Esc cancels</span>
+    </div>
+
+    <div class="ote-cards" dir="rtl">
+      {% for t in tokens %}
+      <article class="ote-card" id="token-{{ t.id }}" dir="ltr"
+               data-token="{{ t.id }}" data-ref="{{ t.ref }}"
+               data-consonantal="{{ t.consonantal }}" data-niqqud="{{ t.hebrew_niqqud }}"
+               data-gender="{{ t.gender }}" data-strongs="{{ t.strongs }}"
+               data-count-consonantal="{{ t.count_consonantal }}" data-count-niqqud="{{ t.count_niqqud }}"
+               data-marker="{{ t.footnote_marker }}">
+        <header class="ote-card__head">
+          <span class="ote-card__num" title="{{ t.ref }}">{{ t.number }}</span>
+          <span class="ote-count" title="{{ t.count_consonantal }} occurrences with these consonants · {{ t.count_niqqud }} with this pointing">×{{ t.count_consonantal }}</span>
+          {% if t.unique %}<span class="ote-tag" title="Uniquely glossed word: gloss edits stay on this row">uniq</span>{% endif %}
+          <span class="ote-card__tools">
+            <select class="ote-gender" data-act="gender" aria-label="Gender color" title="Gender color (applies to every word with these consonants)">
+              <option value="0" {% if t.gender == '0' %}selected{% endif %} title="No gender color">–</option>
+              <option value="m" {% if t.gender == 'm' %}selected{% endif %} title="Masculine (blue)">m</option>
+              <option value="f" {% if t.gender == 'f' %}selected{% endif %} title="Feminine (pink)">f</option>
+            </select>
+            <button type="button" class="ote-mini ote-note-btn{% if t.footnote %} has-note{% endif %}" data-act="footnote"
+                    title="{% if t.footnote %}Edit this word's footnote{% else %}Add a footnote to this word{% endif %}" aria-label="Footnote"><i class="fas fa-note-sticky"></i></button>
+            <a class="ote-mini" href="/search/word/?word={{ t.ref }}" target="_blank" rel="noopener" title="Search every occurrence" aria-label="Search every occurrence"><i class="fas fa-magnifying-glass"></i></a>
+            <button type="button" class="ote-mini" data-act="map" title="Map this word to a Fürst or Gesenius entry" aria-label="Map to lexicon"><i class="fas fa-link"></i></button>
+          </span>
+        </header>
+
+        <div class="ote-card__hebrew" dir="rtl">
+          <span class="ote-heb ote-heb--niqqud">{{ t.hebrew_marked|safe }}</span>
+          <span class="ote-heb ote-heb--plain">{{ t.hebrew_plain }}</span>
+        </div>
+
+        <div class="ote-gloss{% if t.is_hayah %} hayah{% endif %}" data-field="gloss" data-raw="{{ t.english }}" tabindex="0" role="textbox" aria-label="English gloss" title="Gloss · click to edit">{{ t.english|safe }}</div>
+        <div class="ote-morph-line">
+          <span class="ote-morph" data-field="morphology" tabindex="0" role="textbox" aria-label="Morphology" title="Morphology · click to edit">{{ t.morphology }}</span>
+          {% if t.morph %}<code class="ote-morph-code" title="Morphology code">{{ t.morph }}</code>{% endif %}
+        </div>
+        {% if t.lxx_words %}
+        <div class="ote-lxx" dir="ltr" title="Septuagint: {{ t.lxx_words|join:' · ' }}"><span class="ote-lxx__label">LXX</span>
+          {% for w in t.lxx_words %}<a href="https://logeion.uchicago.edu/{{ w }}" target="_blank" rel="noopener">{{ w }}</a> {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="ote-card__lex">
+          {{ t.lexicon_html|safe }}
+          {% if t.lxx_data %}<span class="popup-container lxx-popup"><span class="lxx-trigger">LXX</span>
+            <div class="popup-content lxx-popup-content">
+              <div class="ote-lexicon-title">Septuagint renderings</div>
+              <p class="ote-fineprint">Greek translations of this Hebrew word in the Septuagint (c. 250 BCE).</p>
+              {% for item in t.lxx_data %}
+              <div class="lxx-stats-section"><div class="lxx-strongs">{{ item.strongs }}</div>
+                {% for stat in item.stats %}
+                <div class="lxx-stats-row">
+                  <a class="lxx-word" href="https://logeion.uchicago.edu/{{ stat.0 }}" target="_blank" rel="noopener">{{ stat.0 }}</a>
+                  <span class="lxx-bar"><span style="width: {{ stat.2 }}%"></span></span>
+                  <span class="lxx-info">{{ stat.1 }}× ({{ stat.2 }}%)</span>
+                </div>
+                {% empty %}<div class="lxx-stats-row">No statistics</div>{% endfor %}
+              </div>
+              {% endfor %}
+            </div></span>{% endif %}
+        </div>
+
+        <div class="ote-footnote" hidden>
+          <div class="ote-footnote__head">
+            <span class="ote-field__label">Footnote on {{ t.ref }}</span>
+            <span class="ote-footnote__status" aria-live="polite"></span>
+          </div>
+          <div class="ote-minibar" role="toolbar" aria-label="Footnote formatting">
+            <button type="button" class="tb-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+            <button type="button" class="tb-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+            <button type="button" class="tb-btn" data-cmd="hebrew-footnote" title="Hebrew">א</button>
+            <button type="button" class="tb-btn tb-btn--swatch tb-btn--pink" data-cmd="color" data-color="#ff00aa" title="Magenta"><i class="fas fa-circle"></i></button>
+            <button type="button" class="tb-btn tb-btn--swatch tb-btn--blue" data-cmd="color" data-color="blue" title="Blue"><i class="fas fa-circle"></i></button>
+            <button type="button" class="tb-btn" data-cmd="link" title="Link"><i class="fas fa-link"></i></button>
+            <button type="button" class="tb-btn" data-cmd="paragraph" title="Paragraph">¶</button>
+            <button type="button" class="tb-btn" data-cmd="clear" title="Remove formatting">Tx</button>
+          </div>
+          <div class="ote-footnote__editor ote-editable tex2jax_ignore" contenteditable="true" data-base-hash="{{ t.footnote_hash }}" aria-label="Footnote text">{{ t.footnote|safe }}</div>
+          <div class="ote-footnote__tools">
+            <button type="button" class="tb-btn tb-btn--save" data-act="fn-save">Save note</button>
+            <button type="button" class="tb-btn" data-act="fn-marker" title="Insert the footnote marker into the paraphrase at the caret">Insert marker</button>
+            <button type="button" class="tb-btn" data-act="fn-copy" title="Copy the marker HTML">Copy marker</button>
+            <code class="ote-marker">{{ t.footnote_marker }}</code>
+            <button type="button" class="tb-btn tb-btn--ghost" data-act="fn-close">Close</button>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- ===================================================== verse texts -->
+  <section class="ote-para" aria-label="Verse text">
+    <div class="ote-section-head">
+      <h2 class="ote-h2">{% if texts|length > 1 %}Literal &amp; paraphrase{% else %}Paraphrase{% endif %}</h2>
+      <span class="ote-hint">Toolbar applies to <strong id="oteActiveText">{{ active_text_label }}</strong> · edits autosave · ⌘S saves now</span>
+    </div>
+
+    <div class="editor-toolbar ote-toolbar" role="toolbar" aria-label="Verse text tools">
+      <div class="toolbar-group">
+        <button type="button" id="oteSave" class="tb-btn tb-btn--save" title="Save (⌘S)">Save</button>
+      </div>
+      <div class="toolbar-group" aria-label="Formatting">
+        <span class="toolbar-group__label">Format</span>
+        <button type="button" class="tb-btn" data-cmd="bold" title="Bold (⌘B)"><b>B</b></button>
+        <button type="button" class="tb-btn" data-cmd="italic" title="Italic (⌘I)"><i>I</i></button>
+        <button type="button" class="tb-btn" data-cmd="hayah" title="Hayah">היה</button>
+        <button type="button" class="tb-btn" data-cmd="h5" title="Heading 5">h5</button>
+        <button type="button" class="tb-btn" data-cmd="hebrew-header" title="Hebrew header"><span class="hdr-icon hebrew">א</span></button>
+        <button type="button" class="tb-btn tb-btn--swatch tb-btn--pink" data-cmd="color" data-color="#ff00aa" title="Pink text"><i class="fas fa-circle"></i></button>
+        <button type="button" class="tb-btn tb-btn--swatch tb-btn--blue" data-cmd="color" data-color="blue" title="Blue text"><i class="fas fa-circle"></i></button>
+        <button type="button" class="tb-btn tb-btn--swatch tb-btn--red" data-cmd="color" data-color="#dc3545" title="Red text"><i class="fas fa-circle"></i></button>
+        <button type="button" class="tb-btn" data-cmd="center" title="Center"><i class="fas fa-align-center"></i></button>
+        <button type="button" class="tb-btn" data-cmd="center-last" title="Center last line"><i class="fas fa-align-center"></i><span class="tb-btn__text">Last</span></button>
+        <button type="button" class="tb-btn" data-cmd="indent" title="Poetry indent"><i class="fas fa-indent"></i></button>
+        <button type="button" class="tb-btn" data-cmd="sun" title="Sun block">☀️</button>
+        <button type="button" class="tb-btn" data-cmd="clear" title="Remove the formatting around the selection">Tx</button>
+      </div>
+      <div class="toolbar-group" aria-label="Insert">
+        <span class="toolbar-group__label">Insert</span>
+        <button type="button" class="tb-btn" data-insert="image" title="Insert an image"><i class="fas fa-image"></i> Image</button>
+        <button type="button" class="tb-btn" data-insert="video" title="Insert a video"><i class="fas fa-video"></i> Video</button>
+        <button type="button" class="tb-btn" data-insert="marker" title="Insert a footnote marker for one of this verse's words"><i class="fas fa-superscript"></i> Note</button>
+        <button type="button" class="tb-btn" data-insert="literal" title="Insert the word-for-word literal at the caret">Literal</button>
+      </div>
+      <div class="toolbar-group" aria-label="AI suggestions">
+        <span class="toolbar-group__label">AI</span>
+        <button type="button" class="tb-btn tb-btn--ai tb-btn--gemini" id="oteGeminiOpen">Gemini</button>
+        <span class="tb-split">
+          <button type="button" class="tb-btn tb-btn--ai tb-btn--chatgpt tb-btn--split-main" id="oteChatgptRun">ChatGPT</button>
+          <button type="button" class="tb-btn tb-btn--ai tb-btn--chatgpt tb-btn--split-cfg" id="oteChatgptConfig" title="ChatGPT model &amp; prompt" aria-label="ChatGPT settings"><i class="fas fa-cog"></i></button>
+        </span>
+        <button type="button" class="tb-btn tb-btn--ghost" data-copy-request="gemini" title="Copy the full Gemini request">Copy Gemini request</button>
+        <button type="button" class="tb-btn tb-btn--ghost" data-copy-request="chatgpt" title="Copy the full ChatGPT request">Copy ChatGPT request</button>
+      </div>
+      <div class="toolbar-group" aria-label="View">
+        <span class="toolbar-group__label">View</span>
+        <button type="button" class="tb-btn" data-cmd="undo" title="Undo (⌘Z)"><i class="fas fa-rotate-left"></i></button>
+        <button type="button" class="tb-btn" data-cmd="redo" title="Redo (⇧⌘Z)"><i class="fas fa-rotate-right"></i></button>
+      </div>
+    </div>
+
+    <div class="ote-texts{% if texts|length > 1 %} ote-texts--two{% endif %}">
+      {% for text in texts %}
+      <div class="ote-text{% if text.key == 'paraphrase' %} is-active{% endif %}" data-field="{{ text.key }}" data-label="{{ text.label }}" data-hash="{{ text.hash }}">
+        <div class="ote-text__head">
+          <span class="ote-text__label">{{ text.label }}</span>
+          <span class="ote-status ote-status--saved" aria-live="polite">Saved</span>
+          <span class="ote-text__tools">
+            <button type="button" class="tb-btn tb-btn--sm" data-act="source" aria-pressed="false" title="Edit the HTML directly">&lt;/&gt;</button>
+            <button type="button" class="tb-btn tb-btn--sm tb-btn--ghost" data-act="reset" title="Discard unsaved changes">Reset</button>
+          </span>
+        </div>
+        <div class="ote-conflict" hidden>
+          This text was changed elsewhere since the page loaded.
+          <button type="button" class="tb-btn" data-act="conflict-load">Load the stored version</button>
+          <button type="button" class="tb-btn tb-btn--ghost" data-act="conflict-keep">Keep mine and overwrite</button>
+        </div>
+        <div class="ote-verse ote-editable tex2jax_ignore" contenteditable="true" spellcheck="false" aria-label="{{ text.label }}">{{ text.html|safe }}</div>
+        <textarea class="ote-source" hidden spellcheck="false" aria-label="{{ text.label }} HTML">{{ text.html }}</textarea>
+      </div>
+      {% endfor %}
+    </div>
+
+    <dl class="ote-aux">
+      <dt>{% if texts|length > 1 %}Glosses{% else %}Literal{% endif %}</dt><dd id="oteLiteral" title="Built from the word glosses above; edit a gloss to change it">{{ literal|safe }}</dd>
+      {% if smith %}<dt>Smith</dt><dd>{{ smith|safe }}</dd>{% endif %}
+    </dl>
+  </section>
+
+  {% if notes_html %}
+  <details class="ote-notes">
+    <summary>Footnotes referenced in this verse</summary>
+    <div class="ote-notes__body">{{ notes_html|safe }}</div>
+  </details>
+  {% endif %}
+
+  <p class="ote-foot"><a href="/find_and_replace_ot">Find and replace across the Old Testament</a></p>
+  {% endif %}
+
+  <!-- ===================================================== chapter panel (left) -->
+  <aside id="otePanelChapter" class="ote-panel ote-panel--left" aria-label="Chapter" aria-hidden="true">
+    <div class="ote-panel__head">
+      <span class="ote-panel__title">{{ book }} {{ chapter_num }}</span>
+      <label class="ote-panel__chapter">Chapter
+        <select id="oteChapterSelect" aria-label="Chapter">
+          {% for n in chapters %}<option value="{{ n }}"{% if n|stringformat:'s' == chapter_num %} selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select>
+      </label>
+      <button type="button" class="ote-panel__close" data-close-panel aria-label="Close">×</button>
+    </div>
+    <div class="ote-panel__body ote-chapter">
+      {% for n, html in chapter_rows %}
+      <div class="ote-chapter__row{% if n == verse_num %} is-current{% endif %}" id="chapter-verse-{{ n }}">
+        <a class="ote-chapter__num" href="?book={{ book|urlencode }}&chapter={{ chapter_num }}&verse={{ n }}">{{ n }}</a>
+        <div class="ote-chapter__text">{{ html|safe }}</div>
+      </div>
+      {% empty %}<p class="ote-muted">No paraphrase stored for this chapter yet.</p>{% endfor %}
+    </div>
+  </aside>
+
+  <!-- ===================================================== lexicon panel (right) -->
+  <aside id="otePanelLexicon" class="ote-panel ote-panel--right" aria-label="Lexicon" aria-hidden="true">
+    <div class="ote-panel__head">
+      <span class="ote-panel__title" id="oteLexTitle">Lexicon</span>
+      <button type="button" class="ote-panel__close" data-close-panel aria-label="Close">×</button>
+    </div>
+    <div class="ote-tabs" role="tablist">
+      <button type="button" class="ote-tab is-active" role="tab" data-tab="lexicon">Lexicon</button>
+      <button type="button" class="ote-tab" role="tab" data-tab="search">Search</button>
+      <button type="button" class="ote-tab" role="tab" data-tab="map">Map</button>
+    </div>
+
+    <div class="ote-panel__body ote-tabpane is-active" data-pane="lexicon">
+      <div id="oteLexWord" class="ote-lex-word" dir="rtl"></div>
+      <div id="oteLexChips" class="ote-lex-chips"></div>
+      <div id="oteLexContent" class="ote-lex-content"><p class="ote-muted">Click a Strong's, Fürst, Gesenius, BDB or LXX chip on a word card.</p></div>
+    </div>
+
+    <div class="ote-panel__body ote-tabpane" data-pane="search">
+      <p class="ote-fineprint">Search the consonantal Hebrew text. A second term is highlighted in red.</p>
+      <div class="ote-form-row"><input type="text" id="oteSearchTerm" class="ote-input ote-input--heb" placeholder="Hebrew (consonantal)" dir="rtl"></div>
+      <div class="ote-form-row"><input type="text" id="oteSearchTerm2" class="ote-input ote-input--heb" placeholder="Optional second term" dir="rtl"></div>
+      <div class="ote-form-row"><button type="button" class="ote-btn ote-btn--primary" id="oteSearchBtn">Search</button><span id="oteSearchCount" class="ote-muted"></span></div>
+      <div id="oteSearchResults" class="ote-search-results"></div>
+    </div>
+
+    <div class="ote-panel__body ote-tabpane" data-pane="map">
+      <p class="ote-fineprint">Map a Hebrew word to a Fürst or Gesenius entry. The mapping is saved against the Strong's number below.</p>
+      <div class="ote-map-word">
+        <span id="oteMapNiqqud" dir="rtl"></span>
+        <span id="oteMapConsonantal" class="ote-muted" dir="rtl"></span>
+      </div>
+      <div class="ote-form-row">
+        <label class="ote-label">Strong's <input type="text" id="oteMapStrongs" class="ote-input" placeholder="H8176" style="width:110px"></label>
+        <select id="oteMapLexicon" class="ote-input"><option value="both">Both lexicons</option><option value="fuerst">Fürst</option><option value="gesenius">Gesenius</option></select>
+        <select id="oteMapMatch" class="ote-input" title="Search mode">
+          <option value="exact">Exact Hebrew</option><option value="contains">Contains</option><option value="root">Root</option>
+          <option value="id">ID</option><option value="strong">Strong's</option><option value="definition">Definition</option>
+        </select>
+      </div>
+      <div class="ote-form-row">
+        <input type="text" id="oteMapTerm" class="ote-input" placeholder="root / substring / id">
+        <button type="button" class="ote-btn ote-btn--primary" id="oteMapSearch"><i class="fas fa-search"></i> Search</button>
+      </div>
+      <div id="oteMapResults" class="ote-search-results"></div>
+    </div>
+  </aside>
+  <div class="ote-scrim" data-close-panel hidden></div>
+
+  <!-- ===================================================== insert popover -->
+  <div id="oteInsertPop" class="ote-pop" hidden role="dialog" aria-label="Insert footnote marker">
+    <label class="ote-label" for="oteInsertToken">Footnote marker for</label>
+    <select id="oteInsertToken" class="ote-input" aria-label="Word">
+      {% for t in tokens %}<option value="{{ t.id }}">{{ t.number }} · {{ t.hebrew_niqqud }} · {{ t.english|truncatechars:24 }}</option>{% endfor %}
+    </select>
+    <div class="ote-form-row">
+      <button type="button" class="ote-btn ote-btn--primary" id="oteInsertGo">Insert</button>
+      <button type="button" class="ote-btn" data-close-pop>Cancel</button>
+    </div>
+  </div>
+
+  <!-- ===================================================== image pop-up -->
+  <div class="gemini-modal" id="oteMediaModal" aria-hidden="true">
+    <div class="gemini-modal__content ote-media-dialog" role="dialog" aria-labelledby="oteMediaTitle">
+      <div class="ote-modal__head"><h3 id="oteMediaTitle">Image</h3><button type="button" class="ote-panel__close" data-action="close" aria-label="Close">×</button></div>
+      <div class="ote-media-dialog__layout">
+        <div class="ote-media-dialog__preview" id="oteMediaPreview"></div>
+        <div class="ote-media-dialog__fields">
+          <label class="ote-label" id="oteMediaUrlLabel">Image URL <input type="text" id="oteMediaUrl" class="ote-input" placeholder="https://…" autocomplete="off"></label>
+          <span class="ote-field__label">Notes</span>
+          <div class="ote-minibar" role="toolbar" aria-label="Notes formatting">
+            <button type="button" class="tb-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+            <button type="button" class="tb-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+            <button type="button" class="tb-btn" data-cmd="hayah" title="Hayah">היה</button>
+            <button type="button" class="tb-btn tb-btn--swatch tb-btn--pink" data-cmd="color" data-color="#ff00aa" title="Magenta"><i class="fas fa-circle"></i></button>
+            <button type="button" class="tb-btn tb-btn--swatch tb-btn--blue" data-cmd="color" data-color="blue" title="Blue"><i class="fas fa-circle"></i></button>
+            <button type="button" class="tb-btn" data-cmd="link" title="Link"><i class="fas fa-link"></i></button>
+            <button type="button" class="tb-btn" data-cmd="paragraph" title="Paragraph">¶</button>
+            <button type="button" class="tb-btn" data-cmd="clear" title="Remove formatting">Tx</button>
+          </div>
+          <div id="oteMediaNotes" class="ote-media-notes ote-editable tex2jax_ignore" contenteditable="true" aria-label="Notes"></div>
+          <p class="ote-fineprint">Readers see these notes beside the image when they open it.</p>
+        </div>
+      </div>
+      <div class="gemini-modal__actions">
+        <button type="button" class="secondary ote-danger" id="oteMediaRemove">Remove</button>
+        <span class="ote-grow"></span>
+        <button type="button" class="secondary" data-action="close">Cancel</button>
+        <button type="button" class="primary" id="oteMediaApply" title="⌘Enter">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================== AI modals -->
+  {{ default_hebrew_prompt|json_script:"oteDefaultHebrewPrompt" }}
+  <div class="gemini-modal" id="oteGeminiModal" aria-hidden="true">
+    <div class="gemini-modal__content">
+      <div class="ote-modal__head"><h3>Gemini prompt</h3><button type="button" class="ote-panel__close" data-action="close" aria-label="Close">×</button></div>
+      <div class="gemini-modal__field"><label for="oteGeminiModel">Model</label>
+        <select id="oteGeminiModel" autocomplete="off">
+          <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+          <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+          <option value="gemini-3.6-flash">gemini-3.6-flash</option>
+          <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite</option>
+        </select></div>
+      <div class="gemini-modal__field"><label for="oteGeminiKey">Gemini API key (optional, this request only)</label><input id="oteGeminiKey" type="password" autocomplete="off"></div>
+      <textarea id="oteGeminiPrompt" spellcheck="false"></textarea>
+      <div class="gemini-modal__actions">
+        <button type="button" class="secondary" id="oteGeminiReset">Reset</button>
+        <button type="button" class="secondary" id="oteGeminiSavePrompt">Save prompt</button>
+        <button type="button" class="secondary" data-action="close">Cancel</button>
+        <button type="button" class="primary" id="oteGeminiRunBtn">Run &amp; load</button>
+      </div>
+      <div class="gemini-modal__status" id="oteGeminiStatus"></div>
+    </div>
+  </div>
+  <div class="gemini-modal" id="oteChatgptModal" aria-hidden="true">
+    <div class="gemini-modal__content">
+      <div class="ote-modal__head"><h3>ChatGPT prompt</h3><button type="button" class="ote-panel__close" data-action="close" aria-label="Close">×</button></div>
+      <div class="gemini-modal__field"><label for="oteChatgptModel">Model</label>
+        <select id="oteChatgptModel" autocomplete="off">
+          {% for m in chatgpt_model_choices %}<option value="{{ m }}"{% if m == default_chatgpt_model %} selected{% endif %}>{{ m }}</option>{% endfor %}
+          <option value="__custom__">Other…</option>
+        </select></div>
+      <div class="gemini-modal__field" id="oteChatgptCustomField" hidden><label for="oteChatgptCustom">Custom model id</label><input id="oteChatgptCustom" type="text" autocomplete="off"></div>
+      <p class="gemini-modal__note">Requests use the server's <code>CHATGPT_KEY</code>.</p>
+      <textarea id="oteChatgptPrompt" spellcheck="false"></textarea>
+      <div class="gemini-modal__actions">
+        <button type="button" class="secondary" id="oteChatgptReset">Reset</button>
+        <button type="button" class="secondary" data-action="close">Cancel</button>
+        <button type="button" class="primary" id="oteChatgptRunModal">Run &amp; load</button>
+      </div>
+      <div class="gemini-modal__status" id="oteChatgptStatus"></div>
+    </div>
+  </div>
+
+  <!-- ===================================================== edit lexicon entry modal -->
+  <div id="oteEditLexModal" class="gemini-modal" aria-hidden="true">
+    <div class="gemini-modal__content">
+      <div class="ote-modal__head"><h3>Edit lexicon entry</h3><button type="button" class="ote-panel__close" data-action="close" aria-label="Close">×</button></div>
+      <form id="oteEditLexForm">
+        <input type="hidden" name="lexicon_id"><input type="hidden" name="lexicon_type">
+        <div class="gemini-modal__field"><label>Hebrew word (with niqqud)<input type="text" name="hebrew_word" class="ote-input ote-input--heb hebrew-input" dir="rtl"></label></div>
+        <div class="gemini-modal__field"><label>Hebrew consonantal<input type="text" name="hebrew_consonantal" class="ote-input ote-input--heb hebrew-input" dir="rtl"></label></div>
+        <div class="ote-keyboard" dir="rtl">
+          {% for ch in 'אבגדהוזחטיכלמנסעפצקרשתךםןףץ' %}<button type="button" class="ote-key" data-char="{{ ch }}">{{ ch }}</button>{% endfor %}
+          <button type="button" class="ote-key ote-key--special" data-char="־" title="Maqaf">־</button>
+          <button type="button" class="ote-key ote-key--special" data-char=" " title="Space">␣</button>
+          <button type="button" class="ote-key ote-key--special" data-act="kb-delete" title="Backspace">⌫</button>
+          <button type="button" class="ote-key ote-key--special" data-act="kb-vowels" title="Vowels">ְ◌</button>
+          <span class="ote-keyboard__vowels" hidden>
+            <button type="button" class="ote-key ote-key--vowel" data-char="ְ" title="Sheva">ְ</button><button type="button" class="ote-key ote-key--vowel" data-char="ֱ" title="Hataf Segol">ֱ</button><button type="button" class="ote-key ote-key--vowel" data-char="ֲ" title="Hataf Patah">ֲ</button><button type="button" class="ote-key ote-key--vowel" data-char="ֳ" title="Hataf Qamats">ֳ</button><button type="button" class="ote-key ote-key--vowel" data-char="ִ" title="Hiriq">ִ</button><button type="button" class="ote-key ote-key--vowel" data-char="ֵ" title="Tsere">ֵ</button><button type="button" class="ote-key ote-key--vowel" data-char="ֶ" title="Segol">ֶ</button><button type="button" class="ote-key ote-key--vowel" data-char="ַ" title="Patah">ַ</button><button type="button" class="ote-key ote-key--vowel" data-char="ָ" title="Qamats">ָ</button><button type="button" class="ote-key ote-key--vowel" data-char="ֹ" title="Holam">ֹ</button><button type="button" class="ote-key ote-key--vowel" data-char="ֻ" title="Qubuts">ֻ</button><button type="button" class="ote-key ote-key--vowel" data-char="ּ" title="Dagesh">ּ</button>
+          </span>
+        </div>
+        <div class="gemini-modal__field"><label>Part of speech<input type="text" name="part_of_speech" class="ote-input"></label></div>
+        <div class="gemini-modal__field"><label>Definition<textarea name="definition" class="ote-input" rows="4"></textarea></label></div>
+        <div class="gemini-modal__field"><label>Root<input type="text" name="root" class="ote-input ote-input--heb" dir="rtl"></label></div>
+        <div class="gemini-modal__field"><label>Source page<input type="text" name="source_page" class="ote-input"></label></div>
+        <div class="gemini-modal__field"><label>Strong's numbers (comma-separated; blank removes all mappings)<input type="text" name="strongs_numbers" class="ote-input"></label></div>
+        <div class="gemini-modal__actions">
+          <button type="button" class="secondary" data-action="close">Cancel</button>
+          <button type="submit" class="primary">Save changes</button>
+        </div>
+        <div class="gemini-modal__status" id="oteEditLexStatus"></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="oteToast" class="ote-toast" role="status" aria-live="polite" hidden></div>
+</div>
+<script src="{% static 'ot-editor.js' %}" defer></script>
+{% endblock %}
