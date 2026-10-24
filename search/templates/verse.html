@@ -462,30 +462,37 @@
         font-size: 20px;
     }
 
+    /* ---- Hebrew interlinear: compact word cards in balanced rows ----------- */
+    /* Columns are evened out by balanceInterlinear() below (7 words in room for 4 → 4 + 3). */
     .hebrew-interlinear-grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        justify-content: flex-start;  /* flex-start = right side in RTL */
+        display: grid;
+        --hi-min: 180px;
+        grid-template-columns: repeat(var(--hi-cols, auto-fill), minmax(min(100%, var(--hi-min)), 1fr));
+        gap: 8px;
         direction: rtl;
-        margin-top: 16px;
-        margin-bottom: 24px;
+        align-items: stretch;
+        margin: 12px 0 24px;
     }
 
     .interlinear-card {
-        background: #f6f7fa;
-        border: 1px solid #d9dee6;
-        border-radius: 8px;
-        padding: 12px 14px;
-        min-width: 120px;
-        max-width: 220px;
-        text-align: right;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+        direction: ltr;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        background: #fff;
+        border: 1px solid #e6dfd3;
+        border-radius: 9px;
+        box-shadow: 0 1px 2px rgba(43, 37, 32, 0.05);
+        text-align: left;
     }
 
     .interlinear-card .card-hebrew {
-        font-size: 28px;
+        direction: rtl;
+        text-align: right;
+        font-size: 26px;
         line-height: 1.3;
+        padding: 8px 10px 0;
+        overflow-wrap: anywhere;
     }
 
     .card-hebrew > span {
@@ -497,41 +504,93 @@
     }
 
     .interlinear-card .card-english {
-        font-size: 14px;
-        color: #2d2d2d;
-        margin-top: 6px;
-        direction: ltr;
-    }
-
-    .interlinear-card .card-strongs {
-        font-size: 12px;
-        color: #4a4a4a;
-        margin-top: 6px;
-        direction: ltr;
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1.35;
+        color: #1a1611;
+        padding: 2px 10px 0;
+        overflow-wrap: anywhere;
     }
 
     .interlinear-card .card-morph {
-        font-size: 11px;
-        color: #6d6d6d;
-        margin-top: 6px;
-        direction: ltr;
+        font-size: 11.5px;
+        line-height: 1.4;
+        color: #6b6156;
+        padding: 2px 10px 4px;
     }
 
-    /* LXX (Septuagint) styles */
+    /* LXX: one line; hovering it shows the usage statistics. */
     .interlinear-card .card-lxx {
-        font-size: 13px;
+        font-size: 12px;
         color: #2e5984;
-        margin-top: 6px;
-        direction: ltr;
+        padding: 0 10px 4px;
+    }
+
+    .interlinear-card .card-lxx .lxx-popup-container {
+        display: flex;
+        align-items: baseline;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .interlinear-card .card-lxx .lxx-label {
+        flex: none;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: #a69782;
+    }
+
+    .interlinear-card .card-lxx .lxx-words {
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .interlinear-card .card-lxx a {
         color: #2e5984;
         text-decoration: none;
+        margin-right: 3px;
+        font-family: 'Palatino Linotype', Georgia, serif;
+        font-size: 12.5px;
     }
 
     .interlinear-card .card-lxx a:hover {
         text-decoration: underline;
+    }
+
+    /* Lexicon chips: one row along the card's foot, so a row of cards lines up. */
+    .interlinear-card .card-strongs {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 3px;
+        margin-top: auto;
+        padding: 5px 6px 6px;
+        border-top: 1px dashed #f0e7da;
+        font-size: 12px;
+    }
+
+    .interlinear-card .card-strongs .popup-container {
+        display: inline-flex;
+        margin: 0;  /* the older pop-up rules space each chip out */
+    }
+
+    .interlinear-card .card-strongs .strongs-trigger,
+    .interlinear-card .card-strongs .fuerst-trigger,
+    .interlinear-card .card-strongs .gesenius-trigger,
+    .interlinear-card .card-strongs .bdb-trigger {
+        display: inline-flex;
+        align-items: center;
+        height: 19px;
+        padding: 0 6px;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 9.5px;
+        letter-spacing: 0.03em;
+        line-height: 1;
+        margin: 0;
     }
 
     /* LXX popup tooltip container */
@@ -757,14 +816,10 @@
 
     @media only screen and (max-width: 767px) {
         .hebrew-interlinear-grid {
-            justify-content: flex-start;
-            gap: 8px;
+            --hi-min: 145px;
+            gap: 6px;
         }
 
-        .interlinear-card {
-            min-width: 100px;
-            max-width: 180px;
-        }
 
         .interlinear-card .card-hebrew {
             font-size: 24px;
@@ -773,6 +828,289 @@
 .hebrew_footnote {
         font-size: 1.5em;
     }  
+
+    /* ---- Smith, LITV and Brenton in parallel columns ------------------------ */
+    .translations-parallel {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        margin: 18px 0;
+        border-top: 1px solid rgba(183, 133, 80, 0.25);
+        border-bottom: 1px solid rgba(183, 133, 80, 0.25);
+    }
+
+    .translations-parallel > .single_verse {
+        min-width: 0;
+        margin: 0;
+        padding: 14px 16px 16px;
+        overflow-wrap: anywhere;
+    }
+
+    .translations-parallel > .single_verse:first-child {
+        padding-left: 0;
+    }
+
+    .translations-parallel > .single_verse:last-child {
+        padding-right: 0;
+    }
+
+    .translations-parallel > .single_verse + .single_verse {
+        border-left: 1px solid rgba(183, 133, 80, 0.2);
+    }
+
+    /* Each block's own label as a small-caps column title. */
+    .translations-parallel > .single_verse > strong:first-child {
+        display: block;
+        margin-bottom: 8px;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #8a7e70;
+    }
+
+    .translations-parallel > .single_verse > strong:first-child + br {
+        display: none;
+    }
+
+    /* Phones: one above another. */
+    @media (max-width: 699px) {
+        .translations-parallel {
+            grid-auto-flow: row;
+            grid-auto-columns: auto;
+        }
+
+        .translations-parallel > .single_verse {
+            padding: 12px 0;
+        }
+
+        .translations-parallel > .single_verse + .single_verse {
+            border-left: none;
+            border-top: 1px solid rgba(183, 133, 80, 0.2);
+        }
+    }
+
+    /* ---- Lexicon side panel ------------------------------------------------- */
+    /* A card's chips (Strong's, Fürst, Gesenius, BDB, LXX) open this panel instead of
+       hover pop-ups; the pop-up content is shown here unchanged. */
+    .interlinear-card .popup-content,
+    .interlinear-card .lxx-popup-content {
+        display: none !important;
+    }
+
+    .interlinear-card .card-strongs .popup-container > :first-child,
+    .interlinear-card .lxx-label.has-stats {
+        cursor: pointer;
+    }
+
+    .interlinear-card .card-strongs .popup-container > :first-child:focus-visible,
+    .interlinear-card .lxx-label.has-stats:focus-visible {
+        outline: 2px solid #b78550;
+        outline-offset: 1px;
+    }
+
+    .interlinear-card .card-strongs .popup-container.is-open > :first-child {
+        background: #b78550;
+        border-color: #b78550;
+        color: #fff;
+    }
+
+    .interlinear-card .lxx-label.has-stats {
+        padding: 1px 5px;
+        border: 1px solid #c9d6e6;
+        border-radius: 999px;
+        color: #2e5984;
+    }
+
+    .interlinear-card.is-lex-open {
+        border-color: #b78550;
+        box-shadow: 0 0 0 3px rgba(183, 133, 80, 0.14);
+    }
+
+    .lex-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 440px;
+        max-width: 100vw;
+        z-index: 3000;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        box-shadow: -6px 0 28px rgba(43, 37, 32, 0.18);
+        transform: translateX(100%);
+        visibility: hidden;
+        transition: transform 0.26s ease, visibility 0s linear 0.26s;
+        font-size: 14px;
+        text-align: left;
+    }
+
+    .lex-panel.is-open {
+        transform: translateX(0);
+        visibility: visible;
+        transition: transform 0.26s ease;
+    }
+
+    .lex-panel__head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+        padding: 10px 12px 10px 16px;
+        background: #1a1611;
+        color: #faf7f2;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+
+    .lex-panel__title {
+        flex: 1;
+        min-width: 0;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+
+    .lex-panel__head button {
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        color: #faf7f2;
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .lex-panel .lex-panel__head button,
+    .lex-panel .lex-panel__head button:focus {
+        background: transparent !important;
+        color: #faf7f2 !important;
+        box-shadow: none !important;
+    }
+
+    .lex-panel .lex-panel__head button:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.12) !important;
+    }
+
+    .lex-panel__head button:disabled {
+        opacity: 0.35;
+        cursor: default;
+    }
+
+    .lex-panel__head .lex-panel__close {
+        font-size: 24px;
+    }
+
+    .lex-panel__word {
+        padding: 14px 18px 0;
+        direction: rtl;
+        text-align: right;
+        font-family: 'SBL Hebrew', 'Ezra SIL', 'Times New Roman', serif;
+        font-size: 34px;
+        line-height: 1.3;
+        color: #1a1611;
+    }
+
+    .lex-panel__gloss {
+        padding: 2px 18px 0;
+        font-size: 16px;
+        color: #4a3f33;
+    }
+
+    .lex-panel__tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        flex-shrink: 0;
+        margin-top: 10px;
+        padding: 0 12px;
+        border-bottom: 1px solid rgba(183, 133, 80, 0.25);
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+
+    .lex-panel__tab {
+        padding: 8px 10px;
+        margin-bottom: -1px;
+        border: none;
+        border-bottom: 2px solid transparent;
+        background: none;
+        color: #8a7e70;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        cursor: pointer;
+    }
+
+    /* The theme fills buttons on hover/focus and sets its own font; tabs stay plain. */
+    .lex-panel .lex-panel__tab,
+    .lex-panel .lex-panel__tab:hover,
+    .lex-panel .lex-panel__tab:focus,
+    .lex-panel .lex-panel__tab:active {
+        background: none !important;
+        box-shadow: none !important;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif !important;
+    }
+
+    .lex-panel .lex-panel__tab:hover,
+    .lex-panel .lex-panel__tab:focus {
+        color: #1a1611 !important;
+    }
+
+    .lex-panel .lex-panel__tab:focus-visible {
+        outline: 2px solid #b78550;
+        outline-offset: -2px;
+    }
+
+    .lex-panel .lex-panel__tab[aria-selected="true"] {
+        color: #b78550 !important;
+        border-bottom-color: #b78550;
+    }
+
+    .lex-panel__body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 14px 18px 24px;
+        font-size: 14px;
+        line-height: 1.55;
+        color: #2f2f2f;
+    }
+
+    .lex-panel__body .bdb-definition {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .lex-scrim {
+        position: fixed;
+        inset: 0;
+        z-index: 2900;
+        background: rgba(26, 22, 17, 0.25);
+    }
+
+    .lex-scrim[hidden] {
+        display: none;
+    }
+
+    /* Phones: nearly full width, leaving a strip of the dimmed page to tap to close. */
+    @media (max-width: 699px) {
+        .lex-panel {
+            width: calc(100vw - 44px);
+        }
+    }
+
+    /* Paleo Hebrew has no vowel points: with niqqud on, the Hebrew line stays in square
+       script (as the cards do), instead of showing empty boxes for every point. */
+    .use-hebrew-font #hebText.has-niqqud,
+    .use-hebrew-font #hebText.has-niqqud * {
+        font-family: 'SBL Hebrew', 'Ezra SIL', 'Times New Roman', serif !important;
+    }
 </style>
 
 
@@ -824,25 +1162,20 @@
             <span class="hebrew-with-niqqud">{{ cell.hebrew_niqqud|safe }}</span>
         </div>
         <div class="card-english">{{ cell.english|safe }}</div>
-        {% if cell.strongs %}
-        <div class="card-strongs">{{cell.strongs|safe}}</div>
-        {% endif %}
         {% if cell.morph %}
         <div class="card-morph">{{ cell.morph|safe }}</div>
         {% endif %}
-        {% if cell.lxx_words or cell.lxx or cell.lxx_data %}
+        {% if cell.lxx_words or cell.lxx %}
         <div class="card-lxx">
             <span class="lxx-popup-container">
-                <span style="color: #666; font-size: 11px;">LXX:</span>
+                <span class="lxx-label">LXX</span>
+                <span class="lxx-words">
                 {% if cell.lxx_words %}
-                    {% for word in cell.lxx_words %}
-                        <a href="https://logeion.uchicago.edu/{{ word }}" target="_blank">{{ word }}</a>{% if not forloop.last %} {% endif %}
-                    {% endfor %}
-                {% elif cell.lxx %}
-                    {% for word in cell.lxx.split %}
-                        <a href="https://logeion.uchicago.edu/{{ word }}" target="_blank">{{ word }}</a>{% if not forloop.last %} {% endif %}
-                    {% endfor %}
+                    {% for word in cell.lxx_words %}<a href="https://logeion.uchicago.edu/{{ word }}" target="_blank">{{ word }}</a> {% endfor %}
+                {% else %}
+                    {% for word in cell.lxx.split %}<a href="https://logeion.uchicago.edu/{{ word }}" target="_blank">{{ word }}</a> {% endfor %}
                 {% endif %}
+                </span>
                 {% if cell.lxx_data %}
                 <div class="lxx-popup-content">
                     <div class="lxx-popup-header">LXX Usage Statistics <a href="https://en.wikipedia.org/wiki/Septuagint" target="_blank" title="Learn about the Septuagint"><i class="fas fa-up-right-from-square"></i></a></div>
@@ -864,6 +1197,9 @@
                 {% endif %}
             </span>
         </div>
+        {% endif %}
+        {% if cell.strongs %}
+        <div class="card-strongs">{{ cell.strongs|safe }}</div>
         {% endif %}
     </div>
     {% endfor %}
@@ -890,6 +1226,23 @@ Wescott & Hort Greek NT:
 
 
 <script>
+    // Even out the interlinear rows so the last row isn't a lone card.
+    (function () {
+        var grid = document.querySelector('.hebrew-interlinear-grid');
+        if (!grid) return;
+        function balance() {
+            var count = grid.querySelectorAll('.interlinear-card').length;
+            var min = parseFloat(getComputedStyle(grid).getPropertyValue('--hi-min')) || 180;
+            var fit = Math.max(1, Math.floor((grid.clientWidth + 8) / (min + 8)));
+            var rows = Math.ceil(count / fit);
+            grid.style.setProperty('--hi-cols', String(Math.max(1, Math.ceil(count / rows))));
+        }
+        balance();
+        if (window.ResizeObserver) new ResizeObserver(balance).observe(grid);
+    })();
+</script>
+
+<script>
     var rbt_heb = `{{ hebrew | safe }}`;
 
     // Function to remove niqqud characters from the Hebrew text
@@ -901,6 +1254,9 @@ Wescott & Hort Greek NT:
 
     // Function to toggle the niqqud visibility based on the checkbox state
     function toggleCardNiqqud(showNiqqud) {
+        // The Paleo font has no vowel points; pointed text stays in square script (see CSS).
+        var hebLine = document.getElementById('hebText');
+        if (hebLine) hebLine.classList.toggle('has-niqqud', !!showNiqqud);
         var cardContainers = document.querySelectorAll('.card-hebrew');
         cardContainers.forEach(function(card) {
             var withNiqqud = card.querySelector('.hebrew-with-niqqud');
@@ -978,6 +1334,12 @@ Wescott & Hort Greek NT:
             <span id="englishReader">{{ rbt|safe }}
             </span>
         </div>
+        {% if rbt_paraphrase %}
+        <div class="single_verse">
+            <strong>RBT Paraphrase:</strong>
+            <div id="paraphraseReader">{{ rbt_paraphrase|safe }}</div>
+        </div>
+        {% endif %}
         <div class="verse-share" aria-label="Share this verse">
             <span class="verse-share-label">Share this verse:</span>
             <a class="verse-share-button" id="shareOnX" href="#" target="_blank" rel="noopener noreferrer">
@@ -991,21 +1353,13 @@ Wescott & Hort Greek NT:
             </button>
             <span class="verse-share-status" id="verseShareStatus" role="status" aria-live="polite"></span>
         </div>
-        <div id="inputText" style="display: none; width: 100%;" oninput="updateEnglishReader(this.value)">{{ rbt_text }}</div>
-        
-        {% if rbt_paraphrase %}
-        <div class="single_verse">
-            <strong>RBT Paraphrase:</strong>
-
-            <br>
-        {{ rbt_paraphrase|safe }}
-
+        {# The other translations side by side (stacked on phones). #}
+        <div class="translations-parallel">
+            {{ slt|safe }}
+            {{ litv|safe }}
+            {{ englxx|safe }}
         </div>
-        {% endif %}
-        
-        {{ slt|safe }}
-        {{ litv|safe }}
-        {{ englxx|safe }}
+        <div id="inputText" style="display: none; width: 100%;" oninput="updateEnglishReader(this.value)">{{ rbt_text }}</div>
 
         <h4>Footnotes</h4>
         <div>
@@ -1046,14 +1400,16 @@ Wescott & Hort Greek NT:
                 .trim();
         }
 
-        // On a translated page share the translation; otherwise the English.
+        // Share the paraphrase: the reading meant for sharing (OT verses carry both a
+        // word-for-word literal and a paraphrase). A translated page shares its
+        // translation, which is of the paraphrase; NT verses have only the RBT text.
         // #englishReader wraps its verse as `<strong>RBT Translation:</strong><div>…</div>`,
         // so read the inner div or the label joins the quote.
         var translatedEl = document.getElementById('translatedReader');
+        var paraphraseEl = document.getElementById('paraphraseReader');
         var readerEl = document.getElementById('englishReader');
-        var verseSource = translatedEl ||
-            (readerEl ? (readerEl.querySelector('div') || readerEl) : null);
-        var verseText = cleanVerseText(verseSource);
+        var verseText = cleanVerseText(translatedEl) || cleanVerseText(paraphraseEl) ||
+            cleanVerseText(readerEl ? (readerEl.querySelector('div') || readerEl) : null);
 
         // Truncate on a word boundary rather than mid-word.
         if (verseText.length > 240) {
@@ -1123,5 +1479,163 @@ Wescott & Hort Greek NT:
         console.log("Verse(s) not served from cache.");
     {% endif %}
 </script> -->
+
+
+<aside id="lexPanel" class="lex-panel" role="dialog" aria-modal="false" aria-labelledby="lexPanelTitle" aria-hidden="true">
+    <div class="lex-panel__head">
+        <button type="button" id="lexPanelPrev" aria-label="Previous word" title="Previous word">&lsaquo;</button>
+        <span class="lex-panel__title" id="lexPanelTitle">Lexicon</span>
+        <button type="button" id="lexPanelNext" aria-label="Next word" title="Next word">&rsaquo;</button>
+        <button type="button" class="lex-panel__close" id="lexPanelClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="lex-panel__word" id="lexPanelWord"></div>
+    <div class="lex-panel__gloss" id="lexPanelGloss"></div>
+    <div class="lex-panel__tabs" id="lexPanelTabs" role="tablist" aria-label="Lexicons"></div>
+    <div class="lex-panel__body" id="lexPanelBody" role="tabpanel" tabindex="0"></div>
+</aside>
+<div class="lex-scrim" id="lexScrim" hidden></div>
+
+<script>
+    // Lexicon side panel: a word card's chips open its lexicon entries here.
+    (function () {
+        var panel = document.getElementById('lexPanel');
+        var cards = Array.prototype.slice.call(document.querySelectorAll('.interlinear-card'));
+        if (!panel || !cards.length) return;
+        var titleEl = document.getElementById('lexPanelTitle');
+        var wordEl = document.getElementById('lexPanelWord');
+        var glossEl = document.getElementById('lexPanelGloss');
+        var tabsEl = document.getElementById('lexPanelTabs');
+        var bodyEl = document.getElementById('lexPanelBody');
+        var prevBtn = document.getElementById('lexPanelPrev');
+        var nextBtn = document.getElementById('lexPanelNext');
+        var scrim = document.getElementById('lexScrim');
+        var NAMES = { 'STRONGS': "Strong's", 'FÜRST': 'Fürst', 'GESENIUS': 'Gesenius', 'BDB': 'BDB' };
+        var current = { card: null, label: null, opener: null };
+
+        // A card's lexicon sources, in chip order: [{label, trigger, content}].
+        function sources(card) {
+            var list = [];
+            card.querySelectorAll('.card-strongs .popup-container').forEach(function (box) {
+                var trigger = box.firstElementChild;
+                var content = box.querySelector('.popup-content');
+                if (!trigger || !content) return;
+                var raw = trigger.textContent.trim();
+                list.push({ label: NAMES[raw.toUpperCase()] || raw, trigger: trigger, content: content, box: box });
+            });
+            var lxx = card.querySelector('.lxx-popup-content');
+            if (lxx) list.push({ label: 'LXX', trigger: card.querySelector('.lxx-label'), content: lxx, box: null });
+            return list;
+        }
+
+        // Chips act as buttons: focusable, Enter/Space open the panel.
+        cards.forEach(function (card) {
+            sources(card).forEach(function (src) {
+                if (!src.trigger) return;
+                src.trigger.setAttribute('role', 'button');
+                src.trigger.setAttribute('tabindex', '0');
+                src.trigger.setAttribute('aria-haspopup', 'dialog');
+                src.trigger.setAttribute('title', src.label + ' — open in the side panel');
+                if (src.label === 'LXX') src.trigger.classList.add('has-stats');
+            });
+        });
+
+        function show(card, label) {
+            var list = sources(card);
+            if (!list.length) return;
+            var src = list.filter(function (s) { return s.label === label; })[0] || list[0];
+            current.card = card;
+            current.label = src.label;
+
+            cards.forEach(function (c) { c.classList.toggle('is-lex-open', c === card); });
+            document.querySelectorAll('.card-strongs .popup-container.is-open').forEach(function (b) { b.classList.remove('is-open'); });
+            if (src.box) src.box.classList.add('is-open');
+
+            var index = cards.indexOf(card);
+            titleEl.textContent = 'Word ' + (index + 1) + ' of ' + cards.length;
+            prevBtn.disabled = index <= 0;
+            nextBtn.disabled = index >= cards.length - 1;
+            var pointed = card.querySelector('.hebrew-with-niqqud');
+            wordEl.textContent = pointed ? pointed.textContent.trim() : '';
+            var gloss = card.querySelector('.card-english');
+            glossEl.innerHTML = gloss ? gloss.innerHTML : '';
+
+            tabsEl.innerHTML = '';
+            list.forEach(function (s) {
+                var tab = document.createElement('button');
+                tab.type = 'button';
+                tab.className = 'lex-panel__tab';
+                tab.setAttribute('role', 'tab');
+                tab.setAttribute('aria-selected', String(s === src));
+                tab.textContent = s.label;
+                tab.addEventListener('click', function () { show(card, s.label); });
+                tabsEl.appendChild(tab);
+            });
+            bodyEl.innerHTML = src.content.innerHTML;
+            bodyEl.scrollTop = 0;
+        }
+
+        function open(card, label, opener) {
+            current.opener = opener || null;
+            show(card, label);
+            panel.classList.add('is-open');
+            panel.setAttribute('aria-hidden', 'false');
+            if (window.matchMedia('(max-width: 1099px)').matches) scrim.hidden = false;
+            document.getElementById('lexPanelClose').focus({ preventScroll: true });
+        }
+
+        function close() {
+            if (!panel.classList.contains('is-open')) return;
+            panel.classList.remove('is-open');
+            panel.setAttribute('aria-hidden', 'true');
+            scrim.hidden = true;
+            cards.forEach(function (c) { c.classList.remove('is-lex-open'); });
+            document.querySelectorAll('.card-strongs .popup-container.is-open').forEach(function (b) { b.classList.remove('is-open'); });
+            if (current.opener && document.contains(current.opener)) current.opener.focus({ preventScroll: true });
+        }
+
+        function triggerFrom(target) {
+            var chip = target.closest('.interlinear-card .card-strongs .popup-container > :first-child');
+            if (chip) return { card: chip.closest('.interlinear-card'), label: NAMES[chip.textContent.trim().toUpperCase()] || chip.textContent.trim(), el: chip };
+            var lxx = target.closest('.interlinear-card .lxx-label.has-stats');
+            if (lxx) return { card: lxx.closest('.interlinear-card'), label: 'LXX', el: lxx };
+            return null;
+        }
+
+        // A click outside the panel closes it; a chip switches it to that word instead.
+        // Only when the press also began outside, so selecting text in the panel and
+        // releasing past its edge doesn't close it.
+        var pressedInside = false;
+        document.addEventListener('pointerdown', function (e) {
+            pressedInside = panel.contains(e.target);
+        }, true);
+        document.addEventListener('click', function (e) {
+            var hit = triggerFrom(e.target);
+            if (hit) {
+                e.preventDefault();
+                open(hit.card, hit.label, hit.el);
+                return;
+            }
+            if (panel.classList.contains('is-open') && !panel.contains(e.target) && !pressedInside) close();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { close(); return; }
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            var hit = e.target && e.target.closest ? triggerFrom(e.target) : null;
+            if (!hit) return;
+            e.preventDefault();
+            open(hit.card, hit.label, hit.el);
+        });
+        document.getElementById('lexPanelClose').addEventListener('click', close);
+        scrim.addEventListener('click', close);
+        prevBtn.addEventListener('click', function () {
+            var i = cards.indexOf(current.card);
+            if (i > 0) show(cards[i - 1], current.label);
+        });
+        nextBtn.addEventListener('click', function () {
+            var i = cards.indexOf(current.card);
+            if (i < cards.length - 1) show(cards[i + 1], current.label);
+        });
+    })();
+</script>
 
 {% endblock %}

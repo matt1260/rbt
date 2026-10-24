@@ -171,6 +171,25 @@ def handle_keyword_search(request, query):
     return redirect(url)
 
 
+def _plain_verse_text(html):
+    """
+    A verse's words as plain text for previews: without section headings, footnote
+    numbers, verse numbers, or image blocks and their notes (mirrors the share
+    buttons' cleanVerseText in verse.html).
+    """
+    if not html:
+        return ''
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, 'html.parser')
+    for el in soup.select(
+        'h1, h2, h3, h4, h5, h6, .rbt-media-row, .tooltip-container, .tooltip, .tooltip2, '
+        '.touch-indicator, a.sdfootnoteanc, sup, .verse_ref, .note-location, img, figure, script, style'
+    ):
+        el.decompose()
+    text = re.sub(r'\s+', ' ', soup.get_text(' '))
+    return re.sub(r'\s+([,.;:!?])', r'\1', text).strip()
+
+
 def handle_single_verse(request, book, chapter_num, verse_num, language):
     """
     Handle single verse display with interlinear data.
@@ -323,13 +342,28 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
 
         rbt = f'<strong>RBT Translation:</strong><div>{rbt}</div>'
 
+        # Short headings for the parallel translation columns on the verse page.
+        column_labels = {
+            'Julia Smith Literal 1876 Translation:': 'Julia Smith Literal 1876',
+            'LITV Translation:': 'LITV',
+            'Brenton Septuagint Translation:': 'Brenton Septuagint',
+        }
+        for long_label, short_label in column_labels.items():
+            slt = slt.replace(f'<strong>{long_label}</strong>', f'<strong>{short_label}</strong>') if slt else slt
+            litv = litv.replace(f'<strong>{long_label}</strong>', f'<strong>{short_label}</strong>') if litv else litv
+            eng_lxx = eng_lxx.replace(f'<strong>{long_label}</strong>', f'<strong>{short_label}</strong>') if eng_lxx else eng_lxx
+
         from django.utils.html import strip_tags
         is_nt = bool(has_nt_data)
         lang_str = "Greek" if is_nt else "Hebrew"
         
-        # Build clean snippet for description
-        clean_text = strip_tags(rbt_text or rbt_paraphrase or '')
-        snippet = f" '{clean_text[:120]}...'" if clean_text else ""
+        # Link previews (meta/og description) quote the paraphrase, as the share buttons
+        # do; NT verses have only the RBT text. The old Genesis `text` column comes last.
+        clean_text = _plain_verse_text(rbt_paraphrase) or _plain_verse_text(results['rbt']) or strip_tags(rbt_text or '').strip()
+        if len(clean_text) > 120:
+            cut = clean_text[:120]
+            clean_text = (cut[:cut.rfind(' ')] if cut.rfind(' ') > 80 else cut).rstrip(' ,;:') + '…'
+        snippet = f" '{clean_text}'" if clean_text else ""
         
         standard_book = re.sub(r'(\d+)([a-zA-Z]+)', r'\1 \2', book)
 
