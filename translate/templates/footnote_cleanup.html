@@ -1,0 +1,387 @@
+{% extends 'base.html' %}
+{% block title %}Footnote clean-up{% if book_name %} · {{ book_name }}{% endif %}{% endblock %}
+{% block content %}
+{% csrf_token %}
+<style>
+  .nv-content-wrap, .container.single-page-container { max-width: 100% !important; }
+  .fnc {
+    --gold: #b78550; --gold-light: #d4a96a; --parchment: #faf7f2; --cream: #f0ebe3; --stone: #8a7e70;
+    --rule: rgba(183, 133, 80, .25); --ink: #1a1611; --ok: #3d7a4a; --bad: #b3261e; --warn: #8a6100;
+    --ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    max-width: 1300px; margin: 0 auto; padding: 8px 0 60px; font-family: var(--ui); font-size: 14px; color: var(--ink);
+  }
+  .fnc [hidden] { display: none !important; }
+  .fnc h1 { margin: 0 0 4px; font-size: 2rem; }
+  .fnc h2 { margin: 26px 0 10px; font-size: 1.35rem; font-variant: small-caps; font-weight: 600; color: #4a3f33; border-bottom: 1px solid var(--rule); padding-bottom: 4px; }
+  .fnc-lede { color: #4a3f33; max-width: 860px; line-height: 1.55; margin: 0 0 14px; }
+  .fnc-bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 14px; background: var(--parchment); border: 1px solid var(--rule); border-radius: 10px; margin-bottom: 14px; }
+  .fnc-bar select { height: 32px; padding: 0 8px; border: 1px solid #d9d2c6; border-radius: 6px; font: 14px var(--ui); background: #fff; }
+  .fnc-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; font: 600 13px var(--ui); color: var(--ink); background: #fff; border: 1px solid #d9d2c6; border-radius: 6px; cursor: pointer; text-decoration: none; }
+  .fnc-btn:hover:not(:disabled) { background: var(--cream); border-color: var(--gold-light); color: var(--ink); }
+  .fnc-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .fnc-btn--primary { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .fnc-btn--primary:hover:not(:disabled) { background: #2f6239; color: #fff; }
+  .fnc-btn--sm { height: 26px; padding: 0 9px; font-size: 12px; }
+  .fnc-btn--ghost { background: transparent; border-style: dashed; }
+  .fnc-grow { flex: 1; }
+  .fnc-stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+  .fnc-stat { padding: 8px 12px; background: #fff; border: 1px solid var(--rule); border-radius: 8px; min-width: 120px; }
+  .fnc-stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .fnc-stat span { font-size: 12px; color: var(--stone); }
+  .fnc-kinds { columns: 2 320px; margin: 0 0 6px; padding: 0; list-style: none; font-size: 13px; color: #4a3f33; }
+  .fnc-kinds li { padding: 2px 0; break-inside: avoid; }
+  .fnc-kinds b { display: inline-block; min-width: 38px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .fnc-banner { padding: 10px 14px; border-radius: 8px; margin: 0 0 14px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .fnc-banner--ok { background: #e8f3ea; color: #2f6239; }
+  .fnc-banner--bad { background: #fbdedf; color: var(--bad); }
+  .fnc-issue { background: #fff; border: 1px solid var(--rule); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
+  .fnc-issue h3 { margin: 0 0 2px; font: 700 13px var(--ui); font-family: var(--ui) !important; text-transform: none; letter-spacing: 0; }
+  .fnc-issue p { margin: 0 0 6px; font-size: 12px; color: var(--stone); }
+  .fnc-ids { display: flex; flex-wrap: wrap; gap: 6px; }
+  .fnc-id { font: 12px ui-monospace, Menlo, monospace; padding: 2px 7px; border-radius: 6px; background: var(--cream); color: var(--ink); text-decoration: none; }
+  a.fnc-id:hover { background: #f3e2c9; }
+  .fnc-card { background: #fff; border: 1px solid #e6dfd3; border-radius: 10px; margin-bottom: 10px; }
+  .fnc-card.is-done { border-color: #b9d8c0; background: #f7fbf8; }
+  .fnc-card__head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; }
+  .fnc-card__id { font: 700 13px ui-monospace, Menlo, monospace; }
+  .fnc-place { font-size: 12px; color: var(--gold); text-decoration: none; font-weight: 600; }
+  .fnc-place:hover { text-decoration: underline; }
+  .fnc-tag { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; background: var(--cream); color: #6b5f50; }
+  .fnc-tag--warn { background: #fdf3d6; color: var(--warn); }
+  .fnc-tag--ok { background: #e8f3ea; color: var(--ok); }
+  .fnc-changes { margin: 0; padding: 0 12px 8px; font-size: 12px; color: #5a5044; }
+  .fnc-card details { border-top: 1px dashed #eee6d9; }
+  .fnc-card summary { cursor: pointer; padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--gold); }
+  .fnc-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 0 12px 12px; }
+  .fnc-col h4 { margin: 0 0 4px; font: 700 11px var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--stone); }
+  .fnc-note { position: relative; overflow: hidden; contain: paint; border: 1px dashed var(--rule); border-radius: 8px; padding: 10px 12px; font-family: Georgia, 'Times New Roman', serif; }
+  .fnc-note img, .fnc-note video { max-width: 100% !important; height: auto !important; }
+  .fnc-table { width: 100%; max-width: 760px; border-collapse: collapse; background: #fff; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+  .fnc-table th, .fnc-table td { padding: 7px 12px; text-align: left; border-bottom: 1px solid #f0e9de; font-variant-numeric: tabular-nums; }
+  .fnc-table th { font: 700 11px var(--ui); letter-spacing: .06em; text-transform: uppercase; color: var(--stone); background: var(--parchment); }
+  .fnc-table a { color: var(--gold); font-weight: 600; text-decoration: none; }
+  .fnc-map { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 4px; }
+  .fnc-renum details summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--gold); margin: 4px 0; }
+  .fnc.is-stale [data-act], .fnc.is-stale #fncApplyAll { pointer-events: none; opacity: .45; }
+  @media (max-width: 760px) { .fnc-cols { grid-template-columns: minmax(0, 1fr); } }
+</style>
+
+<div class="fnc" id="fnc" data-book="{{ book|default:'' }}"
+     data-api-apply="{% url 'footnote_cleanup_apply' %}" data-api-restore="{% url 'footnote_cleanup_restore' %}"
+     data-api-renumber="{% url 'footnote_renumber' %}">
+  <h1>Footnote clean-up</h1>
+  <p class="fnc-lede">
+    Puts New Testament footnotes in one consistent form: the same paragraphs, lists and headings,
+    no stray classes, fonts or pasted page markup. The wording never changes. Every clean-up
+    downloads a backup of what it replaced, and <em>Undo</em> or <em>Restore</em> puts it back.
+    <em>Numbering</em> gives a book's footnotes whole numbers again, in reading order.
+  </p>
+
+  <div class="fnc-bar">
+    <label for="fncBook"><strong>Book</strong></label>
+    <select id="fncBook" aria-label="Book">
+      <option value="">Choose a book…</option>
+      {% for b in books %}<option value="{{ b.abbrev }}"{% if b.abbrev == book %} selected{% endif %}>{{ b.name }}</option>{% endfor %}
+      <option value="all"{% if book == 'all' %} selected{% endif %}>All books (slower)</option>
+    </select>
+    <span class="fnc-grow"></span>
+    <label class="fnc-btn fnc-btn--ghost" title="Put back footnotes from a backup file this page downloaded">
+      Restore from a backup file…<input type="file" id="fncRestoreFile" accept="application/json,.json" hidden>
+    </label>
+  </div>
+
+  <div id="fncBanner" class="fnc-banner" hidden></div>
+
+  {% if plan %}
+    <div class="fnc-stats">
+      <div class="fnc-stat"><b id="fncLeft">{{ plan.updates|length }}</b><span>footnotes to clean up</span></div>
+      <div class="fnc-stat"><b>{{ plan.unchanged }}</b><span>already clean</span></div>
+      <div class="fnc-stat"><b>{{ plan.deletes|length }}</b><span>repeated rows to drop{% if duplicate_ids %} ({{ duplicate_ids|length }} ids){% endif %}</span></div>
+      <div class="fnc-stat"><b>{{ translations }}</b><span>translations kept in step</span></div>
+    </div>
+    {% if book != 'all' %}
+    <div class="fnc-bar">
+      <button type="button" class="fnc-btn fnc-btn--primary" id="fncApplyAll"{% if not plan.updates and not plan.deletes %} disabled{% endif %}>
+        Clean up all {{ plan.updates|length }} in {{ book_name }}{% if plan.deletes %} and drop {{ plan.deletes|length }} repeated rows{% endif %}
+      </button>
+      <span class="fnc-muted" style="font-size:12px; color:#8a7e70;">Downloads a backup first. Pages that show these notes are refreshed.</span>
+    </div>
+
+    <h2>Numbering</h2>
+    <section class="fnc-renum" id="fncRenum" data-token="{{ renumber.token }}">
+      {% if renumber.needed %}
+      <p class="fnc-lede">
+        {% if renumber.changes %}{{ renumber.changes|length }} of {{ renumber.total }} footnotes in {{ book_name }} get new numbers,
+        so they run 1–{{ renumber.total }} in the order readers meet them, with no letters (8a, 7c).{% endif %}
+        Readers see the same notes; only the numbers in the links change{% if renumber.footnote_translations or renumber.verse_translations %},
+        and translations move with them ({{ renumber.footnote_translations|length }} translated footnotes,
+        {{ renumber.verse_translations|length }} translated verses, still current){% endif %}.
+        A <code>?footnote=</code> link saved or shared before renumbering opens the note that has its number afterwards.
+      </p>
+      <div class="fnc-bar">
+        <button type="button" class="fnc-btn fnc-btn--primary" id="fncRenumber">Renumber {{ book_name }}’s footnotes</button>
+        <span style="font-size:12px; color:#8a7e70;">Rewrites the links in {{ renumber.verses|length }} verses. Downloads a backup first; Undo puts the old numbers back.</span>
+      </div>
+      {% if renumber.moved %}
+      <div class="fnc-issue">
+        <h3>Markers that named another verse ({{ renumber.moved|length }})</h3>
+        <p>Their links will name the verse they sit in, so the footnote shows the right reference.</p>
+        <div class="fnc-ids">{% for m in renumber.moved %}<a class="fnc-id" href="/edit/?book={{ m.place.book|urlencode }}&amp;chapter={{ m.place.chapter }}&amp;verse={{ m.place.verse }}&amp;footnote={{ m.ref }}" target="_blank" rel="noopener">{{ m.place.book }} {{ m.place.chapter }}:{{ m.place.verse }} (said {{ m.named }})</a>{% endfor %}</div>
+      </div>
+      {% endif %}
+      {% if renumber.unlinked %}
+      <div class="fnc-issue">
+        <h3>Footnotes no verse links to ({{ renumber.unlinked|length }})</h3>
+        <p>Numbered after the rest; nothing is deleted.</p>
+        <div class="fnc-ids">{% for u in renumber.unlinked %}<span class="fnc-id">{{ u.old }} → {{ u.new }}</span>{% endfor %}</div>
+      </div>
+      {% endif %}
+      {% if renumber.missing %}
+      <div class="fnc-issue">
+        <h3>Links to a footnote that doesn't exist ({{ renumber.missing|length }})</h3>
+        <p>They keep their place in the order and stay broken until the note is written.</p>
+        <div class="fnc-ids">{% for u in renumber.missing %}<a class="fnc-id" href="/edit/?book={{ u.place.book|urlencode }}&amp;chapter={{ u.place.chapter }}&amp;verse={{ u.place.verse }}" target="_blank" rel="noopener">{{ u.old }} → {{ u.new }} ({{ u.place.chapter }}:{{ u.place.verse }})</a>{% endfor %}</div>
+      </div>
+      {% endif %}
+      {% if renumber.changes %}
+      <details>
+        <summary>Old and new numbers ({{ renumber.changes|length }})</summary>
+        <div class="fnc-map">{% for c in renumber.changes %}{% if c.place %}<a class="fnc-id" href="/edit/?book={{ c.place.book|urlencode }}&amp;chapter={{ c.place.chapter }}&amp;verse={{ c.place.verse }}&amp;footnote={{ c.old }}" target="_blank" rel="noopener" title="{{ c.place.book }} {{ c.place.chapter }}:{{ c.place.verse }}">{{ c.old }} → {{ c.new }}</a>{% else %}<span class="fnc-id" title="No verse links to this footnote">{{ c.old }} → {{ c.new }}</span>{% endif %}{% endfor %}</div>
+      </details>
+      {% endif %}
+      {% else %}
+      <p class="fnc-lede">All {{ renumber.total }} footnotes in {{ book_name }} are numbered 1–{{ renumber.total }} in reading order.</p>
+      {% endif %}
+      {% if renumber.odd %}
+      <p style="font-size:12px; color:#8a7e70;">Left alone (not like “{{ book }}-12”, so nothing can link to them): {{ renumber.odd|join:", " }}</p>
+      {% endif %}
+    </section>
+    {% else %}
+    <h2>By book</h2>
+    <table class="fnc-table">
+      <thead><tr><th>Book</th><th>To clean up</th><th>Repeated rows</th><th>To look at</th><th>To renumber</th></tr></thead>
+      <tbody>
+        {% for row in per_book %}
+        <tr><td><a href="?book={{ row.abbrev }}">{{ row.name }}</a></td><td>{{ row.updates }}</td><td>{{ row.deletes|default:"" }}</td><td>{{ row.issues|default:"" }}</td><td>{{ row.renumber|default:"" }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if kinds %}
+    <h2>What changes</h2>
+    <ul class="fnc-kinds">{% for k, n in kinds %}<li><b>{{ n }}</b> {{ k }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    {% if has_issues %}<h2>Look at by hand</h2>{% endif %}
+    {% for title, help, items in issues %}{% if items %}
+    <div class="fnc-issue">
+      <h3>{{ title }} ({{ items|length }})</h3>
+      <p>{{ help }}</p>
+      <div class="fnc-ids">
+        {% for it in items %}
+          {% if it.places %}{% with p=it.places.0 %}<a class="fnc-id" href="/edit/?book={{ p.book|urlencode }}&amp;chapter={{ p.chapter }}&amp;verse={{ p.verse }}&amp;footnote={{ it.ref }}" target="_blank" rel="noopener" title="{{ p.book }} {{ p.chapter }}:{{ p.verse }}">{{ it.fid }}</a>{% endwith %}
+          {% else %}<span class="fnc-id" title="No verse links to this footnote">{{ it.fid }}</span>{% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}{% endfor %}
+
+    {% if plan.updates and book != 'all' %}
+    <h2>Footnotes to clean up</h2>
+    {% for u in plan.updates %}
+    <article class="fnc-card" id="fn-{{ u.fid }}" data-fid="{{ u.fid }}">
+      <div class="fnc-card__head">
+        <span class="fnc-card__id">{{ u.fid }}</span>
+        {% for p in u.places %}<a class="fnc-place" href="/edit/?book={{ p.book|urlencode }}&amp;chapter={{ p.chapter }}&amp;verse={{ p.verse }}&amp;footnote={{ u.ref }}" target="_blank" rel="noopener">{{ p.book }} {{ p.chapter }}:{{ p.verse }} ✎</a>{% empty %}<span class="fnc-tag">no verse links here</span>{% endfor %}
+        {% if u.copies > 1 %}<span class="fnc-tag fnc-tag--warn">{{ u.copies }} stored copies</span>{% endif %}
+        <span class="fnc-tag fnc-tag--ok" data-role="done" hidden>cleaned</span>
+        <span class="fnc-grow"></span>
+        {% if book != 'all' %}
+        <button type="button" class="fnc-btn fnc-btn--sm" data-act="apply">Clean up</button>
+        <button type="button" class="fnc-btn fnc-btn--sm fnc-btn--ghost" data-act="undo" hidden>Undo</button>
+        {% endif %}
+      </div>
+      <p class="fnc-changes">{{ u.changes|join:" · " }}</p>
+      <details>
+        <summary>Before and after</summary>
+        <div class="fnc-cols">
+          <div class="fnc-col"><h4>Before</h4><div class="fnc-note rbt-notes">{{ u.old|safe }}</div></div>
+          <div class="fnc-col"><h4>After</h4><div class="fnc-note rbt-notes">{{ u.new|safe }}</div></div>
+        </div>
+      </details>
+    </article>
+    {% endfor %}
+    {% endif %}
+  {% elif book is None and request.GET.book %}
+    <div class="fnc-banner fnc-banner--bad">No footnotes for “{{ request.GET.book }}”.</div>
+  {% endif %}
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const root = document.getElementById('fnc');
+  const api = root.dataset;
+  const banner = document.getElementById('fncBanner');
+
+  function csrf() {
+    const input = document.querySelector('[name=csrfmiddlewaretoken]');
+    return input ? input.value : '';
+  }
+  async function post(url, body) {
+    const response = await fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    });
+    let data = null;
+    try { data = await response.json(); } catch (e) { /* not JSON */ }
+    if (!response.ok) throw new Error((data && data.error) || `Server error ${response.status}`);
+    return data;
+  }
+  function say(html, ok) {
+    banner.className = 'fnc-banner ' + (ok ? 'fnc-banner--ok' : 'fnc-banner--bad');
+    banner.innerHTML = html;
+    banner.hidden = false;
+    banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  function download(backup, label) {
+    const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+    const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `footnote-backup-${label}-${stamp}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  function plural(n, word) { return `${n} ${word}${n === 1 ? '' : 's'}`; }
+  function describe(s) {
+    return `${plural(s.updated, 'footnote')} cleaned` + (s.deleted ? `, ${plural(s.deleted, 'repeated row')} dropped` : '') +
+      (s.translations ? `, ${plural(s.translations, 'translation')} kept in step` : '');
+  }
+  function markDone(fids, done) {
+    fids.forEach((fid) => {
+      const card = document.getElementById('fn-' + fid);
+      if (!card) return;
+      card.classList.toggle('is-done', done);
+      card.querySelector('[data-role=done]').hidden = !done;
+      const apply = card.querySelector('[data-act=apply]'); if (apply) apply.hidden = done;
+      const undo = card.querySelector('[data-act=undo]'); if (undo) undo.hidden = !done;
+    });
+    const left = document.getElementById('fncLeft');
+    if (left) left.textContent = String(document.querySelectorAll('.fnc-card:not(.is-done)').length);
+  }
+
+  document.getElementById('fncBook').addEventListener('change', (e) => {
+    if (e.target.value) window.location.search = '?book=' + encodeURIComponent(e.target.value);
+  });
+
+  // One footnote: clean it; Undo puts back what it replaced.
+  const undoBackups = new Map();
+  root.addEventListener('click', async (e) => {
+    const button = e.target.closest('[data-act]');
+    if (!button) return;
+    const card = button.closest('.fnc-card');
+    const fid = card.dataset.fid;
+    button.disabled = true;
+    try {
+      if (button.dataset.act === 'apply') {
+        const data = await post(api.apiApply, { book: api.book, ids: [fid] });
+        if (data.backup) undoBackups.set(fid, data.backup);
+        markDone([fid], true);
+      } else if (button.dataset.act === 'undo') {
+        const backup = undoBackups.get(fid);
+        if (!backup) return;
+        await post(api.apiRestore, backup);
+        undoBackups.delete(fid);
+        markDone([fid], false);
+      }
+    } catch (err) {
+      say(`${fid}: ${err.message}`, false);
+    } finally { button.disabled = false; }
+  });
+
+  // The whole book: download the backup, then offer Undo.
+  const applyAll = document.getElementById('fncApplyAll');
+  if (applyAll) applyAll.addEventListener('click', async () => {
+    if (!window.confirm(`${applyAll.textContent.trim()}?\n\nA backup of the originals downloads first; Undo or "Restore from a backup file" puts it back.`)) return;
+    applyAll.disabled = true;
+    try {
+      const data = await post(api.apiApply, { book: api.book });
+      if (!data.backup) { say('Nothing to clean up.', true); return; }
+      download(data.backup, api.book);
+      markDone(data.ids, true);
+      say(`${describe(data.summary)}. The backup was downloaded. <button type="button" class="fnc-btn fnc-btn--sm" id="fncUndoAll">Undo</button>`, true);
+      document.getElementById('fncUndoAll').addEventListener('click', async (ev) => {
+        ev.target.disabled = true;
+        try {
+          const r = await post(api.apiRestore, data.backup);
+          markDone(data.ids, false);
+          say(`Put back ${plural(r.summary.ids, 'footnote')} as they were.`, true);
+          applyAll.disabled = false;
+        } catch (err) { say(`Undo failed: ${err.message}. The downloaded backup can still be restored.`, false); }
+      });
+    } catch (err) {
+      applyAll.disabled = false;
+      say(`Clean-up failed: ${err.message}. Nothing was written.`, false);
+    }
+  });
+
+  // Renumber the book: download the backup, then offer Undo. The clean-up buttons below name
+  // footnotes by their old numbers, so they wait for a reload.
+  const renumberButton = document.getElementById('fncRenumber');
+  if (renumberButton) renumberButton.addEventListener('click', async () => {
+    const section = document.getElementById('fncRenum');
+    if (!window.confirm(`${renumberButton.textContent.trim()}?\n\nA backup of the old numbers downloads first; Undo or "Restore from a backup file" puts them back.`)) return;
+    renumberButton.disabled = true;
+    try {
+      const data = await post(api.apiRenumber, { book: api.book, token: section.dataset.token });
+      if (!data.backup) { say('Already numbered in order.', true); return; }
+      download(data.backup, 'renumber-' + api.book);
+      root.classList.add('is-stale');
+      const s = data.summary;
+      say(`Renumbered ${plural(s.renumbered, 'footnote')} in ${plural(s.verses, 'verse')}` +
+        (s.translations ? `, ${plural(s.translations, 'translation')} moved with them` : '') +
+        `. The backup was downloaded. <button type="button" class="fnc-btn fnc-btn--sm" id="fncUndoRenumber">Undo</button> <a href="">Reload</a> to see the new numbers.`, true);
+      document.getElementById('fncUndoRenumber').addEventListener('click', async (ev) => {
+        ev.target.disabled = true;
+        try {
+          await post(api.apiRestore, data.backup);
+          root.classList.remove('is-stale');
+          renumberButton.disabled = false;
+          say('The old numbers are back.', true);
+        } catch (err) { ev.target.disabled = false; say(`Undo failed: ${err.message} The downloaded backup can still be restored.`, false); }
+      });
+    } catch (err) {
+      renumberButton.disabled = false;
+      say(`Renumbering failed: ${err.message}`, false);
+    }
+  });
+
+  // Restore from a downloaded backup file.
+  document.getElementById('fncRestoreFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    let backup;
+    try { backup = JSON.parse(await file.text()); } catch (err) { say('That file is not a footnote backup.', false); return; }
+    const made = backup.created || 'at an unknown time';
+    if (backup.kind === 'rbt-footnote-renumber-backup') {
+      if (!window.confirm(`Put back the old footnote numbers in ${backup.name || backup.book} from “${file.name}” (made ${made})?`)) return;
+      try {
+        await post(api.apiRestore, backup);
+        say(`The old numbers in ${backup.name || backup.book} are back. <a href="">Reload</a> to see them.`, true);
+      } catch (err) { say(`Restore failed: ${err.message}`, false); }
+      return;
+    }
+    const n = (backup.footnotes || []).length;
+    if (!n || !window.confirm(`Put back ${plural(n, 'footnote row')} from “${file.name}” (made ${made})?\n\nAny edits to those footnotes since then are replaced.`)) return;
+    try {
+      const r = await post(api.apiRestore, backup);
+      say(`Restored ${plural(r.summary.ids, 'footnote')} from ${file.name}. <a href="">Reload</a> to see the current state.`, true);
+    } catch (err) { say(`Restore failed: ${err.message}`, false); }
+  });
+})();
+</script>
+{% endblock %}

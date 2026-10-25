@@ -13,16 +13,17 @@ import re
 from datetime import datetime
 from functools import wraps
 
-from bs4 import BeautifulSoup
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
 from search.views.chapter_views_part1 import fetch_greek_interlinear_rows
 from translate.db_utils import execute_query
+from translate.footnote_cleanup import normalize_html as normalize_footnote_html
+from translate.footnote_maintenance import carry_translations
 from translate.translator import book_abbreviations, new_testament_books
 from search.views.translation_views import _nt_footnote_table
 from search.models import TranslationUpdates
-from translate.views import _invalidate_reader_cache, _safe_save_update, save_nt_verse_html
+from translate.views import _clear_reader_cache, _safe_save_update, save_nt_verse_html
 
 logger = logging.getLogger(__name__)
 
@@ -182,17 +183,9 @@ def _footnote_location(book_abbrev, ref):
 
 
 def _normalize_footnote_html(html):
-    """As the footnote edit page saves it (translate/views.py edit_footnote): no editor
-    attributes, and paragraphs and lists carry the rbt_footnote class."""
-    soup = BeautifulSoup(_strip_editor_artifacts(html), 'html.parser')
-    for tag in soup.find_all(True):
-        for attr in ('data-start', 'data-end'):
-            tag.attrs.pop(attr, None)
-    for tag in soup.find_all(['p', 'ul']):
-        classes = tag.get('class', [])
-        if 'rbt_footnote' not in classes:
-            tag['class'] = classes + ['rbt_footnote']
-    return str(soup)
+    """The one clean footnote form (translate/footnote_cleanup.py): no editor or paste
+    attributes, no rbt_footnote classes (pages style footnote text by where it is shown)."""
+    return normalize_footnote_html(_strip_editor_artifacts(html))
 
 
 @staff_json
@@ -243,6 +236,10 @@ def footnote(request):
             status=409,
         )
 
+    # Saving what was loaded, untouched, writes nothing (an old note isn't rewritten just by
+    # opening it); any edit is stored in the clean form.
+    if _strip_editor_artifacts(html).strip() == current_html.strip():
+        return JsonResponse({'hash': base_hash, 'html': current_html})
     html = _normalize_footnote_html(html)
     if html != current_html:
         execute_query(
@@ -255,6 +252,8 @@ def footnote(request):
             reference=f'{book} {chapter_num}:{verse_num} - {footnote_id}',
             update_text=f'Updated footnote for Footnote <b>{footnote_id}</b>:<br> {html}.',
         ))
-        _invalidate_reader_cache(book, chapter_num, verse_num)
+        # A formatting-only edit (same wording) keeps the note's translations current.
+        carry_translations(book_abbrev, ref, current_html, html)
+        _clear_reader_cache(book, chapter_num, verse_num)  # the verse itself is unchanged: keep its translations
         logger.info('[CHAPTER EDITOR] %s saved footnote %s (%s %s:%s)', request.user.username, footnote_id, book, chapter_num, verse_num)
     return JsonResponse({'hash': _verse_hash(html), 'html': html})

@@ -173,18 +173,14 @@ def gpt_translate(hebrew_construct: str | None, morph_data: str | None, english_
 
 
 def _invalidate_reader_cache(book: str | None, chapter: str | int | None, verse: str | int | None = None) -> list[str]:
-    """Remove cached reader entries for the requested location, including all language versions."""
-    deleted_keys: list[str] = []
+    """
+    The verse's English changed: delete its translations (so they're made again from the new
+    English) and remove its cached reader entries in every language.
+    """
     if not book or chapter in (None, ''):
-        return deleted_keys
+        return []
 
-    # Import supported languages to clear all language caches
-    from search.translation_utils import SUPPORTED_LANGUAGES
     from search.models import VerseTranslation
-    all_languages = ['en'] + list(SUPPORTED_LANGUAGES.keys())
-
-    sanitized_book = str(book).replace(':', '_').replace(' ', '')
-    chapter_str = str(chapter)
 
     # Delete translation records so they get re-translated with new English text
     try:
@@ -212,7 +208,24 @@ def _invalidate_reader_cache(book: str | None, chapter: str | int | None, verse:
         # If deletion fails, log but continue - cache will still be cleared below
         logger.error(f"Error deleting verse translations: {e}")
 
-    # Clear cache for each language
+    return _clear_reader_cache(book, chapter, verse)
+
+
+def _clear_reader_cache(book: str | None, chapter: str | int | None, verse: str | int | None = None) -> list[str]:
+    """
+    Remove cached reader entries for the location in every language, keeping its translations.
+    For changes that leave the verse's English as it was (a footnote edit), unlike
+    _invalidate_reader_cache, which also deletes the verse's translations.
+    """
+    deleted_keys: list[str] = []
+    if not book or chapter in (None, ''):
+        return deleted_keys
+
+    from search.translation_utils import SUPPORTED_LANGUAGES
+    all_languages = ['en'] + list(SUPPORTED_LANGUAGES.keys())
+    sanitized_book = str(book).replace(':', '_').replace(' ', '')
+    chapter_str = str(chapter)
+
     for lang in all_languages:
         if verse not in (None, '', 'None'):
             verse_str = str(verse)
@@ -1317,6 +1330,16 @@ def edit_footnote(request):
         footnoteid = parts[2]
 
         if book in nt_abbrev or book in new_testament_books:
+            # NT footnotes are edited in the verse editor now: open the verse with this note.
+            full_book = book if book in new_testament_books else (convert_book_name(book) or book)
+            if footnoteid and chapter_num.isdigit() and verse_num.isdigit():
+                from urllib.parse import urlencode
+                # ?footnote= opens and focuses the note (a #fragment would make the browser
+                # jump there itself once the note appears, taking focus away from it).
+                return redirect('/edit/?' + urlencode({
+                    'book': full_book, 'chapter': chapter_num, 'verse': verse_num, 'footnote': footnoteid,
+                }))
+
             # Accept both abbreviation (e.g., 'Joh') and full name ('John')
             footnote_id = book + '-' + footnoteid
             footnote_table = book + '_footnotes'

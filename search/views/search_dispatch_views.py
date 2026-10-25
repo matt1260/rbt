@@ -296,8 +296,9 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
                             footnote_contents[idx] = swapped
 
         if footnote_contents:
-            footnotes_content = "<p> ".join(footnote_contents)
-            footnotes_content = f'<div style="font-size: 12px;">{footnotes_content}</div>'
+            # Table rows, placed straight into the template's <table> (a wrapping <div> and
+            # "<p>" separators there were invalid HTML that browsers rearranged).
+            footnotes_content = "\n".join(footnote_contents)
         else:
             footnotes_content = ''
         
@@ -340,7 +341,7 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
                     translated_verse = trans.verse_text
                     translated_language_label = dict(SUPPORTED_LANGUAGES).get(language, language)
 
-        rbt = f'<strong>RBT Translation:</strong><div>{rbt}</div>'
+        # The 'RBT Translation' heading is in the template, styled like the page's other headings.
 
         # Short headings for the parallel translation columns on the verse page.
         column_labels = {

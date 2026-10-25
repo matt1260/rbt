@@ -33,7 +33,7 @@ class FootnoteEndpointTests(SimpleTestCase):
             return None
 
         for target, value in (('execute_query', execute_query), ('_safe_save_update', mock.Mock()),
-                              ('_invalidate_reader_cache', mock.Mock())):
+                              ('_clear_reader_cache', mock.Mock()), ('carry_translations', mock.Mock())):
             patcher = mock.patch.object(api, target, value)
             self.addCleanup(patcher.stop)
             setattr(self, target, patcher.start())
@@ -62,11 +62,12 @@ class FootnoteEndpointTests(SimpleTestCase):
                               'html': '<p data-start="3">New <span style="color: blue;">note</span>.</p>'})
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
-        self.assertEqual(data['html'], '<p class="rbt_footnote">New <span style="color: blue;">note</span>.</p>')
+        self.assertEqual(data['html'], '<p>New <span style="color: blue;">note</span>.</p>')
         self.assertEqual(data['hash'], api._verse_hash(data['html']))
         self.assertIn(('UPDATE new_testament.joh_footnotes SET footnote_html = %s WHERE footnote_id = %s', (data['html'], 'Joh-70a')), self.queries)
         self.assertEqual(self._safe_save_update.call_args[0][0].reference, 'John 2:5 - Joh-70a')
-        self._invalidate_reader_cache.assert_called_once_with('John', 2, 5)
+        self._clear_reader_cache.assert_called_once_with('John', 2, 5)
+        self.carry_translations.assert_called_once_with('Joh', '70a', STORED, data['html'])
 
     def test_conflict_and_permissions(self):
         stale = self.post({'book': 'John', 'chapter': 2, 'verse': 5, 'ref': '70a', 'base_hash': 'old', 'html': '<p>x</p>'})
@@ -80,4 +81,4 @@ class FootnoteEndpointTests(SimpleTestCase):
         response = self.post({'book': 'John', 'chapter': 2, 'verse': 5, 'ref': '70a', 'base_hash': api._verse_hash(STORED), 'html': STORED})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(any(sql.startswith('UPDATE') for sql, _ in self.queries))
-        self._invalidate_reader_cache.assert_not_called()
+        self._clear_reader_cache.assert_not_called()

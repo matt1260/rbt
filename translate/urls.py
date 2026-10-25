@@ -2,7 +2,7 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 from django.urls import include
 
-from . import views, chapter_editor_api, paraphrase_api, ot_editor
+from . import views, chapter_editor_api, paraphrase_api, ot_editor, nt_editor_api, footnote_cleanup_views
 
 urlpatterns = [
 
@@ -38,6 +38,13 @@ urlpatterns = [
     path('api/chapter-editor/verse/', chapter_editor_api.save_verse, name='chapter_editor_save_verse'),
     path('api/chapter-editor/interlinear/', chapter_editor_api.interlinear, name='chapter_editor_interlinear'),
     path('api/chapter-editor/footnote/', chapter_editor_api.footnote, name='chapter_editor_footnote'),
+    path('footnotes/cleanup/', footnote_cleanup_views.page, name='footnote_cleanup'),
+    path('api/footnotes/cleanup/apply/', footnote_cleanup_views.apply, name='footnote_cleanup_apply'),
+    path('api/footnotes/cleanup/restore/', footnote_cleanup_views.restore, name='footnote_cleanup_restore'),
+    path('api/footnotes/renumber/', footnote_cleanup_views.renumber, name='footnote_renumber'),
+    path('api/nt-editor/state/', nt_editor_api.state, name='nt_editor_state'),
+    path('api/nt-editor/footnote/create/', nt_editor_api.create_footnote, name='nt_editor_footnote_create'),
+    path('api/nt-editor/footnote/normalize/', nt_editor_api.normalize_footnote_preview, name='nt_editor_footnote_normalize'),
     path('ot/', ot_editor.ot_editor, name='ot_editor'),
     path('api/ot/gloss/', ot_editor.save_gloss, name='ot_editor_gloss'),
     path('api/ot/morphology/', ot_editor.save_morphology, name='ot_editor_morphology'),

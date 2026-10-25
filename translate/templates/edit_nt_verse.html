@@ -7,6 +7,7 @@
 <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="{% static 'interlinear-editor.js' %}" defer></script>
+<link rel="stylesheet" href="{% static 'nt-verse-editor.css' %}">
 
 <style>
     .highlight {
@@ -736,108 +737,6 @@
 </style>
 
 
-<script>
-    function applyHayahStyle(style) {
-        var textArea = document.getElementById('editor-texto');
-        var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
-
-        if (selectedText) {
-            var styledText = `<span class="hayah">${selectedText}</span>`;
-            var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
-            textArea.value = newText;
-        }
-    }
-</script>
-
-
-<script>
-    $(document).ready(function () {
-        // Function to update dynamic content
-        function updateDynamicContent() {
-            // Get the values for chapter_num and verse_num
-            var chapterNum = '{{chapter_num}}';
-            var verseNum = '{{verse_num}}';
-
-            // Get the value from the input field
-            var inputValue = $('#footnote_id').val();
-
-            // Prepend '{{chapter_num}}-{{verse_num}}-' to the input value
-            inputValue = chapterNum + '-' + verseNum + '-' + inputValue;
-
-            // Append '&{book}' to the end of the input value
-            inputValue += '&book={{book_abbrev}}';
-
-            // Update the content of the span element
-            $('#dynamic_content').text(inputValue);
-        }
-
-        // Attach an event listener to the input field to detect changes
-        $('#footnote_id').on('input', updateDynamicContent);
-    });
-</script>
-
-<script>
-    $(document).ready(function () {
-        // Function to update dynamic content
-        function updateDynamicContent2() {
-
-            // Get the value from the input field
-            var inputValue = $('#footnote_id').val();
-
-            // Update the content of the span element
-            $('#dynamic_content2').text(inputValue);
-        }
-
-        // Attach an event listener to the input field to detect changes
-        $('#footnote_id').on('input', updateDynamicContent2);
-    });
-</script>
-
-
-<script>
-    function copyText() {
-        // Get the text from rbt_display
-        var rbtText = document.querySelector('.single_verse').innerText;
-
-        // Replace dashes with spaces
-        var editedParaphraseText = rbtText.replace(/-/g, ' ');
-
-        // Remove the word 'becoming' from the text
-        editedParaphraseText = editedParaphraseText.replace(/\bbecoming\b/g, '');
-
-        // Replace 'אֶת' with '[from beginning to end]'
-        editedParaphraseText = editedParaphraseText.replace(/אֶת/g, '[from beginning to end]');
-
-        // Replace 'את' with '[from beginning to end with]'
-        editedParaphraseText = editedParaphraseText.replace(/את/g, '[from beginning to end with]');
-
-        // Replace 'elohim' with 'mighty ones'
-        editedParaphraseText = editedParaphraseText.replace(/elohim/g, 'mighty ones');
-
-        // Replace 'heavens' with 'mighty ones'
-        editedParaphraseText = editedParaphraseText.replace(/heavens/g, 'heavenly ones');
-
-        // Replace 'waters' with 'mighty ones'
-        editedParaphraseText = editedParaphraseText.replace(/waters/g, 'water ones');
-
-        // Replace 'Heavens' with 'mighty ones'
-        editedParaphraseText = editedParaphraseText.replace(/Heavens/g, 'Heavenly ones');
-
-        // Replace 'Waters' with 'mighty ones'
-        editedParaphraseText = editedParaphraseText.replace(/Waters/g, 'Water ones');
-
-        // Replace 'whole' with 'all'
-        editedParaphraseText = editedParaphraseText.replace(/the whole/g, 'all');
-
-        editedParaphraseText = editedParaphraseText.replace(/amen/g, '<b>amen</b>');
-
-        // Remove numbers from the text
-        editedParaphraseText = editedParaphraseText.replace(/\d+/g, '');
-
-        // Set the modified text in the edited_paraphrase textarea
-        document.getElementById('edited_paraphrase').value = editedParaphraseText;
-    }
-</script>
 
 
 
@@ -878,74 +777,148 @@ Cached: {{ cached_hit }}
         {{ edit_result|safe }}
     </div>
 
-    <strong>RBT Translation:</strong><br>
-    <div class="single_verse">
-        <span id="englishReader">{{ rbt_display|safe }}</span>
-    </div>
-
-    <form method="post" action="./" id="translation-edit-form">
+    {# ---- Inline verse editor (static/nt-verse-editor.js) ---- #}
+    <section id="nve" class="nve"
+             data-book="{{ book2|default:book }}" data-chapter="{{ chapter_num }}" data-verse="{{ verse_num }}"
+             data-literal="{{ linear_english|default:'' }}"
+             data-api-state="{% url 'nt_editor_state' %}"
+             data-api-verse="{% url 'chapter_editor_save_verse' %}"
+             data-api-footnote="{% url 'chapter_editor_footnote' %}"
+             data-api-footnote-create="{% url 'nt_editor_footnote_create' %}"
+             data-api-normalize="{% url 'nt_editor_footnote_normalize' %}">
         {% csrf_token %}
-        <textarea id="editor-texto" name="edited_content" rows="8" cols="80"
-            oninput="updateReader(this.value)">{{ rbt|safe }}</textarea>
-        <input type="hidden" name="verse_id" id="verse_id" value="{{ verse_id }}">
-        <input type="hidden" name="book" id="book" value="{{ book2 }}">
-        <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
-        <input type="hidden" name="verse" id="verse" value="{{ verse_num }}">
-
-        <div class="editor-toolbar">
-            <div class="toolbar-group">
-                <button type="submit" id="save-button" class="tb-btn tb-btn--save">Save</button>
-            </div>
-
-            <div class="toolbar-group" role="group" aria-label="Formatting">
-                <span class="toolbar-group__label">Format</span>
-                <button type="button" class="tb-btn" title="Bold" aria-label="Bold"
-                    onclick="applyBoldStyle(); updateReader(document.getElementById('editor-texto').value)"><b>B</b></button>
-                <button type="button" class="tb-btn" title="Hayah" aria-label="Hayah"
-                    onclick="applyHayahStyle('hayah'); updateReader(document.getElementById('editor-texto').value)"><i>היה</i></button>
-                <button type="button" class="tb-btn" title="Heading 5" aria-label="Heading 5"
-                    onclick="applyh5Style(); updateReader(document.getElementById('editor-texto').value)">h5</button>
-                <button type="button" class="tb-btn" title="Hebrew header" aria-label="Hebrew header"
-                    onclick="applyHebrewHeaderStyle(); updateReader(document.getElementById('editor-texto').value)"><span class="hdr-icon hebrew">א</span></button>
-                <button type="button" class="tb-btn" title="Greek header" aria-label="Greek header"
-                    onclick="applyGreekHeaderStyle(); updateReader(document.getElementById('editor-texto').value)"><span class="hdr-icon greek">Ω</span></button>
-                <button type="button" class="tb-btn tb-btn--swatch tb-btn--pink" title="Pink text" aria-label="Pink text"
-                    onclick="applyFontColor('#ff00aa'); updateReader(document.getElementById('editor-texto').value)"><i class="fas fa-circle"></i></button>
-                <button type="button" class="tb-btn tb-btn--swatch tb-btn--blue" title="Blue text" aria-label="Blue text"
-                    onclick="applyFontColor('blue'); updateReader(document.getElementById('editor-texto').value)"><i class="fas fa-circle"></i></button>
-                <button type="button" class="tb-btn" title="Center" aria-label="Center"
-                    onclick="applyCenterStyle(); updateReader(document.getElementById('editor-texto').value)"><i class="fas fa-align-center"></i></button>
-                <button type="button" class="tb-btn" title="Center last line" aria-label="Center last line"
-                    onclick="applyLastCenterStyle(); updateReader(document.getElementById('editor-texto').value)"><i class="fas fa-align-center"></i><span class="tb-btn__text">Last</span></button>
-                <button type="button" class="tb-btn" title="Sun" aria-label="Sun"
-                    onclick="applySunStyle(); updateReader(document.getElementById('editor-texto').value)">☀️</button>
-                <button type="button" class="tb-btn" id="copy-linear" title="Copy interlinear English">Copy Eng</button>
-            </div>
-
-            <div class="toolbar-group" role="group" aria-label="Insert media">
-                <span class="toolbar-group__label">Insert</span>
-                <input type="text" id="imageUrlInput" class="tb-input" placeholder="Image URL">
-                <button type="button" class="tb-btn" id="generate-code-button">Add image</button>
-                <input type="text" id="videoUrlInput" class="tb-input" placeholder="Video URL">
-                <button type="button" class="tb-btn" id="generate-video-button">Add video</button>
-            </div>
-
-            <div class="toolbar-group" role="group" aria-label="AI suggestions">
-                <span class="toolbar-group__label">AI</span>
-                <button type="button" class="tb-btn tb-btn--ai tb-btn--gemini" id="greekGeminiOpen">Gemini</button>
-                <span class="tb-split">
-                    <button type="button" class="tb-btn tb-btn--ai tb-btn--chatgpt tb-btn--split-main" id="greekChatGPTOpen">ChatGPT</button>
-                    <button type="button" class="tb-btn tb-btn--ai tb-btn--chatgpt tb-btn--split-cfg" id="greekChatGPTConfig"
-                            title="ChatGPT model &amp; prompt settings" aria-label="ChatGPT settings"><i class="fas fa-cog"></i></button>
+        <div class="nve-panel" id="nveVerseSection">
+            <div class="nve-head">
+                <h3 class="nve-title">RBT Translation</h3>
+                <span class="nve-status nve-status--saved" aria-live="polite">Saved</span>
+                <span class="nve-hint">Edits autosave · ⌘S saves now · click a footnote number to edit that note</span>
+                <span class="nve-head__tools">
+                    <button type="button" class="tb-btn tb-btn--sm" data-act="source" aria-pressed="false" title="Edit the HTML directly">&lt;/&gt;</button>
+                    <button type="button" class="tb-btn tb-btn--sm tb-btn--ghost" data-act="reset">Reset</button>
                 </span>
-                <span class="toolbar-divider" aria-hidden="true"></span>
-                <button type="button" class="tb-btn tb-btn--ghost" id="greekGeminiManualOpen" title="Copy full Gemini request to clipboard">Copy Gemini request</button>
-                <span id="greekGeminiManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
-                <button type="button" class="tb-btn tb-btn--ghost" id="greekChatGPTManualOpen" title="Copy full ChatGPT request to clipboard">Copy ChatGPT request</button>
-                <span id="greekChatGPTManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
+            </div>
+
+            <div class="editor-toolbar" role="toolbar" aria-label="Verse tools">
+                <div class="toolbar-group">
+                    <button type="button" id="nveSave" class="tb-btn tb-btn--save" title="Save the verse and its footnotes (⌘S)">Save</button>
+                </div>
+                <div class="toolbar-group" role="group" aria-label="Formatting">
+                    <span class="toolbar-group__label">Format</span>
+                    <button type="button" class="tb-btn" data-cmd="bold" title="Bold (⌘B)"><b>B</b></button>
+                    <button type="button" class="tb-btn" data-cmd="italic" title="Italic (⌘I)"><i>I</i></button>
+                    <button type="button" class="tb-btn" data-cmd="hayah" title="Hayah"><i>היה</i></button>
+                    <button type="button" class="tb-btn" data-cmd="h5" title="Heading 5">h5</button>
+                    <button type="button" class="tb-btn" data-cmd="hebrew-header" title="Hebrew header"><span class="hdr-icon hebrew">א</span></button>
+                    <button type="button" class="tb-btn" data-cmd="greek-header" title="Greek header"><span class="hdr-icon greek">Ω</span></button>
+                    <button type="button" class="tb-btn tb-btn--swatch tb-btn--pink" data-cmd="color" data-color="#ff00aa" title="Pink text"><i class="fas fa-circle"></i></button>
+                    <button type="button" class="tb-btn tb-btn--swatch tb-btn--blue" data-cmd="color" data-color="blue" title="Blue text"><i class="fas fa-circle"></i></button>
+                    <button type="button" class="tb-btn" data-cmd="center" title="Center"><i class="fas fa-align-center"></i></button>
+                    <button type="button" class="tb-btn" data-cmd="center-last" title="Center last line"><i class="fas fa-align-center"></i><span class="tb-btn__text">Last</span></button>
+                    <button type="button" class="tb-btn" data-cmd="sun" title="Sun">☀️</button>
+                    <button type="button" class="tb-btn" data-cmd="clear" title="Remove the formatting around the selection">Tx</button>
+                </div>
+                <div class="toolbar-group" role="group" aria-label="Insert">
+                    <span class="toolbar-group__label">Insert</span>
+                    <button type="button" class="tb-btn" data-insert="footnote" title="Write a footnote and put its marker at the caret"><i class="fas fa-superscript"></i> Footnote</button>
+                    <button type="button" class="tb-btn" data-insert="image" title="Insert an image"><i class="fas fa-image"></i> Image</button>
+                    <button type="button" class="tb-btn" data-insert="video" title="Insert a video"><i class="fas fa-video"></i> Video</button>
+                    <button type="button" class="tb-btn" data-insert="literal" title="Insert the interlinear English at the caret">Copy Eng</button>
+                </div>
+                <div class="toolbar-group" role="group" aria-label="AI suggestions">
+                    <span class="toolbar-group__label">AI</span>
+                    <button type="button" class="tb-btn tb-btn--ai tb-btn--gemini" id="greekGeminiOpen">Gemini</button>
+                    <span class="tb-split">
+                        <button type="button" class="tb-btn tb-btn--ai tb-btn--chatgpt tb-btn--split-main" id="greekChatGPTOpen">ChatGPT</button>
+                        <button type="button" class="tb-btn tb-btn--ai tb-btn--chatgpt tb-btn--split-cfg" id="greekChatGPTConfig"
+                                title="ChatGPT model &amp; prompt settings" aria-label="ChatGPT settings"><i class="fas fa-cog"></i></button>
+                    </span>
+                    <span class="toolbar-divider" aria-hidden="true"></span>
+                    <button type="button" class="tb-btn tb-btn--ghost" id="greekGeminiManualOpen" title="Copy full Gemini request to clipboard">Copy Gemini request</button>
+                    <span id="greekGeminiManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
+                    <button type="button" class="tb-btn tb-btn--ghost" id="greekChatGPTManualOpen" title="Copy full ChatGPT request to clipboard">Copy ChatGPT request</button>
+                    <span id="greekChatGPTManualStatusInline" class="gemini-manual-status" aria-live="polite" style="margin-left:8px; color: #228B22; display: none; font-weight: 600;">Copied</span>
+                </div>
+                <div class="toolbar-group" role="group" aria-label="History">
+                    <button type="button" class="tb-btn" data-cmd="undo" title="Undo (⌘Z)"><i class="fas fa-rotate-left"></i></button>
+                    <button type="button" class="tb-btn" data-cmd="redo" title="Redo (⇧⌘Z)"><i class="fas fa-rotate-right"></i></button>
+                </div>
+            </div>
+
+            <div class="nve-conflict" hidden>
+                This verse was changed elsewhere since the page loaded.
+                <button type="button" class="tb-btn" data-act="conflict-load">Load the stored version</button>
+                <button type="button" class="tb-btn tb-btn--ghost" data-act="conflict-keep">Keep mine and overwrite</button>
+            </div>
+            <div id="nveVerse" class="nve-verse nve-editable tex2jax_ignore" contenteditable="true" spellcheck="true" aria-label="RBT translation of this verse">{{ rbt|safe }}</div>
+            {# The verse's HTML view; the Gemini/ChatGPT scripts write suggestions here. #}
+            <textarea id="editor-texto" class="nve-source" hidden spellcheck="false" aria-label="Verse HTML">{{ rbt }}</textarea>
+        </div>
+
+        <div class="nve-panel">
+            <div class="nve-notes__head">
+                <h3 class="nve-title">Footnotes in this verse</h3>
+                <button type="button" class="tb-btn tb-btn--sm" data-insert="footnote" title="Write a footnote and put its marker at the caret in the verse"><i class="fas fa-plus"></i> Add footnote</button>
+                <span class="nve-hint">Each note autosaves. "Clean up" puts a note in the one consistent form.</span>
+                <a class="tb-btn tb-btn--sm tb-btn--ghost" style="margin-left:auto;" href="{% url 'footnote_cleanup' %}?book={{ book_abbrev|urlencode }}" target="_blank" rel="noopener"
+                   title="Review and clean up every footnote in {{ book }}">Footnote clean-up for {{ book }} ↗</a>
+            </div>
+            <div id="nveComposer" class="nve-composer" hidden>
+                <div class="nve-composer__row">
+                    <strong class="nve-title">New footnote</strong>
+                    <span class="nve-hint">numbered automatically for its place in the book; the marker goes where the caret was</span>
+                </div>
+                <div class="nve-composer__row"><input type="text" id="nveComposerHeading" placeholder="Heading (optional)" autocomplete="off"></div>
+                <div class="nve-minibar" role="toolbar" aria-label="Footnote formatting">
+                    <button type="button" class="tb-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+                    <button type="button" class="tb-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+                    <button type="button" class="tb-btn" data-cmd="hebrew" title="Mark Hebrew words"><span class="hdr-icon hebrew">א</span></button>
+                    <button type="button" class="tb-btn" data-cmd="greek" title="Mark Greek words"><span class="hdr-icon greek">Ω</span></button>
+                    <button type="button" class="tb-btn" data-cmd="link" title="Link"><i class="fas fa-link"></i></button>
+                    <button type="button" class="tb-btn" data-cmd="ul" title="Bulleted list"><i class="fas fa-list-ul"></i></button>
+                    <button type="button" class="tb-btn" data-cmd="ol" title="Numbered list"><i class="fas fa-list-ol"></i></button>
+                </div>
+                <div id="nveComposerText" class="nve-editable nve-note__text rbt-notes tex2jax_ignore" contenteditable="true" spellcheck="true" aria-label="New footnote"></div>
+                <div class="nve-composer__row" style="margin: 10px 0 0;">
+                    <button type="button" class="tb-btn tb-btn--save" id="nveComposerCreate" title="⌘Enter">Add &amp; insert marker</button>
+                    <button type="button" class="tb-btn tb-btn--ghost" id="nveComposerCancel">Cancel</button>
+                </div>
+            </div>
+            <div id="nveNotes"></div>
+            <p id="nveNotesEmpty" class="nve-hint" hidden>This verse has no footnotes yet.</p>
+        </div>
+        <div id="nveToast" class="nve-toast" role="status" aria-live="polite" hidden></div>
+    </section>
+
+    <div class="gemini-modal" id="nveMediaModal" aria-hidden="true">
+        <div class="gemini-modal__content nve-media-dialog" role="dialog" aria-labelledby="nveMediaTitle">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin:0;" id="nveMediaTitle">Image</h3>
+                <button type="button" class="secondary" data-action="close" aria-label="Close">&times;</button>
+            </div>
+            <div class="nve-media-dialog__layout">
+                <div class="nve-media-dialog__preview" id="nveMediaPreview"></div>
+                <div class="nve-media-dialog__fields">
+                    <label id="nveMediaUrlLabel">Image URL <input type="text" id="nveMediaUrl" placeholder="https://…" autocomplete="off"></label>
+                    <span style="font-size:12px; font-weight:600; color:#4a3f33;">Notes</span>
+                    <div class="nve-minibar" role="toolbar" aria-label="Notes formatting">
+                        <button type="button" class="tb-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+                        <button type="button" class="tb-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+                        <button type="button" class="tb-btn tb-btn--swatch tb-btn--pink" data-cmd="color" data-color="#ff00aa" title="Pink"><i class="fas fa-circle"></i></button>
+                        <button type="button" class="tb-btn tb-btn--swatch tb-btn--blue" data-cmd="color" data-color="blue" title="Blue"><i class="fas fa-circle"></i></button>
+                        <button type="button" class="tb-btn" data-cmd="link" title="Link"><i class="fas fa-link"></i></button>
+                        <button type="button" class="tb-btn" data-cmd="clear" title="Remove formatting">Tx</button>
+                    </div>
+                    <div id="nveMediaNotes" class="nve-media-notes nve-editable tex2jax_ignore" contenteditable="true" aria-label="Notes"></div>
+                    <p style="margin:0; font-size:12px; color:#8a7e70;">Readers see these notes beside the image when they open it.</p>
+                </div>
+            </div>
+            <div class="gemini-modal__actions">
+                <button type="button" class="secondary nve-danger" id="nveMediaRemove">Remove</button>
+                <button type="button" class="secondary" data-action="close">Cancel</button>
+                <button type="button" class="primary" id="nveMediaApply" title="⌘Enter">Apply</button>
             </div>
         </div>
-    </form>
+    </div>
 
     <div id="gemini-config"
         data-book="{{ book2|default:book }}"
@@ -1030,249 +1003,18 @@ Cached: {{ cached_hit }}
 
 
 
-    <script>
-        // Image insertion
-        document.addEventListener("DOMContentLoaded", function () {
-            document.getElementById("generate-code-button").addEventListener("click", function () {
-                var imageUrl = document.getElementById("imageUrlInput").value;
-                var generatedCode = '<div class="tooltip-container"><img src="' + imageUrl + '" style="width: 500px; display: block; margin: 0 auto;">  <i class="touch-indicator fas fa-hand-pointer"></i><div class="tooltip">Image description.</div></div>';
-                document.getElementById("editor-texto").value += generatedCode;
-                document.getElementById("englishReader").innerHTML = document.getElementById("editor-texto").value;
-            });
-        });
-
-         // Video insertion
-        document.getElementById("generate-video-button").addEventListener("click", function() {
-            let url = document.getElementById("videoUrlInput").value.trim();
-            if (!url) return;
-            let code = `<div class="tooltip-container"><video autoplay muted loop playsinline style="width:500px;display:block;margin:0 auto;border-radius:8px;"><source src="${url}" type="video/mp4">Your browser does not support the video tag.</video><i class="touch-indicator fas fa-hand-pointer"></i><div class="tooltip"><p>Video description.</p></div></div>`;
-            let textarea = document.getElementById("editor-texto");
-            textarea.value += code;
-            updateReader();
-        });
-
-        document.getElementById("copy-linear").addEventListener("click", function () {
-            var textarea = document.getElementById("editor-texto");
-            var selectedText = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
-            var newText = '{{ linear_english }}';
-            var beforeSelection = textarea.value.substring(0, textarea.selectionStart);
-            var afterSelection = textarea.value.substring(textarea.selectionEnd, textarea.value.length);
-            textarea.value = beforeSelection + newText + afterSelection;
-            document.getElementById("englishReader").innerHTML = document.getElementById("editor-texto").value;
-        });
-
-        function applySunStyle(style) {
-            var textArea = document.getElementById('editor-texto');
-            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
-
-            if (selectedText) {
-                var styledText = `<div class="sun-icon">${selectedText}</div>`;
-                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
-                textArea.value = newText;
-            }
-        }
-
-        function applyFontColor(color) {
-            var textArea = document.getElementById('editor-texto');
-            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
-
-            if (selectedText) {
-                var coloredText = `<span style="color: ${color};">${selectedText}</span>`;
-                var newText = textArea.value.substring(0, textArea.selectionStart) + coloredText + textArea.value.substring(textArea.selectionEnd);
-                textArea.value = newText;
-            }
-        }
-
-        function applyh5Style(style) {
-            var textArea = document.getElementById('editor-texto');
-            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
-
-            if (selectedText) {
-                var styledText = `<h5>${selectedText}</h5>`;
-                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
-                textArea.value = newText;
-            }
-        }
-        function applyBoldStyle(style) {
-            var textArea = document.getElementById('editor-texto');
-            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
-
-            if (selectedText) {
-                var styledText = `<strong>${selectedText}</strong>`;
-                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
-                textArea.value = newText;
-            }
-        }
-
-        function applyHebrewHeaderStyle(style) {
-            var textArea = document.getElementById('editor-texto');
-            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
-
-            if (selectedText) {
-                var styledText = `<span class="hebrew-header">${selectedText}</span>`;
-                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
-                textArea.value = newText;
-            }
-        }
-
-        function applyGreekHeaderStyle(style) {
-            var textArea = document.getElementById('editor-texto');
-            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
-
-            if (selectedText) {
-                var styledText = `<span class="greek-header">${selectedText}</span>`;
-                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
-                textArea.value = newText;
-            }
-        }
-
-        function applyCenterStyle(style) {
-            var textArea = document.getElementById('editor-texto');
-            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
-
-            if (selectedText) {
-                var styledText = `<span style="display: block; text-align: center;">${selectedText}</span>`;
-                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
-                textArea.value = newText;
-            }
-        }
-
-        function applyLastCenterStyle(style) {
-            var textArea = document.getElementById('editor-texto');
-            var selectedText = textArea.value.substring(textArea.selectionStart, textArea.selectionEnd);
-
-            if (selectedText) {
-                var styledText = `<span class="last_center">${selectedText}</span>`;
-                var newText = textArea.value.substring(0, textArea.selectionStart) + styledText + textArea.value.substring(textArea.selectionEnd);
-                textArea.value = newText;
-            }
-        }
-
-        function updateReader(text) {
-            var englishReader = document.getElementById('englishReader');
-            englishReader.innerHTML = text;
-        }
-    </script>
 
     <p></p>
     {{ litv|safe }}
     {{ slt|safe }}
     {{ eng_lxx|safe }}
 
-    <h4>Footnotes</h4>
-    <div>
-        {{ footnotes|safe }}
-    </div>
-
-    <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #0066cc;">
-        <strong>📝 Footnotes in This Verse</strong>
-        
-        {% if current_verse_footnotes %}
-            <div style="margin: 10px 0;">
-                <strong>Current verse contains:</strong>
-                <ul style="margin: 5px 0 0 20px; padding: 0;">
-                    {% for fn_id in current_verse_footnotes %}
-                        <li style="margin: 3px 0;">
-                            <a href="?footnote={{ fn_id }}&book={{ book }}" target="_blank" 
-                               style="font-family: monospace; color: #0066cc; text-decoration: none;">{{ fn_id }}</a>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        {% else %}
-            <p style="color: #666; margin: 8px 0;">No footnotes in this verse</p>
-        {% endif %}
-        
-        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;">
-            <strong>Footnote Sequence:</strong><br>
-            <div style="margin-top: 6px;">
-                {% if previous_footnote %}
-                    <span style="margin-right: 20px;">
-                        ← Previous: 
-                        <a href="?footnote={{ previous_footnote }}&book={{ book }}" target="_blank"
-                           style="font-family: monospace; color: #0066cc; text-decoration: none;">{{ previous_footnote }}</a>
-                    </span>
-                {% else %}
-                    <span style="margin-right: 20px; color: #999;">← No previous footnote</span>
-                {% endif %}
-                
-                {% if next_footnote %}
-                    <span>
-                        Next: 
-                        <a href="?footnote={{ next_footnote }}&book={{ book }}" target="_blank"
-                           style="font-family: monospace; color: #0066cc; text-decoration: none;">{{ next_footnote }}</a>
-                        →
-                    </span>
-                {% else %}
-                    <span style="color: #999;">No next footnote →</span>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <strong>Add Footnote:</strong><br>
-    <div id="textToCopy">
-        &lt;a class=&quot;sdfootnoteanc&quot; href=&quot;?footnote=<span
-            id="dynamic_content"></span>&quot;&gt;&lt;sup&gt;<span id="dynamic_content2"></span>&lt;/sup&gt;&lt;/a&gt;
-    </div>
-    <button onclick="copyText()">Copy Footnote</button>
-    <form method="post" action="./" id="footnote-edit-form">
-        {% csrf_token %}
-        Footnote ID: <input type="text" id="footnote_id" name="footnote_id" value="xx" autocomplete="off"> Add Header:
-        <input type="text" id="footnote_header" name="footnote_header" autocomplete="off"><br>
-
-        <textarea id="editor-text" name="add_footnote" rows="4" cols="80"></textarea>
-        <input type="hidden" name="book" id="book" value="{{ book }}">
-        <input type="hidden" name="chapter" id="chapter" value="{{ chapter_num }}">
-        <input type="hidden" name="verse" id="verse" value="{{ verse_num }}"><br>
-        <input type="hidden" name="nt_book" id="nt_book" value="{{ book }}">
-        <button type="submit" id="save-button">Add</button>
-
-
-    </form>
 
     <h4><a href="../find_and_replace_nt/">Replace a Text in Entire New Testament</a></h4>
     
 
-    <script>
-        // Add an event listener for the "Save" button
-        document.getElementById('save-button').addEventListener('click', function () {
-            // Get the edited content from the textarea
-            var editedContent = document.getElementById('editor-texto').value.trim();
 
-            // Update the hidden form field with the edited content
-            document.getElementById('edited_content').value = editedContent;
-
-            // Submit the form via the 'edit' view
-            document.getElementById('translation-edit-form').submit();
-        });
-    </script>
-
-    <script>
-        function copyText() {
-            // Select the text to copy
-            var text = document.getElementById("textToCopy").innerText;
-
-            // Create a temporary textarea element to hold the text
-            var tempTextArea = document.createElement("textarea");
-            tempTextArea.value = text;
-
-            // Append the textarea to the body
-            document.body.appendChild(tempTextArea);
-
-            // Select the text inside the textarea
-            tempTextArea.select();
-
-            // Copy the selected text
-            document.execCommand("copy");
-
-            // Remove the temporary textarea
-            document.body.removeChild(tempTextArea);
-
-            // Alert the user that the text has been copied
-            alert("Text copied to clipboard!");
-        }
-    </script>
+    <script src="{% static 'nt-verse-editor.js' %}"></script>
 
         {{ default_greek_prompt|json_script:"defaultGreekGeminiPrompt" }}
 

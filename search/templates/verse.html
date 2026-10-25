@@ -829,6 +829,30 @@
         font-size: 1.5em;
     }  
 
+    /* ---- Section headings ---------------------------------------------------- */
+    /* Every section of the verse page (interlinear, translations, paraphrase, footnotes)
+       has the same heading: the site's heading face, as written (not the theme's uppercase h2),
+       over a thin rule. */
+    h2.verse-section-title {
+        margin: 30px 0 12px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(183, 133, 80, 0.25);
+        font-family: 'Cormorant Garamond', 'Frank Ruhl Libre', Georgia, serif !important;
+        font-size: 1.45rem;
+        font-weight: 600;
+        text-transform: none;
+        letter-spacing: 0.01em;
+        line-height: 1.3;
+        color: #4a3f33;
+        clear: both;
+    }
+
+    .single_verse > #englishReader,
+    .single_verse > #paraphraseReader,
+    .single_verse > #translatedReader {
+        display: block;
+    }
+
     /* ---- Smith, LITV and Brenton in parallel columns ------------------------ */
     .translations-parallel {
         display: grid;
@@ -1153,7 +1177,7 @@
 {% endif %}
 
 {% if hebrew_interlinear_cards %}
-<strong>RBT Hebrew Interlinear:</strong>
+<h2 class="verse-section-title">RBT Hebrew Interlinear</h2>
 <div class="hebrew-interlinear-grid">
     {% for cell in hebrew_interlinear_cards %}
     <div class="interlinear-card">
@@ -1209,15 +1233,15 @@
 
 
 {% if greek %}
-Wescott & Hort Greek NT: 
+<h2 class="verse-section-title">Westcott &amp; Hort Greek NT</h2>
 <div style="font-size: 24px; margin-bottom: 1em; font-family: Times;">
 {{ greek|safe }}
 </div>
 {% endif %}
 
 {% if greek_interlinear %}
+<h2 class="verse-section-title">RBT Greek Interlinear</h2>
 <div class="greek_interlinear">
-    <strong>RBT Greek Interlinear:</strong><br>
     {{ greek_interlinear|safe }}
 </div>
 <div class="clearfix">
@@ -1325,18 +1349,18 @@ Wescott & Hort Greek NT:
     {% if rbt %}
         {% if translated_verse %}
         {# Translated reading first; the English RBT stays below it as the source. #}
+        <h2 class="verse-section-title">{{ translated_language_label }}</h2>
         <div class="single_verse translated_verse" lang="{{ current_language }}"{% if is_rtl %} dir="rtl"{% endif %}>
-            <strong>{{ translated_language_label }}:</strong>
             <div id="translatedReader">{{ translated_verse|safe }}</div>
         </div>
         {% endif %}
+        <h2 class="verse-section-title">RBT Translation</h2>
         <div class="single_verse">
-            <span id="englishReader">{{ rbt|safe }}
-            </span>
+            <div id="englishReader">{{ rbt|safe }}</div>
         </div>
         {% if rbt_paraphrase %}
+        <h2 class="verse-section-title">RBT Paraphrase</h2>
         <div class="single_verse">
-            <strong>RBT Paraphrase:</strong>
             <div id="paraphraseReader">{{ rbt_paraphrase|safe }}</div>
         </div>
         {% endif %}
@@ -1361,8 +1385,8 @@ Wescott & Hort Greek NT:
         </div>
         <div id="inputText" style="display: none; width: 100%;" oninput="updateEnglishReader(this.value)">{{ rbt_text }}</div>
 
-        <h4>Footnotes</h4>
-        <div>
+        <h2 class="verse-section-title">Footnotes</h2>
+        <div class="rbt-notes">
             <table>
             {{ footnotes|safe }}
             </table>
@@ -1403,13 +1427,11 @@ Wescott & Hort Greek NT:
         // Share the paraphrase: the reading meant for sharing (OT verses carry both a
         // word-for-word literal and a paraphrase). A translated page shares its
         // translation, which is of the paraphrase; NT verses have only the RBT text.
-        // #englishReader wraps its verse as `<strong>RBT Translation:</strong><div>…</div>`,
-        // so read the inner div or the label joins the quote.
+        // The headings sit outside these elements, so they hold the verse text only.
         var translatedEl = document.getElementById('translatedReader');
         var paraphraseEl = document.getElementById('paraphraseReader');
         var readerEl = document.getElementById('englishReader');
-        var verseText = cleanVerseText(translatedEl) || cleanVerseText(paraphraseEl) ||
-            cleanVerseText(readerEl ? (readerEl.querySelector('div') || readerEl) : null);
+        var verseText = cleanVerseText(translatedEl) || cleanVerseText(paraphraseEl) || cleanVerseText(readerEl);
 
         // Truncate on a word boundary rather than mid-word.
         if (verseText.length > 240) {
