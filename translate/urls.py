@@ -6,13 +6,13 @@ from . import views, chapter_editor_api, paraphrase_api, ot_editor
 
 urlpatterns = [
 
-    path('RBT/translate/', views.translate, name='rbt_translate'),
+    path('RBT/translate/', ot_editor.legacy_translate_redirect, name='rbt_translate'),
     path("edit_nt_chapter/", views.edit_nt_chapter, name="edit_nt_chapter"),
     path("word-occurrences/", views.word_occurrences, name="word_occurrences"),
     path('RBT/edit_search/', views.edit_search, name='edit_search'),
     path('RBT/edit_footnote/', views.edit_footnote, name='edit_footnote'),
     path('RBT/edit/', views.edit, name='edit'),
-    path('translate/', views.translate, name='translate'),
+    path('translate/', ot_editor.legacy_translate_redirect),
     path('find_replace_genesis/', views.find_replace_genesis, name='find_replace'),
     path('find_and_replace_nt/', views.find_and_replace_nt, name='find_and_replace_nt'),
     path('find_and_replace_ot/', views.find_and_replace_ot, name='find_and_replace_ot'),
@@ -57,6 +57,7 @@ urlpatterns = [
     path('api/scrape-lexicon/', views.scrape_lexicon, name='scrape_lexicon'),
     path('api/chat-lexicon/', views.chat_with_lexicon, name='chat_lexicon'),
     path('proxy/biblehub/', views.biblehub_proxy, name='biblehub_proxy'),
-    path('', views.translate, name='translate'),
+    # The old translator: redirects to the OT editor (/translate/ot/).
+    path('', ot_editor.legacy_translate_redirect, name='translate'),
 
 ]

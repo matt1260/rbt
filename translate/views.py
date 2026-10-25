@@ -1874,7 +1874,7 @@ def edit(request):
 
                     # Format the HTML string
                     #modified_html = data.replace('?footnote=', '../edit_footnote/?footnote=')
-                    html += f'<span class="verse_ref">¶<b><a href="../translate/?book={book}&chapter={chapter_num}&verse={verse_num}">{verse_num}</a> </b></span>{combined_elements}<br>'
+                    html += f'<span class="verse_ref">¶<b><a href="/translate/ot/?book={book}&chapter={chapter_num}&verse={verse_num}">{verse_num}</a> </b></span>{combined_elements}<br>'
 
             
             else:
@@ -4019,7 +4019,7 @@ def find_and_replace_ot(request):
                         book_display = convert_book_name(book_code) or book_code
 
                         canonical_ref = f'{book_code}.{chapter_ref}.{verse_ref}'
-                        verse_link = f'../translate/?ref={canonical_ref}'
+                        verse_link = f'/translate/ot/?ref={canonical_ref}'
                         reference_label = f'{canonical_ref} (footnote)'
                         record_key = f'footnote-{row_id}'
                         
@@ -4087,7 +4087,7 @@ def find_and_replace_ot(request):
                         highlighted_new = new_text_raw
 
                     # Use canonical Ref for linking (handles Ref vs book/chapter/verse mismatches).
-                    verse_link = f'../translate/?ref={ref}' if ref else f'../translate/?book={book}&chapter={chapter_ref}&verse={verse_ref}'
+                    verse_link = f'/translate/ot/?ref={ref}' if ref else f'/translate/ot/?book={book}&chapter={chapter_ref}&verse={verse_ref}'
 
                     reference_label = ref or f'{book_display} {chapter_ref}:{verse_ref}'
 

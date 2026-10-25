@@ -43,7 +43,6 @@
       <label class="ote-switch" title="Show vowel points on the Hebrew line and the word cards"><input type="checkbox" id="oteNiqqud"> Niqqud</label>
       <label class="ote-switch" title="Paleo Hebrew font"><input type="checkbox" id="toggleHebrewFont"> Paleo</label>
       {% if reader_url %}<a class="ote-link" href="{{ reader_url }}" target="_blank" rel="noopener">Reader <i class="fas fa-arrow-up-right-from-square"></i></a>{% endif %}
-      {% if old_editor_url %}<a class="ote-link ote-link--muted" href="{{ old_editor_url }}" title="The previous editor for this verse">Old editor</a>{% endif %}
     </div>
   </header>
 
@@ -220,7 +219,7 @@
           <span class="ote-status ote-status--saved" aria-live="polite">Saved</span>
           <span class="ote-text__tools">
             <button type="button" class="tb-btn tb-btn--sm" data-act="source" aria-pressed="false" title="Edit the HTML directly">&lt;/&gt;</button>
-            <button type="button" class="tb-btn tb-btn--sm tb-btn--ghost" data-act="reset" title="Discard unsaved changes">Reset</button>
+            <button type="button" class="tb-btn tb-btn--sm tb-btn--ghost" data-act="reset" title="Reset to how it was when you opened the page">Reset</button>
           </span>
         </div>
         <div class="ote-conflict" hidden>

@@ -621,28 +621,40 @@
 
   const isDirty = (t) => serialize(t) !== t.lastSavedHtml;
 
+  function changedSinceLoad(t) {
+    return t.lastSavedHtml !== t.loadedRendered || serialize(t) !== t.loadedRendered;
+  }
+
   function refreshDirty(t) {
+    if (t.resetBtn) {
+      t.resetBtn.disabled = !t.pendingConflict && !changedSinceLoad(t);
+      t.resetBtn.title = t.resetBtn.disabled ? 'No changes since you opened the page'
+        : 'Reset to how it was when you opened the page';
+    }
     if (t.saving) return;
     if (t.pendingConflict) { setStatus(t, 'conflict', 'Conflict'); return; }
     if (isDirty(t)) setStatus(t, 'dirty', t.suppressAutosave ? 'Unsaved · press Save to keep the suggestion' : 'Unsaved');
     else setStatus(t, 'saved', 'Saved');
   }
 
-  async function save(t) {
+  // exactHtml: send this text as is (Reset sends the page-load original byte for byte);
+  // otherwise the rendered text.
+  async function save(t, exactHtml) {
     if (t.saving) return;
-    const html = serialize(t);
-    if (html === t.lastSavedHtml) { refreshDirty(t); return; }
+    const html = exactHtml === undefined ? serialize(t) : exactHtml;
+    if (exactHtml === undefined && html === t.lastSavedHtml) { refreshDirty(t); return; }
     t.saving = true;
     t.autosave.cancel();
     setStatus(t, 'saving', 'Saving…');
     try {
       const data = await call(api.apiVerse, { method: 'POST', body: { verse_ref: api.verseRef, field: t.key, html, base_hash: t.baseHash } });
       t.baseHash = data.hash;
-      t.lastSavedHtml = html;
+      t.lastSavedHtml = exactHtml === undefined ? html : serialize(t);
       t.suppressAutosave = false;
       t.saving = false;
       refreshDirty(t);
       if (t.key === 'paraphrase') refreshChapterRow(html);
+      if (exactHtml !== undefined) toast(`${t.label} reset to how it was when you opened the page.`);
     } catch (err) {
       t.saving = false;
       if (err.status === 409 && err.data) {
@@ -696,6 +708,11 @@
     // Compare against the browser's own rendering of the stored HTML, so harmless
     // normalisation (attribute quoting, entities) never reads as an unsaved change.
     t.lastSavedHtml = serialize(t);
+    // What Reset returns to: the text as stored when the page loaded, exactly (the
+    // HTML view holds it unaltered), and the browser's rendering of it for comparisons.
+    t.loadedHtml = t.source.value.trim();
+    t.loadedRendered = t.lastSavedHtml;
+    t.resetBtn = $('[data-act="reset"]', section);
     t.autosave = debounce(() => { if (!t.suppressAutosave && !t.pendingConflict) save(t); }, 1500);
 
     t.el.addEventListener('focus', () => setActiveText(t));
@@ -753,12 +770,16 @@
       setActiveText(t);
     });
 
-    $('[data-act="reset"]', section).addEventListener('click', () => {
-      if (!isDirty(t) || window.confirm(`Discard the unsaved changes to the ${t.label.toLowerCase()}?`)) {
-        setHtml(t, t.lastSavedHtml);
-        t.suppressAutosave = false;
-        refreshDirty(t);
-      }
+    t.resetBtn.addEventListener('click', () => {
+      if (!changedSinceLoad(t)) { toast(`No changes to the ${t.label.toLowerCase()} since you opened the page.`); return; }
+      const saved = t.lastSavedHtml !== t.loadedRendered;
+      if (!window.confirm(`Reset the ${t.label.toLowerCase()} to how it was when you opened this page?` +
+        (saved ? '\n\nYour edits were already saved, so the original is saved back.' : ''))) return;
+      t.autosave.cancel();
+      t.suppressAutosave = false;
+      setHtml(t, t.loadedHtml);
+      if (saved) save(t, t.loadedHtml);
+      else { t.lastSavedHtml = serialize(t); refreshDirty(t); }
     });
     return t;
   }
@@ -919,6 +940,21 @@
     panels[name].classList.contains('is-open') ? closePanels() : openPanel(name);
   }));
   $$('[data-close-panel]').forEach((b) => b.addEventListener('click', closePanels));
+
+  // A click outside the open side panel closes it, except on what opens or drives a panel
+  // (lexicon chips, map icons, the top bar's panel buttons) and in pop-ups the panel opens.
+  // Only when the press also began outside, so selecting text in the panel and releasing
+  // past its edge doesn't close it.
+  let pressedInPanel = false;
+  document.addEventListener('pointerdown', (e) => {
+    pressedInPanel = Object.values(panels).some((p) => p.contains(e.target));
+  }, true);
+  document.addEventListener('click', (e) => {
+    const openPanelEl = Object.values(panels).find((p) => p.classList.contains('is-open'));
+    if (!openPanelEl || pressedInPanel || !document.contains(e.target) || openPanelEl.contains(e.target)) return;
+    if (e.target.closest('.ote-card__lex .popup-container, [data-act="map"], [data-toggle-panel], .gemini-modal, .ote-pop, .ote-toast')) return;
+    closePanels();
+  });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (!pop.hidden) { closePop(); return; }

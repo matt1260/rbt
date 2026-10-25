@@ -17,7 +17,8 @@ from functools import wraps
 import pythonbible as bible
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from search.models import Genesis, TranslationUpdates
@@ -224,6 +225,15 @@ def _resolve_location(request):
     if ref_param:
         parts = _verse_ref_parts(ref_param.strip())
         if parts:
+            # The words live under the Ref (Joe.3.6), but the book, chapter and verse the site
+            # shows come from old_testament.ot (Jol 4:6 → Joel 4:6); they differ in a few books.
+            ref_code, ref_chapter, ref_verse = parts
+            row = execute_query(
+                "SELECT book, chapter, verse FROM old_testament.ot WHERE Ref = %s LIMIT 1;",
+                ('.'.join(parts),), fetch='one',
+            )
+            if row and row[0]:
+                return _book_name(row[0]), str(row[1]), str(row[2]), f'{ref_code}.{ref_chapter}.{ref_verse}-', ''
             code, chapter, verse = parts
             book = _book_name(code)
     elif not book and query:
@@ -328,6 +338,18 @@ def _chapter_numbers(code):
 
 # --------------------------------------------------------------------------- page
 
+def legacy_translate_redirect(request):
+    """
+    The old translator (/translate/, /translate/translate/, /RBT/translate/) is replaced by
+    this editor. Its links keep working: the query string (?book=&chapter=&verse=, ?ref=,
+    ?q=) carries over unchanged. NT books go to the NT verse editor instead.
+    """
+    query = request.META.get('QUERY_STRING', '')
+    target = '/edit/' if request.GET.get('book') in new_testament_books else reverse('ot_editor')
+    return redirect(f'{target}?{query}' if query else target)
+
+
+
 @login_required
 def ot_editor(request):
     book, chapter, verse, prefix, invalid = _resolve_location(request)
@@ -354,7 +376,7 @@ def ot_editor(request):
     context.update({
         'verse_ref': verse_ref,
         'verse_label': f'{book} {chapter}:{verse}',
-        'chapters': _chapter_numbers(code),
+        'chapters': _chapter_numbers(book_abbreviations.get(book, code)),
         'chapter_rows': _chapter_rows(prefix),
     })
     if not rows:
@@ -451,7 +473,6 @@ def ot_editor(request):
         'notes_html': notes_html,
         'prev_ref': prev_ref or '#',
         'next_ref': next_ref or '#',
-        'old_editor_url': f'/translate/?book={book}&chapter={chapter}&verse={verse}',
         'reader_url': f'/{book_to_slug(book) or book}/{chapter}/{verse}/',
     })
     return render(request, 'ot_editor.html', _apply_gemini_preferences(request, context))
