@@ -389,6 +389,182 @@
     return true;
   }
 
+  function remember(range) {
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    const node = range.commonAncestorContainer;
+    const editable = (node.nodeType === 1 ? node : node.parentElement)?.closest('.ote-editable');
+    if (editable) savedRanges.set(editable, range.cloneRange());
+  }
+
+  // ------------------------------------------------------------------ paragraphs: align, indent
+  // Paragraph-level formatting for footnotes and image notes. A line of loose text (straight
+  // inside the editor, ended by a <br>) first becomes a <p>, so it can carry the style.
+  const BLOCK_SEL = 'p, li, h1, h2, h3, h4, h5, h6, blockquote, div';
+  const INDENT_EM = 2;
+  const MAX_INDENT_EM = 8;
+
+  function isBlock(node) { return node.nodeType === 1 && /^(P|LI|H[1-6]|BLOCKQUOTE|DIV|UL|OL|TABLE)$/.test(node.tagName); }
+
+  function blockFor(node, editor) {
+    let el = node.nodeType === 1 ? node : node.parentElement;
+    while (el && el !== editor) {
+      if (el.matches(BLOCK_SEL) && !el.matches('.tooltip-container, .tooltip, .tooltip2')) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function wrapLine(node, editor) {
+    let top = node;
+    while (top.parentNode !== editor) top = top.parentNode;
+    let first = top, last = top;
+    while (first.previousSibling && !isBlock(first.previousSibling) && first.previousSibling.nodeName !== 'BR') first = first.previousSibling;
+    while (last.nextSibling && !isBlock(last.nextSibling) && last.nextSibling.nodeName !== 'BR') last = last.nextSibling;
+    const p = document.createElement('p');
+    editor.insertBefore(p, first);
+    for (let n = first; n;) {
+      const next = n === last ? null : n.nextSibling;
+      p.appendChild(n);
+      n = next;
+    }
+    if (p.nextSibling && p.nextSibling.nodeName === 'BR') p.nextSibling.remove();
+    return p;
+  }
+
+  /** The paragraphs, list items and headings the selection touches, in order. */
+  function selectedBlocks(editor) {
+    const range = rangeIn(editor);
+    if (!range) { toast('Click into the text first.', true); return []; }
+    const saved = [range.startContainer, range.startOffset, range.endContainer, range.endOffset];
+    const nodes = [];
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+      if (range.intersectsNode(t) && (t.textContent.trim() || blockFor(t, editor))) nodes.push(t);
+    }
+    if (!nodes.length) {
+      const c = range.startContainer;
+      const at = c.nodeType === 1 ? (c.childNodes[range.startOffset] || c) : c;
+      if (at !== editor && editor.contains(at)) nodes.push(at);
+    }
+    const blocks = [];
+    nodes.forEach((n) => {
+      const block = blockFor(n, editor) || wrapLine(n, editor);
+      if (!blocks.includes(block)) blocks.push(block);
+    });
+    try {
+      const r = document.createRange();
+      r.setStart(saved[0], saved[1]); r.setEnd(saved[2], saved[3]);
+      remember(r);
+    } catch (err) { /* the selection moved with its text */ }
+    if (!blocks.length) toast('Click into the text first.', true);
+    return blocks;
+  }
+
+  function dropEmptyStyle(el) { if (!el.getAttribute('style')) el.removeAttribute('style'); }
+
+  function alignBlocks(editor, value) {
+    const blocks = selectedBlocks(editor);
+    blocks.forEach((b) => { b.style.textAlign = value === 'left' ? '' : value; dropEmptyStyle(b); });
+    return blocks.length > 0;
+  }
+
+  function padBlock(el, step) {
+    const v = el.style.paddingLeft;
+    const now = v.endsWith('px') ? parseFloat(v) / 16 : (parseFloat(v) || 0);
+    const next = Math.max(0, Math.min(MAX_INDENT_EM, now + step * INDENT_EM));
+    if (next === now) return false;
+    el.style.paddingLeft = next ? `${next}em` : '';
+    dropEmptyStyle(el);
+    return true;
+  }
+
+  function childList(li, tag) {
+    const last = li.lastElementChild;
+    return last && last.tagName === tag ? last : null;
+  }
+
+  /** A list item one level in (under the item above it) or out (out of the list, as a <p>). */
+  function shiftItem(li, step, editor) {
+    const list = li.parentElement;
+    if (step > 0) {
+      const prev = li.previousElementSibling;
+      if (!prev || prev.tagName !== 'LI') { toast('Only an item below another item can go in a level.', true); return false; }
+      let sub = childList(prev, list.tagName);
+      if (!sub) { sub = document.createElement(list.tagName); prev.appendChild(sub); }
+      sub.appendChild(li);
+      return true;
+    }
+    // The items after it stay below it: they become its own sub-list.
+    const after = [];
+    for (let n = li.nextElementSibling; n; n = n.nextElementSibling) after.push(n);
+    const parentLi = list.parentElement.closest('li');
+    if (parentLi && editor.contains(parentLi)) {
+      if (after.length) {
+        let sub = childList(li, list.tagName);
+        if (!sub) { sub = document.createElement(list.tagName); li.appendChild(sub); }
+        after.forEach((n) => sub.appendChild(n));
+      }
+      parentLi.after(li);
+    } else {
+      // Out of a top-level list: a paragraph; the items after it start a new list.
+      const p = document.createElement('p');
+      const nested = [];
+      Array.from(li.childNodes).forEach((n) => (n.nodeType === 1 && /^(UL|OL)$/.test(n.tagName) ? nested.push(n) : p.appendChild(n)));
+      if (li.getAttribute('style')) p.setAttribute('style', li.getAttribute('style'));
+      list.after(p);
+      let at = p;
+      nested.forEach((n) => { at.after(n); at = n; });
+      if (after.length) {
+        const rest = list.cloneNode(false);
+        after.forEach((n) => rest.appendChild(n));
+        at.after(rest);
+      }
+      li.remove();
+    }
+    if (!list.children.length) list.remove();
+    return true;
+  }
+
+  /** Chrome makes a list from paragraphs inside a <p> (<p><ul>…</ul></p>); lift it out. */
+  function liftLists(editor) {
+    const lists = $$('p > ul, p > ol', editor);
+    if (!lists.length) return;
+    const sel = window.getSelection();
+    const r0 = sel.rangeCount ? sel.getRangeAt(0) : null;
+    const saved = r0 && [r0.startContainer, r0.startOffset, r0.endContainer, r0.endOffset];
+    lists.forEach((list) => {
+      const p = list.parentElement;
+      const rest = document.createRange();
+      rest.selectNodeContents(p);
+      rest.setStartAfter(list);
+      const tail = rest.extractContents();
+      p.after(list);
+      if (tail.textContent.trim()) { const q = p.cloneNode(false); q.appendChild(tail); list.after(q); }
+      if (!p.textContent.trim() && !p.querySelector('img, video')) p.remove();
+    });
+    if (!saved) return;
+    try {
+      const r = document.createRange();
+      r.setStart(saved[0], saved[1]); r.setEnd(saved[2], saved[3]);
+      remember(r);
+    } catch (err) { /* the selection moved with its text */ }
+  }
+
+  function indentBlocks(editor, step) {
+    const items = [];
+    selectedBlocks(editor).forEach((b) => {
+      const li = b.closest('li');
+      const el = li && editor.contains(li) ? li : b;
+      if (!items.includes(el)) items.push(el);
+    });
+    let changed = false;
+    // In, top to bottom (each item joins the one above); out, bottom to top (keeps the order).
+    (step > 0 ? items : items.slice().reverse()).forEach((el) => {
+      changed = (el.tagName === 'LI' ? shiftItem(el, step, editor) : padBlock(el, step)) || changed;
+    });
+    return changed;
+  }
+
   const SPECS = {
     bold: { tag: 'strong' },
     italic: { tag: 'em' },
@@ -417,12 +593,49 @@
       changed = toggleWrap(editor, { tag: 'a', attrs: { href, target: '_blank', rel: 'noopener' } });
     }
     else if (cmd === 'undo' || cmd === 'redo') { editor.focus(); document.execCommand(cmd); changed = true; }
+    else if (cmd === 'ul' || cmd === 'ol') {
+      const range = rangeIn(editor);
+      if (!range) { toast('Click into the text first.', true); return; }
+      remember(range);
+      editor.focus();
+      document.execCommand(cmd === 'ul' ? 'insertUnorderedList' : 'insertOrderedList');
+      liftLists(editor);
+      changed = true;
+    }
+    else if (cmd === 'align') changed = alignBlocks(editor, button.dataset.align);
+    // 'indent' is the verse's poetry-indent span; these move whole paragraphs and list items.
+    else if (cmd === 'para-indent' || cmd === 'para-outdent') changed = indentBlocks(editor, cmd === 'para-indent' ? 1 : -1);
     else if (SPECS[cmd]) changed = toggleWrap(editor, SPECS[cmd]);
     if (changed) editor.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   // Toolbar buttons keep the selection: mousedown is prevented, click runs the command.
   // A footnote's own mini toolbar formats that footnote; the main toolbar formats the active verse text.
+  /** The formatting bar for footnotes and image notes (hebrew: the Hebrew button's command). */
+  function formatToolbar(hebrew) {
+    return `<span class="ote-minibar__group">
+      <button type="button" class="tb-btn" data-cmd="bold" title="Bold (⌘B)"><b>B</b></button>
+      <button type="button" class="tb-btn" data-cmd="italic" title="Italic (⌘I)"><i>I</i></button>
+      ${hebrew === 'hayah' ? '<button type="button" class="tb-btn" data-cmd="hayah" title="Hayah">היה</button>' : '<button type="button" class="tb-btn" data-cmd="hebrew-footnote" title="Hebrew">א</button>'}
+      <button type="button" class="tb-btn tb-btn--swatch tb-btn--pink" data-cmd="color" data-color="#ff00aa" title="Magenta"><i class="fas fa-circle"></i></button>
+      <button type="button" class="tb-btn tb-btn--swatch tb-btn--blue" data-cmd="color" data-color="blue" title="Blue"><i class="fas fa-circle"></i></button>
+      <button type="button" class="tb-btn" data-cmd="link" title="Link"><i class="fas fa-link"></i></button>
+      </span><span class="ote-minibar__group">
+      <button type="button" class="tb-btn" data-cmd="paragraph" title="Paragraph">¶</button>
+      <button type="button" class="tb-btn" data-cmd="ul" title="Bulleted list"><i class="fas fa-list-ul"></i></button>
+      <button type="button" class="tb-btn" data-cmd="ol" title="Numbered list"><i class="fas fa-list-ol"></i></button>
+      <button type="button" class="tb-btn" data-cmd="para-outdent" title="Indent less (in a list: ⇧Tab)"><i class="fas fa-outdent"></i></button>
+      <button type="button" class="tb-btn" data-cmd="para-indent" title="Indent more (in a list: Tab)"><i class="fas fa-indent"></i></button>
+      </span><span class="ote-minibar__group">
+      <button type="button" class="tb-btn" data-cmd="align" data-align="left" title="Align left"><i class="fas fa-align-left"></i></button>
+      <button type="button" class="tb-btn" data-cmd="align" data-align="center" title="Center"><i class="fas fa-align-center"></i></button>
+      <button type="button" class="tb-btn" data-cmd="align" data-align="right" title="Align right"><i class="fas fa-align-right"></i></button>
+      <button type="button" class="tb-btn" data-cmd="align" data-align="justify" title="Justify"><i class="fas fa-align-justify"></i></button>
+      </span><span class="ote-minibar__group">
+      <button type="button" class="tb-btn" data-cmd="clear" title="Remove formatting">Tx</button></span>`;
+  }
+  $$('[data-format-toolbar]').forEach((bar) => { bar.innerHTML = formatToolbar(bar.dataset.formatToolbar === 'notes' ? 'hayah' : 'hebrew'); });
+
   $$('[data-cmd]').forEach((button) => {
     button.addEventListener('mousedown', (e) => e.preventDefault());
     button.addEventListener('click', () => {
@@ -430,6 +643,25 @@
       const editor = scope ? $('.ote-editable', scope) : (activeText && activeText.el);
       runCommand(button.dataset.cmd, editor, button);
     });
+  });
+
+  // Tab / Shift+Tab move a list item in or out a level (footnotes and image notes).
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const editable = e.target.closest && e.target.closest('.ote-footnote__editor, #oteMediaNotes');
+    if (!editable) return;
+    const range = rangeIn(editable);
+    const node = range && range.startContainer;
+    const li = node && (node.nodeType === 1 ? node : node.parentElement).closest('li');
+    if (!li || !editable.contains(li)) return;
+    e.preventDefault();
+    runCommand(e.shiftKey ? 'para-outdent' : 'para-indent', editable);
+  });
+
+  // Enter starts a <p> in footnotes and image notes; the verse texts keep the browser's default.
+  document.addEventListener('focusin', (e) => {
+    const editable = e.target.closest && e.target.closest('.ote-editable');
+    if (editable) document.execCommand('defaultParagraphSeparator', false, editable.matches('.ote-footnote__editor, #oteMediaNotes') ? 'p' : 'div');
   });
 
   // ⌘B / ⌘I inside any editable use the site's <strong>/<em> rather than the browser's <b>/<i>.

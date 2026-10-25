@@ -36,7 +36,7 @@ def _chapter_params(source):
         chapter = int(source.get('chapter'))
     except (TypeError, ValueError):
         return None, None
-    return (book, chapter) if paraphrase.nt_book_abbrev(book) else (None, None)
+    return (book, chapter) if paraphrase.supported_book(book) else (None, None)
 
 
 def _iso(value):
@@ -98,7 +98,7 @@ def state(request):
     """Everything the studio shows for a chapter; polled while generations run."""
     book, chapter = _chapter_params(request.GET)
     if not book:
-        return JsonResponse({'error': 'Unknown NT book or chapter.'}, status=400)
+        return JsonResponse({'error': 'Unknown book or chapter.'}, status=400)
 
     paraphrase.expire_stale(book, chapter)
     paraphrase.default_prompt()
@@ -145,7 +145,7 @@ def generate(request):
         return JsonResponse({'error': 'Invalid JSON.'}, status=400)
     book, chapter = _chapter_params(data)
     if not book:
-        return JsonResponse({'error': 'Unknown NT book or chapter.'}, status=400)
+        return JsonResponse({'error': 'Unknown book or chapter.'}, status=400)
 
     models = []
     for pair in data.get('models') or []:
@@ -207,7 +207,7 @@ def unpublish(request):
     data = _json_body(request) or {}
     book, chapter = _chapter_params(data)
     if not book:
-        return JsonResponse({'error': 'Unknown NT book or chapter.'}, status=400)
+        return JsonResponse({'error': 'Unknown book or chapter.'}, status=400)
     count = ChapterParaphrase.objects.filter(book=book, chapter=chapter, language_code='en', is_published=True).update(is_published=False)
     return JsonResponse({'unpublished': count})
 

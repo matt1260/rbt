@@ -15,6 +15,10 @@ moving between chapters crossfades, holding the new page until its content is pa
 {% static_version 'media-modal.js' 'media-modal.css' as media_modal_version %}
 <link rel="stylesheet" href="{% static 'media-modal.css' %}?v={{ media_modal_version }}">
 <script src="{% static 'media-modal.js' %}?v={{ media_modal_version }}" defer></script>
+{% if paraphrase_view %}
+{% static_version 'reader-paraphrase.js' 'reader-paraphrase.css' as reader_paraphrase_version %}
+<link rel="stylesheet" href="{% static 'reader-paraphrase.css' %}?v={{ reader_paraphrase_version }}">
+{% endif %}
 <link rel="expect" href="#rbt-chapter-end" blocking="render">
 <style>
     @view-transition { navigation: auto; }
@@ -248,6 +252,12 @@ chapter-viewer.js re-renders on toggle.
         {% if prev_chapter %}
         <a class="rbt-dock__chapter" href="{{ prev_chapter.url }}" aria-label="Previous chapter ({{ prev_chapter.number }})" title="Chapter {{ prev_chapter.number }}"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
         {% endif %}
+        {% if paraphrase_view %}
+        {# Switches between the word-for-word view and the published AI paraphrase (static/reader-paraphrase.js). #}
+        <div id="paraphraseViewToggle" role="button" tabindex="0" aria-label="Read paraphrase (R)" title="You are reading the word-for-word translation. Read paraphrase (R)">
+            <i class="fas fa-book-open" aria-hidden="true"></i><span class="pp-toggle__label">Read paraphrase</span><span class="pp-toggle__key" aria-hidden="true">R</span>
+        </div>
+        {% endif %}
         <button type="button" class="rbt-dock__toggle" aria-expanded="false" aria-controls="rbtDockPanel" title="Reading options (O)">
             <i class="fas fa-sliders-h"></i>
             <span class="rbt-dock__toggle-label">Reading options</span><span class="rbt-dock__toggle-short">Options</span>
@@ -258,6 +268,28 @@ chapter-viewer.js re-renders on toggle.
         {% endif %}
     </div>
 </div>
+{% if paraphrase_view %}
+{% comment %}
+Pick the reader view before the text paints, so a chapter opened in the paraphrase view
+doesn't flash the word-for-word text first. Same choice as static/reader-paraphrase.js,
+which takes over (and drops this class) once it loads.
+{% endcomment %}
+<style>
+    html.rbt-start-paraphrase #container { display: none !important; }
+    html.rbt-start-paraphrase #reader-paraphrase[hidden] { display: block; }
+</style>
+<script>
+(function () {
+    var param = new URLSearchParams(location.search).get('view');
+    var choice = null;
+    try { choice = localStorage.getItem('rbtReaderView'); } catch (e) { /* private mode */ }
+    var wanted = param ? param === 'paraphrase' : (/^#v\d+$/.test(location.hash) || choice === 'paraphrase');
+    if (wanted && ({{ paraphrase_offered|yesno:'true,false' }} || param === 'paraphrase')) {
+        document.documentElement.classList.add('rbt-start-paraphrase');
+    }
+})();
+</script>
+{% endif %}
 <h1>{{ book }} {{ chapter_num }}</h1>
 {% if current_language in 'ar,he,ur,fa' %}
 <style>
@@ -282,9 +314,10 @@ chapter-viewer.js re-renders on toggle.
 </style>
 {% endif %}
 
-<div id="container" style="display: flex; justify-content: space-between;">
+{# The word-for-word view: the RBT Translation beside the Hebrew literal or notes (data-reader-verses: what the paraphrase toggle swaps out). #}
+<div id="container" data-reader-verses style="display: flex; justify-content: space-between;">
     <div id="paraphraseContainer" style="width: 50%; padding-right: 10px;">
-        <h4>RBT Paraphrase</h4>
+        <h4>RBT Translation</h4>
         {% if paraphrase %}
             {{ paraphrase|safe }}
         {% else %}
@@ -312,6 +345,30 @@ chapter-viewer.js re-renders on toggle.
         </div>
     </div>
 </div>
+
+{% if paraphrase_view %}
+<article id="reader-paraphrase" class="rbt-paraphrase" hidden{% if chapter_editor_enabled and reader_paraphrase %} data-uid="{{ reader_paraphrase.uid }}" data-hash="{{ reader_paraphrase_hash }}"{% endif %}{% if paraphrase_translation_state %} data-translate="{{ paraphrase_translation_state }}" data-book="{{ original_book }}" data-chapter="{{ chapter_num }}" data-lang="{{ current_language }}"{% endif %}>
+    {% if reader_paraphrase %}{{ reader_paraphrase.html|safe }}{% elif paraphrase_translation_state == 'missing' %}
+    <p class="rbt-paraphrase__translating" role="status"><span class="rbt-paraphrase__spinner" aria-hidden="true"></span>Translating the paraphrase…</p>
+    {% else %}
+    <p class="rbt-paraphrase__empty">No paraphrase is published for this chapter yet.{% if chapter_editor_enabled %}
+        <button type="button" data-open-paraphrase-studio>Open the Paraphrase Studio</button>{% endif %}</p>
+    {% endif %}
+</article>
+<script src="{% static 'reader-paraphrase.js' %}?v={{ reader_paraphrase_version }}" defer></script>
+{% endif %}
+
+{% if chapter_editor_enabled %}
+{# The Paraphrase Studio (staff only; chapter-editor/, built into static/chapter-editor/). On OT pages it comes alone: the inline verse editor is NT only. #}
+<link rel="stylesheet" href="{% static 'chapter-editor/chapter-editor.css' %}?v={{ chapter_editor_version }}">
+<div id="chapter-editor-root"
+     data-mode="studio"
+     data-book="{{ original_book }}"
+     data-chapter="{{ chapter_num }}"
+     data-csrf="{{ csrf_token }}"
+     data-paraphrase-api="/translate/api/paraphrase/"></div>
+<script type="module" src="{% static 'chapter-editor/chapter-editor.js' %}?v={{ chapter_editor_version }}"></script>
+{% endif %}
 
 <style>
     .notes-empty {

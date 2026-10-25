@@ -1376,7 +1376,8 @@ def paraphrase_translation_api(request):
         chapter = int(params.get('chapter') or '')
     except ValueError:
         return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'}, status=400)
-    if book not in new_testament_books:
+    from search.paraphrase import supported_book
+    if not supported_book(book):
         return JsonResponse({'status': 'error', 'message': 'Unknown book'}, status=400)
     try:
         if request.method == 'POST':

@@ -226,6 +226,9 @@ textarea.ote-input { height: auto; padding: 8px 10px; }
 .ote-footnote__status.is-bad { color: var(--ote-bad); }
 .ote-minibar { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
 .ote-minibar .tb-btn { height: 26px; min-width: 26px; padding: 0 7px; font-size: 12px; }
+/* Rows wrap between groups, never inside one. */
+.ote-minibar__group { display: inline-flex; gap: 4px; padding-right: 6px; border-right: 1px solid #e6dfd3; }
+.ote-minibar__group:last-child { padding-right: 0; border-right: 0; }
 .ote-footnote__editor {
   min-height: 70px; padding: 8px 10px; background: #fff; border: 1px solid #d9d2c6; border-radius: 6px;
   font-family: Georgia, 'Times New Roman', serif; font-size: 14px; line-height: 1.5; outline: none;
@@ -307,7 +310,10 @@ textarea.ote-input { height: auto; padding: 8px 10px; }
   font-family: Georgia, 'Times New Roman', serif; font-size: 15px; line-height: 1.55; outline: none; overflow-wrap: anywhere;
 }
 .ote-media-notes:focus { border-color: var(--ote-gold); box-shadow: 0 0 0 3px rgba(183,133,80,.15); }
-.ote-media-notes p { margin: 0 0 .6em; }
+/* As readers see them in the image pop-up (base.html .tooltip). */
+.ote-media-notes p { margin: 0 0 12px; }
+.ote-media-notes p:last-child { margin-bottom: 0; }
+.ote-media-notes ul, .ote-media-notes ol, .ote-footnote__editor ul, .ote-footnote__editor ol { margin: 0 0 12px; padding-left: 1.6em; }
 .ote-media-notes:empty::before { content: 'Write what readers see beside the image…'; color: #c4b8a6; }
 .gemini-modal__actions button.ote-danger { background: #fff !important; color: var(--ote-bad) !important; border: 1px solid #efc9c4 !important; }
 .gemini-modal__actions button.ote-danger:hover { background: #fbeeea !important; }

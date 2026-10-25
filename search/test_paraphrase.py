@@ -248,7 +248,7 @@ class StudioApiTests(SimpleTestCase):
                 ({**base, 'models': [['gemini', 'made-up-model']]}, 'not allowed'),
                 ({**base, 'models': [['openai', 'gpt-5.6-terra']]}, 'No API key'),
                 ({**base, 'instructions': ' ', 'models': [['gemini', 'gemini-3.8-flash']]}, 'Instructions'),
-                ({**base, 'book': 'Genesis', 'models': [['gemini', 'gemini-3.8-flash']]}, 'Unknown NT book'),
+                ({**base, 'book': 'Enoch', 'models': [['gemini', 'gemini-3.8-flash']]}, 'Unknown book'),
             ]
             for payload, error in cases:
                 response = self.post(api.generate, payload)

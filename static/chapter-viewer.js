@@ -472,6 +472,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
     function handleKeyDown(event) {
         if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.isContentEditable) return;
+        // The Hebrew literal and notes are part of the word-for-word view (OT pages).
+        if ((event.key === "l" || event.key === "n") && document.body.classList.contains('rbt-paraphrase-view')) return;
 
         if (event.key === "v") {
             toggleVerseRefs();

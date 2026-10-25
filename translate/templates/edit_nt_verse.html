@@ -868,15 +868,7 @@ Cached: {{ cached_hit }}
                     <span class="nve-hint">numbered automatically for its place in the book; the marker goes where the caret was</span>
                 </div>
                 <div class="nve-composer__row"><input type="text" id="nveComposerHeading" placeholder="Heading (optional)" autocomplete="off"></div>
-                <div class="nve-minibar" role="toolbar" aria-label="Footnote formatting">
-                    <button type="button" class="tb-btn" data-cmd="bold" title="Bold"><b>B</b></button>
-                    <button type="button" class="tb-btn" data-cmd="italic" title="Italic"><i>I</i></button>
-                    <button type="button" class="tb-btn" data-cmd="hebrew" title="Mark Hebrew words"><span class="hdr-icon hebrew">א</span></button>
-                    <button type="button" class="tb-btn" data-cmd="greek" title="Mark Greek words"><span class="hdr-icon greek">Ω</span></button>
-                    <button type="button" class="tb-btn" data-cmd="link" title="Link"><i class="fas fa-link"></i></button>
-                    <button type="button" class="tb-btn" data-cmd="ul" title="Bulleted list"><i class="fas fa-list-ul"></i></button>
-                    <button type="button" class="tb-btn" data-cmd="ol" title="Numbered list"><i class="fas fa-list-ol"></i></button>
-                </div>
+                <div class="nve-minibar" role="toolbar" aria-label="Footnote formatting" data-format-toolbar="footnote"></div>
                 <div id="nveComposerText" class="nve-editable nve-note__text rbt-notes tex2jax_ignore" contenteditable="true" spellcheck="true" aria-label="New footnote"></div>
                 <div class="nve-composer__row" style="margin: 10px 0 0;">
                     <button type="button" class="tb-btn tb-btn--save" id="nveComposerCreate" title="⌘Enter">Add &amp; insert marker</button>
@@ -900,14 +892,7 @@ Cached: {{ cached_hit }}
                 <div class="nve-media-dialog__fields">
                     <label id="nveMediaUrlLabel">Image URL <input type="text" id="nveMediaUrl" placeholder="https://…" autocomplete="off"></label>
                     <span style="font-size:12px; font-weight:600; color:#4a3f33;">Notes</span>
-                    <div class="nve-minibar" role="toolbar" aria-label="Notes formatting">
-                        <button type="button" class="tb-btn" data-cmd="bold" title="Bold"><b>B</b></button>
-                        <button type="button" class="tb-btn" data-cmd="italic" title="Italic"><i>I</i></button>
-                        <button type="button" class="tb-btn tb-btn--swatch tb-btn--pink" data-cmd="color" data-color="#ff00aa" title="Pink"><i class="fas fa-circle"></i></button>
-                        <button type="button" class="tb-btn tb-btn--swatch tb-btn--blue" data-cmd="color" data-color="blue" title="Blue"><i class="fas fa-circle"></i></button>
-                        <button type="button" class="tb-btn" data-cmd="link" title="Link"><i class="fas fa-link"></i></button>
-                        <button type="button" class="tb-btn" data-cmd="clear" title="Remove formatting">Tx</button>
-                    </div>
+                    <div class="nve-minibar" role="toolbar" aria-label="Notes formatting" data-format-toolbar="notes"></div>
                     <div id="nveMediaNotes" class="nve-media-notes nve-editable tex2jax_ignore" contenteditable="true" aria-label="Notes"></div>
                     <p style="margin:0; font-size:12px; color:#8a7e70;">Readers see these notes beside the image when they open it.</p>
                 </div>

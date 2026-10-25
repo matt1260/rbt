@@ -1,12 +1,13 @@
 """
-AI chapter paraphrases: the "Paraphrase" reader view on NT chapter pages.
+AI chapter paraphrases: the "Paraphrase" reader view on chapter pages (NT, Genesis and the
+rest of the OT).
 
 Staff generate a whole chapter as flowing, readable English with one or more models at
 once (translate/paraphrase_api.py, driven by the Paraphrase Studio in chapter-editor/),
 compare the results and publish one. Every generation is kept in ChapterParaphrase.
 
 Pipeline for one generation:
-  1. prepare_source(): the chapter's stored RBT verse HTML (new_testament.nt.rbt) is
+  1. prepare_source(): the chapter's stored RBT verse HTML (chapter_verses()) is
      reduced to text plus the color/hayah spans worth keeping. Images, videos and
      tooltip blocks are pulled out as numbered media items with their captions; notes
      that quote verses are sent whole so those verses are paraphrased too.
@@ -40,7 +41,7 @@ from django.utils import timezone
 
 from search.db_utils import execute_query
 from search.models import ChapterParaphrase, ParaphrasePrompt, PromptGlossaryTerm
-from translate.translator import book_abbreviations, new_testament_books
+from translate.translator import book_abbreviations, new_testament_books, old_testament_books
 
 logger = logging.getLogger(__name__)
 
@@ -165,14 +166,37 @@ def nt_book_abbrev(book):
     return book_abbreviations.get(book, book) if book in new_testament_books else None
 
 
+def supported_book(book):
+    """Books with a paraphrase view: the NT, Genesis and the rest of the OT."""
+    return book in new_testament_books or book == 'Genesis' or book in old_testament_books
+
+
 def chapter_verses(book, chapter):
-    """[(verse, stored RBT html)] for an NT chapter, in order."""
-    rows = execute_query(
-        "SELECT startVerse, rbt FROM new_testament.nt WHERE book = %s AND chapter = %s ORDER BY startVerse",
-        (nt_book_abbrev(book), chapter),
-        fetch='all',
-    ) or []
-    return [(str(verse), html or '') for verse, html in rows]
+    """
+    [(verse, stored RBT html)] for a chapter, in order: the RBT Translation as the chapter
+    page's word-for-word view shows it. NT: new_testament.nt.rbt; Genesis: genesis.rbt_reader
+    (genesis.html is the Hebrew literal); other OT books: the verse HTML on each verse's first
+    hebrewdata row, grouped as the chapter page groups it.
+    """
+    if book in new_testament_books:
+        rows = execute_query(
+            "SELECT startVerse, rbt FROM new_testament.nt WHERE book = %s AND chapter = %s ORDER BY startVerse",
+            (nt_book_abbrev(book), chapter),
+            fetch='all',
+        ) or []
+        return [(str(verse), html or '') for verse, html in rows]
+    if book == 'Genesis':
+        from search.models import Genesis
+        rows = Genesis.objects.filter(chapter=chapter).order_by('verse').values_list('verse', 'rbt_reader')
+        return [(str(verse), html or '') for verse, html in rows]
+    if book in old_testament_books:
+        from search.views.chapter_views_part1 import get_results  # imported here: the views import this module
+        verses = get_results(book, chapter).get('html')
+        if not isinstance(verses, dict):
+            return []
+        keys = sorted((key for key in verses if str(key).isdigit()), key=int)
+        return [(str(int(key)), verses[key][1] or '') for key in keys]
+    return []
 
 
 def source_hash(verses):
@@ -794,10 +818,13 @@ def start_batch(book, chapter, models, instructions, word_guidance, include_glos
     verses = chapter_verses(book, chapter)
     if not verses:
         raise ValueError(f'No verses found for {book} {chapter}.')
+    # Much of the OT isn't translated yet: only verses with text are expected in the output.
+    verse_numbers = [verse for verse, html in verses if html.strip()]
+    if not verse_numbers:
+        raise ValueError(f'{book} {chapter} has no RBT Translation text to paraphrase yet.')
     source_text, media = prepare_source(verses)
     user_prompt = build_user_prompt(book, chapter, source_text, media)
     system_prompt = build_system_prompt(instructions, word_guidance, include_glossary)
-    verse_numbers = [verse for verse, _ in verses]
     batch_id = uuid.uuid4()
 
     def start_threads():

@@ -93,6 +93,9 @@
 .nve-tag--warn { background: #fbdedf; color: var(--nve-bad); }
 .nve-minibar { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 6px; }
 .nve-minibar .tb-btn { height: 26px; min-width: 26px; padding: 0 7px; font-size: 12px; }
+/* Rows wrap between groups, never inside one. */
+.nve-minibar__group { display: inline-flex; gap: 4px; padding-right: 6px; border-right: 1px solid #e6dfd3; }
+.nve-minibar__group:last-child { padding-right: 0; border-right: 0; }
 .hdr-icon.greek { font-family: 'Palatino Linotype', Georgia, serif; font-style: italic; color: #1a3a66; font-weight: 700; }
 
 .nve-composer { border: 1px dashed var(--nve-gold); border-radius: 10px; background: var(--nve-parchment); padding: 10px 12px 12px; margin-bottom: 12px; }
@@ -110,6 +113,10 @@
 .nve-media-dialog__fields input { height: 32px; padding: 0 10px; border: 1px solid #d9d2c6; border-radius: 6px; font-size: 13px; }
 .nve-media-notes { min-height: 140px; padding: 10px 12px; background: #fff; border: 1px solid #d9d2c6; border-radius: 6px; font: 15px/1.55 Georgia, serif; outline: none; }
 .nve-media-notes:focus { border-color: #b78550; }
+/* As readers see them in the image pop-up (base.html .tooltip). */
+.nve-media-notes p { margin: 0 0 12px; }
+.nve-media-notes p:last-child { margin-bottom: 0; }
+.nve-media-notes ul, .nve-media-notes ol { margin: 0 0 12px; padding-left: 1.6em; }
 .nve-media-notes:empty::before { content: 'Write what readers see beside the image…'; color: #c4b8a6; }
 .gemini-modal__actions .nve-danger { background: #fff !important; color: #b3261e !important; border: 1px solid #efc9c4 !important; margin-right: auto; }
 @media (max-width: 760px) { .nve-media-dialog__layout { grid-template-columns: minmax(0, 1fr); } }

@@ -1,6 +1,6 @@
-// "Paraphrase" reader view on NT chapter pages (search/templates/nt_chapter.html):
-// switches between the verse-by-verse translation (#paraphrase-area) and the published
-// AI paraphrase (#reader-paraphrase). The choice is remembered per browser; ?view=paraphrase
+// "Paraphrase" reader view on chapter pages (nt_chapter.html, chapter.html): switches between
+// the word-for-word view (NT: #paraphrase-area; OT: the [data-reader-verses] block holding the
+// translation, Hebrew literal and notes) and the published AI paraphrase (#reader-paraphrase). The choice is remembered per browser; ?view=paraphrase
 // or a #v12 link opens the paraphrase directly.
 (function () {
     'use strict';
@@ -57,7 +57,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         var button = document.getElementById('paraphraseViewToggle');
         var reader = document.getElementById('reader-paraphrase');
-        var verses = document.getElementById('paraphrase-area');
+        var verses = document.querySelector('[data-reader-verses]') || document.getElementById('paraphrase-area');
         if (!button || !reader || !verses) return;
 
         function hasContent() {
@@ -117,7 +117,7 @@
 
         function apply(on, remember) {
             if (on) requestTranslation();
-            // The view chosen before the page painted (nt_chapter.html) is now set here.
+            // The view chosen before the page painted (the chapter template) is now set here.
             document.documentElement.classList.remove('rbt-start-paraphrase');
             reader.hidden = !on;
             verses.hidden = on;

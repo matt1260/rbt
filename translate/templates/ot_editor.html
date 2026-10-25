@@ -136,16 +136,7 @@
             <span class="ote-field__label">Footnote on {{ t.ref }}</span>
             <span class="ote-footnote__status" aria-live="polite"></span>
           </div>
-          <div class="ote-minibar" role="toolbar" aria-label="Footnote formatting">
-            <button type="button" class="tb-btn" data-cmd="bold" title="Bold"><b>B</b></button>
-            <button type="button" class="tb-btn" data-cmd="italic" title="Italic"><i>I</i></button>
-            <button type="button" class="tb-btn" data-cmd="hebrew-footnote" title="Hebrew">א</button>
-            <button type="button" class="tb-btn tb-btn--swatch tb-btn--pink" data-cmd="color" data-color="#ff00aa" title="Magenta"><i class="fas fa-circle"></i></button>
-            <button type="button" class="tb-btn tb-btn--swatch tb-btn--blue" data-cmd="color" data-color="blue" title="Blue"><i class="fas fa-circle"></i></button>
-            <button type="button" class="tb-btn" data-cmd="link" title="Link"><i class="fas fa-link"></i></button>
-            <button type="button" class="tb-btn" data-cmd="paragraph" title="Paragraph">¶</button>
-            <button type="button" class="tb-btn" data-cmd="clear" title="Remove formatting">Tx</button>
-          </div>
+          <div class="ote-minibar" role="toolbar" aria-label="Footnote formatting" data-format-toolbar="footnote"></div>
           <div class="ote-footnote__editor ote-editable tex2jax_ignore" contenteditable="true" data-base-hash="{{ t.footnote_hash }}" aria-label="Footnote text">{{ t.footnote|safe }}</div>
           <div class="ote-footnote__tools">
             <button type="button" class="tb-btn tb-btn--save" data-act="fn-save">Save note</button>
@@ -340,16 +331,7 @@
         <div class="ote-media-dialog__fields">
           <label class="ote-label" id="oteMediaUrlLabel">Image URL <input type="text" id="oteMediaUrl" class="ote-input" placeholder="https://…" autocomplete="off"></label>
           <span class="ote-field__label">Notes</span>
-          <div class="ote-minibar" role="toolbar" aria-label="Notes formatting">
-            <button type="button" class="tb-btn" data-cmd="bold" title="Bold"><b>B</b></button>
-            <button type="button" class="tb-btn" data-cmd="italic" title="Italic"><i>I</i></button>
-            <button type="button" class="tb-btn" data-cmd="hayah" title="Hayah">היה</button>
-            <button type="button" class="tb-btn tb-btn--swatch tb-btn--pink" data-cmd="color" data-color="#ff00aa" title="Magenta"><i class="fas fa-circle"></i></button>
-            <button type="button" class="tb-btn tb-btn--swatch tb-btn--blue" data-cmd="color" data-color="blue" title="Blue"><i class="fas fa-circle"></i></button>
-            <button type="button" class="tb-btn" data-cmd="link" title="Link"><i class="fas fa-link"></i></button>
-            <button type="button" class="tb-btn" data-cmd="paragraph" title="Paragraph">¶</button>
-            <button type="button" class="tb-btn" data-cmd="clear" title="Remove formatting">Tx</button>
-          </div>
+          <div class="ote-minibar" role="toolbar" aria-label="Notes formatting" data-format-toolbar="notes"></div>
           <div id="oteMediaNotes" class="ote-media-notes ote-editable tex2jax_ignore" contenteditable="true" aria-label="Notes"></div>
           <p class="ote-fineprint">Readers see these notes beside the image when they open it.</p>
         </div>

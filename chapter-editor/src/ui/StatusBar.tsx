@@ -22,6 +22,16 @@ function summary(snapshot: Snapshot): { text: string; tone: 'idle' | 'busy' | 'o
   return { text: 'Click any word to edit', tone: 'idle' }
 }
 
+/** Opens the Paraphrase Studio (in the status bar, and alone on OT chapter pages). */
+export function StudioButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="rbt-ce-studio" onClick={onClick} title="Generate, compare and publish the AI paraphrase of this chapter">
+      <span className="rbt-ce-studio__full">Paraphrase studio</span>
+      <span className="rbt-ce-studio__short" aria-hidden="true">Studio</span>
+    </button>
+  )
+}
+
 /** Fixed bottom-right: edit mode switch, save state, conflicts and notices. */
 export function StatusBar({ controller, snapshot, onOpenStudio }: Props) {
   const { text, tone } = summary(snapshot)
@@ -114,10 +124,7 @@ export function StatusBar({ controller, snapshot, onOpenStudio }: Props) {
             </svg>
           </button>
         )}
-        <button type="button" className="rbt-ce-studio" onClick={onOpenStudio} title="Generate, compare and publish the AI paraphrase of this chapter">
-          <span className="rbt-ce-studio__full">Paraphrase studio</span>
-          <span className="rbt-ce-studio__short" aria-hidden="true">Studio</span>
-        </button>
+        <StudioButton onClick={onOpenStudio} />
         <button
           type="button"
           className="rbt-ce-switch"

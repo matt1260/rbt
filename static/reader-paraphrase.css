@@ -1,4 +1,4 @@
-/* Paraphrase reader view on NT chapter pages. The HTML comes from search/paraphrase.py,
+/* Paraphrase reader view on chapter pages (NT and OT). The HTML comes from search/paraphrase.py,
    which only lets through the elements and classes styled here.
 
    Layout rules use container queries rather than media queries, so the Paraphrase
@@ -311,6 +311,7 @@
    The outgoing text blurs, drifts up and dissolves; the incoming one sharpens out of a
    blur behind a soft top-to-bottom wipe. The shared name is set only while switching. */
 html.rbt-view-switching #paraphrase-area,
+html.rbt-view-switching [data-reader-verses],
 html.rbt-view-switching #reader-paraphrase {
     view-transition-name: rbt-reading;
 }
@@ -378,4 +379,16 @@ html.rbt-view-switching #reader-paraphrase {
     .rbt-view-enter {
         animation: none;
     }
+}
+
+/* OT pages: the word-for-word view is the whole two-column block (translation beside the
+   Hebrew literal or notes), whose inline display:flex would otherwise beat [hidden]. The
+   literal and notes belong to that view, so their dock switches go while the paraphrase shows. */
+[data-reader-verses][hidden] {
+    display: none !important;
+}
+
+body.rbt-paraphrase-view #literalToggleButton,
+body.rbt-paraphrase-view #notesToggleButton {
+    display: none;
 }
