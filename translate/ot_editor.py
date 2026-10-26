@@ -29,11 +29,13 @@ from translate.translator import (
     build_heb_interlinear,
     convert_book_name,
     new_testament_books,
+    old_testament_books,
     ot_prev_next_references,
     split_strong_refs,
 )
 from translate.views import (
     _apply_gemini_preferences,
+    _clear_reader_cache,
     _invalidate_reader_cache,
     _safe_save_update,
     collect_footnote_rows,
@@ -115,11 +117,15 @@ def _log(version, verse_ref, text):
     ))
 
 
-def _invalidate(verse_ref):
+def _invalidate(verse_ref, field=None):
+    """Clear the verse's reader cache. Translations are made from the paraphrase, so only a
+    paraphrase edit (field='paraphrase') deletes them, to be made again; glosses, morphology,
+    footnotes and the Genesis literal keep them."""
     parts = _verse_ref_parts(verse_ref)
     if not parts:
         return []
-    return _invalidate_reader_cache(_book_name(parts[0]), parts[1], parts[2])
+    clear = _invalidate_reader_cache if field == 'paraphrase' else _clear_reader_cache
+    return clear(_book_name(parts[0]), parts[1], parts[2])
 
 
 def _token_row(token_id):
@@ -622,12 +628,48 @@ def save_verse(request):
         return JsonResponse({'hash': base_hash, 'saved': False})
 
     _write_text(verse_ref, field, html)
-    cleared = _invalidate(verse_ref)
+    cleared = _invalidate(verse_ref, field)
     code = verse_ref.split('.')[0]
     version = TEXT_LOG_VERSIONS.get((code, field), 'Paraphrase')
     _log(version, verse_ref, f'Updated {TEXT_LABELS[field]} for {_reference_label(verse_ref)}: {html}')
     logger.info('[OT EDITOR] %s saved %s %s (%d cache keys cleared)', request.user.username, field, verse_ref, len(cleared))
     return JsonResponse({'hash': _hash(html), 'saved': True})
+
+
+@require_GET
+@login_json
+def chapter_texts(request):
+    """
+    GET ?book=Genesis&chapter=1 → {verses: [{key, verse, ref, text, html, hash}]}: a chapter's
+    editable verse texts, for the chapter page's inline editor (chapter-editor/, OT mode), which
+    saves them through save_verse. key matches the page's .rbt-verse wrappers: the verse number
+    for the RBT Translation (paraphrase), 'literal:N' for Genesis's Hebrew literal.
+    """
+    book = request.GET.get('book') or ''
+    try:
+        chapter = int(request.GET.get('chapter'))
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'book and chapter are required.'}, status=400)
+    verses = []
+
+    def add(key, verse, ref, field, html):
+        verses.append({'key': key, 'verse': str(verse), 'ref': ref, 'text': field, 'html': html, 'hash': _hash(html)})
+
+    if book == 'Genesis':
+        for verse, reader, literal in Genesis.objects.filter(chapter=chapter).order_by('verse').values_list('verse', 'rbt_reader', 'html'):
+            ref = f'Gen.{chapter}.{verse}'
+            add(str(verse), verse, ref, 'paraphrase', reader or '')
+            add(f'literal:{verse}', verse, ref, 'literal', literal or '')
+    elif book in old_testament_books:
+        code = book_abbreviations.get(book, book)
+        for verse, _html in _chapter_rows(f'{code}.{chapter}.1-'):
+            ref = f'{code}.{chapter}.{int(verse)}'
+            html = _stored_text(ref, 'paraphrase')
+            if html is not None:
+                add(str(int(verse)), int(verse), ref, 'paraphrase', html)
+    else:
+        return JsonResponse({'error': 'Unknown Old Testament book.'}, status=400)
+    return JsonResponse({'verses': verses})
 
 
 @login_json

@@ -1,8 +1,9 @@
 /**
  * Drives inline editing on chapter pages.
  *
- * On OT pages (no verse area) only the published paraphrase is editable: its paragraphs and
- * its image notes. The verses, their image notes and the footnotes are NT only.
+ * On Genesis and OT pages (api.isOt) the verses save through the OT editor's endpoints, and
+ * Genesis shows two texts per verse: records are keyed by verseDom.ts keyOf() ('literal:3' for
+ * the Hebrew literal). Footnotes and the verse-number interlinear pop-up are NT only.
  *
  * The server-rendered chapter stays in place. Each verse sits in a
  * `<div class="rbt-verse" data-verse="N" style="display: contents">` wrapper (added for
@@ -24,7 +25,7 @@ import { Decoration, DecorationSet, EditorView } from 'prosemirror-view'
 import { Api, type BlockSaveResult, type EditorConfig, type InterlinearWord } from './api'
 import { applyTool, toggleParagraphHeading, toggleParagraphQuote, TOOLS, typeOutsideEndingMarks, type Tool } from './commands'
 import { parseVerse, restoreColorSpans, roundTrips, sameHtml, schema, serializeDoc } from './schema'
-import { closeText, composeVerse, wrapParentheses } from './verseDom'
+import { closeText, composeLiteral, composeVerse, isLiteral, keyOf, verseLabel, wrapParentheses } from './verseDom'
 
 const AUTOSAVE_DELAY_MS = 1000
 const HOVER_OPEN_DELAY_MS = 150
@@ -183,8 +184,6 @@ export interface Snapshot {
   canUndo: boolean
   notice: { text: string; verse?: string } | null
   hover: { verse: string; anchor: HTMLElement } | null
-  /** OT pages: only the published paraphrase can be edited. */
-  paraphraseOnly: boolean
 }
 
 function readEditModePreference(): boolean {
@@ -215,6 +214,12 @@ function partKey(kind: ParaphrasePart, index: number): string {
 }
 
 /** Where the verse number sits inside the editor: after the leading <h5>, else at the start. */
+/** Where the Genesis literal's verse number goes: inside its paragraph (the second, if two). */
+function literalRefPosition(doc: PMNode, html: string): number {
+  if (html.includes('</p><p>') && doc.childCount > 1) return doc.child(0).nodeSize + 1
+  return html.startsWith('<p>') && doc.childCount && doc.child(0).isTextblock ? 1 : 0
+}
+
 function refPosition(doc: PMNode, hasHeading: boolean): number {
   if (hasHeading) {
     let pos = 0
@@ -266,7 +271,7 @@ export class ChapterEditorController {
 
   constructor(
     config: EditorConfig,
-    /** The NT word-for-word verses (#paraphrase-area); null on OT pages. */
+    /** The word-for-word verses (NT #paraphrase-area, OT [data-reader-verses]), or null for paraphrase-only editing. */
     private area: HTMLElement | null,
   ) {
     this.api = new Api(config)
@@ -313,7 +318,6 @@ export class ChapterEditorController {
       canUndo: (this.active ? undoDepth(this.active.view.state) > 0 : false) || this.undoStack.length > 0,
       notice: this.notice,
       hover: this.hover,
-      paraphraseOnly: !this.area,
     }
   }
 
@@ -334,13 +338,15 @@ export class ChapterEditorController {
     if (on) {
       this.area?.addEventListener('mousedown', this.onAreaMouseDown)
       this.area?.addEventListener('click', this.onAreaClick)
-      this.area?.addEventListener('mouseover', this.onAreaMouseOver)
-      this.area?.addEventListener('mouseout', this.onAreaMouseOut)
+      if (!this.api.isOt) {
+        this.area?.addEventListener('mouseover', this.onAreaMouseOver)
+        this.area?.addEventListener('mouseout', this.onAreaMouseOut)
+      }
       document.addEventListener('mousedown', this.onDocumentMouseDown, true)
       this.reader?.addEventListener('mousedown', this.onReaderMouseDown)
       this.reader?.addEventListener('click', this.onReaderClick)
       document.addEventListener('mousedown', this.onNoteMouseDown)
-      if (this.area) document.addEventListener('mousedown', this.onFootnoteMouseDown)
+      if (this.area && !this.api.isOt) document.addEventListener('mousedown', this.onFootnoteMouseDown)
       this.pointVerseRefsAt('edit')
       if (this.area && !this.verses.size) void this.load()
     } else {
@@ -366,8 +372,9 @@ export class ChapterEditorController {
     this.emit()
     try {
       const verses = await this.api.chapter()
-      for (const { verse, html, hash } of verses) {
-        this.verses.set(verse, { verse, html, hash, target: html, editable: roundTrips(html, document), inFlight: false })
+      for (const { key, verse, html, hash } of verses) {
+        const id = key ?? verse
+        this.verses.set(id, { verse: id, html, hash, target: html, editable: roundTrips(html, document), inFlight: false })
       }
     } catch (error) {
       this.loadError = error instanceof Error ? error.message : String(error)
@@ -398,7 +405,7 @@ export class ChapterEditorController {
   }
 
   private wrapperFor(verse: string): HTMLElement | undefined {
-    return this.wrappers().find((wrapper) => wrapper.dataset.verse === verse)
+    return this.wrappers().find((wrapper) => keyOf(wrapper) === verse)
   }
 
   // --- DOM events ----------------------------------------------------------
@@ -743,7 +750,7 @@ export class ChapterEditorController {
     if (!box || !modal?.open || this.active?.wrapper === box || target.closest('a, img, video')) return
     const coords = { left: event.clientX, top: event.clientY }
     if (modal.dataset.source === 'verse') {
-      // An image in the word-for-word text: its notes are part of the verse's HTML (NT only).
+      // An image in the word-for-word text: its notes are part of the verse's HTML.
       if (!this.area) return
       const index = Number(modal.dataset.index)
       if (!modal.dataset.verse || !Number.isInteger(index) || index < 0) return
@@ -762,11 +769,11 @@ export class ChapterEditorController {
   private activateVerseNote(box: HTMLElement, verse: string, index: number, coords: { left: number; top: number }) {
     const record = this.verses.get(verse)
     if (!record) {
-      this.showNotice(this.loading ? 'The chapter is still loading; try again in a moment.' : `Verse ${verse} isn't loaded for editing.`)
+      this.showNotice(this.loading ? 'The chapter is still loading; try again in a moment.' : `Verse ${verseLabel(verse)} isn't loaded for editing.`)
       return
     }
     if (record.conflict) {
-      this.showNotice(`Verse ${verse} was changed elsewhere. Resolve the conflict first.`, verse)
+      this.showNotice(`Verse ${verseLabel(verse)} was changed elsewhere. Resolve the conflict first.`, verse)
       return
     }
     const html = verseNoteHtml(record.target, index)
@@ -1011,38 +1018,39 @@ export class ChapterEditorController {
   // --- editing ---------------------------------------------------------------
 
   private activate(wrapper: HTMLElement, coords: { left: number; top: number }) {
-    const verse = wrapper.dataset.verse!
+    const verse = keyOf(wrapper)
     const record = this.verses.get(verse)
     if (!record) return
     if (!record.editable) {
-      this.showNotice(`Verse ${verse} has markup the inline editor can't keep intact. Open it in the verse editor.`, verse)
+      this.showNotice(`Verse ${verseLabel(verse)} has markup the inline editor can't keep intact. Open it in the verse editor.`, verse)
       return
     }
     if (record.conflict) {
-      this.showNotice(`Verse ${verse} was changed elsewhere. Resolve the conflict first.`, verse)
+      this.showNotice(`Verse ${verseLabel(verse)} was changed elsewhere. Resolve the conflict first.`, verse)
       return
     }
 
     const html = record.target
     const refHtml = wrapper.querySelector('.verse_ref')?.outerHTML ?? ''
-    const hasHeading = html.includes('<h5>')
+    const literal = isLiteral(verse)
+    const hasHeading = !literal && html.includes('<h5>')
     const originalNodes = Array.from(wrapper.childNodes)
     const host = document.createElement('div')
     host.className = 'rbt-verse-editor'
     wrapper.replaceChildren(host)
-    if (closeText(html)) wrapper.append(document.createElement('br'))
+    if (!literal && closeText(html)) wrapper.append(document.createElement('br'))
 
     const refDom = () => {
       const span = document.createElement('span')
       span.className = 'rbt-ref-widget'
-      span.innerHTML = hasHeading ? refHtml : `${refHtml} `
+      span.innerHTML = hasHeading || literal ? refHtml : `${refHtml} `
       return span
     }
     const refPlugin = new Plugin({
       props: {
         decorations: (state) =>
           DecorationSet.create(state.doc, [
-            Decoration.widget(refPosition(state.doc, hasHeading), refDom, { side: -1, key: 'verse-ref', ignoreSelection: true }),
+            Decoration.widget(literal ? literalRefPosition(state.doc, html) : refPosition(state.doc, hasHeading), refDom, { side: -1, key: 'verse-ref', ignoreSelection: true }),
           ]),
       },
     })
@@ -1208,9 +1216,9 @@ export class ChapterEditorController {
       this.render(active.verse, active.wrapper, active.refHtml)
     }
     if (options.revert && !sameHtml(edited, active.startHtml, document)) {
-      this.showNotice(active.kind === 'verse' ? `Verse ${active.verse}: changes discarded.`
+      this.showNotice(active.kind === 'verse' ? `Verse ${verseLabel(active.verse)}: changes discarded.`
         : active.kind === 'footnote' ? `Footnote ${active.footnote!.ref}: changes discarded.`
-        : active.kind === 'verseNote' ? `Verse ${active.verse} notes: changes discarded.`
+        : active.kind === 'verseNote' ? `Verse ${verseLabel(active.verse)} notes: changes discarded.`
         : `${PART_LABEL[active.kind]}: changes discarded.`)
     }
     this.emit()
@@ -1236,7 +1244,7 @@ export class ChapterEditorController {
       this.save(entry.verse, entry.html)
       target = this.wrapperFor(entry.verse)
       if (target) this.render(entry.verse, target)
-      this.showNotice(`Verse ${entry.verse}: last edit undone.`)
+      this.showNotice(`Verse ${verseLabel(entry.verse)}: last edit undone.`)
     } else if (entry.kind === 'note') {
       this.saveNote(entry.index, entry.html)
       window.rbtReaderParaphrase?.setNote(entry.index, entry.html)
@@ -1271,7 +1279,7 @@ export class ChapterEditorController {
     const record = this.verses.get(verse)
     if (!record) return
     const ref = refHtml ?? wrapper.querySelector('.verse_ref')?.outerHTML ?? ''
-    wrapper.innerHTML = composeVerse(record.target, ref)
+    wrapper.innerHTML = isLiteral(verse) ? composeLiteral(record.target, ref) : composeVerse(record.target, ref)
     wrapper.dataset.rendered = 'editor'
     wrapParentheses(wrapper)
   }

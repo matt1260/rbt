@@ -51,6 +51,7 @@ urlpatterns = [
     path('api/ot/gender/', ot_editor.save_gender, name='ot_editor_gender'),
     path('api/ot/verse/', ot_editor.save_verse, name='ot_editor_verse'),
     path('api/ot/verse-state/', ot_editor.verse_state, name='ot_editor_verse_state'),
+    path('api/ot/chapter/', ot_editor.chapter_texts, name='ot_editor_chapter'),
     path('api/ot/footnote/', ot_editor.footnote, name='ot_editor_footnote'),
     path('api/paraphrase/state/', paraphrase_api.state, name='paraphrase_state'),
     path('api/paraphrase/candidate/', paraphrase_api.candidate, name='paraphrase_candidate'),

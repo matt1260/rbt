@@ -1,4 +1,9 @@
-/** Client for translate/chapter_editor_api.py. */
+import { verseNumber } from './verseDom'
+
+/**
+ * Client for translate/chapter_editor_api.py (NT chapters), or in OT mode for the OT editor's
+ * endpoints (translate/ot_editor.py: chapter_texts, save_verse).
+ */
 
 export interface EditorConfig {
   book: string
@@ -7,12 +12,19 @@ export interface EditorConfig {
   editUrl: string
   apiBase: string
   paraphraseApiBase: string
+  /** 'ot' on Genesis and OT chapter pages. */
+  mode?: 'nt' | 'ot'
 }
 
 export interface VerseData {
+  /** The record key (verseDom.ts keyOf); NT verses use the verse number. */
+  key?: string
   verse: string
   html: string
   hash: string
+  /** OT: the verse's hebrewdata ref (Gen.1.1) and which text ('paraphrase' or 'literal'). */
+  ref?: string
+  text?: string
 }
 
 export interface InterlinearWord {
@@ -35,7 +47,14 @@ export type BlockSaveResult =
   | { status: 'error'; message: string }
 
 export class Api {
+  /** OT: where each record key saves (its ref and text), from chapter(). */
+  private otTargets = new Map<string, { ref: string; text: string }>()
+
   constructor(private config: EditorConfig) {}
+
+  get isOt(): boolean {
+    return this.config.mode === 'ot'
+  }
 
   private url(path: string, params: Record<string, string>): string {
     return `${this.config.apiBase}${path}?${new URLSearchParams(params)}`
@@ -46,7 +65,9 @@ export class Api {
       credentials: 'same-origin',
     })
     if (!response.ok) throw new Error(`Loading the chapter failed (${response.status})`)
-    return (await response.json()).verses
+    const verses: VerseData[] = (await response.json()).verses
+    for (const v of verses) if (v.key && v.ref && v.text) this.otTargets.set(v.key, { ref: v.ref, text: v.text })
+    return verses
   }
 
   async interlinear(verse: string): Promise<InterlinearWord[]> {
@@ -68,7 +89,7 @@ export class Api {
         // number to open the verse editor) finish after navigation.
         keepalive: html.length < 60_000,
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.config.csrf },
-        body: JSON.stringify({ book: this.config.book, chapter: this.config.chapter, verse, html, base_hash: baseHash }),
+        body: JSON.stringify(this.verseBody(verse, html, baseHash)),
       })
     } catch {
       return { status: 'error', message: 'Network error' }
@@ -152,8 +173,16 @@ export class Api {
     return { status: 'error', message: data.error || `Save failed (${response.status})` }
   }
 
-  editUrl(verse: string): string {
-    const params = new URLSearchParams({ book: this.config.book, chapter: this.config.chapter, verse })
+  /** The save request for a verse (key): NT chapter_editor_api.verse, or OT ot_editor.save_verse. */
+  private verseBody(key: string, html: string, baseHash: string): object {
+    const target = this.otTargets.get(key)
+    if (this.isOt && target) return { verse_ref: target.ref, field: target.text, html, base_hash: baseHash }
+    return { book: this.config.book, chapter: this.config.chapter, verse: key, html, base_hash: baseHash }
+  }
+
+  /** The verse edit page (NT /edit/, OT /translate/ot/) for a verse or record key. */
+  editUrl(key: string): string {
+    const params = new URLSearchParams({ book: this.config.book, chapter: this.config.chapter, verse: verseNumber(key) })
     return `${this.config.editUrl}?${params}`
   }
 }

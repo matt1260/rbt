@@ -22,12 +22,14 @@ declare global {
   }
 }
 
-// Mounted for staff on English chapter pages. NT pages (nt_chapter.html) edit the verses and
-// the published paraphrase; OT pages (chapter.html, data-mode="paraphrase") the paraphrase only.
+// Mounted for staff on English chapter pages: NT pages (nt_chapter.html) and, with
+// data-mode="ot", Genesis and OT pages (chapter.html), whose word-for-word view holds the
+// RBT Translation and (Genesis) the Hebrew literal.
 const root = document.getElementById('chapter-editor-root')
 
 if (root) {
   const data = root.dataset
+  const ot = data.mode === 'ot'
   const config: EditorConfig = {
     book: data.book ?? '',
     chapter: data.chapter ?? '',
@@ -35,9 +37,10 @@ if (root) {
     editUrl: data.editUrl ?? '/edit/',
     apiBase: data.apiBase ?? '/translate/api/chapter-editor/',
     paraphraseApiBase: data.paraphraseApi ?? '/translate/api/paraphrase/',
+    mode: ot ? 'ot' : 'nt',
   }
-  const area = data.mode === 'paraphrase' ? null : document.getElementById('paraphrase-area')
-  if (area || data.mode === 'paraphrase') {
+  const area = ot ? document.querySelector<HTMLElement>('[data-reader-verses]') : document.getElementById('paraphrase-area')
+  if (area) {
     const controller = new ChapterEditorController(config, area)
     const paraphraseApi = new ParaphraseApi(config.paraphraseApiBase, config.book, config.chapter, config.csrf)
     createRoot(root).render(<App controller={controller} paraphraseApi={paraphraseApi} title={`${config.book} ${config.chapter}`} />)

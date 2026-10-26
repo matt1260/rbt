@@ -243,7 +243,8 @@
             media: media,
             notesHtml: notes ? notes.innerHTML : '',
             label: container.getAttribute('aria-label') || 'Image',
-            data: verse ? { source: 'verse', verse: verse.dataset.verse, index: String(verseMediaBlocks(verse).indexOf(container)) } : {},
+            // The verse's editing key: its number, or 'literal:N' for the Genesis Hebrew literal.
+            data: verse ? { source: 'verse', verse: verse.dataset.key || verse.dataset.verse, index: String(verseMediaBlocks(verse).indexOf(container)) } : {},
         };
     }
 

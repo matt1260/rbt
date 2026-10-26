@@ -359,13 +359,15 @@ which takes over (and drops this class) once it loads.
 {% endif %}
 
 {% if chapter_editor_enabled %}
-{# Staff: the Paraphrase Studio and inline editing of the published paraphrase (chapter-editor/, built into static/chapter-editor/). Verse editing is NT only. #}
+{# Staff: inline editing of the RBT Translation, the Genesis Hebrew literal and the published paraphrase, and the Paraphrase Studio (chapter-editor/, built into static/chapter-editor/; saves through the OT editor's endpoints). #}
 <link rel="stylesheet" href="{% static 'chapter-editor/chapter-editor.css' %}?v={{ chapter_editor_version }}">
 <div id="chapter-editor-root"
-     data-mode="paraphrase"
+     data-mode="ot"
      data-book="{{ original_book }}"
      data-chapter="{{ chapter_num }}"
      data-csrf="{{ csrf_token }}"
+     data-edit-url="/translate/ot/"
+     data-api-base="/translate/api/ot/"
      data-paraphrase-api="/translate/api/paraphrase/"></div>
 <script type="module" src="{% static 'chapter-editor/chapter-editor.js' %}?v={{ chapter_editor_version }}"></script>
 {% endif %}

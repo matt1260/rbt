@@ -5,6 +5,7 @@ import type { EditorView } from 'prosemirror-view'
 import { useLayoutEffect, useState, type MouseEvent } from 'react'
 import { isToolActive, TOOLS } from '../commands'
 import { selectedCue, type ChapterEditorController } from '../controller'
+import { verseLabel } from '../verseDom'
 
 interface Props {
   controller: ChapterEditorController
@@ -67,7 +68,7 @@ export function Toolbar({ controller, kind, verse, view, state }: Props) {
         <div
           className="rbt-ce-toolbar"
           role="toolbar"
-          aria-label={kind === 'verse' ? `Format verse ${verse}` : kind === 'note' || kind === 'verseNote' ? 'Format notes' : kind === 'footnote' ? 'Format footnote' : 'Format paragraph'}
+          aria-label={kind === 'verse' ? `Format verse ${verseLabel(verse)}` : kind === 'note' || kind === 'verseNote' ? 'Format notes' : kind === 'footnote' ? 'Format footnote' : 'Format paragraph'}
           data-rbt-ui
         >
           {tools.map((tool) => {

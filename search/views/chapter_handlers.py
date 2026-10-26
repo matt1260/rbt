@@ -53,6 +53,21 @@ def _chapter_editor_version():
     return _static_version('chapter-editor/chapter-editor.js')
 
 
+def _staff_editing(request, language):
+    """Staff reading in English get the inline chapter editor (chapter-editor/)."""
+    return language == 'en' and getattr(getattr(request, 'user', None), 'is_staff', False)
+
+
+def _editable_verse(verse_html, verse, key=None):
+    """
+    A verse wrapped in a layout-neutral element (display: contents) so the inline chapter
+    editor can find and swap it. key names the text when a page shows two per verse
+    (Genesis: 'literal:N' for the Hebrew literal; the RBT Translation is just N).
+    """
+    key_attr = f' data-key="{key}"' if key else ''
+    return f'<div class="rbt-verse" data-verse="{verse}"{key_attr} style="display: contents;">{verse_html}</div>'
+
+
 def _paraphrase_context(request, original_book, chapter_num, language):
     """
     The "Paraphrase" reader view (NT and OT chapter pages): the published English paraphrase,
@@ -61,7 +76,7 @@ def _paraphrase_context(request, original_book, chapter_num, language):
     shows meanwhile. Staff reading in English also get the Paraphrase Studio
     (chapter-editor/), to generate and publish one.
     """
-    staff = language == 'en' and getattr(getattr(request, 'user', None), 'is_staff', False)
+    staff = _staff_editing(request, language)
     reader_paraphrase = published_paraphrase(original_book, chapter_num)
     translation_state = ''
     if language != 'en' and reader_paraphrase:
@@ -191,7 +206,9 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
 
     hebrew_literal = ""
     paraphrase = ""
-    
+    # Staff get each verse of both texts wrapped for the inline chapter editor.
+    staff_editing = _staff_editing(request, language)
+
     for result in rbt:
         # verse_html = Hebrew Literal (DO NOT translate - always English)
         # verse_reader = Paraphrase (translate this)
@@ -216,12 +233,14 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
                         }
 
         if '</p><p>' in verse_html:
-            parts = verse_html.split('</p><p>')
-            hebrew_literal += f'{parts[0]}</p><p><span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{parts[1]}'
+            parts = verse_html.split('</p><p>', 1)
+            literal_html = f'{parts[0]}</p><p><span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{parts[1]}'
         elif verse_html.startswith('<p>'):
-            hebrew_literal += f'<p><span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_html[3:]}'
+            literal_html = f'<p><span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_html[3:]}'
         else:
-            hebrew_literal += f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_html}'
+            literal_html = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_html}'
+
+        hebrew_literal += _editable_verse(literal_html, result.verse, f'literal:{result.verse}') if staff_editing else literal_html
 
         if verse_reader.endswith('</span>'):
             close_text = ''
@@ -234,13 +253,15 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
             if h5_match:
                 heading = h5_match.group(1)
                 rest = h5_match.group(2)
-                paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{rest}{close_text}'
+                reader_html = f'{heading}<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{rest}{close_text}'
             else:
-                paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
+                reader_html = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
         elif verse_reader == '':
-            paraphrase += ''
+            reader_html = ''
         else:
-            paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
+            reader_html = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, result.chapter, result.verse)}">{result.verse}</a> </b></span>{verse_reader}{close_text}'
+        if reader_html:
+            paraphrase += _editable_verse(reader_html, result.verse) if staff_editing else reader_html
 
         if result.html:
             notes_sources.append(result.html)
@@ -477,9 +498,8 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
             print(f"[FOOTNOTE QUERY ERROR] Schema: {schema}, Table: {table_name}, ID: {db_footnote_id}, Error: {e}")
             return None
 
-    # Staff get each verse wrapped in a layout-neutral element (display: contents) so the
-    # inline chapter editor (static/chapter-editor/) can find and swap a single verse.
-    chapter_editor_enabled = language == 'en' and getattr(getattr(request, 'user', None), 'is_staff', False)
+    # Staff get each verse wrapped so the inline chapter editor can swap a single verse.
+    chapter_editor_enabled = _staff_editing(request, language)
 
     paraphrase = ""
     for row in chapter_rows:
@@ -510,7 +530,7 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
                 verse_html = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, vrs)}">{vrs}</a></b></span> {html_verse}{close_text}'
 
             if chapter_editor_enabled:
-                verse_html = f'<div class="rbt-verse" data-verse="{vrs}" style="display: contents;">{verse_html}</div>'
+                verse_html = _editable_verse(verse_html, vrs)
             paraphrase += verse_html
     
     # Handle footnote translations
@@ -733,7 +753,9 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
     # Collect footnotes from verse HTML
     footnotes_collection = {}
     paraphrase = ""
-    
+    # Staff get each verse wrapped for the inline chapter editor.
+    staff_editing = _staff_editing(request, language)
+
     # Process sorted verses
     for verse_num, vrs, html_verse in verse_data:
         # Strip leading zeros for display and links
@@ -758,12 +780,13 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
                 if h5_match:
                     heading = h5_match.group(1)
                     rest = h5_match.group(2)
-                    paraphrase += f'{heading}<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, display_vrs)}">{display_vrs}</a> </b></span>{rest}{close_text}'
+                    verse_html = f'{heading}<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, display_vrs)}">{display_vrs}</a> </b></span>{rest}{close_text}'
                 else:
-                    paraphrase += f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, display_vrs)}">{display_vrs}</a> </b></span>{html_verse}{close_text}'
+                    verse_html = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, display_vrs)}">{display_vrs}</a> </b></span>{html_verse}{close_text}'
             else:
-                html_verse = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, display_vrs)}">{display_vrs}</a></b></span> {html_verse}'
-                paraphrase += html_verse + close_text
+                verse_html = f'<span class="verse_ref" style="display: none;"><b><a href="{_get_verse_url(language, book, chapter_num, display_vrs)}">{display_vrs}</a></b></span> {html_verse}'
+                verse_html += close_text
+            paraphrase += _editable_verse(verse_html, display_vrs) if staff_editing else verse_html
 
     # Handle footnote translations
     if language != 'en' and footnotes_collection:

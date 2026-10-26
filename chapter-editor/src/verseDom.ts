@@ -1,7 +1,31 @@
 /**
- * Server-parity rendering of one verse inside its .rbt-verse wrapper, matching the
- * paraphrase loop in handle_nt_chapter (search/views/chapter_handlers.py).
+ * Server-parity rendering of one verse inside its .rbt-verse wrapper, matching the verse
+ * loops in search/views/chapter_handlers.py (NT, Genesis and OT chapters).
+ *
+ * A verse's editing key is its number, or 'literal:N' for Genesis's Hebrew literal, which
+ * the Genesis page shows beside the RBT Translation (the wrapper's data-key).
  */
+
+export function keyOf(wrapper: HTMLElement): string {
+  return wrapper.dataset.key ?? wrapper.dataset.verse ?? ''
+}
+
+export const isLiteral = (key: string) => key.startsWith('literal:')
+
+export const verseNumber = (key: string) => key.slice(key.indexOf(':') + 1)
+
+/** "3", or "3 (Hebrew literal)", for messages ("Verse 3 (Hebrew literal) didn't save"). */
+export function verseLabel(key: string): string {
+  return isLiteral(key) ? `${verseNumber(key)} (Hebrew literal)` : key
+}
+
+/** The Genesis Hebrew literal: the ref inside its paragraph (the second, if it has two), no closing <br>. */
+export function composeLiteral(html: string, refHtml: string): string {
+  const split = html.indexOf('</p><p>')
+  if (split >= 0) return `${html.slice(0, split)}</p><p>${refHtml}${html.slice(split + '</p><p>'.length)}`
+  if (html.startsWith('<p>')) return `<p>${refHtml}${html.slice(3)}`
+  return `${refHtml}${html}`
+}
 
 export function closeText(html: string): string {
   return html.endsWith('</span>') ? '' : '<br>'

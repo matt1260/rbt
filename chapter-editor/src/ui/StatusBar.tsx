@@ -1,4 +1,5 @@
 import type { ChapterEditorController, Snapshot } from '../controller'
+import { verseLabel } from '../verseDom'
 
 interface Props {
   controller: ChapterEditorController
@@ -16,10 +17,9 @@ function summary(snapshot: Snapshot): { text: string; tone: 'idle' | 'busy' | 'o
   }
   if (snapshot.statuses.some((s) => s.status === 'saved')) return { text: 'All changes saved', tone: 'ok' }
   if (snapshot.active) {
-    const what = snapshot.active.kind === 'note' || snapshot.active.kind === 'verseNote' ? 'notes' : snapshot.active.kind === 'footnote' ? 'footnote' : `verse ${snapshot.active.verse}`
+    const what = snapshot.active.kind === 'note' || snapshot.active.kind === 'verseNote' ? 'notes' : snapshot.active.kind === 'footnote' ? 'footnote' : `verse ${verseLabel(snapshot.active.verse)}`
     return { text: `Editing ${what}`, tone: 'idle' }
   }
-  if (snapshot.paraphraseOnly) return { text: 'Click a paragraph of the paraphrase to edit', tone: 'idle' }
   return { text: 'Click any word to edit', tone: 'idle' }
 }
 
@@ -76,7 +76,7 @@ export function StatusBar({ controller, snapshot, onOpenStudio }: Props) {
             )
           ) : problem.status === 'conflict' ? (
             <>
-              <strong>Verse {problem.verse} was changed elsewhere</strong> (e.g. on the verse edit page) since this chapter loaded.
+              <strong>Verse {verseLabel(problem.verse)} was changed elsewhere</strong> (e.g. on the verse edit page) since this chapter loaded.
               <div className="rbt-ce-card__actions">
                 <button type="button" onClick={() => controller.resolveConflict(problem.verse, 'theirs')}>Use saved version</button>
                 <button type="button" onClick={() => controller.resolveConflict(problem.verse, 'mine')}>Overwrite with mine</button>
@@ -84,7 +84,7 @@ export function StatusBar({ controller, snapshot, onOpenStudio }: Props) {
             </>
           ) : (
             <>
-              <strong>Verse {problem.verse} didn't save:</strong> {problem.error}
+              <strong>Verse {verseLabel(problem.verse)} didn't save:</strong> {problem.error}
               <div className="rbt-ce-card__actions">
                 <button type="button" onClick={() => controller.retrySave(problem.verse)}>Retry</button>
               </div>
