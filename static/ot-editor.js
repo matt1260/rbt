@@ -636,19 +636,23 @@
   }
   $$('[data-format-toolbar]').forEach((bar) => { bar.innerHTML = formatToolbar(bar.dataset.formatToolbar === 'notes' ? 'hayah' : 'hebrew'); });
 
-  $$('[data-cmd]').forEach((button) => {
-    button.addEventListener('mousedown', (e) => e.preventDefault());
-    button.addEventListener('click', () => {
-      const scope = button.closest('.ote-footnote, .ote-media-dialog');
-      const editor = scope ? $('.ote-editable', scope) : (activeText && activeText.el);
-      runCommand(button.dataset.cmd, editor, button);
+  // A footnote's or the image notes' own bar formats that text; the main toolbar the active verse text.
+  function bindCommands(rootEl) {
+    $$('[data-cmd]', rootEl).forEach((button) => {
+      button.addEventListener('mousedown', (e) => e.preventDefault());
+      button.addEventListener('click', () => {
+        const scope = button.closest('.ote-footnote, .ote-fn, .ote-media-dialog');
+        const editor = scope ? $('.ote-editable', scope) : (activeText && activeText.el);
+        runCommand(button.dataset.cmd, editor, button);
+      });
     });
-  });
+  }
+  bindCommands(document);
 
   // Tab / Shift+Tab move a list item in or out a level (footnotes and image notes).
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Tab' || e.metaKey || e.ctrlKey || e.altKey) return;
-    const editable = e.target.closest && e.target.closest('.ote-footnote__editor, #oteMediaNotes');
+    const editable = e.target.closest && e.target.closest('.ote-footnote__editor, .ote-fn__text, #oteMediaNotes');
     if (!editable) return;
     const range = rangeIn(editable);
     const node = range && range.startContainer;
@@ -661,7 +665,7 @@
   // Enter starts a <p> in footnotes and image notes; the verse texts keep the browser's default.
   document.addEventListener('focusin', (e) => {
     const editable = e.target.closest && e.target.closest('.ote-editable');
-    if (editable) document.execCommand('defaultParagraphSeparator', false, editable.matches('.ote-footnote__editor, #oteMediaNotes') ? 'p' : 'div');
+    if (editable) document.execCommand('defaultParagraphSeparator', false, editable.matches('.ote-footnote__editor, .ote-fn__text, #oteMediaNotes') ? 'p' : 'div');
   });
 
   // ⌘B / ⌘I inside any editable use the site's <strong>/<em> rather than the browser's <b>/<i>.
@@ -1126,6 +1130,7 @@
         noteBtn.classList.toggle('has-note', !!data.html);
         noteBtn.title = data.html ? "Edit this word's footnote" : 'Add a footnote to this word';
         setFnStatus(data.html ? 'Saved' : 'Removed', 'is-ok');
+        noteSaved(markerId, data.html, data.hash, card);
       } catch (err) {
         if (err.status === 409 && err.data) {
           if (window.confirm('This footnote was changed elsewhere. Load the stored version? (Cancel keeps yours; save again to overwrite.)')) {
@@ -1138,6 +1143,15 @@
       }
     }
     $('[data-act="fn-save"]', card).addEventListener('click', saveFootnote);
+    // The same note saved from the verse's footnote cards: show it here too, unless edited here.
+    const markerId = (card.dataset.marker || '').replace('?footnote=', '');
+    document.addEventListener('ote:note-saved', (e) => {
+      if (e.detail.id !== markerId || e.detail.from === card || fnSerialize() !== lastSaved) return;
+      editor.innerHTML = e.detail.html;
+      editor.dataset.baseHash = e.detail.hash;
+      lastSaved = e.detail.html;
+      noteBtn.classList.toggle('has-note', !!e.detail.html);
+    });
     $('[data-act="fn-marker"]', card).addEventListener('click', () => {
       insertHtml(activeText.el, markerHtml(card));
       activeText.el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1146,6 +1160,165 @@
     $('[data-act="fn-copy"]', card).addEventListener('click', (e) => {
       copyText(markerHtml(card)).then(() => { e.target.textContent = 'Copied'; setTimeout(() => { e.target.textContent = 'Copy marker'; }, 1500); });
     });
+  });
+
+  // ------------------------------------------------------------------ verse footnotes
+  // The notes linked from this verse's texts (?footnote=<id>: Genesis notes, or other books'
+  // word notes), edited in place like the NT verse editor's: autosave, the same conflict check
+  // as the verse texts, Reset to the text the page loaded with. Clicking a footnote number in a
+  // text jumps to its note; a marker added while editing gets its card.
+  const NOTE_ID_RE = /\?footnote=([0-9A-Za-z-]+)/g;
+  const noteList = $('#oteNoteCards');
+  const notesEmpty = $('#oteNotesEmpty');
+  const notesById = new Map();
+
+  function noteSaved(id, html, hash, from) {
+    if (id) document.dispatchEvent(new CustomEvent('ote:note-saved', { detail: { id, html, hash, from } }));
+  }
+
+  function setupNote(card) {
+    const id = card.dataset.note;
+    const el = $('.ote-fn__text', card);
+    const status = $('.ote-fn__status', card);
+    const reset = $('[data-act="fn-reset"]', card);
+    const serializeNote = () => cleanHtml(el.cloneNode(true));
+    const original = serializeNote();
+    let saved = original;
+    let timer = 0;
+    let saving = null;
+
+    function setStatus(text, cls) {
+      status.textContent = text;
+      status.className = 'ote-fn__status' + (cls ? ' ' + cls : '');
+    }
+    async function save() {
+      window.clearTimeout(timer);
+      if (saving) { await saving; }
+      const html = serializeNote();
+      if (html === saved) { setStatus(saved === original ? '' : 'Saved', saved === original ? '' : 'is-ok'); return; }
+      setStatus('Saving…', '');
+      saving = call(api.apiVerseNote, { method: 'POST', body: { id, html, base_hash: el.dataset.baseHash } })
+        .then((data) => {
+          el.dataset.baseHash = data.hash;
+          saved = data.html;
+          if (serializeNote() === html) setStatus('Saved', 'is-ok'); else setStatus('Unsaved', 'is-dirty');
+          noteSaved(id, data.html, data.hash, card);
+        })
+        .catch((err) => {
+          if (err.status === 409 && err.data) {
+            el.dataset.baseHash = err.data.hash;
+            if (window.confirm(`Footnote ${id} was changed elsewhere. Load the stored version? (Cancel keeps yours; it saves over the stored one with your next edit.)`)) {
+              el.innerHTML = err.data.html || '';
+              saved = err.data.html || '';
+              setStatus('Loaded the stored version', 'is-ok');
+            } else setStatus('Changed elsewhere · your next edit overwrites it', 'is-bad');
+          } else setStatus(`Not saved: ${err.message}`, 'is-bad');
+        })
+        .finally(() => { saving = null; reset.disabled = serializeNote() === original; });
+      await saving;
+    }
+
+    el.addEventListener('input', () => {
+      setStatus('Unsaved', 'is-dirty');
+      reset.disabled = false;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(save, 1200);
+    });
+    el.addEventListener('blur', () => { if (serializeNote() !== saved) save(); });
+    el.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); e.stopPropagation(); save(); }
+    });
+    reset.addEventListener('click', () => {
+      el.innerHTML = original;
+      save();
+    });
+    // The same note saved from its word card's drawer.
+    document.addEventListener('ote:note-saved', (e) => {
+      if (e.detail.id !== id || e.detail.from === card || serializeNote() !== saved) return;
+      el.innerHTML = e.detail.html;
+      el.dataset.baseHash = e.detail.hash;
+      saved = e.detail.html;
+    });
+    notesById.set(id, card);
+  }
+
+  function noteCard(note) {
+    const card = document.createElement('article');
+    card.className = 'ote-fn';
+    card.dataset.note = note.id;
+    card.dataset.kind = note.kind;
+    card.innerHTML = `
+      <div class="ote-fn__head">
+        <span class="ote-fn__num">${escapeHtml(note.number)}</span>
+        <code class="ote-fn__id">${escapeHtml(note.id)}</code>
+        ${note.kind === 'word' ? '<span class="ote-fn__kind" title="This word\'s footnote (the same as its card\'s note)">word note</span>' : ''}
+        <span class="ote-fn__status" aria-live="polite"></span>
+        <button type="button" class="tb-btn tb-btn--sm tb-btn--ghost" data-act="fn-reset" title="Put back the note as it was when the page loaded" disabled>Reset</button>
+      </div>
+      <div class="ote-minibar" role="toolbar" aria-label="Footnote formatting">${formatToolbar('hebrew')}</div>
+      <div class="ote-fn__text ote-editable rbt-notes tex2jax_ignore" contenteditable="true" spellcheck="true" aria-label="Footnote ${escapeHtml(note.number)}"></div>`;
+    const el = $('.ote-fn__text', card);
+    el.innerHTML = note.html;
+    el.dataset.baseHash = note.hash;
+    bindCommands(card);
+    return card;
+  }
+
+  function linkedNoteIds() {
+    const ids = [];
+    texts.forEach((t) => {
+      for (const m of t.el.innerHTML.matchAll(NOTE_ID_RE)) if (!ids.includes(m[1])) ids.push(m[1]);
+    });
+    return ids;
+  }
+
+  // Cards for markers added while editing (e.g. with Insert → Note), in the texts' order.
+  const pendingNotes = new Set();
+  async function syncNoteCards() {
+    if (!noteList) return;
+    const ids = linkedNoteIds();
+    for (const id of ids) {
+      if (notesById.has(id) || pendingNotes.has(id)) continue;
+      pendingNotes.add(id);
+      try {
+        const note = await call(api.apiVerseNote, { query: { id } });
+        if (notesById.has(id)) continue;
+        const card = noteCard(note);
+        const after = ids.slice(0, ids.indexOf(id)).reverse().map((other) => notesById.get(other)).find(Boolean);
+        if (after) after.after(card); else noteList.prepend(card);
+        setupNote(card);
+      } catch (err) { /* not a note this page can edit (unknown id); the reader shows it as it is */ }
+      finally { pendingNotes.delete(id); }
+    }
+    if (notesEmpty) notesEmpty.hidden = notesById.size > 0;
+  }
+
+  function focusNote(id) {
+    const card = notesById.get(id);
+    if (!card) return false;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('is-flash');
+    window.setTimeout(() => card.classList.remove('is-flash'), 1200);
+    const el = $('.ote-fn__text', card);
+    el.focus({ preventScroll: true });
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    return true;
+  }
+
+  $$('.ote-fn', noteList || document).forEach(setupNote);
+  texts.forEach((t) => {
+    // A footnote number in a text opens its note rather than following the link.
+    t.el.addEventListener('click', (e) => {
+      const link = e.target.closest && e.target.closest('a[href*="footnote="]');
+      const m = link && /\?footnote=([0-9A-Za-z-]+)/.exec(link.getAttribute('href') || '');
+      if (!m) return;
+      e.preventDefault();
+      if (!focusNote(m[1])) syncNoteCards().then(() => focusNote(m[1]));
+    });
+    t.el.addEventListener('input', debounce(syncNoteCards, 800));
   });
 
   // ------------------------------------------------------------------ panels

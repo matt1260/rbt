@@ -53,6 +53,7 @@ urlpatterns = [
     path('api/ot/verse-state/', ot_editor.verse_state, name='ot_editor_verse_state'),
     path('api/ot/chapter/', ot_editor.chapter_texts, name='ot_editor_chapter'),
     path('api/ot/footnote/', ot_editor.footnote, name='ot_editor_footnote'),
+    path('api/ot/verse-note/', ot_editor.verse_note, name='ot_editor_verse_note'),
     path('api/paraphrase/state/', paraphrase_api.state, name='paraphrase_state'),
     path('api/paraphrase/candidate/', paraphrase_api.candidate, name='paraphrase_candidate'),
     path('api/paraphrase/generate/', paraphrase_api.generate, name='paraphrase_generate'),

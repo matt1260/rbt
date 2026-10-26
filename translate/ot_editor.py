@@ -21,7 +21,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
-from search.models import Genesis, TranslationUpdates
+from search.models import Genesis, GenesisFootnotes, TranslationUpdates
 from search.seo_utils import book_to_slug
 from translate.db_utils import execute_query, table_has_column
 from translate.translator import (
@@ -38,8 +38,6 @@ from translate.views import (
     _clear_reader_cache,
     _invalidate_reader_cache,
     _safe_save_update,
-    collect_footnote_rows,
-    get_results,
 )
 
 logger = logging.getLogger(__name__)
@@ -213,6 +211,55 @@ def _write_text(verse_ref, field, html):
         return
     execute_query("UPDATE old_testament.hebrewdata SET html = %s WHERE Ref = %s;", (html, f'{verse_ref}-01'))
     execute_query("UPDATE old_testament.ot SET html = %s WHERE Ref = %s;", (html, verse_ref))
+
+# Footnotes are linked from verse text as ?footnote=<id>. Genesis keeps its own notes table
+# (search GenesisFootnotes, ids like 1-4-15b: chapter-verse-number); other books note a word
+# (hebrewdata.footnote, ids like Sng-6-5-08 for the row Sng.6.5-08).
+NOTE_LINK_RE = re.compile(r'\?footnote=([0-9A-Za-z-]+)')
+GENESIS_NOTE_RE = re.compile(r'^(\d+)-(\d+)-([0-9A-Za-z]+)$')
+WORD_NOTE_RE = re.compile(r'^([1-3]?[A-Za-z]+)-(\d+)-(\d+)-(\d+)$')
+
+
+def _note_target(note_id):
+    """('genesis', chapter, verse) or ('word', 'Sng.6.5-08') for a footnote id, else None."""
+    match = GENESIS_NOTE_RE.match(note_id or '')
+    if match:
+        return 'genesis', int(match.group(1)), int(match.group(2))
+    match = WORD_NOTE_RE.match(note_id or '')
+    if match:
+        code, chapter, verse, word = match.groups()
+        return 'word', f'{code}.{chapter}.{verse}-{word}'
+    return None
+
+
+def _stored_note(note_id):
+    """(target, stored html) for a footnote id: '' when it has no text yet (a Genesis note is
+    created on save), None when it can't exist (unknown id, or no such word)."""
+    target = _note_target(note_id)
+    if target is None:
+        return None, None
+    if target[0] == 'genesis':
+        html = GenesisFootnotes.objects.filter(footnote_id=note_id).values_list('footnote_html', flat=True).first()
+        return target, html or ''
+    row = execute_query("SELECT footnote FROM old_testament.hebrewdata WHERE Ref = %s;", (target[1],), fetch='one')
+    return target, (row[0] or '') if row else None
+
+
+def _verse_notes(texts_html):
+    """The footnotes linked from a verse's texts, in order: [{id, number, html, hash, kind}]."""
+    notes, seen = [], set()
+    for html in texts_html:
+        for note_id in NOTE_LINK_RE.findall(html or ''):
+            if note_id in seen:
+                continue
+            seen.add(note_id)
+            target, stored = _stored_note(note_id)
+            if target is None or stored is None:
+                continue
+            notes.append({'id': note_id, 'number': note_id.rsplit('-', 1)[-1], 'html': stored,
+                          'hash': _hash(stored), 'kind': target[0]})
+    return notes
+
 
 def _resolve_location(request):
     """
@@ -407,13 +454,6 @@ def ot_editor(request):
     except Exception:
         smith = ''
 
-    genesis_footnotes = []
-    if book == 'Genesis':
-        try:
-            results = get_results(book, chapter, verse)
-            genesis_footnotes = results.get('footnote_content') or []
-        except Exception as exc:  # pragma: no cover - Genesis ORM data is optional here
-            logger.warning('Genesis results unavailable for %s: %s', verse_ref, exc)
 
     _, _, _, _, hebrew_clean, cards = build_heb_interlinear(rows, show_edit_buttons=True)
     cards_by_id = {card['id']: card for card in cards}
@@ -458,17 +498,6 @@ def ot_editor(request):
             'is_hayah': 'H1961' in strong_refs,
         })
 
-    # Footnotes referenced from this verse's paraphrase, plus Genesis' own notes table.
-    if genesis_footnotes:
-        notes_rows = list(genesis_footnotes)
-    else:
-        sources = [t['html'] for t in texts] + [row[13] for row in rows if row[13]]
-        notes_rows = collect_footnote_rows(sources, book, chapter, verse)
-    notes_html = ''
-    if notes_rows:
-        notes_html = '<table class="notes-table"><tbody>' + ''.join(notes_rows).replace(
-            '?footnote=', '/edit_footnote/?footnote=') + '</tbody></table>'
-
     context.update({
         'tokens': tokens,
         'hebrew_text': ' '.join(hebrew_clean),
@@ -476,7 +505,7 @@ def ot_editor(request):
         'active_text_label': TEXT_LABELS['paraphrase'],
         'literal': literal,
         'smith': smith,
-        'notes_html': notes_html,
+        'verse_notes': _verse_notes([t['html'] for t in texts]),
         'prev_ref': prev_ref or '#',
         'next_ref': next_ref or '#',
         'reader_url': f'/{book_to_slug(book) or book}/{chapter}/{verse}/',
@@ -719,6 +748,55 @@ def footnote(request):
         _log('Hebrew Footnote', ref, f'Updated footnote on {ref}: {plain}')
         _invalidate(ref)
         logger.info('[OT EDITOR] %s saved footnote %s', request.user.username, ref)
+    return JsonResponse({'html': html, 'hash': _hash(html)})
+
+
+@login_json
+def verse_note(request):
+    """
+    GET ?id=1-4-15b → {id, number, html, hash, kind}; POST {id, html, base_hash} → {html, hash}.
+    A footnote linked from verse text (see _note_target), edited inline on the verse page. A
+    Genesis note that doesn't exist yet is created; one changed elsewhere since base_hash is
+    never overwritten (409 with the stored version).
+    """
+    if request.method == 'GET':
+        note_id = request.GET.get('id') or ''
+        target, stored = _stored_note(note_id)
+        if stored is None:
+            return JsonResponse({'error': 'Unknown footnote.'}, status=404)
+        return JsonResponse({'id': note_id, 'number': note_id.rsplit('-', 1)[-1], 'html': stored,
+                             'hash': _hash(stored), 'kind': target[0]})
+    if request.method != 'POST':
+        return JsonResponse({'error': 'GET or POST only.'}, status=405)
+    payload = _json_body(request)
+    if payload is None:
+        return JsonResponse({'error': 'Invalid JSON.'}, status=400)
+    note_id = str(payload.get('id') or '')
+    html = payload.get('html')
+    base_hash = payload.get('base_hash')
+    if not isinstance(html, str) or not isinstance(base_hash, str):
+        return JsonResponse({'error': 'id, html and base_hash are required.'}, status=400)
+    if len(html) > MAX_HTML_LENGTH:
+        return JsonResponse({'error': 'Footnote is too long.'}, status=400)
+    target, current = _stored_note(note_id)
+    if current is None:
+        return JsonResponse({'error': 'Unknown footnote.'}, status=404)
+    if _hash(current) != base_hash:
+        return JsonResponse({'error': 'This footnote was changed elsewhere.', 'html': current, 'hash': _hash(current)}, status=409)
+    html = _strip_editor_artifacts(html).strip()
+    if html != current:
+        plain = re.sub(r'<a\s+.*?>(.*?)</a>', r'\1', html)
+        if target[0] == 'genesis':
+            GenesisFootnotes.objects.update_or_create(footnote_id=note_id, defaults={'footnote_html': html})
+            chapter, verse = target[1], target[2]
+            _log('Hebrew Footnote', f'Gen.{chapter}.{verse}', f'Updated footnote {note_id}: {plain}')
+            _clear_reader_cache('Genesis', chapter, verse)
+        else:
+            ref = target[1]
+            execute_query("UPDATE old_testament.hebrewdata SET footnote = %s WHERE Ref = %s;", (html, ref))
+            _log('Hebrew Footnote', ref, f'Updated footnote on {ref}: {plain}')
+            _invalidate(ref)
+        logger.info('[OT EDITOR] %s saved footnote %s', request.user.username, note_id)
     return JsonResponse({'html': html, 'hash': _hash(html)})
 
 

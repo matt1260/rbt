@@ -15,6 +15,7 @@
      data-api-verse="{% url 'ot_editor_verse' %}"
      data-api-verse-state="{% url 'ot_editor_verse_state' %}"
      data-api-footnote="{% url 'ot_editor_footnote' %}"
+     data-api-verse-note="{% url 'ot_editor_verse_note' %}"
      data-api-consonantal="{% url 'search_consonantal' %}"
      data-api-search-lexicon="{% url 'search_lexicon' %}"
      data-api-add-mapping="{% url 'add_manual_lexicon_mapping' %}"
@@ -230,12 +231,29 @@
     </dl>
   </section>
 
-  {% if notes_html %}
-  <details class="ote-notes">
-    <summary>Footnotes referenced in this verse</summary>
-    <div class="ote-notes__body">{{ notes_html|safe }}</div>
-  </details>
-  {% endif %}
+  {# The footnotes linked from this verse's texts, edited in place (static/ot-editor.js "verse footnotes"). #}
+  <section class="ote-notes" id="oteNotes" aria-labelledby="oteNotesTitle">
+    <div class="ote-notes__head">
+      <h2 class="ote-notes__title" id="oteNotesTitle">Footnotes</h2>
+      <span class="ote-fineprint">Click a footnote number in the text to jump to its note · edits autosave</span>
+    </div>
+    <div id="oteNoteCards">
+      {% for n in verse_notes %}
+      <article class="ote-fn" data-note="{{ n.id }}" data-kind="{{ n.kind }}">
+        <div class="ote-fn__head">
+          <span class="ote-fn__num">{{ n.number }}</span>
+          <code class="ote-fn__id">{{ n.id }}</code>
+          {% if n.kind == 'word' %}<span class="ote-fn__kind" title="This word's footnote (the same as its card's note)">word note</span>{% endif %}
+          <span class="ote-fn__status" aria-live="polite"></span>
+          <button type="button" class="tb-btn tb-btn--sm tb-btn--ghost" data-act="fn-reset" title="Put back the note as it was when the page loaded" disabled>Reset</button>
+        </div>
+        <div class="ote-minibar" role="toolbar" aria-label="Footnote formatting" data-format-toolbar="footnote"></div>
+        <div class="ote-fn__text ote-editable rbt-notes tex2jax_ignore" contenteditable="true" spellcheck="true" data-base-hash="{{ n.hash }}" aria-label="Footnote {{ n.number }}">{{ n.html|safe }}</div>
+      </article>
+      {% endfor %}
+    </div>
+    <p class="ote-fineprint" id="oteNotesEmpty"{% if verse_notes %} hidden{% endif %}>No footnotes are linked from this verse yet.</p>
+  </section>
 
   <p class="ote-foot"><a href="/find_and_replace_ot">Find and replace across the Old Testament</a></p>
   {% endif %}
