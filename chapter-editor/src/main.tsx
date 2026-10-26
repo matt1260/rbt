@@ -3,7 +3,6 @@ import type { EditorConfig } from './api'
 import { ChapterEditorController } from './controller'
 import { ParaphraseApi } from './paraphraseApi'
 import { App } from './ui/App'
-import { StudioApp } from './ui/StudioApp'
 import './styles.css'
 
 declare global {
@@ -23,8 +22,8 @@ declare global {
   }
 }
 
-// Mounted for staff on English chapter pages: NT pages (nt_chapter.html) get the inline editor
-// and the Paraphrase Studio; OT pages (chapter.html, data-mode="studio") the studio alone.
+// Mounted for staff on English chapter pages. NT pages (nt_chapter.html) edit the verses and
+// the published paraphrase; OT pages (chapter.html, data-mode="paraphrase") the paraphrase only.
 const root = document.getElementById('chapter-editor-root')
 
 if (root) {
@@ -37,13 +36,10 @@ if (root) {
     apiBase: data.apiBase ?? '/translate/api/chapter-editor/',
     paraphraseApiBase: data.paraphraseApi ?? '/translate/api/paraphrase/',
   }
-  const paraphraseApi = new ParaphraseApi(config.paraphraseApiBase, config.book, config.chapter, config.csrf)
-  const title = `${config.book} ${config.chapter}`
-  const area = document.getElementById('paraphrase-area')
-  if (data.mode === 'studio') {
-    createRoot(root).render(<StudioApp paraphraseApi={paraphraseApi} title={title} />)
-  } else if (area) {
+  const area = data.mode === 'paraphrase' ? null : document.getElementById('paraphrase-area')
+  if (area || data.mode === 'paraphrase') {
     const controller = new ChapterEditorController(config, area)
-    createRoot(root).render(<App controller={controller} paraphraseApi={paraphraseApi} title={title} />)
+    const paraphraseApi = new ParaphraseApi(config.paraphraseApiBase, config.book, config.chapter, config.csrf)
+    createRoot(root).render(<App controller={controller} paraphraseApi={paraphraseApi} title={`${config.book} ${config.chapter}`} />)
   }
 }

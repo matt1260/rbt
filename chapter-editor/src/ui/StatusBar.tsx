@@ -19,11 +19,12 @@ function summary(snapshot: Snapshot): { text: string; tone: 'idle' | 'busy' | 'o
     const what = snapshot.active.kind === 'note' || snapshot.active.kind === 'verseNote' ? 'notes' : snapshot.active.kind === 'footnote' ? 'footnote' : `verse ${snapshot.active.verse}`
     return { text: `Editing ${what}`, tone: 'idle' }
   }
+  if (snapshot.paraphraseOnly) return { text: 'Click a paragraph of the paraphrase to edit', tone: 'idle' }
   return { text: 'Click any word to edit', tone: 'idle' }
 }
 
-/** Opens the Paraphrase Studio (in the status bar, and alone on OT chapter pages). */
-export function StudioButton({ onClick }: { onClick: () => void }) {
+/** Opens the Paraphrase Studio. */
+function StudioButton({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" className="rbt-ce-studio" onClick={onClick} title="Generate, compare and publish the AI paraphrase of this chapter">
       <span className="rbt-ce-studio__full">Paraphrase studio</span>

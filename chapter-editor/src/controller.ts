@@ -1,5 +1,8 @@
 /**
- * Drives inline editing on the NT chapter page.
+ * Drives inline editing on chapter pages.
+ *
+ * On OT pages (no verse area) only the published paraphrase is editable: its paragraphs and
+ * its image notes. The verses, their image notes and the footnotes are NT only.
  *
  * The server-rendered chapter stays in place. Each verse sits in a
  * `<div class="rbt-verse" data-verse="N" style="display: contents">` wrapper (added for
@@ -180,6 +183,8 @@ export interface Snapshot {
   canUndo: boolean
   notice: { text: string; verse?: string } | null
   hover: { verse: string; anchor: HTMLElement } | null
+  /** OT pages: only the published paraphrase can be edited. */
+  paraphraseOnly: boolean
 }
 
 function readEditModePreference(): boolean {
@@ -261,7 +266,8 @@ export class ChapterEditorController {
 
   constructor(
     config: EditorConfig,
-    private area: HTMLElement,
+    /** The NT word-for-word verses (#paraphrase-area); null on OT pages. */
+    private area: HTMLElement | null,
   ) {
     this.api = new Api(config)
     this.snapshot = this.buildSnapshot()
@@ -307,6 +313,7 @@ export class ChapterEditorController {
       canUndo: (this.active ? undoDepth(this.active.view.state) > 0 : false) || this.undoStack.length > 0,
       notice: this.notice,
       hover: this.hover,
+      paraphraseOnly: !this.area,
     }
   }
 
@@ -325,23 +332,23 @@ export class ChapterEditorController {
     writeEditModePreference(on)
     document.body.classList.toggle('rbt-edit-mode', on)
     if (on) {
-      this.area.addEventListener('mousedown', this.onAreaMouseDown)
-      this.area.addEventListener('click', this.onAreaClick)
-      this.area.addEventListener('mouseover', this.onAreaMouseOver)
-      this.area.addEventListener('mouseout', this.onAreaMouseOut)
+      this.area?.addEventListener('mousedown', this.onAreaMouseDown)
+      this.area?.addEventListener('click', this.onAreaClick)
+      this.area?.addEventListener('mouseover', this.onAreaMouseOver)
+      this.area?.addEventListener('mouseout', this.onAreaMouseOut)
       document.addEventListener('mousedown', this.onDocumentMouseDown, true)
       this.reader?.addEventListener('mousedown', this.onReaderMouseDown)
       this.reader?.addEventListener('click', this.onReaderClick)
       document.addEventListener('mousedown', this.onNoteMouseDown)
-      document.addEventListener('mousedown', this.onFootnoteMouseDown)
+      if (this.area) document.addEventListener('mousedown', this.onFootnoteMouseDown)
       this.pointVerseRefsAt('edit')
-      if (!this.verses.size) void this.load()
+      if (this.area && !this.verses.size) void this.load()
     } else {
       this.commit()
-      this.area.removeEventListener('mousedown', this.onAreaMouseDown)
-      this.area.removeEventListener('click', this.onAreaClick)
-      this.area.removeEventListener('mouseover', this.onAreaMouseOver)
-      this.area.removeEventListener('mouseout', this.onAreaMouseOut)
+      this.area?.removeEventListener('mousedown', this.onAreaMouseDown)
+      this.area?.removeEventListener('click', this.onAreaClick)
+      this.area?.removeEventListener('mouseover', this.onAreaMouseOver)
+      this.area?.removeEventListener('mouseout', this.onAreaMouseOut)
       document.removeEventListener('mousedown', this.onDocumentMouseDown, true)
       this.reader?.removeEventListener('mousedown', this.onReaderMouseDown)
       this.reader?.removeEventListener('click', this.onReaderClick)
@@ -387,7 +394,7 @@ export class ChapterEditorController {
   }
 
   private wrappers(): HTMLElement[] {
-    return Array.from(this.area.querySelectorAll<HTMLElement>('.rbt-verse[data-verse]'))
+    return this.area ? Array.from(this.area.querySelectorAll<HTMLElement>('.rbt-verse[data-verse]')) : []
   }
 
   private wrapperFor(verse: string): HTMLElement | undefined {
@@ -433,7 +440,7 @@ export class ChapterEditorController {
     const target = event.target as Element
     if (this.active.wrapper.contains(target)) return
     if (target.closest?.('[data-rbt-ui]')) return
-    if (target.closest?.('.rbt-verse') && this.area.contains(target)) return // handled by onAreaMouseDown
+    if (target.closest?.('.rbt-verse') && this.area?.contains(target)) return // handled by onAreaMouseDown
     if (this.paragraphOf(target)) return // handled by onReaderMouseDown
     this.commit()
   }
@@ -736,7 +743,8 @@ export class ChapterEditorController {
     if (!box || !modal?.open || this.active?.wrapper === box || target.closest('a, img, video')) return
     const coords = { left: event.clientX, top: event.clientY }
     if (modal.dataset.source === 'verse') {
-      // An image in the word-for-word text: its notes are part of the verse's HTML.
+      // An image in the word-for-word text: its notes are part of the verse's HTML (NT only).
+      if (!this.area) return
       const index = Number(modal.dataset.index)
       if (!modal.dataset.verse || !Number.isInteger(index) || index < 0) return
       event.preventDefault()

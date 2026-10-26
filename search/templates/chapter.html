@@ -359,10 +359,10 @@ which takes over (and drops this class) once it loads.
 {% endif %}
 
 {% if chapter_editor_enabled %}
-{# The Paraphrase Studio (staff only; chapter-editor/, built into static/chapter-editor/). On OT pages it comes alone: the inline verse editor is NT only. #}
+{# Staff: the Paraphrase Studio and inline editing of the published paraphrase (chapter-editor/, built into static/chapter-editor/). Verse editing is NT only. #}
 <link rel="stylesheet" href="{% static 'chapter-editor/chapter-editor.css' %}?v={{ chapter_editor_version }}">
 <div id="chapter-editor-root"
-     data-mode="studio"
+     data-mode="paraphrase"
      data-book="{{ original_book }}"
      data-chapter="{{ chapter_num }}"
      data-csrf="{{ csrf_token }}"
