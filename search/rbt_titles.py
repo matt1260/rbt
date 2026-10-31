@@ -26,7 +26,7 @@ rbt_books: dict[str, str] = {
     'Psalms': 'Melodies',
     'Proverbs': 'Comparisons',
     'Ecclesiastes': 'Alignments of the Assembler',
-    'Song of Solomon': 'The Song of Singers',
+    'Song of Solomon': 'The Song of Songs',
     'Isaiah': 'He Who Is Liberates',
     'Jeremiah': 'He Who Is Lifts Up',
     'Lamentations': 'How She Sat Desolate!',
