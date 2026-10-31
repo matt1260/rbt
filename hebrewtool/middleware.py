@@ -213,6 +213,9 @@ class RateLimitMiddleware:
         except Exception:
             pass
 
+        # Counters are per worker process, so each worker enforces its share of the limit
+        limit = max(1, limit // getattr(settings, 'RATE_LIMIT_PROCESSES', 1))
+
         if human_verified and endpoint_type != 'login':
             limit *= HUMAN_VERIFIED_LIMIT_MULTIPLIER
 

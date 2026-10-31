@@ -230,6 +230,10 @@ CACHES = {
     },
 }
 
+# Request counters live per gunicorn worker (CACHES['ratelimit'] above), so each worker
+# enforces its share of a limit. Keep in step with --workers in the Dockerfile.
+RATE_LIMIT_PROCESSES = int(os.getenv('RATE_LIMIT_PROCESSES', '2'))
+
 # How many X-Forwarded-For entries our own proxies append; see hebrewtool.middleware.client_ip.
 # 0 trusts the leftmost value, which clients can forge.
 TRUSTED_PROXY_DEPTH = int(os.getenv('TRUSTED_PROXY_DEPTH', '0'))

@@ -62,7 +62,7 @@ class HumanChallengeTests(SimpleTestCase):
         self.assertIn('%2FJohn%2F3%2F', html)
 
 
-@override_settings(CACHES=LOCMEM, DEBUG=False)
+@override_settings(CACHES=LOCMEM, DEBUG=False, RATE_LIMIT_PROCESSES=1)
 class RateLimitTests(SimpleTestCase):
     def setUp(self):
         from django.core.cache import cache
@@ -116,6 +116,13 @@ class RateLimitTests(SimpleTestCase):
         self.assertEqual(caches['ratelimit'].get('ratelimit:api:1.2.3.4')['count'], 20)
         self.assertIsNone(caches['default'].get('ratelimit:api:1.2.3.4'))
         self.assertEqual(caches['default'].get('strikes:api:1.2.3.4'), 1)
+
+    def test_limit_is_split_between_worker_processes(self):
+        with override_settings(RATE_LIMIT_PROCESSES=2):
+            statuses = [self.middleware(self.factory.get('/api/live/', {'q': 'x'}, REMOTE_ADDR='4.4.4.4')).status_code
+                        for _ in range(11)]
+        self.assertEqual(statuses[:10], [200] * 10)
+        self.assertNotEqual(statuses[10], 200)
 
     def test_verified_cookie_does_not_lift_a_ban(self):
         import time
