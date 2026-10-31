@@ -11,7 +11,7 @@ import time
 import logging
 from django.http import HttpResponse, JsonResponse
 from django.core import signing
-from django.core.cache import cache
+from django.core.cache import InvalidCacheBackendError, cache, caches
 from django.conf import settings
 import traceback
 
@@ -25,17 +25,57 @@ HUMAN_VERIFIED_LIMIT_MULTIPLIER = 5
 LOGIN_PATHS = ('/accounts/login/', '/admin/login/')
 
 
-def client_ip(request):
-    """Extract client IP from request headers, ignoring values that aren't IP addresses."""
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0].strip()
+def _forwarded_chain(request):
+    """The IP addresses in X-Forwarded-For, left to right, skipping anything that isn't one."""
+    chain = []
+    for part in request.META.get('HTTP_X_FORWARDED_FOR', '').split(','):
+        part = part.strip()
+        if not part:
+            continue
         try:
-            ipaddress.ip_address(ip)
-            return ip
+            ipaddress.ip_address(part)
         except ValueError:
-            pass
+            continue
+        chain.append(part)
+    return chain
+
+
+def client_ip(request):
+    """The IP a request is limited and banned by.
+
+    Each proxy in front of us appends the address it accepted the connection from to
+    X-Forwarded-For, so with TRUSTED_PROXY_DEPTH set to the number of entries they add
+    between them, the client is that many from the right. Anything further left was
+    sent by the client itself and can say whatever it likes. Depth 0 takes the leftmost
+    value: forgeable, so a swarm can rotate it and never be limited.
+    """
+    chain = _forwarded_chain(request)
+    depth = getattr(settings, 'TRUSTED_PROXY_DEPTH', 0)
+    if depth > 0:
+        if len(chain) >= depth:
+            return chain[-depth]
+        return request.META.get('REMOTE_ADDR')
+    if chain:
+        return chain[0]
     return request.META.get('REMOTE_ADDR')
+
+
+def _proxy_chain_for_log(request):
+    """What the proxies handed us, for working out TRUSTED_PROXY_DEPTH from the logs."""
+    clean = lambda value: (value or '-').replace('\r', ' ').replace('\n', ' ')[:200]
+    return (f"xff={clean(request.META.get('HTTP_X_FORWARDED_FOR'))} "
+            f"remote={clean(request.META.get('REMOTE_ADDR'))} "
+            f"envoy_external={clean(request.META.get('HTTP_X_ENVOY_EXTERNAL_ADDRESS'))} "
+            f"real_ip={clean(request.META.get('HTTP_X_REAL_IP'))}")
+
+
+def _counter_cache():
+    """Per-process memory for request counters (CACHES['ratelimit']); the default cache
+    where that alias isn't configured, such as under test overrides."""
+    try:
+        return caches['ratelimit']
+    except InvalidCacheBackendError:
+        return cache
 
 
 class RateLimitMiddleware:
@@ -180,20 +220,8 @@ class RateLimitMiddleware:
         strikes_key = f'strikes:{endpoint_type}:{ip}'
         
         # Get current request count and timestamp
-        try:
-            from search.db_utils import safe_cache_get, safe_cache_set
-            rate_data = safe_cache_get(cache_key)
-        except Exception:
-            try:
-                rate_data = cache.get(cache_key)
-            except Exception:
-                logger.exception('Cache get failed for rate_data')
-                try:
-                    from django.db import connection
-                    connection.rollback()
-                except Exception:
-                    pass
-                rate_data = None
+        counters = _counter_cache()
+        rate_data = counters.get(cache_key)
 
         if rate_data is None:
             rate_data = {'count': 0, 'reset_time': time.time() + window}
@@ -203,14 +231,7 @@ class RateLimitMiddleware:
         # Reset counter if window has passed
         if current_time >= rate_data['reset_time']:
             rate_data = {'count': 1, 'reset_time': current_time + window}
-            try:
-                from search.db_utils import safe_cache_set
-                safe_cache_set(cache_key, rate_data, window)
-            except Exception:
-                try:
-                    cache.set(cache_key, rate_data, window)
-                except Exception:
-                    logger.exception('Failed to set rate_data cache for key %s', cache_key)
+            counters.set(cache_key, rate_data, window)
         else:
             # Increment counter
             rate_data['count'] += 1
@@ -236,7 +257,7 @@ class RateLimitMiddleware:
                 log_path = path.replace('\r', ' ').replace('\n', ' ')
                 logger.warning(f"[RATE LIMIT] IP {ip} exceeded {endpoint_type} limit (strike {strikes}/{max_strikes}) UA={user_agent}")
                 # Also print to stdout so platform logs capture the IP immediately
-                print(f"[RATE_LIMIT] ip={ip} endpoint={endpoint_type} count={rate_data['count']} strikes={strikes} ua={user_agent} path={log_path}")
+                print(f"[RATE_LIMIT] ip={ip} endpoint={endpoint_type} count={rate_data['count']} strikes={strikes} ua={user_agent} path={log_path} {_proxy_chain_for_log(request)}")
 
                 # If we have not yet reached the strike threshold for banning, challenge the client
                 # with a simple human verification flow rather than immediately banning. This avoids
@@ -312,15 +333,8 @@ class RateLimitMiddleware:
                 response['X-RateLimit-Reset'] = str(int(rate_data['reset_time']))
                 return response
             
-            try:
-                from search.db_utils import safe_cache_set
-                safe_cache_set(cache_key, rate_data, window)
-            except Exception:
-                try:
-                    cache.set(cache_key, rate_data, window)
-                except Exception:
-                    logger.exception('Failed to set rate_data cache for key %s', cache_key)
-        
+            counters.set(cache_key, rate_data, window)
+
         response = self.get_response(request)
         
         # Add rate limit headers to response

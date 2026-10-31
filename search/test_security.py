@@ -6,6 +6,7 @@ from django.core import signing
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
+from django.core.cache import caches
 
 from hebrewtool.human_verification import human_challenge, human_verify
 from hebrewtool.middleware import HUMAN_COOKIE_SALT, RateLimitMiddleware, client_ip
@@ -78,6 +79,43 @@ class RateLimitTests(SimpleTestCase):
         self.assertEqual(client_ip(request), '10.0.0.1')
         request = self.factory.get('/', HTTP_X_FORWARDED_FOR='8.8.8.8, 10.0.0.2', REMOTE_ADDR='10.0.0.1')
         self.assertEqual(client_ip(request), '8.8.8.8')
+
+    def test_depth_counts_proxy_entries_from_the_right(self):
+        # Attacker-supplied entries on the left; what our proxies appended on the right.
+        request = self.factory.get('/', HTTP_X_FORWARDED_FOR='1.1.1.1, junk, 2.2.2.2, 8.8.8.8, 35.191.0.9',
+                                   REMOTE_ADDR='10.0.0.1')
+        with override_settings(TRUSTED_PROXY_DEPTH=1):
+            self.assertEqual(client_ip(request), '35.191.0.9')
+        with override_settings(TRUSTED_PROXY_DEPTH=2):
+            self.assertEqual(client_ip(request), '8.8.8.8')
+        with override_settings(TRUSTED_PROXY_DEPTH=0):
+            self.assertEqual(client_ip(request), '1.1.1.1')
+
+    def test_depth_falls_back_when_the_header_is_too_short(self):
+        request = self.factory.get('/', HTTP_X_FORWARDED_FOR='8.8.8.8', REMOTE_ADDR='10.0.0.1')
+        with override_settings(TRUSTED_PROXY_DEPTH=2):
+            self.assertEqual(client_ip(request), '10.0.0.1')
+        request = self.factory.get('/', REMOTE_ADDR='10.0.0.1')
+        with override_settings(TRUSTED_PROXY_DEPTH=1):
+            self.assertEqual(client_ip(request), '10.0.0.1')
+
+    def test_with_depth_a_rotating_header_still_hits_one_bucket(self):
+        with override_settings(TRUSTED_PROXY_DEPTH=1):
+            for i in range(21):
+                response = self.middleware(self.factory.get(
+                    '/api/live/', {'q': 'x'}, HTTP_X_FORWARDED_FOR=f'10.{i}.{i}.{i}, 8.8.8.8', REMOTE_ADDR='10.0.0.1'))
+        self.assertNotEqual(response.status_code, 200)
+
+    @override_settings(CACHES={**LOCMEM, 'ratelimit': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': 'security-tests-counters'}})
+    def test_counters_stay_out_of_the_shared_cache_but_strikes_do_not(self):
+        caches['ratelimit'].clear()
+        for _ in range(21):
+            self.middleware(self.factory.get('/api/live/', {'q': 'x'}, REMOTE_ADDR='1.2.3.4'))
+        # The request that exceeds the limit is answered before its count is stored
+        self.assertEqual(caches['ratelimit'].get('ratelimit:api:1.2.3.4')['count'], 20)
+        self.assertIsNone(caches['default'].get('ratelimit:api:1.2.3.4'))
+        self.assertEqual(caches['default'].get('strikes:api:1.2.3.4'), 1)
 
     def test_verified_cookie_does_not_lift_a_ban(self):
         import time

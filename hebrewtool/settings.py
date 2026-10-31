@@ -63,9 +63,8 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
 
-# Short on purpose: browsers cache this, so a long value can't be walked back quickly.
-# No SECURE_SSL_REDIRECT, since Northflank's health checks may arrive over plain HTTP.
-SECURE_HSTS_SECONDS = 0 if DEBUG else 86400
+# No SECURE_SSL_REDIRECT or HSTS here: Northflank's edge terminates TLS, already sends
+# Strict-Transport-Security, and its health checks may arrive over plain HTTP.
 
 CSRF_TRUSTED_ORIGINS = ['https://mzg2o4p8.up.railway.app', 'https://rbtproject.up.railway.app', 'https://www.realbible.tech', 'https://read.realbible.tech', 'https://realbible.tech', 'http://rbt.realbible.tech', 'http://localhost', 'http://127.0.0.1']
 
@@ -219,8 +218,21 @@ CACHES = {
             'MAX_ENTRIES': 8000,
             'CULL_FREQUENCY': 4,  # When full, delete 1/4 of entries
         }
-    }
+    },
+    # Rate-limit request counters: one entry per IP per minute, pure churn. Kept in
+    # process memory so a bot swarm's thousands of IPs don't flood the table above and
+    # cull chapter renders out of it. Strikes and bans stay in 'default', so they are
+    # shared between workers and survive gunicorn recycling them.
+    'ratelimit': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'ratelimit',
+        'OPTIONS': {'MAX_ENTRIES': 20000, 'CULL_FREQUENCY': 4},
+    },
 }
+
+# How many X-Forwarded-For entries our own proxies append; see hebrewtool.middleware.client_ip.
+# 0 trusts the leftmost value, which clients can forge.
+TRUSTED_PROXY_DEPTH = int(os.getenv('TRUSTED_PROXY_DEPTH', '0'))
 
 # Rate limiting configuration (override with env vars if needed)
 # Defaults chosen to be more permissive than previous hardcoded values
@@ -293,7 +305,10 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
+}
 WHITENOISE_USE_FINDERS = True
 
 # Default primary key field type
