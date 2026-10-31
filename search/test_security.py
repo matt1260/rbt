@@ -21,7 +21,15 @@ from translate import views as translate_views
 LOCMEM = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': 'security-tests'}}
 
 
-class AeonAccessTests(TestCase):
+class FreshCounters:
+    """Rate-limit counters live in process memory, so without this every Client() request
+    in the run counts towards the same limit and later tests get the human challenge."""
+    def setUp(self):
+        super().setUp()
+        caches['ratelimit'].clear()
+
+
+class AeonAccessTests(FreshCounters, TestCase):
     def test_anonymous_cannot_reach_aeon(self):
         client = Client()
         for path in ('/api/aeon/ingest/', '/api/aeon/ingest-wordpress/', '/api/aeon/query/'):
@@ -74,10 +82,10 @@ class RateLimitTests(SimpleTestCase):
         request = self.factory.post('/__human_verify/', REMOTE_ADDR=ip)
         return human_verify(request).cookies['human_verified'].value
 
-    def test_client_ip_ignores_junk_forwarded_values(self):
+    def test_default_depth_takes_what_the_proxy_appended(self):
         request = self.factory.get('/', HTTP_X_FORWARDED_FOR='<script>', REMOTE_ADDR='10.0.0.1')
         self.assertEqual(client_ip(request), '10.0.0.1')
-        request = self.factory.get('/', HTTP_X_FORWARDED_FOR='8.8.8.8, 10.0.0.2', REMOTE_ADDR='10.0.0.1')
+        request = self.factory.get('/', HTTP_X_FORWARDED_FOR='203.0.113.7, 8.8.8.8', REMOTE_ADDR='127.0.0.6')
         self.assertEqual(client_ip(request), '8.8.8.8')
 
     def test_depth_counts_proxy_entries_from_the_right(self):
@@ -176,7 +184,7 @@ class RateLimitTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
 
 
-class TranslationRouteTests(TestCase):
+class TranslationRouteTests(FreshCounters, TestCase):
     def test_translation_routes_reject_unknown_books_and_chapters(self):
         client = Client()
         with mock.patch('search.views.translation_views.invalidate_cached_render') as invalidate:
@@ -266,7 +274,7 @@ class RenderingTests(SimpleTestCase):
             self.assertNotIn('Bearer sk-', source.read())
 
 
-class LexiconScrapeTests(TestCase):
+class LexiconScrapeTests(FreshCounters, TestCase):
     def test_scrape_refuses_other_hosts(self):
         client = Client()
         client.force_login(User.objects.create_user('editor', password='x'))
@@ -277,7 +285,7 @@ class LexiconScrapeTests(TestCase):
         get.assert_not_called()
 
 
-class NorthflankStatsTests(TestCase):
+class NorthflankStatsTests(FreshCounters, TestCase):
     def test_closed_without_a_configured_token(self):
         with mock.patch.dict('os.environ', {'NORTHFLANK_STATS_TOKEN': ''}):
             self.assertEqual(Client().get('/api/northflank/stats/').status_code, 401)

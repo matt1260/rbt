@@ -235,8 +235,10 @@ CACHES = {
 RATE_LIMIT_PROCESSES = int(os.getenv('RATE_LIMIT_PROCESSES', '2'))
 
 # How many X-Forwarded-For entries our own proxies append; see hebrewtool.middleware.client_ip.
-# 0 trusts the leftmost value, which clients can forge.
-TRUSTED_PROXY_DEPTH = int(os.getenv('TRUSTED_PROXY_DEPTH', '0'))
+# Northflank's edge appends exactly one: the address it accepted the connection from
+# (probed 2026-10-31: a forged value stayed on the left, the real IP was appended on
+# the right). 0 would trust the leftmost value, which clients can forge.
+TRUSTED_PROXY_DEPTH = int(os.getenv('TRUSTED_PROXY_DEPTH', '1'))
 
 # Rate limiting configuration (override with env vars if needed)
 # Defaults chosen to be more permissive than previous hardcoded values
