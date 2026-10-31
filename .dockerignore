@@ -1,5 +1,9 @@
 .git/
 *.sqlite3
 .env
+.keys
+cdp_api_key.json
+*.log
+*.log.*
 chapter-editor/node_modules/
 static/chapter-editor/

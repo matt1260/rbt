@@ -204,6 +204,15 @@ def _maybe_disable_db_cache_from_exception(exc: Exception) -> bool:
 
     return False
 
+# Reader render cache keys end in this. The one definition: when the reader and the
+# invalidation code each had their own, clearing a chapter's cache missed the real key.
+INTERLINEAR_CACHE_VERSION = 'v7'
+
+# None would mean "forever" to Django, so a stale render that slipped past
+# invalidation would never leave.
+RENDER_CACHE_TTL = 7 * 24 * 60 * 60
+
+
 def safe_cache_get(key, default=None):
     """Safely get value from Django cache, handling DB cache failures gracefully."""
     if _db_cache_disabled_reason:
@@ -221,7 +230,7 @@ def safe_cache_get(key, default=None):
         return default
 
 
-def safe_cache_set(key, value, timeout=None):
+def safe_cache_set(key, value, timeout=RENDER_CACHE_TTL):
     """Safely set value in Django cache, handling DB cache failures gracefully."""
     if _db_cache_disabled_reason:
         return False
@@ -293,7 +302,7 @@ def invalidate_cached_render(cache_key):
     return deleted
 
 
-def safe_cache_set_if_fresh(cache_key, value, started_at, timeout=None):
+def safe_cache_set_if_fresh(cache_key, value, started_at, timeout=RENDER_CACHE_TTL):
     """safe_cache_set() that no-ops when `cache_key` was invalidated after
     `started_at` -- i.e. when the value being written is already stale."""
     if started_at is not None and cache_invalidated_at(cache_key) > started_at:

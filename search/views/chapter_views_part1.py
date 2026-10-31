@@ -8,6 +8,7 @@ all Bible books (Genesis, OT, NT) and handles chapter/verse rendering.
 import re
 import os
 import json
+import logging
 import time
 import calendar
 from datetime import datetime, timedelta
@@ -17,6 +18,7 @@ from urllib.parse import urlencode
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.core.cache import cache
+from django.db import connection
 from django.db.models import Q, Max, Min
 from django.views.decorators.csrf import csrf_exempt
 from dateutil.relativedelta import relativedelta
@@ -25,7 +27,7 @@ from pythonbible.errors import InvalidBookError, InvalidChapterError, InvalidVer
 from bs4 import BeautifulSoup
 
 from search.models import Genesis, GenesisFootnotes, EngLXX, LITV, TranslationUpdates, VerseTranslation
-from search.db_utils import get_db_connection, execute_query, table_has_column
+from search.db_utils import INTERLINEAR_CACHE_VERSION, get_db_connection, execute_query, table_has_column
 from search.views.footnote_views import get_footnote, build_notes_html
 from search.translation_utils import SUPPORTED_LANGUAGES
 from translate.translator import (
@@ -38,8 +40,9 @@ from search.seo_utils import _get_verse_url
 from search.seo_utils import book_to_slug
 from search.rbt_titles import rbt_books
 
+logger = logging.getLogger(__name__)
+
 # Cache version for interlinear data
-INTERLINEAR_CACHE_VERSION = 'v7'
 
 
 def home(request):
@@ -50,7 +53,7 @@ def home(request):
 @csrf_exempt
 def update_count(request):
     """Get count of translation updates for today."""
-    if request.method == 'GET':
+    if request.method in ('GET', 'HEAD'):
         today = datetime.now()
 
         start_date = today.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -282,9 +285,10 @@ def updates(request):
             current_month = int(month_param)
             previous_month = (current_month - 2) % 12 + 1
             month_param = calendar.month_name[int(month_param)]
-        except ValueError as e:
+        except (ValueError, IndexError) as e:
             print(f'Error: {e}')
             results = TranslationUpdates.objects.none()
+            previous_month = None
     else:
         start_date = today.replace(day=1)
         end_date = (today + timedelta(days=32)).replace(day=1) - timedelta(days=1)
@@ -1182,6 +1186,8 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 fetch='all'
             )
 
+            ref_prefix = book_abbrev
+
             # If we found nothing, attempt to discover the actual Ref prefix used in the OT table
             if not data:
                 try:
@@ -1209,6 +1215,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                                 # Use the alternative prefix
                                 chapter_reader = alt_chapter_reader
                                 data = alt_data
+                                ref_prefix = sample_prefix
                                 rbt_ref = alt_rbt_heb_chapter[:4]
                                 chapter_references = execute_query(
                                     "SELECT Ref FROM old_testament.hebrewdata WHERE Ref LIKE %s;",
@@ -1228,7 +1235,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
 
             commentary = None
 
-            regex_pattern = re.compile(fr'{book_abbrev}\.{chapter_num}\.(\d+)')
+            regex_pattern = re.compile(fr'{re.escape(ref_prefix)}\.{chapter_num}\.(\d+)')
             
             verse_groups = {}
             

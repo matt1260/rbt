@@ -138,11 +138,13 @@ function pollJobStatus(jobId, book, chapter, lang, progressText) {
                     
                     if (progressText) {
                         if (data.status === 'pending' && data.queue_position) {
-                            let queueMsg = `Position in queue: #${data.queue_position}`;
+                            progressText.textContent = `Position in queue: #${data.queue_position}`;
                             if (data.current_job) {
-                                queueMsg += `<br><span style="font-size: 11px; color: #666;">Currently processing: ${data.current_job.book} ${data.current_job.chapter} (${data.current_job.progress}%)</span>`;
+                                const currentJob = document.createElement('div');
+                                currentJob.style.cssText = 'font-size: 11px; color: #666;';
+                                currentJob.textContent = `Currently processing: ${data.current_job.book} ${data.current_job.chapter} (${data.current_job.progress}%)`;
+                                progressText.appendChild(currentJob);
                             }
-                            progressText.innerHTML = queueMsg;
                         } else if (totalVerses > 0 || totalFootnotes > 0) {
                             progressText.textContent = `Translating ${data.book || ''} ${data.chapter || ''}... ${progress}% (${verses}/${totalVerses} verses, ${footnotes}/${totalFootnotes} footnotes)`;
                         } else {

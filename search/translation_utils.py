@@ -46,6 +46,11 @@ def source_fingerprint(source_text):
     return hashlib.sha256((source_text or '').encode('utf-8')).hexdigest()
 
 
+# Gemini failures are persisted as ordinary rows with status='completed', so the
+# only way to tell a real translation from a dead one is the text prefix.
+TRANSLATION_ERROR_PREFIXES = ('[Translation error', '[Translation parsing error')
+
+
 def is_translation_current(stored_hash, current_hash):
     """True if a saved translation should be treated as matching today's source.
 

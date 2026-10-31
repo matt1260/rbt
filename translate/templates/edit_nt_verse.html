@@ -1525,6 +1525,7 @@ Cached: {{ cached_hit }}
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
                     },
                     body: JSON.stringify({
                         question,
@@ -2018,7 +2019,11 @@ Cached: {{ cached_hit }}
     }
 
     function call(path, params) {
-        return fetch(path + '?' + qs(params), { credentials: 'same-origin' })
+        return fetch(path + '?' + qs(params), {
+            method: path === '/api/translation/clean-failed/' ? 'POST' : 'GET',
+            credentials: 'same-origin',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+        })
             .then(function (r) { return r.json(); });
     }
 

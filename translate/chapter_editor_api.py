@@ -11,7 +11,6 @@ import json
 import logging
 import re
 from datetime import datetime
-from functools import wraps
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
@@ -21,6 +20,7 @@ from translate.db_utils import execute_query
 from translate.footnote_cleanup import normalize_html as normalize_footnote_html
 from translate.footnote_maintenance import carry_translations
 from translate.translator import book_abbreviations, new_testament_books
+from search.decorators import staff_json
 from search.views.translation_views import _nt_footnote_table
 from search.models import TranslationUpdates
 from translate.views import _clear_reader_cache, _safe_save_update, save_nt_verse_html
@@ -45,17 +45,6 @@ def _verse_hash(html):
 def _strip_editor_artifacts(html):
     html = _EDITOR_ELEMENT_RE.sub('', html)
     return _EDITOR_ATTR_RE.sub('', html)
-
-
-def staff_json(view):
-    """Like user_passes_test(is_staff) but answers with JSON 403 instead of a login redirect."""
-    @wraps(view)
-    def wrapper(request, *args, **kwargs):
-        user = request.user
-        if not (user.is_authenticated and user.is_staff):
-            return JsonResponse({'error': 'Staff login required.'}, status=403)
-        return view(request, *args, **kwargs)
-    return wrapper
 
 
 def _nt_book_abbrev(book):

@@ -5,6 +5,7 @@ Prevents bot flooding by implementing IP-based rate limiting
 and User-Agent filtering for suspicious crawlers.
 """
 
+import ipaddress
 import re
 import time
 import logging
@@ -15,6 +16,26 @@ from django.conf import settings
 import traceback
 
 logger = logging.getLogger(__name__)
+
+HUMAN_COOKIE_SALT = 'hebrewtool.human_verified'
+
+# Solving the challenge needs no proof of work, so it can only stretch a limit, never lift it.
+HUMAN_VERIFIED_LIMIT_MULTIPLIER = 5
+
+LOGIN_PATHS = ('/accounts/login/', '/admin/login/')
+
+
+def client_ip(request):
+    """Extract client IP from request headers, ignoring values that aren't IP addresses."""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0].strip()
+        try:
+            ipaddress.ip_address(ip)
+            return ip
+        except ValueError:
+            pass
+    return request.META.get('REMOTE_ADDR')
 
 
 class RateLimitMiddleware:
@@ -31,14 +52,18 @@ class RateLimitMiddleware:
         self.get_response = get_response
         
     def get_client_ip(self, request):
-        """Extract client IP from request headers."""
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0].strip()
-        else:
-            ip = request.META.get('REMOTE_ADDR')
-        return ip
-    
+        return client_ip(request)
+
+    def has_human_cookie(self, request, ip):
+        human_cookie = request.COOKIES.get('human_verified')
+        if not human_cookie:
+            return False
+        try:
+            token = signing.loads(human_cookie, salt=HUMAN_COOKIE_SALT, max_age=24 * 3600)
+        except signing.BadSignature:
+            return False
+        return token.get('ip') == ip
+
     def __call__(self, request):
         # Skip rate limiting for authenticated users (editors)
         if hasattr(request, 'user') and request.user.is_authenticated:
@@ -54,8 +79,8 @@ class RateLimitMiddleware:
         if path.startswith(static_prefix) or path.startswith('/media/') or path in ('/favicon.ico', '/robots.txt', '/health'):
             return self.get_response(request)
 
-        # Skip rate limiting for translation polling endpoints to avoid accidental bans
-        if path.startswith('/api/translation/status') or path.startswith('/api/translation/start') or path.startswith('/api/translation/clear-cache') or path.startswith('/api/translation/retry-failed'):
+        # Skip rate limiting for the translation status poll to avoid accidental bans
+        if path.startswith('/api/translation/status'):
             return self.get_response(request)
 
         # The inline chapter editor autosaves and prefetches interlinear data on hover, and the
@@ -65,18 +90,9 @@ class RateLimitMiddleware:
         if '/api/chapter-editor/' in path or '/api/paraphrase/' in path:
             return self.get_response(request)
         
-        # If the client has a valid human verification cookie, treat as human and skip rate limits
-        human_cookie = request.COOKIES.get('human_verified')
-        if human_cookie:
-            try:
-                signing.loads(human_cookie, max_age=24 * 3600)
-                return self.get_response(request)
-            except Exception:
-                # Invalid or expired cookie; fall through to normal rate checks
-                pass
-
         ip = self.get_client_ip(request)
         path = request.path
+        human_verified = self.has_human_cookie(request, ip)
         
         # Check if IP is banned
         ban_key = f'banned:{ip}'
@@ -112,7 +128,14 @@ class RateLimitMiddleware:
                 return response
         
         # Determine rate limit based on endpoint
-        if 'verse' in request.GET and 'chapter' in request.GET:
+        if request.method == 'POST' and path in LOGIN_PATHS:
+            # Password attempts. First, so query params can't move a login into a looser bucket.
+            limit = getattr(settings, 'RATE_LIMIT_LOGIN_LIMIT', 10)
+            window = getattr(settings, 'RATE_LIMIT_LOGIN_WINDOW', 60)
+            endpoint_type = 'login'
+            max_strikes = getattr(settings, 'RATE_LIMIT_LOGIN_MAX_STRIKES', 3)
+            ban_duration = getattr(settings, 'RATE_LIMIT_LOGIN_BAN_DURATION', 3600)
+        elif 'verse' in request.GET and 'chapter' in request.GET:
             # Individual verse lookup - configurable and less aggressive by default
             limit = getattr(settings, 'RATE_LIMIT_VERSE_LIMIT', 20) # Lowered
             window = getattr(settings, 'RATE_LIMIT_VERSE_WINDOW', 60)
@@ -149,7 +172,10 @@ class RateLimitMiddleware:
                 max_strikes = 1             # Immediately challenge/ban
         except Exception:
             pass
-        
+
+        if human_verified and endpoint_type != 'login':
+            limit *= HUMAN_VERIFIED_LIMIT_MULTIPLIER
+
         cache_key = f'ratelimit:{endpoint_type}:{ip}'
         strikes_key = f'strikes:{endpoint_type}:{ip}'
         
@@ -206,9 +232,11 @@ class RateLimitMiddleware:
                         strikes = 1
                 
                 user_agent = request.META.get('HTTP_USER_AGENT', '')[:200]
+                # request.path is percent-decoded, so %0a would forge a line in these logs
+                log_path = path.replace('\r', ' ').replace('\n', ' ')
                 logger.warning(f"[RATE LIMIT] IP {ip} exceeded {endpoint_type} limit (strike {strikes}/{max_strikes}) UA={user_agent}")
                 # Also print to stdout so platform logs capture the IP immediately
-                print(f"[RATE_LIMIT] ip={ip} endpoint={endpoint_type} count={rate_data['count']} strikes={strikes} ua={user_agent} path={path}")
+                print(f"[RATE_LIMIT] ip={ip} endpoint={endpoint_type} count={rate_data['count']} strikes={strikes} ua={user_agent} path={log_path}")
 
                 # If we have not yet reached the strike threshold for banning, challenge the client
                 # with a simple human verification flow rather than immediately banning. This avoids
@@ -228,7 +256,7 @@ class RateLimitMiddleware:
                 # Record event to audit log for analysis
                 try:
                     with open('rate_limit_events.log', 'a') as rf:
-                        rf.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {ip} | {endpoint_type} | count={rate_data['count']} | strikes={strikes} | limit={limit} | ua={user_agent} | path={path}\n")
+                        rf.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {ip} | {endpoint_type} | count={rate_data['count']} | strikes={strikes} | limit={limit} | ua={user_agent} | path={log_path}\n")
                 except Exception:
                     logger.exception('Failed to write rate_limit_events.log')
                 
@@ -252,12 +280,12 @@ class RateLimitMiddleware:
                         except Exception:
                             logger.exception('Failed to set ban_key in cache')
 
-                    print(f"[BOT_BANNED] ip={ip} endpoint={endpoint_type} strikes={strikes} ban_duration={ban_duration} ua={user_agent} path={path}")
+                    print(f"[BOT_BANNED] ip={ip} endpoint={endpoint_type} strikes={strikes} ban_duration={ban_duration} ua={user_agent} path={log_path}")
                     
                     # Log to file for monitoring
                     try:
                         with open('blocked_ips.log', 'a') as f:
-                            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {ip} | {endpoint_type} | {strikes} strikes | {ban_duration}s | ua={user_agent} | path={path}\n")
+                            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {ip} | {endpoint_type} | {strikes} strikes | {ban_duration}s | ua={user_agent} | path={log_path}\n")
                     except Exception:
                         logger.exception('Failed to write blocked_ips.log')
                     
@@ -419,6 +447,10 @@ class BotFilterMiddleware:
 import threading
 import requests
 
+# Visitor logging is best-effort: under a flood drop rows rather than pile up threads.
+_visitor_log_slots = threading.BoundedSemaphore(8)
+
+
 class VisitorTrackingMiddleware:
     """
     Tracks visitor locations for the heatmap analytics.
@@ -429,13 +461,8 @@ class VisitorTrackingMiddleware:
         self.get_response = get_response
         
     def get_client_ip(self, request):
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0].strip()
-        else:
-            ip = request.META.get('REMOTE_ADDR')
-        return ip
-        
+        return client_ip(request)
+
     def __call__(self, request):
         response = self.get_response(request)
         
@@ -478,9 +505,19 @@ class VisitorTrackingMiddleware:
             return response  # Don't log bots to save DB space and API calls
             
         # Run geolocation and logging in a background thread to avoid blocking the response
-        threading.Thread(target=self.log_visitor, args=(ip, user_agent, path)).start()
-        
+        if _visitor_log_slots.acquire(blocking=False):
+            threading.Thread(target=self.log_visitor_in_slot, args=(ip, user_agent, path), daemon=True).start()
+
         return response
+
+    def log_visitor_in_slot(self, ip, user_agent, path):
+        from django.db import connections
+
+        try:
+            self.log_visitor(ip, user_agent, path)
+        finally:
+            connections.close_all()  # This thread's connection is not closed for us
+            _visitor_log_slots.release()
         
     def log_visitor_mock(self, ip, user_agent, path):
         """Mock visitor logging for local development."""

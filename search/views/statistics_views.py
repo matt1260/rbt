@@ -2,8 +2,8 @@
 Statistics and analytics views for translation updates and usage tracking.
 """
 
+import logging
 import re
-import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -14,6 +14,8 @@ from django.views.decorators.http import require_http_methods
 from django.db.models import Count
 from django.db.models.functions import TruncDate, TruncWeek, TruncMonth, TruncHour
 from dateutil.relativedelta import relativedelta
+
+logger = logging.getLogger(__name__)
 
 from search.models import TranslationUpdates, GenesisFootnotes
 from search.db_utils import execute_query
@@ -283,11 +285,9 @@ def update_statistics_api(request):
             }
         })
 
-    except Exception as e:
-        return JsonResponse({
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }, status=500)
+    except Exception:
+        logger.exception('statistics API failed')
+        return JsonResponse({'error': 'Internal server error'}, status=500)
 
 @csrf_exempt
 @require_http_methods(["GET"])

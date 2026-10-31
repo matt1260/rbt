@@ -291,7 +291,10 @@
         var qs = Object.keys(params).map(function (k) {
             return k + '=' + encodeURIComponent(params[k]);
         }).join('&');
-        fetch('/api/translation/clean-failed/?' + qs, { credentials: 'same-origin' })
+        fetch('/api/translation/clean-failed/?' + qs, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+        })
             .then(function (r) { return r.json(); })
             .then(function (res) {
                 busy = false;
@@ -404,7 +407,7 @@
             say('Saving\u2026');
             fetch('/api/translation/prompt-config/', {
                 method: 'POST', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
                 body: JSON.stringify(parsed)
             })
                 .then(function (r) { return r.json(); })
@@ -479,7 +482,10 @@
         if (!window.confirm('Re-translate every stale title? This makes one model call per title and language.')) return;
         btn.disabled = true;
         status.textContent = 'Starting\u2026';
-        fetch('/api/translation/titles/', { method: 'POST', credentials: 'same-origin' })
+        fetch('/api/translation/titles/', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+        })
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 if (d.status !== 'ok') { status.textContent = d.message || 'Could not start'; btn.disabled = false; return; }

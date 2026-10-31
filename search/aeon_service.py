@@ -87,6 +87,9 @@ def _is_key_or_quota_error(message: str) -> bool:
     return any(item in lowered for item in indicators)
 
 
+WORDPRESS_FETCH_HOSTS = {'realbible.tech', 'www.realbible.tech', 'read.realbible.tech'}
+
+
 def _resolve_source_path(source_file: str) -> Path:
     candidate = Path(source_file)
     if candidate.is_absolute():
@@ -356,6 +359,11 @@ def _fetch_wordpress_post_from_db(url: str) -> dict[str, Any] | None:
 
 
 def _fetch_wordpress_post_from_web(url: str) -> dict[str, Any] | None:
+    parsed = urlparse(url)
+    if parsed.scheme != 'https' or parsed.hostname not in WORDPRESS_FETCH_HOSTS:
+        logger.error('Refusing to fetch %s: not an https URL on the RBT site', url)
+        return None
+
     slug = _extract_slug_from_url(url)
     req = urllib.request.Request(
         url,

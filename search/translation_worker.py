@@ -598,6 +598,12 @@ class TranslationWorker:
             print(f"[WORKER] Error translating book name: {e}")
             logger.error(f"Error translating book name {book} to {language}: {e}")
 
+    def _heartbeat(self, job):
+        """A job whose started_at is over 5 minutes old looks orphaned to other workers
+        (see the claim query), so a long chapter has to keep it fresh."""
+        job.started_at = timezone.now()
+        job.save(update_fields=['started_at'])
+
     def _translate_verses(self, job, verses_to_translate, book, chapter_num, language):
         """Translate verses and save incrementally"""
         from search.models import VerseTranslation
@@ -615,8 +621,11 @@ class TranslationWorker:
             
             try:
                 print(f"[WORKER] Translating {book} {chapter_num} verses batch {i//batch_size + 1}/{(len(verse_items)-1)//batch_size + 1}")
+                self._heartbeat(job)
                 translated = translate_chapter_batch(batch, language, chapter=chapter_num)
-                
+                if translated.get('__quota_exceeded__'):
+                    raise Exception('Translation quota exceeded')
+
                 # Save each translation
                 for verse_num, translated_text in translated.items():
                     VerseTranslation.objects.update_or_create(
@@ -657,8 +666,11 @@ class TranslationWorker:
             
             try:
                 print(f"[WORKER] Translating {book} {chapter_num} footnotes batch {i//batch_size + 1}/{(len(footnote_items)-1)//batch_size + 1}")
+                self._heartbeat(job)
                 translated = translate_footnotes_batch(batch, language)
-                
+                if translated.get('__quota_exceeded__'):
+                    raise Exception('Translation quota exceeded')
+
                 # Save each translation
                 for footnote_id, translated_text in translated.items():
                     VerseTranslation.objects.update_or_create(
@@ -701,6 +713,13 @@ def ensure_worker_running():
     worker.start()
 
 
+class TranslationQueueFull(Exception):
+    pass
+
+
+MAX_PENDING_JOBS = 200
+
+
 def create_translation_job(book, chapter, language_code):
     """
     Create a new translation job and ensure worker is running.
@@ -718,8 +737,14 @@ def create_translation_job(book, chapter, language_code):
     ).first()
     
     if existing:
+        # A gunicorn max-requests restart kills the worker thread and leaves this job behind
+        ensure_worker_running()
         return existing
-    
+
+    # Each job is a full chapter of paid model calls, and anyone can queue one
+    if TranslationJob.objects.filter(status='pending').count() >= MAX_PENDING_JOBS:
+        raise TranslationQueueFull('The translation queue is full. Please try again later.')
+
     # Create new job
     job = TranslationJob.objects.create(
         job_id=str(uuid.uuid4()),

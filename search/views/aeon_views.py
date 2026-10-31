@@ -1,11 +1,12 @@
 import json
+import logging
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import render
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+from ..decorators import staff_json
 from ..aeon_service import (
     DEFAULT_CONVERSATION_TITLE,
     DEFAULT_SOURCE_FILE,
@@ -17,7 +18,12 @@ from ..aeon_service import (
     query_aeon,
 )
 
+logger = logging.getLogger(__name__)
 
+MAX_QUERY_TOP_K = 20
+
+
+@staff_json
 @require_GET
 def aeon_status(request):
     return JsonResponse({'ok': True, 'sources': list_corpus_sources()})
@@ -45,7 +51,7 @@ def aeon_dashboard_page(request):
     return render(request, 'aeon_dashboard.html', context)
 
 
-@csrf_exempt
+@staff_json
 @require_POST
 def aeon_ingest(request):
     try:
@@ -54,22 +60,22 @@ def aeon_ingest(request):
         return JsonResponse({'ok': False, 'error': 'Invalid JSON body'}, status=400)
 
     title = payload.get('title') or DEFAULT_CONVERSATION_TITLE
-    source_file = payload.get('source_file') or DEFAULT_SOURCE_FILE
     conversation_payload = payload.get('conversation')
 
     try:
         if isinstance(conversation_payload, dict):
             result = ingest_conversation_payload(conversation=conversation_payload, title=title)
         else:
-            result = ingest_conversation_title(title=title, source_file=source_file)
+            result = ingest_conversation_title(title=title, source_file=DEFAULT_SOURCE_FILE)
         return JsonResponse({'ok': True, 'result': result})
     except ValueError as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
-    except Exception as exc:
-        return JsonResponse({'ok': False, 'error': str(exc)}, status=500)
+    except Exception:
+        logger.exception('Aeon request failed')
+        return JsonResponse({'ok': False, 'error': 'Aeon request failed'}, status=500)
 
 
-@csrf_exempt
+@staff_json
 @require_POST
 def aeon_query(request):
     try:
@@ -78,18 +84,22 @@ def aeon_query(request):
         return JsonResponse({'ok': False, 'error': 'Invalid JSON body'}, status=400)
 
     question = payload.get('question', '')
-    top_k = int(payload.get('top_k', 6))
+    try:
+        top_k = min(max(int(payload.get('top_k', 6)), 1), MAX_QUERY_TOP_K)
+    except (TypeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'top_k must be a number'}, status=400)
 
     try:
         result = query_aeon(question=question, top_k=top_k)
         return JsonResponse({'ok': True, 'result': result})
     except ValueError as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
-    except Exception as exc:
-        return JsonResponse({'ok': False, 'error': str(exc)}, status=500)
+    except Exception:
+        logger.exception('Aeon request failed')
+        return JsonResponse({'ok': False, 'error': 'Aeon request failed'}, status=500)
 
 
-@csrf_exempt
+@staff_json
 @require_POST
 def aeon_ingest_wordpress(request):
     try:
@@ -106,5 +116,6 @@ def aeon_ingest_wordpress(request):
         return JsonResponse({'ok': True, 'result': result})
     except ValueError as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
-    except Exception as exc:
-        return JsonResponse({'ok': False, 'error': str(exc)}, status=500)
+    except Exception:
+        logger.exception('Aeon request failed')
+        return JsonResponse({'ok': False, 'error': 'Aeon request failed'}, status=500)

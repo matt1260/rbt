@@ -4,6 +4,7 @@
 *.dump
 *.jsonl
 *.log
+*.log.*
 *.ipynb
 
 # Python
@@ -78,5 +79,6 @@ chapter-editor/node_modules/
 *.env
 .env
 .keys
+cdp_api_key.json
 rbt-sanctum/style.css
 rbt-sanctum/react/sanctum.js

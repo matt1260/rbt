@@ -210,8 +210,8 @@
 <script>
 (function() {
     const query = "{{ query|escapejs }}";
-    const scope = "{{ scope }}";
-    const searchType = "{{ search_type|default:'keyword' }}";
+    const scope = "{{ scope|escapejs }}";
+    const searchType = "{{ search_type|default:'keyword'|escapejs }}";
     const page = {{ page }};
     const langParam = "{{ request.GET.lang|default:''|escapejs }}";
     const translationsOnlyParam = "{{ request.GET.translations_only|default:''|escapejs }}" === '1';
@@ -219,7 +219,7 @@
 
     async function loadResults() {
         try {
-            const effectiveScope = translationsOnlyParam ? 'translations' : scope;
+            const effectiveScope = encodeURIComponent(translationsOnlyParam ? 'translations' : scope);
             const response = await fetch(`/api/live/?q=${encodeURIComponent(query)}&scope=${effectiveScope}&limit=${limit}&page=${page}&type=${searchType}` +
                 (langParam ? `&lang=${encodeURIComponent(langParam)}` : '') +
                 (translationsOnlyParam ? '&translations_only=1' : '')
@@ -445,7 +445,7 @@
         let html = '<div class="pagination">';
 
         if (page > 1) {
-            html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${page - 1}">&laquo; Prev</a>`;
+            html += `<a href="?q=${encodeURIComponent(query)}&scope=${encodeURIComponent(scope)}&page=${page - 1}">&laquo; Prev</a>`;
         } else {
             html += `<span class="disabled">&laquo; Prev</span>`;
         }
@@ -459,7 +459,7 @@
         }
 
         if (startPage > 1) {
-            html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=1">1</a>`;
+            html += `<a href="?q=${encodeURIComponent(query)}&scope=${encodeURIComponent(scope)}&page=1">1</a>`;
             if (startPage > 2) {
                 html += `<span class="disabled">...</span>`;
             }
@@ -469,7 +469,7 @@
             if (i === page) {
                 html += `<span class="current">${i}</span>`;
             } else {
-                html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${i}">${i}</a>`;
+                html += `<a href="?q=${encodeURIComponent(query)}&scope=${encodeURIComponent(scope)}&page=${i}">${i}</a>`;
             }
         }
 
@@ -477,11 +477,11 @@
             if (endPage < totalPages - 1) {
                 html += `<span class="disabled">...</span>`;
             }
-            html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${totalPages}">${totalPages}</a>`;
+            html += `<a href="?q=${encodeURIComponent(query)}&scope=${encodeURIComponent(scope)}&page=${totalPages}">${totalPages}</a>`;
         }
 
         if (page < totalPages) {
-            html += `<a href="?q=${encodeURIComponent(query)}&scope=${scope}&page=${page + 1}">Next &raquo;</a>`;
+            html += `<a href="?q=${encodeURIComponent(query)}&scope=${encodeURIComponent(scope)}&page=${page + 1}">Next &raquo;</a>`;
         } else {
             html += `<span class="disabled">Next &raquo;</span>`;
         }

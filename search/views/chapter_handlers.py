@@ -25,11 +25,18 @@ from search.translation_utils import (
     SUPPORTED_LANGUAGES, source_fingerprint, is_translation_current, needs_retranslation,
 )
 from search.db_utils import execute_query, get_db_connection
+from search.translation_utils import TRANSLATION_ERROR_PREFIXES
 from hebrewtool.debug_utils import set_debug_context, should_emit_debug
 
 from search.seo_utils import book_to_slug, localized_book_name, _get_verse_url
 from search.paraphrase import html_hash as paraphrase_html_hash, published_for as published_paraphrase
 from search import paraphrase_translation
+
+
+def _usable_translation(text):
+    """False for empty text and for a stored Gemini failure, so readers get the English
+    (and the retry banner) instead of an error message in place of the verse."""
+    return bool(text) and not text.startswith(TRANSLATION_ERROR_PREFIXES)
 
 import os
 from django.contrib.staticfiles import finders
@@ -201,7 +208,7 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
         )
         for trans in translations_qs:
             source_text = next((result.rbt_reader or '' for result in rbt if int(result.verse) == trans.verse), '')
-            if trans.verse_text and is_translation_current(trans.source_hash, source_fingerprint(source_text)):
+            if _usable_translation(trans.verse_text) and is_translation_current(trans.source_hash, source_fingerprint(source_text)):
                 translated_verses[trans.verse] = trans.verse_text
 
     hebrew_literal = ""
@@ -279,7 +286,8 @@ def handle_genesis_chapter(request, book, chapter_num, results, language, source
             status='completed'
         ).exclude(footnote_text__isnull=True).exclude(footnote_text=''):
             if trans.footnote_id:
-                translated_footnotes[trans.footnote_id] = trans.footnote_text
+                if _usable_translation(trans.footnote_text):
+                    translated_footnotes[trans.footnote_id] = trans.footnote_text
         
         if footnotes_collection:
             existing_footnote_ids = set(translated_footnotes.keys())
@@ -451,7 +459,7 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
             for _bk, _ch, vrs, html_verse in chapter_rows
         }
         for trans in translations_qs:
-            if trans.verse_text and is_translation_current(trans.source_hash, source_hashes.get(trans.verse)):
+            if _usable_translation(trans.verse_text) and is_translation_current(trans.source_hash, source_hashes.get(trans.verse)):
                 translated_verses[trans.verse] = trans.verse_text
         
         # Apply translations to chapter_rows
@@ -560,7 +568,8 @@ def handle_nt_chapter(request, book, chapter_num, results, language, source_book
             status='completed'
         ).exclude(footnote_text__isnull=True).exclude(footnote_text=''):
             if trans.footnote_id:
-                translated_footnotes[trans.footnote_id] = trans.footnote_text
+                if _usable_translation(trans.footnote_text):
+                    translated_footnotes[trans.footnote_id] = trans.footnote_text
         
         for footnote_id, footnote_data in footnotes_collection.items():
             full_id = f"{book}-{footnote_id}"
@@ -732,7 +741,7 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
         )
         for trans in translations_qs:
             source_text = next((item[2] for item in verse_data if item[0] == trans.verse), '')
-            if trans.verse_text and is_translation_current(trans.source_hash, source_fingerprint(source_text)):
+            if _usable_translation(trans.verse_text) and is_translation_current(trans.source_hash, source_fingerprint(source_text)):
                 translated_verses[trans.verse] = trans.verse_text
         
         # Apply translations to verses
@@ -814,7 +823,8 @@ def handle_ot_chapter(request, book, chapter_num, results, language, source_book
             status='completed'
         ).exclude(footnote_text__isnull=True).exclude(footnote_text=''):
             if trans.footnote_id:
-                translated_footnotes[trans.footnote_id] = trans.footnote_text
+                if _usable_translation(trans.footnote_text):
+                    translated_footnotes[trans.footnote_id] = trans.footnote_text
         
         for footnote_id, footnote_data in footnotes_collection.items():
             full_id = f"{book}-{footnote_id}"

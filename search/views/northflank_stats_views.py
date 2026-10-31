@@ -15,11 +15,11 @@ Optional env vars:
     NORTHFLANK_STATS_TOKEN        – optional viewer auth token
 """
 
+import hmac
 import json
 import logging
 import os
 import ssl
-import traceback
 import urllib.request
 import urllib.error
 from datetime import datetime, timedelta
@@ -384,22 +384,17 @@ def northflank_stats_api(request):
     - refresh: 1 to bypass cache
     - lookback_hours: history points to return (default 24, max 168)
 
-    Optional security:
-    - If NORTHFLANK_STATS_TOKEN is set in env, request must include
-      ``X-Stats-Token: <token>``.
+    Security:
+    - Requests must include ``X-Stats-Token: <token>`` matching
+      NORTHFLANK_STATS_TOKEN. With no token configured the endpoint is closed.
     """
     try:
-        # Optional viewer auth
         expected_token = os.getenv("NORTHFLANK_STATS_TOKEN", "").strip()
-        if expected_token:
-            provided = request.headers.get("X-Stats-Token", "").strip()
-            if provided != expected_token:
-                return _json_response({"error": "Unauthorized"}, status=401)
+        provided = request.headers.get("X-Stats-Token", "").strip()
+        if not expected_token or not hmac.compare_digest(provided.encode(), expected_token.encode()):
+            return _json_response({"error": "Unauthorized"}, status=401)
 
-        project_id = (
-            request.GET.get("project_id", DEFAULT_PROJECT_ID).strip()
-            or DEFAULT_PROJECT_ID
-        )
+        project_id = DEFAULT_PROJECT_ID
         refresh = request.GET.get("refresh") in {"1", "true", "yes"}
 
         try:
@@ -544,9 +539,6 @@ def northflank_stats_api(request):
         cache.set(cache_key, response_data, timeout=DEFAULT_CACHE_TTL_SECONDS)
         return _json_response(response_data)
 
-    except Exception as exc:
+    except Exception:
         logger.exception("northflank_stats_api error")
-        return _json_response(
-            {"error": str(exc), "traceback": traceback.format_exc()},
-            status=500,
-        )
+        return _json_response({"error": "Internal server error"}, status=500)

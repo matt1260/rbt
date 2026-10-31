@@ -5,6 +5,7 @@ Public reader for the Joseph and Aseneth apocryphal text with Greek/English para
 Supports multi-language translation via Gemini API.
 """
 
+import logging
 import re
 from django.shortcuts import render
 from django.core.cache import cache
@@ -12,7 +13,7 @@ from django.urls import reverse
 from django.shortcuts import redirect
 
 from search.db_utils import get_db_connection
-from search.views.translation_views import INTERLINEAR_CACHE_VERSION
+from search.db_utils import INTERLINEAR_CACHE_VERSION
 from search.translation_utils import SUPPORTED_LANGUAGES
 from search.models import VerseTranslation
 

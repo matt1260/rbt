@@ -335,6 +335,7 @@ def handle_single_verse(request, book, chapter_num, verse_num, language):
                     # error: 503 UNAVAILABLE...") saved with status='completed'.
                     # Never render those as if they were a translation.
                     .exclude(verse_text__startswith='[Translation error')
+                    .exclude(verse_text__startswith='[Translation parsing error')
                     .first()
                 )
                 if trans:

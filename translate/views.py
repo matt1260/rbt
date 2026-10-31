@@ -30,7 +30,7 @@ from openai import OpenAI
 from .db_utils import get_db_connection, get_aseneth_connection, get_judas_connection, execute_query, table_has_column
 import psycopg2
 import requests
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlsplit
 from django.views.decorators.http import require_POST
 from django.conf import settings
 from django.db import connection, transaction
@@ -238,6 +238,14 @@ def _clear_reader_cache(book: str | None, chapter: str | int | None, verse: str 
         deleted_keys.append(chapter_key)
 
     return deleted_keys
+
+
+def _clear_storehouse_cache(chapter: str | int) -> None:
+    """Remove the public Joseph and Aseneth chapter render in every language."""
+    from search.translation_utils import SUPPORTED_LANGUAGES
+
+    for lang in ['en'] + list(SUPPORTED_LANGUAGES.keys()):
+        cache.delete(f'storehouse_{chapter}_{lang}_{INTERLINEAR_CACHE_VERSION}')
 
 
 def _safe_save_update(instance: 'TranslationUpdates') -> None:
@@ -1455,6 +1463,9 @@ def edit_footnote(request):
         if footnote_id.count('-') == 1:
             book, ref_num = footnote_id.split('-')
 
+            if book not in nt_abbrev:
+                return HttpResponse("Invalid book selection.", status=400)
+
             if book[0].isdigit():
                 table = f"table_{book}_footnotes"
             else:
@@ -1479,6 +1490,7 @@ def edit_footnote(request):
                 update_text=update_text
             )
             _safe_save_update(update_instance)
+            _clear_reader_cache(_safe_book_name(book) or book, chapter_num, verse_num)
 
             if book in nt_abbrev or book in new_testament_books:
                 
@@ -1538,6 +1550,7 @@ def edit_footnote(request):
             )
             _safe_save_update(update_instance)
             book = 'Genesis'
+            _clear_reader_cache(book, chapter_ref, verse_ref)
 
             context = {
                 'book': book, 
@@ -1647,7 +1660,7 @@ def edit(request):
                 )
                 _safe_save_update(update_instance)
 
-                cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
+                cleared_keys = _clear_reader_cache(book, chapter_num, verse_num)
                 cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
             context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
@@ -1691,10 +1704,8 @@ def edit(request):
         # add new footnote for NT
         if nt_book is not None and footnote_html is not None and footnote_html.strip():
             print(f"[DEBUG] Adding NT footnote: nt_book={nt_book}, footnote_id={footnote_id}, header={footnote_header}")
-            book_abbrev = book_abbreviations.get(nt_book)
-            if book_abbrev is None:
-                book_abbrev = nt_book
-            if book_abbrev is None:
+            book_abbrev = book_abbreviations.get(nt_book, nt_book)
+            if book_abbrev not in nt_abbrev:
                 return HttpResponse("Invalid book selection.", status=400)
 
             # Determine footnote table name
@@ -1735,7 +1746,7 @@ def edit(request):
                 update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num} - {new_footnote_id}", update_text=update_text)
                 _safe_save_update(update_instance)
                 
-                cleared_keys = _invalidate_reader_cache(nt_book, chapter_num, verse_num)
+                cleared_keys = _clear_reader_cache(nt_book, chapter_num, verse_num)
                 cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
                 context = _apply_gemini_preferences(request, get_context(nt_book, chapter_num, verse_num))
@@ -1792,7 +1803,7 @@ def edit(request):
             update_instance = TranslationUpdates(date=update_date, version=update_version, reference=f"{book} {chapter_num}:{verse_num} - {footnote_id}", update_text=update_text)
             _safe_save_update(update_instance)
 
-            cleared_keys = _invalidate_reader_cache(book, chapter_num, verse_num)
+            cleared_keys = _clear_reader_cache(book, chapter_num, verse_num)
             cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
             context = _apply_gemini_preferences(request, get_context(book, chapter_num, verse_num))
@@ -2028,7 +2039,7 @@ def translate(request):
             book_code, chapter_value, verse_value = verse_id, '1', '1'
 
         book_name = convert_book_name(book_code) or book_code
-        cleared_keys = _invalidate_reader_cache(book_name, chapter_value, verse_value)
+        cleared_keys = _clear_reader_cache(book_name, chapter_value, verse_value)
         cache_string = f'Cache cleared ({len(cleared_keys)} keys).' if cleared_keys else ''
 
         update = f'Updated ID: {verse_id} in footnote with "{text}". {cache_string}'
@@ -3787,6 +3798,10 @@ def find_and_replace_ot(request):
                     if update_kwargs:
                         Genesis.objects.filter(id=int(record_id)).update(**update_kwargs)
                         successful_replacements += 1
+                        location = Genesis.objects.filter(id=int(record_id)).values('chapter', 'verse').first()
+                        if location:
+                            clear = _invalidate_reader_cache if new_paraphrase is not None else _clear_reader_cache
+                            clear('Genesis', location['chapter'], location['verse'])
                 elif source == 'footnote':
                     if new_footnote is None:
                         continue
@@ -3813,7 +3828,7 @@ def find_and_replace_ot(request):
                                 chapter_value = parts[1]
                                 verse_value = parts[2].split('-')[0]
                                 book_name = convert_book_name(book_code) or book_code
-                                _invalidate_reader_cache(book_name, chapter_value, verse_value)
+                                _clear_reader_cache(book_name, chapter_value, verse_value)
                     
                     successful_replacements += int(updated or 0)
                 elif source == 'genesisfootnote':
@@ -3829,7 +3844,7 @@ def find_and_replace_ot(request):
                         if len(parts) >= 2:
                             chapter_value = parts[0]
                             verse_value = parts[1]
-                            _invalidate_reader_cache('Genesis', chapter_value, verse_value)
+                            _clear_reader_cache('Genesis', chapter_value, verse_value)
 
                     successful_replacements += 1
                 else:
@@ -4595,13 +4610,11 @@ def edit_aseneth(request):
                     verse_value = item.get('verse')
                     if chapter_value is not None and verse_value is not None:
                         cache.delete(f'aseneth_{chapter_value}_{verse_value}')
-                        # Also invalidate the public storehouse chapter cache so the reader shows updates
-                        cache.delete(f'storehouse_{chapter_value}_{INTERLINEAR_CACHE_VERSION}')
                         affected_chapters.add(chapter_value)
                 for chapter_value in affected_chapters:
                     cache.delete(f'aseneth_{chapter_value}_None')
                     # Invalidate storehouse chapter cache as well
-                    cache.delete(f'storehouse_{chapter_value}_{INTERLINEAR_CACHE_VERSION}')
+                    _clear_storehouse_cache(chapter_value)
 
                 total_matches = sum(item.get('count', 0) for item in updates)
 
@@ -4675,7 +4688,7 @@ def edit_aseneth(request):
                 cache.delete(cache_key_base_verse)
                 cache.delete(cache_key_base_chapter)
                 # Also clear the public reader cache for this chapter
-                cache.delete(f'storehouse_{chapter_num}_{INTERLINEAR_CACHE_VERSION}')
+                _clear_storehouse_cache(chapter_num)
 
                 cache_string = "Cache cleared."
 
@@ -4839,7 +4852,7 @@ def get_gpt_translation(greek_text, conn):
     # print(f"Lexicon entries found: {lexicon}")
     api_url = "https://api.openai.com/v1/chat/completions"
     headers = {
-        "Authorization": "Bearer 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",
+        "Authorization": f"Bearer {CHATGPT_KEY}",
         "Content-Type": "application/json"
     }
     
@@ -6375,6 +6388,7 @@ def update_interlinear_word(request):
         logger.info(f"[INTERLINEAR] Clearing all verse caches for updated word: {strongs}/{lemma}")
         
         cache_start = time.monotonic()
+        cache_cleared = False
         try:
             # Try to use cache.delete_pattern if available (Redis)
             from search.views.chapter_views_part1 import INTERLINEAR_CACHE_VERSION
@@ -6386,12 +6400,14 @@ def update_interlinear_word(request):
                 if not re.match(r'^[A-Za-z0-9_]+$', table_name):
                     raise ValueError('Invalid cache table name')
 
-                # Use TRUNCATE inside a local transaction to avoid long DELETE scans
-                with transaction.atomic():
-                    with connection.cursor() as cursor:
-                        cursor.execute("SET LOCAL statement_timeout TO 0")
-                        cursor.execute(f"TRUNCATE TABLE {table_name}")
-                logger.info("[INTERLINEAR] Cleared cache table via TRUNCATE: %s", table_name)
+                # Renders only. TRUNCATE needs table ownership, which the app's DB role
+                # doesn't have, and would also wipe rate-limit state and bans.
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        f"DELETE FROM {table_name} WHERE cache_key LIKE %s",
+                        (f'%\\_{INTERLINEAR_CACHE_VERSION}',),
+                    )
+                logger.info("[INTERLINEAR] Cleared cached renders from: %s", table_name)
             elif hasattr(cache, 'delete_pattern'):
                 deleted_count = cache.delete_pattern(cache_pattern)
                 logger.info(f"[INTERLINEAR] Cleared {deleted_count} cache keys with pattern: {cache_pattern}")
@@ -6400,6 +6416,7 @@ def update_interlinear_word(request):
                 logger.warning("[INTERLINEAR] Cache backend doesn't support pattern deletion, clearing all cache")
                 cache.clear()
                 logger.info("[INTERLINEAR] Cleared entire cache")
+            cache_cleared = True
 
         except Exception as e:
             logger.error(f"[INTERLINEAR] Error clearing cache: {e}")
@@ -6422,7 +6439,7 @@ def update_interlinear_word(request):
             'new_english': new_english,
             'strongs': strongs,
             'lemma': lemma,
-            'cache_cleared': True,
+            'cache_cleared': cache_cleared,
             'message': f"Updated '{old_english}' → '{new_english}'"
         })
         
@@ -6438,6 +6455,13 @@ def update_interlinear_word(request):
             'error': str(e)
         }, status=500)
 
+LEXICON_SCRAPE_HOSTS = {
+    'biblehub.com', 'www.biblehub.com',
+    'logeion.uchicago.edu',
+    'perseus.tufts.edu', 'www.perseus.tufts.edu',
+}
+
+
 @login_required
 def scrape_lexicon(request):
     """
@@ -6447,6 +6471,10 @@ def scrape_lexicon(request):
     url = request.GET.get('url')
     if not url:
         return JsonResponse({'error': 'No URL provided'}, status=400)
+
+    parsed_url = urlsplit(url)
+    if parsed_url.scheme not in ('http', 'https') or parsed_url.hostname not in LEXICON_SCRAPE_HOSTS:
+        return JsonResponse({'error': 'Unsupported lexicon URL'}, status=400)
 
     # Check cache first
     cache_key = f"lexicon_scrape_{url}"

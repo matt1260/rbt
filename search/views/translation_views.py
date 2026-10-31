@@ -1,12 +1,14 @@
 """
 Translation API endpoints and cache management.
 """
+import logging
 import re
 from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.cache import cache
-from search.db_utils import invalidate_cached_render
+from search.db_utils import INTERLINEAR_CACHE_VERSION, invalidate_cached_render
+from search.decorators import staff_json
 from search.models import VerseTranslation
 from search import title_translations
 from translate.translator import (
@@ -16,20 +18,28 @@ from translate.translator import (
 from search.rbt_titles import rbt_books
 from search.translation_utils import (
     translate_chapter_batch, translate_footnotes_batch, source_fingerprint,
-    is_translation_current, needs_retranslation,
+    is_translation_current, needs_retranslation, TRANSLATION_ERROR_PREFIXES,
 )
 from search.translation_utils import SUPPORTED_LANGUAGES
 from .footnote_views import get_footnote
 
+logger = logging.getLogger(__name__)
+
+TRANSLATABLE_BOOKS = frozenset(
+    {'Genesis', 'Joseph and Aseneth', 'Gospel of Judas'}
+    | set(old_testament_books) | set(new_testament_books) | set(nt_abbrev) | set(book_abbreviations)
+)
+MAX_CHAPTER = 150  # Psalms
+MAX_CHAPTER_BY_BOOK = {'Joseph and Aseneth': 29, 'Gospel of Judas': 60}
+
+
+def _valid_translation_target(book, chapter_num):
+    """Public translation routes write rows and queue paid jobs, so they only accept real chapters."""
+    return book in TRANSLATABLE_BOOKS and 0 <= chapter_num <= MAX_CHAPTER_BY_BOOK.get(book, MAX_CHAPTER)
+
+
 # Import get_results from chapter_views when needed (to avoid circular import)
 # We'll use a late import pattern in the functions that need it
-
-INTERLINEAR_CACHE_VERSION = 'v3'
-
-
-# Gemini failures are persisted as ordinary rows with status='completed', so the
-# only way to tell a real translation from a dead one is the text prefix.
-TRANSLATION_ERROR_PREFIXES = ('[Translation error', '[Translation parsing error')
 
 # Ceiling on per-request cache invalidations. Above this we let TTLs handle it
 # rather than firing thousands of writes at the DB cache in one request.
@@ -210,6 +220,7 @@ def get_cache_key(book, chapter_num, verse_num, language):
     return f'{sanitized_book}_{chapter_num}_{verse_num}_{language}_{INTERLINEAR_CACHE_VERSION}'
 
 
+@staff_json
 def translate_chapter_api(request):
     """
     API endpoint to trigger translation for a chapter.
@@ -228,13 +239,19 @@ def translate_chapter_api(request):
     if not book or not chapter_num or not language or language == 'en':
         print(f"[API DEBUG] Invalid params: book={book}, chapter={chapter_num}, lang={language}")
         return JsonResponse({'status': 'skipped', 'message': 'Invalid parameters or English language'})
-    
+
+    if language not in SUPPORTED_LANGUAGES:
+        return JsonResponse({'status': 'error', 'message': f'Unsupported language: {language}'})
+
     # Ensure chapter_num is integer for DB comparisons
     try:
         chapter_num = int(chapter_num)
     except ValueError:
         return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'})
-    
+
+    if not _valid_translation_target(book, chapter_num):
+        return JsonResponse({'status': 'error', 'message': 'Unknown book or chapter'})
+
     print(f"[API DEBUG] Starting translation for {book} ch{chapter_num} in {language}")
 
     try:
@@ -266,15 +283,14 @@ def translate_chapter_api(request):
         print(f"[API DEBUG] Returning success response to client")
         return JsonResponse({'status': 'ok', 'translated': translation_stats})
         
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({'status': 'error', 'message': str(e)})
+    except Exception:
+        logger.exception('translate_chapter_api failed for %s %s (%s)', book, chapter_num, language)
+        return JsonResponse({'status': 'error', 'message': 'Translation failed'})
 
 
 def _translate_nt_chapter(book, chapter_num, language, results):
     """Handle NT chapter translation (verses and footnotes)."""
-    from search.db_utils import execute_query
+    from search.db_utils import execute_query, get_db_connection
     
     translation_stats = {'verses': 0, 'footnotes': 0}
     chapter_rows = results['chapter_reader']
@@ -529,7 +545,7 @@ def _translate_ot_chapter(book, chapter_num, language, results):
                     defaults={'status': 'processing', 'verse_text': '', 'source_hash': source_fingerprint(verses_to_translate[verse_num])}
                 )
         
-        translated_results = translate_chapter_batch(verses_to_translate, language, chapter=chapter)
+        translated_results = translate_chapter_batch(verses_to_translate, language, chapter=chapter_num)
         
         if '__quota_exceeded__' in translated_results:
             raise Exception('Translation quota exceeded')
@@ -658,7 +674,8 @@ def start_translation_job(request):
     3. Frontend polls for status updates
     """
     from .chapter_views_part1 import get_results  # Late import
-    
+    from search.translation_worker import TranslationQueueFull
+
     book = request.GET.get('book')
     chapter_num = request.GET.get('chapter')
     language = request.GET.get('lang')
@@ -679,7 +696,10 @@ def start_translation_job(request):
         chapter_num = int(chapter_num)
     except ValueError:
         return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'})
-    
+
+    if not _valid_translation_target(book, chapter_num):
+        return JsonResponse({'status': 'error', 'message': 'Unknown book or chapter'})
+
     try:
         # Special handling for Joseph and Aseneth (storehouse book)
         if book == "Joseph and Aseneth":
@@ -815,11 +835,12 @@ def start_translation_job(request):
             'job_id': job.job_id,
             'message': f'Translation job created for {book} chapter {chapter_num}'
         })
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
+
+    except TranslationQueueFull as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
+    except Exception:
+        logger.exception('start_translation_job failed for %s %s (%s)', book, chapter_num, language)
+        return JsonResponse({'status': 'error', 'message': 'Could not start translation'})
 
 
 @csrf_exempt
@@ -842,9 +863,10 @@ def translation_job_status(request):
             return JsonResponse({'status': 'error', 'message': 'Job not found'})
         
         return JsonResponse(status)
-        
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'message': str(e)})
+
+    except Exception:
+        logger.exception('translation_job_status failed for %s', job_id)
+        return JsonResponse({'status': 'error', 'message': 'Could not read job status'})
 
 
 @csrf_exempt
@@ -862,6 +884,16 @@ def clear_translation_cache(request):
     
     try:
         chapter_num = int(chapter_num)
+    except ValueError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'})
+
+    # Each call writes a tombstone row into the shared cache table
+    if language != 'en' and language not in SUPPORTED_LANGUAGES:
+        return JsonResponse({'status': 'error', 'message': f'Unsupported language: {language}'})
+    if not _valid_translation_target(book, chapter_num):
+        return JsonResponse({'status': 'error', 'message': 'Unknown book or chapter'})
+
+    try:
         cache_key = get_cache_key(book, chapter_num, None, language)
         invalidate_cached_render(cache_key)
         
@@ -869,16 +901,17 @@ def clear_translation_cache(request):
             'status': 'ok',
             'message': f'Cache cleared for {book} chapter {chapter_num} ({language})'
         })
-        
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'message': str(e)})
+
+    except Exception:
+        logger.exception('clear_translation_cache failed for %s %s (%s)', book, chapter_num, language)
+        return JsonResponse({'status': 'error', 'message': 'Could not clear cache'})
 
 
 @csrf_exempt
 def retry_failed_translations(request):
     """Retry only failed verse translations for a chapter/language."""
     from .chapter_views_part1 import get_results  # Late import
-    from search.translation_worker import create_translation_job
+    from search.translation_worker import TranslationQueueFull, create_translation_job
 
     book = request.GET.get('book')
     chapter_num = request.GET.get('chapter')
@@ -891,6 +924,11 @@ def retry_failed_translations(request):
         chapter_num = int(chapter_num)
     except ValueError:
         return JsonResponse({'status': 'error', 'message': 'Invalid chapter number'})
+
+    if language not in SUPPORTED_LANGUAGES:
+        return JsonResponse({'status': 'error', 'message': f'Unsupported language: {language}'})
+    if not _valid_translation_target(book, chapter_num):
+        return JsonResponse({'status': 'error', 'message': 'Unknown book or chapter'})
 
     # Remove failed translations (so worker will re-translate them)
     failed_q = Q(verse_text__startswith='[Translation error') | Q(verse_text__startswith='[Translation parsing error')
@@ -912,7 +950,11 @@ def retry_failed_translations(request):
     if not results:
         return JsonResponse({'status': 'error', 'message': 'No source content found for this chapter'})
 
-    job = create_translation_job(book, chapter_num, language)
+    try:
+        job = create_translation_job(book, chapter_num, language)
+    except TranslationQueueFull as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
     return JsonResponse({
         'status': 'ok',
         'job_id': job.job_id,
@@ -923,6 +965,11 @@ def retry_failed_translations(request):
 @csrf_exempt
 def translation_stats_api(request):
     """JSON translation coverage for one NT chapter, for the verse editor panel."""
+    if not request.user.is_authenticated:
+        return JsonResponse(
+            {'status': 'error', 'message': 'Sign in to see translation stats.'}, status=403
+        )
+
     book = request.GET.get('book')
     chapter_num = request.GET.get('chapter')
     if not book or not chapter_num:
@@ -937,7 +984,6 @@ def translation_stats_api(request):
     return JsonResponse({'status': 'ok', 'stats': stats})
 
 
-@csrf_exempt
 def clean_failed_translations(request):
     """Delete stored Gemini failures for an NT chapter without re-translating.
 
@@ -954,6 +1000,8 @@ def clean_failed_translations(request):
         return JsonResponse(
             {'status': 'error', 'message': 'Sign in to clean translations.'}, status=403
         )
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'POST required'}, status=405)
 
     book = request.GET.get('book')
     chapter_num = request.GET.get('chapter')
@@ -1420,7 +1468,6 @@ def _prompt_config_payload():
     }
 
 
-@csrf_exempt
 def prompt_config_api(request):
     """Read or replace the editable translation prompt configuration.
 
@@ -1557,7 +1604,6 @@ TITLE_REFRESH_LOCK = 'title_translation_refresh_running'
 TITLE_REFRESH_RESULT = 'title_translation_refresh_result'
 
 
-@csrf_exempt
 def title_translations_api(request):
     """Translated book titles and the Judas heading that are out of date (search/title_translations.py).
 

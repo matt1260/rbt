@@ -25,6 +25,13 @@ from translate.translator import book_abbreviations, convert_book_name
 from search.seo_utils import _get_verse_url
 from search.seo_utils import book_to_slug
 
+
+def _int_param(request, name, default, minimum):
+    try:
+        return max(int(request.GET.get(name, default)), minimum)
+    except ValueError:
+        return default
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,7 +48,7 @@ def search_results_page(request):
     query = request.GET.get('q', '').strip()
     scope = request.GET.get('scope', 'all').lower()
     search_type = request.GET.get('type', 'keyword')
-    page = max(int(request.GET.get('page', 1)), 1)
+    page = _int_param(request, 'page', 1, minimum=1)
     
     if not query:
         return redirect('/search/')
@@ -82,8 +89,8 @@ def search_api(request):
     search_type = requested_type
     language = request.GET.get('lang', '').strip().lower()
     translations_only = request.GET.get('translations_only') == '1' or scope == 'translations'
-    limit = min(int(request.GET.get('limit', 20)), 100)
-    page = max(int(request.GET.get('page', 1)), 1)
+    limit = min(_int_param(request, 'limit', 20, minimum=1), 100)
+    page = _int_param(request, 'page', 1, minimum=1)
     offset = (page - 1) * limit
     
     if not query or len(query) < 2:
@@ -932,16 +939,15 @@ def search_api(request):
         results[cat] = cleaned
 
     # Apply deduplication for verses, footnotes and storehouse
+    page_lengths = {cat: len(results.get(cat, [])) for cat in ('ot_verses', 'nt_verses', 'footnotes', 'storehouse')}
     results['ot_verses'] = dedupe_by_ref(results.get('ot_verses', []))
     results['nt_verses'] = dedupe_by_ref(results.get('nt_verses', []))
     results['footnotes'] = dedupe_by_ref(results.get('footnotes', []))
     results['storehouse'] = dedupe_by_ref(results.get('storehouse', []))
 
-    # Recompute counts after deduplication
-    counts['ot_verses'] = len(results['ot_verses'])
-    counts['nt_verses'] = len(results['nt_verses'])
-    counts['footnotes'] = len(results['footnotes'])
-    counts['storehouse'] = len(results['storehouse'])
+    # counts are table-wide while results hold one page, so take off only what was removed
+    for cat, before in page_lengths.items():
+        counts[cat] -= before - len(results[cat])
 
     # Calculate totals
     total_results = sum(counts.values())

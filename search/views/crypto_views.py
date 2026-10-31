@@ -2,16 +2,21 @@
 Coinbase Advanced Trade API integration for displaying donation wallet balances.
 Uses CDP JWT (ES256) authentication — private key stays server-side only.
 """
+import base64
+import logging
 import secrets
 import time
 
 import jwt
 import requests
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from django.conf import settings
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
+
+logger = logging.getLogger(__name__)
 
 _CACHE_KEY = "coinbase_balances_v1"
 _CACHE_TTL = 300   # 5 minutes
@@ -22,9 +27,22 @@ _CURRENCIES = {"BTC", "ETH"}
 _PRODUCT_IDS = ["BTC-USD", "ETH-USD"]
 
 
+def _load_signing_key(secret: str):
+    """Return (private_key, jwt_algorithm) for either CDP key type.
+
+    ECDSA keys are PEM text (ES256); Ed25519 keys are a base64 blob whose first
+    32 bytes are the seed (EdDSA).
+    """
+    secret = secret.strip()
+    if secret.startswith("-----"):
+        pem = secret.replace("\\n", "\n")
+        return load_pem_private_key(pem.encode(), password=None), "ES256"
+    seed = base64.b64decode(secret)[:32]
+    return Ed25519PrivateKey.from_private_bytes(seed), "EdDSA"
+
+
 def _build_jwt(method: str, path: str) -> str:
-    raw_key = settings.COINBASE_API_PRIVATE_KEY.replace("\\n", "\n")
-    private_key = load_pem_private_key(raw_key.encode(), password=None)
+    private_key, algorithm = _load_signing_key(settings.COINBASE_API_PRIVATE_KEY)
     key_name = settings.COINBASE_API_KEY_NAME
     payload = {
         "sub": key_name,
@@ -36,7 +54,7 @@ def _build_jwt(method: str, path: str) -> str:
     return jwt.encode(
         payload,
         private_key,
-        algorithm="ES256",
+        algorithm=algorithm,
         headers={"kid": key_name, "nonce": secrets.token_hex()},
     )
 
@@ -94,5 +112,6 @@ def crypto_balances(request):
         result = {**balances, "prices": prices, "total_usd": round(total_usd, 2)}
         cache.set(_CACHE_KEY, result, _CACHE_TTL)
         return JsonResponse(result)
-    except Exception as exc:
-        return JsonResponse({"error": str(exc)}, status=502)
+    except Exception:
+        logger.exception("Coinbase balance fetch failed")
+        return JsonResponse({"error": "Balances unavailable"}, status=502)

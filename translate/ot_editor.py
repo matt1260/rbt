@@ -99,7 +99,8 @@ def _verse_ref_parts(ref):
 
 
 def _book_name(code):
-    return convert_book_name(code) or code
+    # hebrewdata refs spell Joel 'Joe', everything else 'Jol'
+    return convert_book_name(code) or {'Joe': 'Joel'}.get(code, code)
 
 
 def _reference_label(verse_ref):

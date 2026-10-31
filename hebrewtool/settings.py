@@ -63,6 +63,10 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
 
+# Short on purpose: browsers cache this, so a long value can't be walked back quickly.
+# No SECURE_SSL_REDIRECT, since Northflank's health checks may arrive over plain HTTP.
+SECURE_HSTS_SECONDS = 0 if DEBUG else 86400
+
 CSRF_TRUSTED_ORIGINS = ['https://mzg2o4p8.up.railway.app', 'https://rbtproject.up.railway.app', 'https://www.realbible.tech', 'https://read.realbible.tech', 'https://realbible.tech', 'http://rbt.realbible.tech', 'http://localhost', 'http://127.0.0.1']
 
 # CORS Settings - Allow WordPress frontend to make API requests
@@ -239,6 +243,11 @@ RATE_LIMIT_GENERAL_LIMIT = int(os.getenv('RATE_LIMIT_GENERAL_LIMIT', '120'))
 RATE_LIMIT_GENERAL_WINDOW = int(os.getenv('RATE_LIMIT_GENERAL_WINDOW', '60'))
 RATE_LIMIT_GENERAL_MAX_STRIKES = int(os.getenv('RATE_LIMIT_GENERAL_MAX_STRIKES', '6'))
 RATE_LIMIT_GENERAL_BAN_DURATION = int(os.getenv('RATE_LIMIT_GENERAL_BAN_DURATION', '300'))  # seconds (5m)
+
+RATE_LIMIT_LOGIN_LIMIT = int(os.getenv('RATE_LIMIT_LOGIN_LIMIT', '10'))
+RATE_LIMIT_LOGIN_WINDOW = int(os.getenv('RATE_LIMIT_LOGIN_WINDOW', '60'))
+RATE_LIMIT_LOGIN_MAX_STRIKES = int(os.getenv('RATE_LIMIT_LOGIN_MAX_STRIKES', '3'))
+RATE_LIMIT_LOGIN_BAN_DURATION = int(os.getenv('RATE_LIMIT_LOGIN_BAN_DURATION', '3600'))  # seconds (1h)
 
 
 
