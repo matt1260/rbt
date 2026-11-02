@@ -325,19 +325,21 @@ def word_occurrences(request):
                 with connection.cursor() as cursor:
                     cursor.execute("SET LOCAL search_path TO new_testament")
                     for change in changes:
-                        try:
-                            verse_id = int(change.get('verse_id'))
-                        except (AttributeError, TypeError, ValueError):
+                        if not isinstance(change, dict):
                             continue
+                        # verseID is text ('JM5_11'), not a number.
+                        verse_id = change.get('verse_id')
                         new_text = change.get('text')
                         original_text = change.get('original')
-                        if not isinstance(new_text, str) or not isinstance(original_text, str):
+                        if not verse_id or not all(isinstance(value, str) for value in (verse_id, new_text, original_text)):
                             continue
+                        # Browsers turn the \r\n some verses are stored with into \n, so
+                        # `original` is compared with the stored text normalized the same way.
                         cursor.execute(
                             """
                             UPDATE nt
                             SET rbt = %s
-                            WHERE verseID = %s AND rbt = %s
+                            WHERE verseID = %s AND regexp_replace(rbt, E'\\r\\n?', E'\\n', 'g') = %s
                             AND EXISTS (
                                 SELECT 1 FROM rbt_greek.strongs_greek g
                                 WHERE g.verse LIKE nt.book || '.' || nt.chapter || '.' || nt.startVerse || '-%%'

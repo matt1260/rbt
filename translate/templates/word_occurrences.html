@@ -125,6 +125,7 @@
             if (result.conflicts && result.conflicts.length) {
                 throw new Error('This verse changed elsewhere. Reload it before saving again.');
             }
+            if (result.updated !== 1) throw new Error('The verse was not saved.');
             editor.dataset.original = editor.value;
             status.textContent = 'Saved';
             refreshCard(card);

@@ -172,3 +172,45 @@ class SaveNtVerseHtmlTests(SimpleTestCase):
         updates.assert_not_called()  # no new row
         updates.objects.filter.assert_called_with(date=recent.date)
         updates.objects.filter.return_value.update.assert_called_once_with(update_text='second edit')
+
+
+@mock.patch.object(views, '_safe_save_update')
+@mock.patch.object(views, '_invalidate_reader_cache')
+@mock.patch.object(views, 'execute_query', return_value=('Jam', 5, 11, 'new'))
+@mock.patch.object(views, 'transaction')
+@mock.patch.object(views, 'connection')
+class WordOccurrencesSaveTests(SimpleTestCase):
+    def post(self, change):
+        request = RequestFactory().post(
+            '/translate/word-occurrences/?strongs=5278',
+            data=json.dumps({'changes': [change]}), content_type='application/json',
+        )
+        request.user = make_user()
+        return views.word_occurrences(request)
+
+    def test_saves_a_text_verse_id(self, connection, transaction, execute_query, invalidate, save_update):
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.rowcount = 1
+        response = self.post({'verse_id': 'JM5_11', 'text': 'new', 'original': 'old'})
+
+        self.assertEqual(json.loads(response.content), {'updated': 1, 'conflicts': []})
+        sql, params = cursor.execute.call_args_list[-1].args
+        self.assertIn('UPDATE nt', sql)
+        self.assertEqual(params[:3], ('new', 'JM5_11', 'old'))
+        invalidate.assert_called_once_with('James', 5, 11)
+        save_update.assert_called_once()
+
+    def test_a_changed_verse_is_a_conflict(self, connection, transaction, execute_query, invalidate, save_update):
+        connection.cursor.return_value.__enter__.return_value.rowcount = 0
+        response = self.post({'verse_id': 'JM5_11', 'text': 'new', 'original': 'old'})
+
+        self.assertEqual(json.loads(response.content), {'updated': 0, 'conflicts': ['JM5_11']})
+        invalidate.assert_not_called()
+
+    def test_a_malformed_change_saves_nothing(self, connection, transaction, execute_query, invalidate, save_update):
+        cursor = connection.cursor.return_value.__enter__.return_value
+        for change in ('JM5_11', {'verse_id': 'JM5_11', 'text': 'new'}, {'text': 'new', 'original': 'old'}):
+            cursor.execute.reset_mock()
+            response = self.post(change)
+            self.assertEqual(json.loads(response.content)['updated'], 0)
+            self.assertEqual(cursor.execute.call_count, 1)  # only SET LOCAL search_path
