@@ -48,15 +48,12 @@ def apply_interlinear(mapping: dict, dry_run: bool = True, limit: int = 20, back
     if not isinstance(mapping, dict):
         raise ValueError('mapping must be a dict')
 
+    from translate.translator import resolve_interlinear_gloss
+
+    mapping = {str(k): v for k, v in mapping.items()}
+
     def replace_func(strongs, lemma, english):
-        for cond, replacement in mapping.items():
-            try:
-                cond_s = str(cond)
-            except Exception:
-                cond_s = cond
-            if strongs == cond_s or (lemma is not None and lemma == cond_s):
-                return replacement
-        return english
+        return resolve_interlinear_gloss(mapping, strongs, lemma, english)
 
     cur = connection.cursor()
     cur.execute("SELECT strongs, lemma, english FROM rbt_greek.strongs_greek")

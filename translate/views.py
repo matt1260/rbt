@@ -6305,13 +6305,10 @@ def update_interlinear_word(request):
             logger.error(f"[INTERLINEAR] replacements is not a dict: {type(replacements)}")
             replacements = {}
         
-        # Update the mapping - store by lemma (exact Greek form)
-        # If a Strongs-keyed entry already exists for this Strongs number, update it too
-        # so it doesn't override the lemma update (replace_words checks strongs first)
+        # Store by lemma (the exact Greek form) only. A Strongs-keyed entry is the default
+        # for every form of the word, and the form's own key now takes precedence over it
+        # (resolve_interlinear_gloss), so editing one form must not touch the others.
         replacements[lemma] = new_english
-        if strongs in replacements:
-            replacements[strongs] = new_english
-            logger.info(f"[INTERLINEAR] Also updated strongs-keyed entry {strongs} -> '{new_english}'")
         
         # Apply update to database immediately (following interlinear_apply.py logic)
         db_start = time.monotonic()

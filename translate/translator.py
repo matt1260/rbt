@@ -922,18 +922,24 @@ def load_json(_filename=None):
         pass
     return {}
 
+def resolve_interlinear_gloss(mapping, strongs, lemma, english):
+    """Return the English gloss to show for one Greek word.
+
+    A key equal to the word's exact form (e.g. 'ἀνθρώπῳ') wins over a key equal to
+    its Strong's number (e.g. '444'), which applies to every form that has no key
+    of its own. Key order can't decide this: Postgres stores JSONB keys shortest
+    first, so a Strong's key would otherwise always match before any Greek form.
+    """
+    if lemma is not None and lemma in mapping:
+        return mapping[lemma]
+    if strongs is not None and str(strongs) in mapping:
+        return mapping[str(strongs)]
+    return english
+
+
 # function for replacing words in the interlinear greek
 def replace_words(strongs, lemma, english):
-
-    replacements = load_json()
-
-    # Check if any of the conditions match and replace english if so
-    for condition, replacement in replacements.items():
-        if strongs == condition or lemma == condition:
-            english = replacement
-            break  # Exit loop after first match
-    
-    return strongs, lemma, english
+    return strongs, lemma, resolve_interlinear_gloss(load_json(), strongs, lemma, english)
 
 def strong_data(strong_ref):
     # Normalize the reference: keep any single trailing letter (e.g., '5869a') for display
