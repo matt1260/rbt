@@ -446,6 +446,55 @@
     runCommand(e.shiftKey ? 'outdent' : 'indent', editable);
   });
 
+  // Pasting HTML code (e.g. a table written elsewhere) inserts what it describes, not the
+  // code as text, which is never what's wanted here. Ordinary text and rich pastes are left
+  // to the browser.
+  document.addEventListener('paste', (e) => {
+    const target = e.target && (e.target.nodeType === 1 ? e.target : e.target.parentElement);
+    const editable = target && target.closest('.nve-editable');
+    if (!editable || !e.clipboardData) return;
+    const code = htmlCodeIn(e.clipboardData.getData('text/plain'));
+    const range = code && rangeIn(editable);
+    if (!range) return;
+    e.preventDefault();
+    insertMarkup(editable, range, code);
+    editable.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  // Inserted as written (execCommand('insertHTML') rewrites inline styles: drops widths,
+  // turns colours into rgb()). Blocks such as tables go beside the paragraph the caret is
+  // in, or replace it when it is empty, never inside it.
+  function insertMarkup(editable, range, code) {
+    range.deleteContents();
+    const frag = range.createContextualFragment(code);
+    const last = frag.lastChild;
+    const hasBlock = Array.from(frag.childNodes).some((n) => n.nodeType === 1 && !INLINE_RE.test(n.tagName));
+    const start = range.startContainer;
+    const block = hasBlock && (start.nodeType === 1 ? start : start.parentElement).closest('p, h1, h2, h3, h4, h5, h6');
+    if (block && editable.contains(block) && block !== editable) {
+      if (block.textContent.trim() || block.querySelector('img, video')) block.after(frag);
+      else block.replaceWith(frag);
+    } else {
+      range.insertNode(frag);
+    }
+    if (last && last.parentNode) {
+      const sel = window.getSelection();
+      const after = document.createRange();
+      after.setStartAfter(last); after.collapse(true);
+      sel.removeAllRanges(); sel.addRange(after);
+    }
+  }
+  const INLINE_RE = /^(A|ABBR|B|BR|CODE|EM|I|IMG|MARK|S|SMALL|SPAN|STRONG|SUB|SUP|U)$/;
+
+  function htmlCodeIn(text) {
+    const code = (text || '').trim();
+    if (!/^<(?:!--|[a-z][a-z0-9]*[\s/>])/i.test(code) || !code.endsWith('>')) return '';
+    const tpl = document.createElement('template');
+    tpl.innerHTML = code;
+    tpl.content.querySelectorAll('script, style, meta, link').forEach((n) => n.remove());
+    return tpl.content.querySelector('*') ? tpl.innerHTML.trim() : '';
+  }
+
   // Enter starts a <p> in footnotes and image notes (the site's paragraphs); the verse keeps
   // the browser's default.
   document.addEventListener('focusin', (e) => {

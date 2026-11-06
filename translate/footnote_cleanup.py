@@ -54,6 +54,7 @@ BLOCK_TAGS = {'p', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockq
 TOP_BLOCKS = {'p', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'table', 'hr',
               'figure', 'pre', 'img', 'video', 'iframe'}
 MEDIA_TAGS = {'img', 'video', 'iframe', 'audio', 'source', 'hr'}
+LAYOUT_TAGS = {'div', 'section', 'center', 'article', 'aside', 'header', 'footer', 'main', 'nav'}
 
 ICON_CLASS_RE = re.compile(r'^fa[srbl]?$|^fa-')  # Font Awesome icons (e.g. the touch hint on images)
 HEBREW_RE = re.compile('[\u0590-\u05FF]')
@@ -229,12 +230,14 @@ def normalize(html):
             el.unwrap()
             note('unwrapped empty <span>s')
 
-    # 5. Layout <div>/<section>: a box of inline content becomes a paragraph, otherwise unwrap.
-    for el in soup.find_all(['div', 'section', 'center', 'article']):
+    # 5. Layout boxes (<div>, <section>, <aside>…): a box of inline content becomes a
+    # paragraph, otherwise unwrap. Left in place, a box the parser doesn't count as a block
+    # (e.g. <aside>) would be wrapped in a <p> by step 9, which browsers split apart.
+    for el in soup.find_all(LAYOUT_TAGS):
         if is_protected(el) or 'tooltip-container' in el.get('class', []) or 'tooltip' in el.get('class', []) \
                 or 'tooltip2' in el.get('class', []) or 'sun-icon' in el.get('class', []):
             continue
-        if el.find(BLOCK_TAGS - {'div', 'section', 'center', 'article'}) or el.find(['div', 'section']):
+        if el.find(BLOCK_TAGS - LAYOUT_TAGS) or el.find(LAYOUT_TAGS - {'center'}):
             el.unwrap()
         else:
             el.name = 'p'

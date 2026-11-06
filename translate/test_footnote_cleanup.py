@@ -21,6 +21,15 @@ class NormalizeFootnoteTests(SimpleTestCase):
         self.assertClean('<p><span class="footnote_header">Title<br/></span></p> <p>Body.</p>',
                          '<p><span class="footnote_header">Title</span></p>\n<p>Body.</p>')
 
+    def test_aside_wrapper_is_unwrapped_and_its_table_kept(self):
+        html = ('<!-- note --><aside class="scholarly-footnote" style="font-family: Georgia; color: #2c3e50;">'
+                '<p style="margin-bottom: 1rem;">Intro.</p><div style="overflow-x: auto;"><table style="width: 100%;">'
+                '<thead><tr><th style="padding: 10px;">A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div>'
+                '</aside>')
+        self.assertClean(html, '<p>Intro.</p>\n<table style="width: 100%;"><thead><tr><th>A</th></tr></thead>'
+                               '<tbody><tr><td>1</td></tr></tbody></table>')
+        self.assertClean('<aside>Just a line.</aside>', '<p>Just a line.</p>')
+
     def test_browser_translation_popup_is_removed(self):
         html = ('<p>Note.</p><div class="simple-translate-system-theme" id="simple-translate"><div>'
                 '<div class="simple-translate-panel" style="top: 0px"><p class="simple-translate-result">Nota.</p></div></div></div>')
