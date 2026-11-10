@@ -34,6 +34,11 @@ class TitleTranslationTests(SimpleTestCase):
         self.assertTrue(titles.is_current(row('John')))  # saved before fingerprints: trusted
         self.assertFalse(titles.is_current(row('Jude')))  # ...unless the title was renamed since
         self.assertFalse(titles.is_current(row('Genesis')))  # renamed from "In the Head"
+        self.assertFalse(titles.is_current(row('Ecclesiastes')))  # renamed from "Alignments of the Assembler"
+        old_eccl = row('Ecclesiastes', source_hash=source_fingerprint('Alignments of the Assembler'))
+        self.assertFalse(titles.is_current(old_eccl))
+        new_eccl = row('Ecclesiastes', source_hash=source_fingerprint('Words of the Collector'))
+        self.assertTrue(titles.is_current(new_eccl))
         self.assertFalse(titles.is_current(row('Gospel of Judas', 3)))
         heading = row('Gospel of Judas', 3, source_hash=source_fingerprint('Gospel of Praised One'))
         self.assertTrue(titles.is_current(heading))
