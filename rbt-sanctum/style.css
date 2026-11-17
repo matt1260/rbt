@@ -4,7 +4,7 @@ Theme URI: https://www.realbible.tech
 Description: Standalone WordPress theme for the Real Bible Translation Project. Gold-and-parchment editorial design with React-powered front page.
 Author: Real Bible Translation Project
 Author URI: https://www.realbible.tech
-Version: 1.3.3
+Version: 1.3.5
 License: GNU General Public License v2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: rbt-sanctum
@@ -843,3 +843,127 @@ img {
 .logos-ratio-article .lr-verse cite{display:block;margin-top:.3em;font:600 .78rem Arial,sans-serif;font-style:normal;color:#60716d}
 .logos-ratio-article .lr-figure video{display:block;width:100%;height:auto;margin:0 auto;background:#111;border-radius:3px}
 .logos-ratio-article .lr-figure--video figcaption{font-style:italic;font-size:.95rem}
+
+/* ── Essays: word studies (first used by "Elohim and Theos", post 18446) ─────── */
+/* Scoped to .rbt-essay, so no other page changes. Built to survive the Visual
+   editor: the post holds no inline SVG or <style>, and no empty elements (each
+   ledger bar holds a &nbsp;). .re-pl marks a plural form in any language. */
+.rbt-essay{--re-teal:#1a8a68;--re-teal-ink:#145f4a;--re-teal-wash:rgba(26,138,104,.12);--re-bar:#b9ae9f;--re-card:#fffdf9;--re-line:#e6dfd3}
+.rbt-essay .re-eyebrow{margin:0 0 .5rem;font:600 .72rem/1.4 Inter,system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--re-teal-ink)}
+.rbt-essay .re-subtitle{margin:0 0 1.6rem;font-family:'Cormorant Garamond',serif;font-size:1.5rem;line-height:1.35;color:var(--ink-soft)}
+.rbt-essay .re-abstract{margin:0 0 1.1rem;padding:.2rem 0 .2rem 1.2rem;border-left:3px solid var(--gold);font-size:1.06rem;line-height:1.8;color:var(--ink)}
+.rbt-essay .re-legend{margin:0 0 2.2rem;font:400 .82rem/1.6 Inter,system-ui,sans-serif;color:var(--stone)}
+.rbt-essay h2{margin-top:3rem}
+.rbt-essay h3{font-size:1.45rem;margin:2.2rem 0 .6rem}
+.rbt-essay p.re-lead{font-size:1.08rem;color:var(--ink)}
+.rbt-essay .re-pl{padding:0 .14em;border-radius:3px;background:var(--re-teal-wash);color:var(--re-teal-ink);-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.rbt-essay .heb{font-family:'Frank Ruhl Libre','SBL Hebrew','Times New Roman',serif;font-size:1.25em;line-height:1.5;direction:rtl;unicode-bidi:isolate}
+.rbt-essay .greek{font-family:'Gentium Plus','Palatino Linotype',Palatino,Georgia,serif;font-size:1.04em}
+.rbt-essay cite{font-style:normal}
+.rbt-essay cite a,.rbt-essay .re-il-cite a{color:var(--gold)}
+/* A verse: original text, the RBT reading, the reference */
+.rbt-essay p.re-verse{margin:1.4rem 0 1.6rem;padding:.95rem 1.2rem .85rem;background:var(--re-card);border:1px solid var(--re-line);border-left:3px solid var(--gold);border-radius:0 10px 10px 0;line-height:1.7;color:var(--ink)}
+.rbt-essay .re-src{display:block;margin:0 0 .45rem;color:var(--ink-soft)}
+.rbt-essay .re-src.heb{text-align:right;font-size:1.42rem;line-height:1.75}
+.rbt-essay .re-src.greek{font-size:1.1rem;line-height:1.6}
+.rbt-essay .re-tr{display:block;font-size:1.04rem}
+.rbt-essay .re-alt{display:block;margin-top:.45rem;font-size:.92rem;line-height:1.6;color:var(--ink-soft)}
+.rbt-essay p.re-verse cite,.rbt-essay .re-card cite,.rbt-essay blockquote cite{display:block;margin-top:.55rem;font:600 .68rem/1.4 Inter,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--stone)}
+.rbt-essay blockquote cite{margin-top:.8rem}
+/* Interlinear: one card per word */
+.rbt-essay p.re-il{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.4rem 0 .5rem}
+.rbt-essay p.re-il.is-rtl{direction:rtl}
+.rbt-essay .re-w{display:flex;flex-direction:column;align-items:center;min-width:4.2rem;max-width:6.8rem;padding:.5rem .55rem .45rem;background:#fff;border:1px solid var(--re-line);border-radius:9px;text-align:center;direction:ltr}
+.rbt-essay .re-w .heb{font-size:1.5rem;line-height:1.35}
+.rbt-essay .re-w .greek{font-size:1.25rem;line-height:1.35}
+.rbt-essay .re-gl{margin-top:.25rem;font:500 .78rem/1.3 Inter,system-ui,sans-serif;color:var(--ink-soft)}
+.rbt-essay .re-tag{margin-top:.2rem;font:600 .6rem/1.2 Inter,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--stone)}
+.rbt-essay .re-w.is-pl{background:#f2f9f6;border-color:rgba(26,138,104,.45)}
+.rbt-essay .re-w.is-pl .re-gl,.rbt-essay .re-w.is-pl .re-tag{color:var(--re-teal-ink)}
+.rbt-essay p.re-il-cite{margin:0 0 1.7rem;font:600 .68rem/1.4 Inter,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--stone)}
+/* Side-by-side cards: Hebrew and Greek, before and after */
+.rbt-essay .re-pair{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.5rem 0 1.7rem}
+.rbt-essay p.re-card{margin:0;padding:.95rem 1.1rem .85rem;background:var(--re-card);border:1px solid var(--re-line);border-radius:12px;line-height:1.65;color:var(--ink)}
+.rbt-essay .re-k{display:block;margin:0 0 .5rem;font:600 .66rem/1.35 Inter,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--stone)}
+.rbt-essay p.re-card .re-src.heb{font-size:1.38rem}
+/* Comparison table; on phones each row becomes a card */
+.rbt-essay table.re-table{width:100%;margin:1.5rem 0 .6rem;border-collapse:collapse;font-size:.9rem}
+.rbt-essay table.re-table th{padding:.5rem .55rem;border-bottom:1px solid var(--gold);font:600 .64rem/1.3 Inter,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--stone);text-align:left}
+.rbt-essay table.re-table td{padding:.6rem .55rem;border-bottom:1px solid var(--rule);vertical-align:top;line-height:1.5;color:var(--ink-soft)}
+.rbt-essay table.re-table td.re-ref{white-space:nowrap;font-weight:600;color:var(--ink)}
+.rbt-essay table.re-table td .heb{font-size:1.3em}
+.rbt-essay table.re-table tr.is-key td{background:var(--re-teal-wash)}
+.rbt-essay p.re-table-note{margin:0 0 1.8rem;font:400 .8rem/1.6 Inter,system-ui,sans-serif;color:var(--stone)}
+@media (max-width:700px){
+.rbt-essay table.re-table thead{display:none}
+.rbt-essay table.re-table,.rbt-essay table.re-table tbody,.rbt-essay table.re-table tr,.rbt-essay table.re-table td{display:block;width:auto}
+.rbt-essay table.re-table tr{margin:0 0 .8rem;padding:.6rem .9rem;background:var(--re-card);border:1px solid var(--re-line);border-radius:10px}
+.rbt-essay table.re-table tr.is-key{background:#f2f9f6}
+.rbt-essay table.re-table tr.is-key td{background:none}
+.rbt-essay table.re-table td{padding:.22rem 0;border:0}
+.rbt-essay table.re-table td.re-ref{white-space:normal;font-size:1rem}
+.rbt-essay table.re-table.re-table--grid tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:.9rem}
+.rbt-essay table.re-table.re-table--grid td.re-ref{grid-column:1 / -1}
+.rbt-essay table.re-table td[data-label]::before{content:attr(data-label);display:block;font:600 .6rem/1.4 Inter,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--stone)}
+}
+/* The ledger: a name, a bar and a figure per row */
+.rbt-essay .re-ledger{margin:1.6rem 0 .6rem;padding:1.05rem 1.25rem .55rem;background:var(--re-card);border:1px solid var(--re-line);border-radius:12px}
+.rbt-essay p.re-ledger-title{margin:0;font-size:1rem;font-weight:600;line-height:1.4;color:var(--ink)}
+.rbt-essay p.re-ledger-sub{margin:.15rem 0 .8rem;font:400 .78rem/1.5 Inter,system-ui,sans-serif;color:var(--stone)}
+.rbt-essay p.re-row{display:grid;grid-template-columns:minmax(0,14.5rem) minmax(0,1fr) 7.2rem;align-items:center;column-gap:1rem;margin:0;padding:.5rem 0;border-top:1px solid var(--rule);line-height:1.35;color:var(--ink-soft)}
+.rbt-essay .re-name{font-size:.95rem;color:var(--ink)}
+.rbt-essay .re-sub{display:block;font:400 .74rem/1.4 Inter,system-ui,sans-serif;color:var(--stone)}
+.rbt-essay .re-track{display:block}
+.rbt-essay .re-bar{display:block;height:14px;min-width:3px;border-radius:0 4px 4px 0;background:var(--re-bar);font-size:0;line-height:0;color:transparent;overflow:hidden}
+.rbt-essay p.re-row.is-pl .re-bar{background:var(--re-teal)}
+.rbt-essay .re-val{text-align:right;font:500 .85rem/1.3 Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--ink)}
+.rbt-essay .re-pct{margin-left:.4rem;color:var(--stone)}
+@media (max-width:620px){
+.rbt-essay p.re-row{grid-template-columns:minmax(0,1fr) auto;row-gap:.35rem}
+.rbt-essay .re-track{grid-column:1 / -1;grid-row:2}
+}
+/* Callout, numbered summary, closing quotation, sources */
+.rbt-essay p.re-callout{margin:1.8rem 0 2rem;padding:1.1rem 1.3rem;background:var(--cream);border-radius:12px;font-size:1.02rem;line-height:1.75;color:var(--ink)}
+.rbt-essay ol.re-summary{list-style:none;margin:1.4rem 0 2rem;padding:0;counter-reset:re-sum}
+.rbt-essay ol.re-summary li{position:relative;margin:0 0 1rem;padding:.05rem 0 0 2.7rem;font-size:1rem;line-height:1.75;color:var(--ink-soft);counter-increment:re-sum}
+.rbt-essay ol.re-summary li::before{content:counter(re-sum);position:absolute;left:0;top:.1rem;width:1.8rem;height:1.8rem;border-radius:50%;background:var(--re-teal-wash);color:var(--re-teal-ink);font:600 .85rem/1.8rem Inter,system-ui,sans-serif;text-align:center}
+.rbt-essay ol.re-summary li strong{color:var(--ink)}
+.rbt-essay p.re-closing{margin:3rem 0 1.5rem;padding:1.8rem 1.4rem;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);text-align:center;font-family:'Cormorant Garamond',serif;font-size:1.55rem;line-height:1.5;color:var(--ink)}
+.rbt-essay p.re-closing cite{display:block;margin-top:.9rem;font:600 .68rem/1.4 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--stone)}
+.rbt-essay .re-note{margin-top:2rem}
+.rbt-essay .re-note p,.rbt-essay .re-note li{font-size:.84rem;line-height:1.7;color:var(--stone)}
+.rbt-essay .re-note ul{padding-left:1.1rem;margin:0}
+.rbt-essay .re-note li{margin-bottom:.45rem}
+@media (max-width:620px){
+.rbt-essay .re-subtitle{font-size:1.3rem}
+.rbt-essay p.re-verse{padding:.85rem .95rem .8rem}
+.rbt-essay .re-src.heb{font-size:1.28rem}
+.rbt-essay .re-pair{grid-template-columns:1fr}
+.rbt-essay .re-w{min-width:3.9rem;padding:.45rem .5rem .4rem}
+.rbt-essay .re-w .heb{font-size:1.3rem}
+.rbt-essay p.re-closing{font-size:1.35rem;padding:1.4rem .6rem}
+}
+/* Essay: equations, the ratio ladder, card lists, a definition box (Elohim article §9) */
+.rbt-essay p.re-equation{margin:1.4rem 0 .35rem;padding:.85rem 1rem;text-align:center;background:var(--re-card);border:1px solid var(--re-line);border-radius:10px;font-family:'Cormorant Garamond',serif;font-size:1.65rem;line-height:1.3;letter-spacing:.02em;color:var(--ink);font-variant-numeric:lining-nums}
+.rbt-essay p.re-equation-note{margin:0 0 1.6rem;text-align:center;font:400 .82rem/1.55 Inter,system-ui,sans-serif;color:var(--stone)}
+.rbt-essay .re-ladder{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.7rem;margin:2rem 0 .9rem}
+.rbt-essay p.re-step{position:relative;margin:0;padding:1.05rem .7rem .9rem;background:var(--re-card);border:1px solid var(--re-line);border-radius:12px;text-align:center;line-height:1.35;color:var(--ink)}
+.rbt-essay p.re-step + p.re-step::before{content:'× 10';position:absolute;top:-.72rem;left:50%;transform:translateX(-50%);padding:.12rem .5rem;border-radius:999px;background:var(--re-teal);color:#fff;font:600 .66rem/1.4 Inter,system-ui,sans-serif;letter-spacing:.06em;white-space:nowrap}
+.rbt-essay .re-num{display:block;font-family:'Cormorant Garamond',serif;font-size:2.5rem;font-weight:500;line-height:1;color:var(--ink)}
+.rbt-essay .re-step .re-letter{display:block;margin:.3rem 0 .15rem;font-size:1.75rem;line-height:1.2;color:var(--re-teal-ink)}
+.rbt-essay .re-word{display:block;font-size:.95rem}
+.rbt-essay .re-word .heb{font-size:1.15em}
+.rbt-essay .re-anchor{display:block;margin-top:.45rem;font:400 .74rem/1.45 Inter,system-ui,sans-serif;color:var(--stone)}
+.rbt-essay .re-pair > p.re-card:last-child:nth-child(odd){grid-column:1 / -1}
+.rbt-essay .re-define{margin:2.4rem 0 1.2rem;padding:1.35rem 1.5rem 1.2rem;background:#f2f9f6;border:1px solid rgba(26,138,104,.35);border-left:4px solid var(--re-teal);border-radius:0 12px 12px 0}
+.rbt-essay p.re-define-k{margin:0 0 .45rem;font:600 .7rem/1.4 Inter,system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--re-teal-ink)}
+.rbt-essay p.re-define-main{margin:0 0 .7rem;font-family:'Cormorant Garamond',serif;font-size:1.65rem;line-height:1.35;color:var(--ink)}
+.rbt-essay p.re-define-sub{margin:0;font-size:1rem;line-height:1.75;color:var(--ink-soft)}
+.rbt-essay p.re-define-ratio{margin:0 0 .8rem;font-family:'Cormorant Garamond',serif;font-size:1.9rem;line-height:1.2;letter-spacing:.03em;color:var(--re-teal-ink)}
+/* Cormorant's default figures are old-style (a 1 looks like a small-capital I): use lining figures */
+.rbt-essay h2,.rbt-essay h3,.rbt-essay .re-num,.rbt-essay p.re-define-main,.rbt-essay p.re-define-ratio,.rbt-essay p.re-closing{font-variant-numeric:lining-nums}
+@media (max-width:620px){
+.rbt-essay .re-ladder{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:1.3rem}
+.rbt-essay p.re-equation{font-size:1.3rem;padding:.75rem .6rem}
+.rbt-essay p.re-define-main{font-size:1.4rem}
+}
