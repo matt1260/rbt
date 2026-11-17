@@ -29,6 +29,7 @@ from bs4 import BeautifulSoup
 from search.models import Genesis, GenesisFootnotes, EngLXX, LITV, TranslationUpdates, VerseTranslation
 from search.db_utils import INTERLINEAR_CACHE_VERSION, get_db_connection, execute_query, table_has_column
 from search.views.footnote_views import get_footnote, build_notes_html
+from search.brenton_versification import brenton_label, brenton_reference
 from search.translation_utils import SUPPORTED_LANGUAGES
 from translate.translator import (
     book_abbreviations, convert_book_name,
@@ -1085,16 +1086,21 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
             # BRENTON SEPTUAGINT in English Updated
             englxx_dict = {'Genesis': 'GEN', 'Exodus': 'EXO', 'Leviticus': 'LEV', 'Numbers': 'NUM', 'Deuteronomy': 'DEU', 'Joshua': 'JOS', 'Judges': 'JDG', 'Ruth': 'RUT', '1 Samuel': '1SA', '2 Samuel': '2SA', '1 Kings': '1KI', '2 Kings': '2KI', '1 Chronicles': '1CH', '2 Chronicles': '2CH', 'Ezra': 'EZR', 'Job': 'JOB', 'Psalms': 'PSA', 'Proverbs': 'PRO', 'Ecclesiastes': 'ECC', 'Song of Solomon': 'SNG', 'Isaiah': 'ISA', 'Jeremiah': 'JER', 'Lamentations': 'LAM', 'Ezekiel': 'EZK', 'Hosea': 'HOS', 'Joel': 'JOL',
                 'Amos': 'AMO', 'Obadiah': 'OBA', 'Jonah': 'JON', 'Micah': 'MIC', 'Nahum': 'NAM', 'Habakkuk': 'HAB', 'Zephaniah': 'ZEP', 'Haggai': 'HAG', 'Zechariah': 'ZEC', 'Malachi': 'MAL', 'Tobit': 'TOB', 'Judith': 'JDT', 'Esther': 'ESG', 'Wisdom': 'WIS', 'Sirach': 'SIR', 'Baruch': 'BAR', 'Letter of Jeremiah': 'LJE', 'Susanna': 'SUS', 'Bel and the Dragon': 'BEL', '1 Maccabees': '1MA', '2 Maccabees': '2MA', '1 Esdras': '1ES', 'Prayer of Manasseh': 'MAN', '3 Maccabees': '3MA', '4 Maccabees': '4MA', 'Daniel': 'DAG'}
-            englxx_book = englxx_dict.get(book, 'Unknown')
-            eng_lxx = EngLXX.objects.filter(
-                book=englxx_book)
-            eng_lxx = eng_lxx.filter(chapter=chapter_num)
-            eng_lxx = eng_lxx.filter(startVerse=verse_num)
-            eng_lxx = eng_lxx.values_list('verseText', flat=True).first()
-            if eng_lxx:
-                eng_lxx = f'<div class="single_verse"><strong>Brenton Septuagint Translation:</strong><br> {eng_lxx}</div>'
-            else:
-                eng_lxx = ''
+            englxx_book = englxx_dict.get(book)
+            # Brenton follows the Septuagint's numbering (Psalm 82 is its Psalm 81), so the verse
+            # is looked up by its Septuagint reference, and left out where the Greek lacks it.
+            eng_lxx = ''
+            brenton_ref = brenton_reference(book, chapter_num, verse_num, englxx_book)
+            if brenton_ref:
+                lxx_book, lxx_chapter, lxx_verse = brenton_ref
+                brenton_text = EngLXX.objects.filter(
+                    book=lxx_book, chapter=lxx_chapter, startVerse=lxx_verse,
+                ).values_list('verseText', flat=True).first()
+                if brenton_text:
+                    lxx_label = brenton_label(book, brenton_ref, englxx_book, chapter_num, verse_num)
+                    lxx_note = f' <span class="lxx-ref">(LXX {lxx_label})</span>' if lxx_label else ''
+                    eng_lxx = (f'<div class="single_verse"><strong>Brenton Septuagint Translation:</strong>'
+                               f'<br> {brenton_text}{lxx_note}</div>')
 
             # LITV Translation
             litv = LITV.objects.filter(book=book)
