@@ -99,6 +99,29 @@ class RateLimitTests(SimpleTestCase):
         with override_settings(TRUSTED_PROXY_DEPTH=0):
             self.assertEqual(client_ip(request), '1.1.1.1')
 
+    def test_cloudflare_edge_hands_over_the_visitor(self):
+        request = self.factory.get('/', HTTP_X_FORWARDED_FOR='203.0.113.9, 162.158.1.2',
+                                   HTTP_CF_CONNECTING_IP='198.51.100.4', REMOTE_ADDR='127.0.0.6')
+        with override_settings(TRUSTED_PROXY_DEPTH=1):
+            self.assertEqual(client_ip(request), '198.51.100.4')
+
+    def test_cf_header_is_ignored_unless_it_came_through_cloudflare(self):
+        request = self.factory.get('/', HTTP_X_FORWARDED_FOR='8.8.8.8',
+                                   HTTP_CF_CONNECTING_IP='198.51.100.4', REMOTE_ADDR='127.0.0.6')
+        with override_settings(TRUSTED_PROXY_DEPTH=1):
+            self.assertEqual(client_ip(request), '8.8.8.8')
+        # A forged Cloudflare address further left is not the entry our proxy added.
+        request = self.factory.get('/', HTTP_X_FORWARDED_FOR='162.158.1.2, 8.8.8.8',
+                                   HTTP_CF_CONNECTING_IP='198.51.100.4', REMOTE_ADDR='127.0.0.6')
+        with override_settings(TRUSTED_PROXY_DEPTH=1):
+            self.assertEqual(client_ip(request), '8.8.8.8')
+
+    def test_cloudflare_edge_with_a_bad_cf_header_keeps_the_edge(self):
+        request = self.factory.get('/', HTTP_X_FORWARDED_FOR='2606:4700::1',
+                                   HTTP_CF_CONNECTING_IP='<script>', REMOTE_ADDR='127.0.0.6')
+        with override_settings(TRUSTED_PROXY_DEPTH=1):
+            self.assertEqual(client_ip(request), '2606:4700::1')
+
     def test_depth_falls_back_when_the_header_is_too_short(self):
         request = self.factory.get('/', HTTP_X_FORWARDED_FOR='8.8.8.8', REMOTE_ADDR='10.0.0.1')
         with override_settings(TRUSTED_PROXY_DEPTH=2):

@@ -40,6 +40,27 @@ def _forwarded_chain(request):
     return chain
 
 
+# Cloudflare's published edge ranges (https://www.cloudflare.com/ips/). They change
+# rarely; a missing range only means those requests are limited by the edge address,
+# as they would be without this list.
+CLOUDFLARE_NETWORKS = tuple(ipaddress.ip_network(net) for net in (
+    '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+    '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+    '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+    '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+    '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
+    '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+))
+
+
+def _is_cloudflare(address):
+    try:
+        ip = ipaddress.ip_address(address)
+    except (TypeError, ValueError):
+        return False
+    return any(ip in net for net in CLOUDFLARE_NETWORKS)
+
+
 def client_ip(request):
     """The IP a request is limited and banned by.
 
@@ -48,12 +69,25 @@ def client_ip(request):
     between them, the client is that many from the right. Anything further left was
     sent by the client itself and can say whatever it likes. Depth 0 takes the leftmost
     value: forgeable, so a swarm can rotate it and never be limited.
+
+    When that trusted entry is a Cloudflare edge, the visitor is the one Cloudflare
+    names in CF-Connecting-IP; otherwise every reader behind one edge would share a
+    single rate-limit bucket. The header is only believed from a Cloudflare address,
+    so a client going straight to Northflank cannot use it to pick its own IP.
     """
     chain = _forwarded_chain(request)
     depth = getattr(settings, 'TRUSTED_PROXY_DEPTH', 0)
     if depth > 0:
         if len(chain) >= depth:
-            return chain[-depth]
+            nearest = chain[-depth]
+            if _is_cloudflare(nearest):
+                visitor = request.META.get('HTTP_CF_CONNECTING_IP', '').strip()
+                try:
+                    ipaddress.ip_address(visitor)
+                    return visitor
+                except ValueError:
+                    pass
+            return nearest
         return request.META.get('REMOTE_ADDR')
     if chain:
         return chain[0]
