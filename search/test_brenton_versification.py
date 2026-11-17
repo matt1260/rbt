@@ -49,3 +49,38 @@ class BrentonReferenceTests(SimpleTestCase):
         self.assertEqual(brenton_label('Psalms', ('PSA', '81', '6'), 'PSA', 82, 6), '81:6')
         self.assertEqual(brenton_label('Nehemiah', ('EZR', '11', '1'), None, 1, 1), '2 Esdras 11:1')
         self.assertEqual(brenton_label('Genesis', ('GEN', '1', '1'), 'GEN', '1', '1'), '')
+
+
+class EnglishReferenceTests(SimpleTestCase):
+    """Smith and LITV use the English numbers; the reader follows the Hebrew."""
+
+    def test_psalm_titles(self):
+        from search.english_versification import english_reference
+        self.assertEqual(english_reference('Psalms', 3, 1), ('3', '1'))    # the title, inside English 3:1
+        self.assertEqual(english_reference('Psalms', 3, 2), ('3', '1'))
+        self.assertEqual(english_reference('Psalms', 8, 5), ('8', '4'))    # "What is man"
+        self.assertEqual(english_reference('Psalms', 51, 3), ('51', '1'))  # two title verses
+        self.assertEqual(english_reference('Psalms', 82, 6), ('82', '6'))  # no title verse
+
+    def test_chapter_boundaries(self):
+        from search.english_versification import english_reference
+        self.assertEqual(english_reference('Hosea', 12, 1), ('11', '12'))
+        self.assertEqual(english_reference('Hosea', 2, 1), ('1', '10'))
+        self.assertEqual(english_reference('Daniel', 4, 1), ('4', '4'))
+        self.assertEqual(english_reference('Exodus', 7, 26), ('8', '1'))
+        self.assertEqual(english_reference('Exodus', 8, 1), ('8', '5'))
+        self.assertEqual(english_reference('Genesis', 32, 1), ('31', '55'))
+        self.assertEqual(english_reference('1 Chronicles', 6, 1), ('6', '16'))
+
+    def test_chapters_the_reader_already_numbers_the_english_way(self):
+        from search.english_versification import english_reference
+        self.assertEqual(english_reference('Exodus', 22, 9), ('22', '9'))
+        self.assertEqual(english_reference('Joel', 3, 1), ('3', '1'))
+        self.assertEqual(english_reference('Malachi', 4, 1), ('4', '1'))
+        self.assertEqual(english_reference('Isaiah', 9, 1), ('9', '1'))
+        self.assertEqual(english_reference('John', 1, 1), ('1', '1'))
+
+    def test_note(self):
+        from search.english_versification import english_note
+        self.assertIn('Eng. 8:4', english_note('Psalms', 8, 5))
+        self.assertEqual(english_note('Genesis', 1, 1), '')

@@ -30,6 +30,7 @@ from search.models import Genesis, GenesisFootnotes, EngLXX, LITV, TranslationUp
 from search.db_utils import INTERLINEAR_CACHE_VERSION, get_db_connection, execute_query, table_has_column
 from search.views.footnote_views import get_footnote, build_notes_html
 from search.brenton_versification import brenton_label, brenton_reference
+from search.english_versification import english_note, english_reference
 from search.translation_utils import SUPPORTED_LANGUAGES
 from translate.translator import (
     book_abbreviations, convert_book_name,
@@ -1065,8 +1066,12 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                         footnote_contents.append(footnote_content)
 
             ##### Fetch Smith Literal Translation Verse ##############
+            # Smith and LITV number verses the English way; the reader follows the Hebrew
+            # (Psalm titles are verses), so look the verse up by its English number.
+            eng_chapter, eng_verse = english_reference(book, chapter_num, verse_num)
+            eng_note = english_note(book, chapter_num, verse_num)
             try:
-                slt_reference = bible.get_references(f'{book} {chapter_num}:{verse_num}')
+                slt_reference = bible.get_references(f'{book} {eng_chapter}:{eng_verse}')
                 slt_ref = slt_reference[0]
                 slt_book = slt_ref.book.name
                 slt_book = slt_book.title()
@@ -1076,10 +1081,10 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                     FROM smith_translation.verses
                     WHERE book = %s AND chapter = %s AND verse = %s
                 """
-                result = execute_query(sql_query, (slt_book, chapter_num, verse_num), fetch='one')
-   
+                result = execute_query(sql_query, (slt_book, eng_chapter, eng_verse), fetch='one')
+
                 slt = result[0] if result else None
-                slt = f'<div class="single_verse"><strong>Julia Smith Literal 1876 Translation:</strong><br> {slt}</div>'
+                slt = f'<div class="single_verse"><strong>Julia Smith Literal 1876 Translation:</strong><br> {slt}{eng_note if slt else ""}</div>'
             except:
                 slt = '<div class="single_verse"><strong>Julia Smith Literal 1876 Translation:</strong><br>None</div>'
             
@@ -1104,10 +1109,10 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
 
             # LITV Translation
             litv = LITV.objects.filter(book=book)
-            litv = litv.filter(chapter=chapter_num)
-            litv = litv.filter(verse=verse_num)
+            litv = litv.filter(chapter=eng_chapter)
+            litv = litv.filter(verse=eng_verse)
             litv = litv.values_list('text', flat=True).first()
-            litv = f'<div class="single_verse"><strong>LITV Translation:</strong><br> {litv}</div>'
+            litv = f'<div class="single_verse"><strong>LITV Translation:</strong><br> {litv}{eng_note if litv else ""}</div>'
 
             try:
                 from search.models import InterlinearConfig
