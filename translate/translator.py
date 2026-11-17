@@ -398,6 +398,19 @@ def get_bdb_definition_for_strong(strong_number: str) -> str:
     return ''
 
 
+@lru_cache(maxsize=4096)
+def _normalized_bdb_html(strong_number_h: str) -> str:
+    """BDB entry HTML for one Strong's number, with its tags balanced.
+
+    Balancing re-parses the entry with BeautifulSoup, and entries run up to 76 KB
+    (H834). Doing that for every word of every uncached verse page was over half
+    of an Old Testament verse render. The BDB table is static reference data that
+    the app never writes, so each worker keeps the result.
+    """
+    raw_html = get_bdb_definition_for_strong(strong_number_h)
+    return normalize_html_fragment(raw_html) if raw_html else ''
+
+
 def build_bdb_popup(strong_refs: list[str]) -> str:
     """Render a BDB lexicon popup trigger combining entries for multiple Strong's numbers."""
     if not strong_refs:
@@ -416,12 +429,10 @@ def build_bdb_popup(strong_refs: list[str]) -> str:
         seen_strongs.add(num)
 
         strong_number_h = f'H{num}'
-        bdb_html = get_bdb_definition_for_strong(strong_number_h)
+        bdb_html = _normalized_bdb_html(strong_number_h)
         if not bdb_html:
             continue
 
-        # Normalize the raw HTML to ensure tags are balanced
-        bdb_html = normalize_html_fragment(bdb_html)
         # Render the raw HTML directly (it's already HTML from the BDB source)
         entry_html = f'''
             <div class="bdb-entry">
@@ -1750,8 +1761,6 @@ def get_lxx_stats_for_strongs(strong_refs):
     This function strips any trailing letters (e.g., '5869a' -> '5869') before
     constructing the canonical H-number used in `catss.strongs_lxx_profile`.
     """
-    from .db_utils import execute_query
-    
     stats = {}
     for strongs in strong_refs:
         # Strip any non-digit characters to get the numeric part (handles '5869a', '| 5869a', etc.)
@@ -1759,21 +1768,32 @@ def get_lxx_stats_for_strongs(strong_refs):
         if num is None:
             stats[strongs] = []
             continue
-        # canonical key in DB is like 'H5869'
-        s = f'H{num}'
         try:
-            result = execute_query("""
-                SELECT greek_lemma, frequency, proportion_pct
-                FROM catss.strongs_lxx_profile
-                WHERE strongs = %s AND frequency >= 2
-                ORDER BY frequency DESC
-                LIMIT 10;
-            """, (s,), fetch='all') or []
+            result = list(_lxx_profile_rows(f'H{num}'))
         except Exception:
             # Fallback if catss schema is missing or query fails
             result = []
         stats[strongs] = result
     return stats
+
+
+@lru_cache(maxsize=4096)
+def _lxx_profile_rows(strongs_h: str) -> tuple:
+    """Top LXX renderings for one canonical H-number, e.g. 'H5869'.
+
+    `catss.strongs_lxx_profile` is static reference data, so each worker keeps the
+    rows instead of querying once per word on every verse page. A failed query
+    raises and is therefore not cached.
+    """
+    from .db_utils import execute_query
+    rows = execute_query("""
+        SELECT greek_lemma, frequency, proportion_pct
+        FROM catss.strongs_lxx_profile
+        WHERE strongs = %s AND frequency >= 2
+        ORDER BY frequency DESC
+        LIMIT 10;
+    """, (strongs_h,), fetch='all') or []
+    return tuple(rows)
 
 
 def build_heb_interlinear(rows_data, show_edit_buttons: bool = False):
