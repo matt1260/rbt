@@ -31,6 +31,7 @@ STALE = 'stale'
 RENAMED_BEFORE_FINGERPRINTS = {
     ('Genesis', TITLE_VERSE), ('Isaiah', TITLE_VERSE), ('Jeremiah', TITLE_VERSE), ('Jude', TITLE_VERSE),
     ('Ecclesiastes', TITLE_VERSE), ('Song of Solomon', TITLE_VERSE), ('Numbers', TITLE_VERSE), ('Deuteronomy', TITLE_VERSE),
+    ('1 Chronicles', TITLE_VERSE), ('2 Chronicles', TITLE_VERSE),
     (JUDAS_BOOK, TITLE_VERSE), (JUDAS_BOOK, JUDAS_HEADING_VERSE),
 }
 

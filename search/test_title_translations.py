@@ -45,6 +45,9 @@ class TitleTranslationTests(SimpleTestCase):
         self.assertFalse(titles.is_current(old_deut))
         new_num = row('Numbers', source_hash=source_fingerprint('And He is Setting in Order'))
         self.assertTrue(titles.is_current(new_num))
+        self.assertFalse(titles.is_current(row('1 Chronicles')))  # renamed from "First Alignments of the Days"
+        new_chr = row('2 Chronicles', source_hash=source_fingerprint('Second Words of the Days'))
+        self.assertTrue(titles.is_current(new_chr))
         self.assertFalse(titles.is_current(row('Gospel of Judas', 3)))
         heading = row('Gospel of Judas', 3, source_hash=source_fingerprint('Gospel of Praised One'))
         self.assertTrue(titles.is_current(heading))
