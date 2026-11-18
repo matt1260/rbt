@@ -30,7 +30,7 @@ STALE = 'stale'
 # by migration 0017, which production may not have run.)
 RENAMED_BEFORE_FINGERPRINTS = {
     ('Genesis', TITLE_VERSE), ('Isaiah', TITLE_VERSE), ('Jeremiah', TITLE_VERSE), ('Jude', TITLE_VERSE),
-    ('Ecclesiastes', TITLE_VERSE), ('Song of Solomon', TITLE_VERSE),
+    ('Ecclesiastes', TITLE_VERSE), ('Song of Solomon', TITLE_VERSE), ('Numbers', TITLE_VERSE), ('Deuteronomy', TITLE_VERSE),
     (JUDAS_BOOK, TITLE_VERSE), (JUDAS_BOOK, JUDAS_HEADING_VERSE),
 }
 

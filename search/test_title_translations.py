@@ -39,6 +39,12 @@ class TitleTranslationTests(SimpleTestCase):
         self.assertFalse(titles.is_current(old_eccl))
         new_eccl = row('Ecclesiastes', source_hash=source_fingerprint('Words of the Collector'))
         self.assertTrue(titles.is_current(new_eccl))
+        self.assertFalse(titles.is_current(row('Numbers')))  # renamed from "And He is Aligning"
+        self.assertFalse(titles.is_current(row('Deuteronomy')))  # renamed from "A Mighty One of the Alignments"
+        old_deut = row('Deuteronomy', source_hash=source_fingerprint('A Mighty One of the Alignments'))
+        self.assertFalse(titles.is_current(old_deut))
+        new_num = row('Numbers', source_hash=source_fingerprint('And He is Setting in Order'))
+        self.assertTrue(titles.is_current(new_num))
         self.assertFalse(titles.is_current(row('Gospel of Judas', 3)))
         heading = row('Gospel of Judas', 3, source_hash=source_fingerprint('Gospel of Praised One'))
         self.assertTrue(titles.is_current(heading))
