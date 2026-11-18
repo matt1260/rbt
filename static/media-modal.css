@@ -64,6 +64,11 @@
     object-fit: contain;
 }
 
+/* Pop-up videos have no controls; a click pauses and resumes them (media-modal.js). */
+.pp-modal__media video {
+    cursor: pointer;
+}
+
 .pp-modal__text {
     overflow-y: auto;
     max-height: 90vh;

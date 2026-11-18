@@ -27,18 +27,34 @@
         modal.style.setProperty('--rbt-reading-font', getComputedStyle(area).fontFamily);
 
         modal.addEventListener('click', function (event) {
+            if (toggleVideo(event)) return;
             // event.target is the dialog itself only for clicks on the backdrop.
             if (event.target === modal || event.target.closest('.pp-modal__close') || tapCloses(event)) modal.close();
         });
         modal.addEventListener('keydown', function (event) {
             // Escape closes just this modal, not the staff studio underneath it.
             if (event.key === 'Escape') event.stopPropagation();
+            if (event.key === 'Enter' || event.key === ' ') toggleVideo(event);
         });
         modal.addEventListener('close', function () {
             modal.querySelector('.pp-modal__media').innerHTML = ''; // stops any video
             if (opener && document.contains(opener)) opener.focus();
         });
         document.body.appendChild(modal);
+    }
+
+    // Pause or resume the pop-up's video when the event is on it. True if it handled the event.
+    function toggleVideo(event) {
+        var video = event.target.closest && event.target.closest('.pp-modal__media video');
+        if (!video) return false;
+        event.preventDefault();
+        if (video.paused) {
+            var playing = video.play();
+            if (playing && playing.catch) playing.catch(function () {});
+        } else {
+            video.pause();
+        }
+        return true;
     }
 
     var touchScreen = window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)');
@@ -104,10 +120,22 @@
             media.removeAttribute('width');
             media.removeAttribute('height');
             if (media.tagName === 'VIDEO') {
-                media.controls = true;
+                // The videos are silent loops: no controls (Safari otherwise keeps its control
+                // bar over them); a click or Enter/Space pauses and resumes (toggleVideo).
+                media.controls = false;
+                media.removeAttribute('controls');
+                media.muted = true;
+                media.loop = true;
+                media.autoplay = true;
                 media.setAttribute('playsinline', '');
+                media.tabIndex = 0;
+                media.setAttribute('aria-label', 'Video: click to pause or play');
             }
             mediaBox.appendChild(media);
+            if (media.tagName === 'VIDEO') {
+                var started = media.play();
+                if (started && started.catch) started.catch(function () {});
+            }
         }
         if (item.notesHtml) {
             textBox.innerHTML = item.notesHtml;
