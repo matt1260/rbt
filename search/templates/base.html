@@ -1869,26 +1869,35 @@ body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: 
 		float: left;
 		}
 
-	/* NT interlinear words in ‹ ›: not found in the earliest manuscripts */
-	.tablefloat.nt-later-addition {
-		background: #fff4d6;
-		outline: 1px dashed #c9a227;
-		border-radius: 4px;
+	/* NT interlinear words the RBT's Greek text (Westcott-Hort) lacks: faded, with a note
+	   (search/greek_variants.py) */
+	.tablefloat.nt-variant-absent {
+		opacity: 0.42;
 		cursor: help;
+		transition: opacity 0.15s;
 		}
-	.tablefloat.nt-later-addition .greek {
-		color: #8a6d00;
+	.tablefloat.nt-variant-absent:hover,
+	.tablefloat.nt-variant-absent:focus-within {
+		opacity: 0.85;
 		}
-	.nt-later-addition-legend {
+	.nt-variant-note {
 		clear: both;
 		margin: 6px 4px 10px;
 		padding: 6px 10px;
 		font-size: 14px;
 		line-height: 20px;
-		color: #5c4a00;
-		background: #fff4d6;
-		border-left: 3px solid #c9a227;
-		border-radius: 4px;
+		color: #555;
+		border-left: 3px solid #ccc;
+		}
+	.nt-variant-note p {
+		margin: 0 0 4px;
+		}
+	.nt-variant-note ul {
+		margin: 0 0 4px 18px;
+		padding: 0;
+		}
+	.nt-variant-note a {
+		font-size: 13px;
 		}
 
 	.nav-ul li {

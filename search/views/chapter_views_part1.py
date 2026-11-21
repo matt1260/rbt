@@ -14,6 +14,7 @@ import calendar
 from datetime import datetime, timedelta
 from collections import OrderedDict
 from urllib.parse import urlencode
+from html import escape
 
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
@@ -38,10 +39,8 @@ from translate.translator import (
     build_heb_interlinear, replace_words,
     ot_prev_next_references, extract_footnote_references, load_json
 )
-from search.greek_headwords import (
-    LATER_ADDITION_LEGEND, LATER_ADDITION_NOTE,
-    later_addition_flags, logeion_headword, logeion_url, perseus_morph_url, plain_word,
-)
+from search.greek_headwords import logeion_headword, logeion_url, perseus_morph_url, plain_word
+from search.greek_variants import variants_note_html, verse_variants
 from search.seo_utils import _get_verse_url
 from search.seo_utils import book_to_slug
 from search.rbt_titles import rbt_books
@@ -384,8 +383,8 @@ def fetch_greek_interlinear_rows(book, chapter_num, verse_num):
 
     strongs/lemma/english have the interlinear replacements applied; raw_lemma and
     raw_english keep the stored values. logeion is the word's dictionary headword (the stored
-    lemma is the inflected word); later_addition marks words inside ‹ › (not in the earliest
-    manuscripts).
+    lemma is the inflected word); variant is the note when the Greek text the RBT translates
+    lacks the word (search/greek_variants.py), else None.
     """
     book_abbrev = book_abbreviations.get(book, book)
     sql_query = """
@@ -397,8 +396,9 @@ def fetch_greek_interlinear_rows(book, chapter_num, verse_num):
     rows = execute_query(sql_query, (f'{book_abbrev}.{chapter_num}.{verse_num}-%',), fetch='all') or []
 
     words = []
-    later = later_addition_flags([row[3] for row in rows])
-    for row, later_addition in zip(rows, later):
+    variants = verse_variants(f'{book_abbrev}.{chapter_num}.{verse_num}') or {}
+    variant_words = variants.get('words', {})
+    for row in rows:
         try:
             token_key, strongs, translit, lemma, english, morph, morph_desc = row
             shown_strongs, shown_lemma, shown_english = replace_words(strongs, lemma, english)
@@ -407,7 +407,8 @@ def fetch_greek_interlinear_rows(book, chapter_num, verse_num):
             continue
         words.append({
             'logeion': logeion_headword(token_key, strongs, lemma),
-            'later_addition': later_addition,
+            'variant': (variants['notes'][variant_words[token_key.rsplit('-', 1)[-1]]]
+                        if token_key.rsplit('-', 1)[-1] in variant_words else None),
             'strongs': shown_strongs,
             'translit': translit,
             'lemma': shown_lemma,
@@ -1019,7 +1020,6 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                 interlinear = ''
                 linear_english = ''
                 entries = []
-                has_later_addition = False
 
                 for i, word in enumerate(fetch_greek_interlinear_rows(book, chapter_num, verse_num), start=1):
                     try:
@@ -1034,10 +1034,9 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                         strongs, lemma, english = word['strongs'], word['lemma'], word['english']
                         translit, morph, morph_desc = word['translit'], word['morph'], word['morph_desc']
 
-                        if word['later_addition']:
-                            has_later_addition = True
-                            interlinear += ('<table class="tablefloat nt-later-addition" '
-                                            f'title="{LATER_ADDITION_NOTE}">\n<tbody>\n')
+                        if word['variant']:
+                            interlinear += ('<table class="tablefloat nt-variant-absent" '
+                                            f'title="{escape(word["variant"])}">\n<tbody>\n')
                         else:
                             interlinear += '<table class="tablefloat">\n<tbody>\n'
                         interlinear += '<tr>\n<td class="interlinear" height="160" valign="middle" align="left">\n'
@@ -1047,7 +1046,7 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                         interlinear += f'<div class="strongsnt2"> <a href="{logeion_url(word["logeion"])}" target="_blank" title="{word["logeion"]}">Λογεῖον</a></div>\n'
                         interlinear += f'<span class="strongsnt2"> <a href="{perseus_morph_url(plain_word(lemma))}" target="_blank">Perseus</a></span><br>\n'
                         interlinear += f'<span class="translit">{translit}</span><br>\n'
-                        interlinear += f'<span class="greek">{lemma}</span><br>\n'
+                        interlinear += f'<span class="greek">{plain_word(lemma)}</span><br>\n'
                         interlinear += f'<span class="eng" data-strongs="{strongs}" data-lemma="{lemma}" contenteditable="false">{english}</span><br>\n'
 
                         color = "#000"
@@ -1064,8 +1063,8 @@ def get_results(book, chapter_num, verse_num=None, language='en'):
                     except Exception as e:
                         print(f"[ERROR] Exception on row {i}: {e}, row data: {word}")
 
-                if has_later_addition:
-                    interlinear += LATER_ADDITION_LEGEND
+                interlinear += variants_note_html(
+                    verse_variants(f'{book_abbrev}.{chapter_num}.{verse_num}'), book, chapter_num, verse_num)
 
                 if rbt_html is not None:
                     footnote_references = re.findall(r'\?footnote=(\d+-\d+-\d+[a-zA-Z]?)', rbt_html)

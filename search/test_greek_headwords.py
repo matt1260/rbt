@@ -4,9 +4,7 @@ from unittest import mock
 
 from django.test import SimpleTestCase
 
-from search.greek_headwords import (
-    later_addition_flags, logeion_headword, logeion_url, perseus_morph_url, plain_word,
-)
+from search.greek_headwords import logeion_headword, logeion_url, perseus_morph_url, plain_word
 
 
 class LogeionHeadwordTests(SimpleTestCase):
@@ -43,32 +41,18 @@ class LogeionHeadwordTests(SimpleTestCase):
         self.assertEqual(plain_word('ὑμᾶς⧽'), 'ὑμᾶς')
 
 
-class LaterAdditionTests(SimpleTestCase):
-    def test_single_word(self):
-        self.assertEqual(later_addition_flags(['ὁ', '‹καὶ›', 'λόγος']), [False, True, False])
-
-    def test_phrase_across_words(self):
-        words = ['εἶπεν', '‹πρὸς', 'τὸν', 'αὐτόν›', 'καὶ']
-        self.assertEqual(later_addition_flags(words), [False, True, True, True, False])
-
-    def test_unclosed_phrase_runs_to_the_end_of_the_verse(self):
-        self.assertEqual(later_addition_flags(['a', '‹b', 'c']), [False, True, True])
-
-    def test_other_brackets_are_not_flagged(self):
-        self.assertEqual(later_addition_flags(['[τὴν]', '⧼Ἦλθεν', '〈τὰ〉']), [False, False, False])
-
-
 class InterlinearRenderTests(SimpleTestCase):
     """The verse page and the NT editor share the interlinear HTML built in get_results."""
 
-    def test_rows_carry_headword_and_flag(self):
+    def test_rows_carry_headword_and_variant(self):
         from search.views import chapter_views_part1 as views
         rows = [
-            ('Rom.14.21-05', '2907', 'krea', 'κρέα', 'meat', 'N-ANP', 'Noun - Accusative Neuter Plural'),
-            ('Mat.3.2-01', '2532', 'kai', '‹καὶ›', 'and', 'Conj', 'Conjunction'),
+            ('Act.2.44-03', '3588', 'hoi', 'οἱ', 'the', 'Art-NMP', 'Article'),
+            ('Act.2.44-04', '4100', 'pisteuontes', '‹πιστεύοντες', 'trusting', 'V-PPA-NMP', 'Verb'),
         ]
         with mock.patch.object(views, 'execute_query', return_value=rows), \
                 mock.patch.object(views, 'replace_words', side_effect=lambda s, l, e: (s, l, e)):
-            words = views.fetch_greek_interlinear_rows('Romans', 14, 21)
-        self.assertEqual([w['logeion'] for w in words], ['κρέας', 'καί'])
-        self.assertEqual([w['later_addition'] for w in words], [False, True])
+            words = views.fetch_greek_interlinear_rows('Acts', 2, 44)
+        self.assertEqual([w['logeion'] for w in words], ['ὁ', 'πιστεύω'])
+        self.assertIsNone(words[0]['variant'])
+        self.assertIn('the RBT text has πιστεύσαντες', words[1]['variant'])

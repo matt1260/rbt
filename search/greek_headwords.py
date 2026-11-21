@@ -1,14 +1,10 @@
 """
-The dictionary headword a New Testament interlinear word links to on Logeion, and the marks
-the interlinear puts around words.
+The dictionary headword a New Testament interlinear word links to on Logeion.
 
 rbt_greek.strongs_greek stores each word as it stands in the verse (κρέα), which is not what
 Logeion files it under (κρέας). search/data/greek_logeion_headwords.json, made by
 `manage.py build_greek_logeion_headwords`, gives the headword for each Strong's number and for the
 few words that differ from their number's (a different reading, or a mis-tagged number).
-
-Words or phrases wrapped in ‹ › are not found in the earliest manuscripts; a phrase may open on
-one word and close on a later one (‹πρὸς … αὐτόν›).
 """
 import json
 import os
@@ -21,14 +17,7 @@ from django.conf import settings
 TABLE_PATH = os.path.join(settings.BASE_DIR, 'search', 'data', 'greek_logeion_headwords.json')
 LOGEION_URL = 'https://logeion.uchicago.edu/'
 PERSEUS_MORPH_URL = 'https://www.perseus.tufts.edu/hopper/morph?l='
-LATER_OPEN, LATER_CLOSE = '‹', '›'
-LATER_ADDITION_NOTE = 'Not found in the earliest manuscripts'
-# Shown under an interlinear that has such words (styles: .nt-later-addition in base.html).
-LATER_ADDITION_LEGEND = (
-    '<div class="nt-later-addition-legend">'
-    'Highlighted words (in ‹ ›) are not found in the earliest manuscripts.'
-    '</div>\n'
-)
+
 
 # Editorial marks that may sit on a stored word; none belongs in a dictionary lookup.
 _WORD_MARKS = re.compile(r"[‹›\[\]⧼⧽〈〉«»(){}*⇔‿¦ ]")
@@ -68,19 +57,3 @@ def logeion_url(headword):
 
 def perseus_morph_url(word):
     return PERSEUS_MORPH_URL + quote(word or '', safe='')
-
-
-def later_addition_flags(words):
-    """[bool] per word: True when the word lies inside ‹ › (opened on it or an earlier word,
-    closed on it or a later one)."""
-    flags = []
-    inside = False
-    for word in words:
-        word = word or ''
-        opens = LATER_OPEN in word
-        flags.append(inside or opens)
-        if opens:
-            inside = True
-        if LATER_CLOSE in word:
-            inside = word.rfind(LATER_OPEN) > word.rfind(LATER_CLOSE)
-    return flags
