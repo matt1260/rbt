@@ -13,6 +13,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
 from search import paraphrase
+from search.paraphrase_presets import ensure_builtin_presets
 from search.models import ChapterParaphrase, ParaphrasePrompt, PromptGlossaryTerm
 from translate.chapter_editor_api import staff_json
 
@@ -102,6 +103,7 @@ def state(request):
 
     paraphrase.expire_stale(book, chapter)
     paraphrase.default_prompt()
+    ensure_builtin_presets()
     current_hash = paraphrase.source_hash(paraphrase.chapter_verses(book, chapter))
     prices = paraphrase.model_prices()
     rows = ChapterParaphrase.objects.filter(book=book, chapter=chapter, language_code='en').defer('html', 'raw_output', 'system_prompt')
@@ -125,7 +127,8 @@ def candidate(request):
     row = ChapterParaphrase.objects.filter(uid=request.GET.get('uid')).first() if _is_uuid(request.GET.get('uid')) else None
     if not row:
         return JsonResponse({'error': 'Not found.'}, status=404)
-    return JsonResponse({'uid': str(row.uid), 'html': row.html, 'system_prompt': row.system_prompt, 'raw_output': row.raw_output})
+    return JsonResponse({'uid': str(row.uid), 'html': row.html, 'hash': paraphrase.html_hash(row.html),
+                         'system_prompt': row.system_prompt, 'raw_output': row.raw_output})
 
 
 def _is_uuid(value):
@@ -139,7 +142,7 @@ def _is_uuid(value):
 @require_POST
 @staff_json
 def generate(request):
-    """POST {book, chapter, models: [[provider, model], ...], instructions, word_guidance, include_glossary, prompt_name}."""
+    """POST {book, chapter, models: [[provider, model], ...], instructions, word_guidance, include_glossary, prompt_name, headings}."""
     data = _json_body(request)
     if data is None:
         return JsonResponse({'error': 'Invalid JSON.'}, status=400)
@@ -178,6 +181,7 @@ def generate(request):
             include_glossary=bool(data.get('include_glossary', True)),
             prompt_name=str(data.get('prompt_name') or '')[:100],
             username=request.user.username,
+            headings=bool(data.get('headings', False)),
         )
     except ValueError as exc:
         return JsonResponse({'error': str(exc)}, status=400)
@@ -329,3 +333,74 @@ def edit_note(request):
             row.save(update_fields=['html', 'updated_at'])
     logger.info('[PARAPHRASE] %s edited %s %s note %s', request.user.username, row.book, row.chapter, n)
     return JsonResponse({'hash': paraphrase.html_hash(row.html), 'html': note_html})
+
+
+def _model_error(provider, model_name):
+    """Why (provider, model_name) can't be used here, or None."""
+    if not paraphrase.is_allowed_model(provider, model_name):
+        return f'Model not allowed: {provider}/{model_name}'
+    if not paraphrase.available_models()[provider]['configured']:
+        return f'No API key configured for: {provider}'
+    return None
+
+
+@staff_json
+def suggest_headings(request):
+    """
+    GET ?uid= → the heading suggestion job for a paraphrase ({status: idle|running|done|failed,
+    sections: [{index, options}], ...}). POST JSON {uid, provider, model} starts one in the
+    background (paraphrase.start_heading_suggestions); the studio polls with GET.
+    """
+    if request.method == 'GET':
+        uid = request.GET.get('uid')
+        if not _is_uuid(uid):
+            return JsonResponse({'error': 'uid is required.'}, status=400)
+        return JsonResponse(paraphrase.heading_suggestions(uid))
+    if request.method != 'POST':
+        return JsonResponse({'error': 'GET or POST only.'}, status=405)
+    data = _json_body(request) or {}
+    if not _is_uuid(data.get('uid')):
+        return JsonResponse({'error': 'uid is required.'}, status=400)
+    provider, model_name = data.get('provider'), data.get('model')
+    error = _model_error(provider, model_name)
+    if error:
+        return JsonResponse({'error': error}, status=400)
+    row = ChapterParaphrase.objects.filter(uid=data['uid'], status='done').first()
+    if not row:
+        return JsonResponse({'error': 'Not found, or not finished yet.'}, status=404)
+    logger.info('[PARAPHRASE] %s asked %s for headings for %s %s', request.user.username, model_name, row.book, row.chapter)
+    return JsonResponse(paraphrase.start_heading_suggestions(row, provider, model_name))
+
+
+@require_POST
+@staff_json
+def set_heading(request):
+    """
+    POST JSON {uid, index, heading, base_hash} → {hash, html}: set the heading above paragraph
+    `index` of a paraphrase to plain text `heading` ('' removes it). Conflicts are handled as
+    in edit_block.
+    """
+    data = _json_body(request) or {}
+    if not _is_uuid(data.get('uid')):
+        return JsonResponse({'error': 'uid is required.'}, status=400)
+    index, heading, base_hash = data.get('index'), data.get('heading'), data.get('base_hash')
+    if not isinstance(index, int) or isinstance(index, bool) or not isinstance(heading, str) or not isinstance(base_hash, str):
+        return JsonResponse({'error': 'index, heading and base_hash are required.'}, status=400)
+    if len(heading) > 200:
+        return JsonResponse({'error': 'Heading is too long.'}, status=400)
+
+    with transaction.atomic():
+        row = ChapterParaphrase.objects.select_for_update().filter(uid=data['uid']).first()
+        if not row:
+            return JsonResponse({'error': 'Not found.'}, status=404)
+        if paraphrase.html_hash(row.html) != base_hash:
+            return JsonResponse({'error': 'This paraphrase was changed elsewhere.', 'hash': paraphrase.html_hash(row.html)}, status=409)
+        try:
+            new_html = paraphrase.set_heading(row.html, index, heading)
+        except IndexError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+        if new_html != row.html:
+            row.html = new_html
+            row.save(update_fields=['html', 'updated_at'])
+    logger.info('[PARAPHRASE] %s set the heading of %s %s paragraph %s', request.user.username, row.book, row.chapter, index)
+    return JsonResponse({'hash': paraphrase.html_hash(row.html), 'html': row.html})

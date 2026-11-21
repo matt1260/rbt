@@ -19,6 +19,7 @@ interface Draft {
 
 const DRAFT_KEY = 'rbtParaphraseDraft'
 const MODELS_KEY = 'rbtParaphraseModels'
+const HEADINGS_KEY = 'rbtParaphraseHeadings'
 const POLL_MS = 3000
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -61,6 +62,8 @@ export function ParaphraseStudio({ api, title, open, onClose }: Props) {
   const [selected, setSelected] = useState<string[]>(() => loadJson(MODELS_KEY, [modelKey('gemini', 'gemini-3.8-flash')]))
   const [compare, setCompare] = useState<string[]>([])
   const [html, setHtml] = useState<Record<string, string | null>>({})
+  const [hashes, setHashes] = useState<Record<string, string>>({})
+  const [headings, setHeadings] = useState<boolean>(() => loadJson(HEADINGS_KEY, true))
   const [action, setAction] = useState<string | null>(null)
   const [message, setMessage] = useState<{ text: string; tone: 'ok' | 'bad' } | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -89,6 +92,7 @@ export function ParaphraseStudio({ api, title, open, onClose }: Props) {
   }, [draft])
 
   useEffect(() => saveJson(MODELS_KEY, selected), [selected])
+  useEffect(() => saveJson(HEADINGS_KEY, headings), [headings])
 
   const generating = state?.candidates.some(isBusy) ?? false
   useEffect(() => {
@@ -118,7 +122,10 @@ export function ParaphraseStudio({ api, title, open, onClose }: Props) {
       if (candidate?.status !== 'done' || html[uid] !== undefined) continue
       setHtml((current) => ({ ...current, [uid]: null }))
       api.candidateHtml(uid).then(
-        (result) => setHtml((current) => ({ ...current, [uid]: result.html })),
+        (result) => {
+          setHtml((current) => ({ ...current, [uid]: result.html }))
+          setHashes((current) => ({ ...current, [uid]: result.hash }))
+        },
         () => setHtml((current) => {
           const { [uid]: _failed, ...rest } = current
           return rest
@@ -177,6 +184,7 @@ export function ParaphraseStudio({ api, title, open, onClose }: Props) {
         word_guidance: draft.wordGuidance,
         include_glossary: draft.includeGlossary,
         prompt_name: dirty ? `${draft.presetName} (edited)` : draft.presetName,
+        headings,
       })
       setCompare(result.uids.slice(0, MAX_COMPARE))
       await refresh()
@@ -301,6 +309,10 @@ export function ParaphraseStudio({ api, title, open, onClose }: Props) {
                   />
                   Include the translation glossary ({state.glossary_terms} active term{state.glossary_terms === 1 ? '' : 's'})
                 </label>
+                <label className="rbt-ps__check">
+                  <input type="checkbox" checked={headings} onChange={(event) => setHeadings(event.target.checked)} />
+                  Add section headings
+                </label>
                 <details className="rbt-ps__rules">
                   <summary>Fixed rules: fidelity and output format (always appended)</summary>
                   <pre>{state.output_rules}</pre>
@@ -365,12 +377,19 @@ export function ParaphraseStudio({ api, title, open, onClose }: Props) {
                   return candidate ? (
                     <PreviewPane
                       key={uid}
+                      api={api}
                       candidate={candidate}
                       html={html[uid]}
+                      hash={hashes[uid]}
+                      model={chosen[0] ?? null}
                       now={now}
                       busy={!!action}
                       onPublish={publish}
                       onClose={() => toggleCompare(uid)}
+                      onHtml={(newHtml, newHash) => {
+                        setHtml((current) => ({ ...current, [uid]: newHtml }))
+                        setHashes((current) => ({ ...current, [uid]: newHash }))
+                      }}
                     />
                   ) : null
                 })}

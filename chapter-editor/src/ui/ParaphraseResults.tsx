@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { Candidate } from '../paraphraseApi'
+import type { Candidate, ParaphraseApi, Provider } from '../paraphraseApi'
+import { HeadingSuggestions } from './HeadingSuggestions'
 
 export const MAX_COMPARE = 3
 export const isBusy = (candidate: Candidate) => candidate.status === 'pending' || candidate.status === 'running'
@@ -113,15 +114,19 @@ export function CandidateTable({ candidates, compare, now, busy, onToggleCompare
 }
 
 interface PaneProps {
+  api: ParaphraseApi
   candidate: Candidate
   html: string | null | undefined
+  hash: string | undefined
+  model: { provider: Provider; model: string } | null
   now: number
   busy: boolean
   onPublish: (candidate: Candidate) => void
   onClose: () => void
+  onHtml: (html: string, hash: string) => void
 }
 
-export function PreviewPane({ candidate, html, now, busy, onPublish, onClose }: PaneProps) {
+export function PreviewPane({ api, candidate, html, hash, model, now, busy, onPublish, onClose, onHtml }: PaneProps) {
   const [width, setWidth] = useState<'desktop' | 'phone'>('desktop')
   // Preview in the chapter's own reading font and size.
   const pageStyle = useMemo(() => {
@@ -155,6 +160,9 @@ export function PreviewPane({ candidate, html, now, busy, onPublish, onClose }: 
         )}
         <button type="button" className="rbt-ps__link" onClick={onClose} aria-label={`Stop comparing ${candidate.model}`}>×</button>
       </header>
+      {candidate.status === 'done' && html != null && hash && (
+        <HeadingSuggestions api={api} candidate={candidate} html={html} hash={hash} model={model} onChange={onHtml} />
+      )}
       <div className="rbt-ps__frame">
         <div className="rbt-ps__page" style={pageStyle}>{body}</div>
       </div>

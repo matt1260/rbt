@@ -47,6 +47,23 @@ export interface GenerateRequest {
   word_guidance: string
   include_glossary: boolean
   prompt_name: string
+  /** Ask the model for section headings (<h5>) too. */
+  headings: boolean
+}
+
+/** Suggested headings for the paragraph at `index` (counted from 0). */
+export interface HeadingSection {
+  index: number
+  options: string[]
+}
+
+export interface HeadingJob {
+  status: 'idle' | 'running' | 'done' | 'failed'
+  model?: string
+  started?: number
+  duration_ms?: number
+  sections?: HeadingSection[]
+  error?: string
 }
 
 export class ParaphraseApi {
@@ -81,7 +98,7 @@ export class ParaphraseApi {
   }
 
   candidateHtml(uid: string) {
-    return this.request<{ html: string; system_prompt: string; raw_output: string }>(`candidate/?uid=${encodeURIComponent(uid)}`)
+    return this.request<{ html: string; hash: string; system_prompt: string; raw_output: string }>(`candidate/?uid=${encodeURIComponent(uid)}`)
   }
 
   generate(body: GenerateRequest) {
@@ -98,6 +115,19 @@ export class ParaphraseApi {
 
   remove(uid: string) {
     return this.post<{ deleted: boolean }>('delete/', { uid })
+  }
+
+  headingJob(uid: string) {
+    return this.request<HeadingJob>(`suggest-headings/?uid=${encodeURIComponent(uid)}`)
+  }
+
+  suggestHeadings(uid: string, provider: Provider, model: string) {
+    return this.post<HeadingJob>('suggest-headings/', { uid, provider, model })
+  }
+
+  /** Set (or with an empty heading, remove) the heading above paragraph `index`. */
+  setHeading(uid: string, index: number, heading: string, baseHash: string) {
+    return this.post<{ hash: string; html: string }>('set-heading/', { uid, index, heading, base_hash: baseHash })
   }
 
   savePreset(preset: Omit<Preset, 'updated_by' | 'updated_at'>) {

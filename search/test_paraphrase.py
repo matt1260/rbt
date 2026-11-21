@@ -74,10 +74,12 @@ class FinalizeOutputTests(SimpleTestCase):
         self.assertEqual(missing, [2, 4])
         self.assertIn('<p data-v="1"><span class="pp-anchor" id="v1"></span>a', html)
 
-    def test_headings_are_dropped_with_their_text(self):
-        html, _ = self.finalize('<h5>Section</h5><h3>Other</h3><p data-v="1-4">Body</p>')
-        self.assertNotIn('Section', html)
+    def test_only_section_headings_are_kept(self):
+        # <h5> above a paragraph is a section heading (search/test_paraphrase_headings.py);
+        # other heading levels are dropped with their text.
+        html, _ = self.finalize('<h3>Other</h3><h5>Section</h5><p data-v="1-4">Body</p>')
         self.assertNotIn('Other', html)
+        self.assertIn('<h5>Section</h5><p data-v="1-4">', html)
         self.assertIn('</span>Body', html)
 
     def test_rejects_malformed_verse_ranges(self):
@@ -172,7 +174,8 @@ class SourceTests(SimpleTestCase):
         prompt = pp.build_system_prompt('Be smooth.', 'Logos: keep it', include_glossary=True)
         self.assertLess(prompt.index('Be smooth.'), prompt.index('Logos: keep it'))
         self.assertLess(prompt.index('Logos: keep it'), prompt.index('Logos Ratio'))
-        self.assertTrue(prompt.endswith(pp.OUTPUT_RULES))
+        self.assertLess(prompt.index('Logos Ratio'), prompt.index(pp.OUTPUT_RULES))
+        self.assertTrue(prompt.endswith(pp.NO_HEADINGS))
         self.assertNotIn('Logos Ratio', pp.build_system_prompt('Be smooth.', include_glossary=False))
 
 
@@ -267,7 +270,7 @@ class StudioApiTests(SimpleTestCase):
         self.assertEqual(json.loads(response.content), {'batch_id': 'batch-1', 'uids': ['u1']})
         start_batch.assert_called_once_with(
             'John', 1, [('gemini', 'gemini-3.8-flash')], instructions='Be smooth.', word_guidance='x',
-            include_glossary=False, prompt_name='Default', username='editor',
+            include_glossary=False, prompt_name='Default', username='editor', headings=False,
         )
 
 

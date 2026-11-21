@@ -25,6 +25,8 @@ Pipeline for one generation:
      paraphrases only where the model copied the passage exactly (apply_note_edits).
 """
 import hashlib
+import html as html_lib
+import json
 import logging
 import os
 import re
@@ -36,6 +38,7 @@ from datetime import timedelta
 
 import nh3
 from bs4 import BeautifulSoup
+from django.core.cache import cache
 from django.db import close_old_connections, transaction
 from django.utils import timezone
 
@@ -75,13 +78,27 @@ FIDELITY (required):
 
 OUTPUT FORMAT (required; the page depends on it):
 - Return only an HTML fragment. No markdown, no code fences, no <html>, <head>, <body>, <style> or <script>.
-- Allowed elements: p, blockquote, ul, ol, li, em, strong, span, br, hr, rbt-media, and rbt-note after the chapter (below). No headings of any kind: the page flows as paragraphs.
+- Allowed elements: p, blockquote, ul, ol, li, em, strong, span, br, hr, rbt-media, h5 (only as the HEADINGS rule below allows) and rbt-note after the chapter (below).
 - Put data-v on every paragraph, blockquote or list that carries verse content, giving the verse range it covers: <p data-v="3-5">...</p> or <p data-v="7">...</p>. Together the ranges must cover every verse of the chapter.
 - Keep the RBT color coding where it still fits by reusing the source's spans exactly: <span style="color: blue;"> and <span style="color: #ff00aa;">. Keep <span class="hayah"> as it is.
 - Optional classes: <p class="pp-indent"> for an indented paragraph, <blockquote class="pp-poetry"> for poetic or quoted lines (use <br> between lines).
 - Mark every media item exactly once with an inline marker inside the paragraph, right after the sentence it best illustrates (after the sentence's closing punctuation): <rbt-media n="N"></rbt-media>. Readers see a small image cue there that opens the image and its notes, so the text itself stays uninterrupted; never put a marker between paragraphs.
 - If the input has a NOTES section: after the chapter, paraphrase the Bible verses quoted in those notes the same way as the chapter, one block per quoted passage: <rbt-note n="N"><rbt-find>the passage exactly as it appears in note N's HTML, copied character for character with its tags</rbt-find><rbt-replace>its paraphrase</rbt-replace></rbt-note>. Only verse text: leave commentary, titles, definitions and references such as (Revelation 21:3 RBT) out of rbt-find. Keep the color spans where they still fit. Skip notes that quote no verses.
 - Do not invent content, add commentary or explain your choices.
+""".strip()
+
+NO_HEADINGS = 'HEADINGS: none. The page flows as paragraphs; write no heading of any kind.'
+
+# Section headings, when the studio asks for them (its "Add section headings" box), and
+# the brief for the "Suggest headings" tool. Both are shown the editor's own published
+# headings for their style (published_headings()).
+HEADING_STYLE = """
+A heading marks where a new section begins (a new scene, a new speaker's discourse, or a turn in the argument) and names it in the RBT's own terms and imagery: two to seven words, in title case, often drawing out the theme or the earlier Scripture the RBT sees in the passage. Never use the traditional Bible section titles ("The Wedding at Cana", "Nicodemus Visits Jesus"). The input's RBT SECTION NOTES, when given, are the notes the RBT itself places at those verses: draw on them.
+""".strip()
+
+HEADING_RULES = """
+HEADINGS:
+- Give the chapter section headings: put <h5>Heading</h5> directly before a paragraph that opens a new section, usually one every three to six paragraphs. The first paragraph may have one. Never two headings in a row, never one after the last paragraph, nothing inside a heading but its words (and the RBT color spans, if a colored word is in it).
 """.strip()
 
 ALLOWED_TAGS = {'p', 'blockquote', 'ul', 'ol', 'li', 'em', 'strong', 'span', 'br', 'hr', 'rbt-media'}
@@ -260,8 +277,23 @@ def prepare_source(verses):
     return '\n'.join(lines), media
 
 
-def build_user_prompt(book, chapter, source_text, media):
+def section_notes(verses):
+    """[(verse, text)] of the section headings in the RBT's own verse HTML (word studies and
+    themes it draws out), which prepare_source leaves out of the source text."""
+    notes = []
+    for verse, html in verses:
+        for heading in BeautifulSoup(html or '', 'html.parser').find_all(['h4', 'h5', 'h6']):
+            text = ' '.join(heading.get_text(' ').split())
+            if text:
+                notes.append((verse, text))
+    return notes
+
+
+def build_user_prompt(book, chapter, source_text, media, notes=None):
     parts = [f'CHAPTER: {book} {chapter}', '', 'SOURCE (RBT, one line per verse, verse number in brackets):', source_text]
+    if notes:
+        parts += ['', 'RBT SECTION NOTES (the notes the RBT places at these verses; for headings only, not verse text):']
+        parts += [f'[{verse}] {text}' for verse, text in notes]
     if media:
         parts += ['', 'MEDIA (mark each exactly once with <rbt-media n="N"></rbt-media> right after the sentence it illustrates):']
         for item in media:
@@ -344,7 +376,27 @@ def glossary_block():
     return '\n'.join(lines)
 
 
-def build_system_prompt(instructions, word_guidance='', include_glossary=True):
+def published_headings(limit=30):
+    """Headings the editor has given published English paraphrases, newest first: examples of
+    the style wanted."""
+    found = []
+    rows = ChapterParaphrase.objects.filter(is_published=True, language_code='en').order_by('-published_at')
+    for html in rows.values_list('html', flat=True):
+        for heading in BeautifulSoup(html or '', 'html.parser').find_all('h5', recursive=False):
+            text = ' '.join(heading.get_text(' ').split())
+            if text and text not in found:
+                found.append(text)
+            if len(found) >= limit:
+                return found
+    return found
+
+
+def heading_examples():
+    examples = published_headings()
+    return ('Headings written for other chapters, for their style:\n' + '\n'.join(f'- {text}' for text in examples)) if examples else ''
+
+
+def build_system_prompt(instructions, word_guidance='', include_glossary=True, headings=False):
     parts = [instructions.strip() or DEFAULT_INSTRUCTIONS]
     if word_guidance.strip():
         parts.append('WORD AND USAGE GUIDANCE:\n' + word_guidance.strip())
@@ -353,6 +405,10 @@ def build_system_prompt(instructions, word_guidance='', include_glossary=True):
         if glossary:
             parts.append('RBT TERMS (keep these senses):\n' + glossary)
     parts.append(OUTPUT_RULES)
+    if headings:
+        parts.append('\n'.join(filter(None, [HEADING_RULES, '- ' + HEADING_STYLE, heading_examples()])))
+    else:
+        parts.append(NO_HEADINGS)
     return '\n\n'.join(parts)
 
 
@@ -457,22 +513,43 @@ def _attach_cue(block, cue):
     block.append(cue)
 
 
+HEADED_BLOCKS = ('p', 'blockquote', 'ul', 'ol')
+
+
+def _tidy_headings(soup):
+    """Keep only section headings the reader page can show: a top-level <h5> with words in
+    it, directly followed by a paragraph, quote or list. A media marker put in a heading is
+    dropped (its cue then goes at the end of the paragraph covering its verse)."""
+    for heading in soup.find_all('h5'):
+        for marker in heading.find_all('rbt-media'):
+            marker.decompose()
+        if heading.parent is not soup or not heading.get_text(strip=True):
+            heading.decompose()
+    for heading in soup.find_all('h5', recursive=False):
+        following = heading.next_sibling
+        while isinstance(following, str) and not following.strip():
+            following = following.next_sibling
+        if getattr(following, 'name', None) not in HEADED_BLOCKS:
+            heading.decompose()
+
+
 def finalize_output(raw, media, verse_numbers):
     """Sanitised reader HTML and the list of verses no data-v range covers."""
     raw, note_edits = extract_note_edits(_strip_fences(raw))
     media = apply_note_edits(media, note_edits)
     clean = nh3.clean(
         raw,
-        tags=ALLOWED_TAGS,
+        tags=ALLOWED_TAGS | {'h5'},
         attributes=ALLOWED_ATTRIBUTES,
         attribute_filter=_keep_output_attr,
         strip_comments=True,
         link_rel=None,
-        # Headings are dropped with their text: the paraphrase flows as paragraphs. A
+        # Other headings are dropped with their text (section headings are <h5>). A
         # malformed rbt-note block goes too rather than leaking into the chapter.
-        clean_content_tags={'script', 'style', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'rbt-note'},
+        clean_content_tags={'script', 'style', 'h1', 'h2', 'h3', 'h4', 'h6', 'rbt-note'},
     )
     soup = BeautifulSoup(clean, 'html.parser')
+    _tidy_headings(soup)
     by_number = {item.n: item for item in media}
     placed = set()
 
@@ -732,6 +809,139 @@ def replace_note(html, n, new_html):
     return str(soup).strip(), note.decode_contents()
 
 
+def set_heading(html, index, text):
+    """The paraphrase HTML with paragraph `index`'s heading set to plain text `text` (an
+    empty text removes it)."""
+    soup = BeautifulSoup(html, 'html.parser')
+    blocks = editable_blocks(soup)
+    if not 0 <= index < len(blocks):
+        raise IndexError(f'No paragraph {index}.')
+    _set_heading(soup, blocks[index], html_lib.escape(' '.join((text or '').split())))
+    return str(soup).strip()
+
+
+# ---------------------------------------------------------------------------
+# Suggested headings (the studio's "Suggest headings")
+
+HEADING_JOB_KEY = 'paraphrase_headings:{uid}'
+HEADING_JOB_TTL = 7 * 24 * 60 * 60
+# A job still "running" after this long died with its worker.
+HEADING_JOB_STALE_SECONDS = REQUEST_TIMEOUT_SECONDS + 120
+MAX_HEADING_OPTIONS = 3
+MAX_HEADING_CHARS = 80
+
+SUGGEST_HEADINGS_PROMPT = """
+You suggest section headings for the Reader's Paraphrase of one chapter of the RBT (Real Bible Translation).
+
+{style}
+
+{examples}
+
+Choose where the chapter's sections begin: three to eight places, in order, at most one per paragraph (paragraph 1 only if the chapter opens with a section of its own). For each, offer {options} different headings. A paragraph that already has a heading may get suggestions too.
+
+Return only JSON, no prose and no code fences:
+{{"sections": [{{"before": <paragraph number>, "options": ["...", "...", "..."]}}]}}
+Plain text in the options, no HTML.
+""".strip()
+
+
+def paragraph_outline(html):
+    """[(paragraph number from 1, data-v, current heading or '', text)] of a paraphrase."""
+    soup = BeautifulSoup(html, 'html.parser')
+    for store in soup.select('.pp-media-store'):
+        store.decompose()
+    outline = []
+    for i, block in enumerate(editable_blocks(soup), start=1):
+        heading = _heading_before(block)
+        text = ' '.join(block.get_text(' ').split())
+        outline.append((i, block.get('data-v', ''), ' '.join(heading.get_text(' ').split()) if heading else '', text))
+    return outline
+
+
+def heading_prompts(book, chapter, html):
+    """(system prompt, user prompt) asking for heading suggestions for a paraphrase."""
+    system = SUGGEST_HEADINGS_PROMPT.format(style=HEADING_STYLE, examples=heading_examples(), options=MAX_HEADING_OPTIONS)
+    parts = [f'CHAPTER: {book} {chapter}']
+    notes = section_notes(chapter_verses(book, chapter))
+    if notes:
+        parts += ['', 'RBT SECTION NOTES (the notes the RBT places at these verses):'] + [f'[{v}] {t}' for v, t in notes]
+    parts += ['', 'PARAGRAPHS (number, verses, current heading if any, text):']
+    for n, verses, heading, text in paragraph_outline(html):
+        parts.append(f'[{n}] (verses {verses or "?"})' + (f' (current heading: {heading})' if heading else '') + f' {text}')
+    return system, '\n'.join(parts)
+
+
+def parse_heading_suggestions(raw, paragraph_count):
+    """[{'index': paragraph index from 0, 'options': [...]}] from the model's JSON, keeping
+    only paragraphs that exist and plain-text options of sensible length."""
+    text = _strip_fences(raw or '')
+    start, end = text.find('{'), text.rfind('}')
+    if start < 0 or end < start:
+        raise ValueError('The model returned no JSON.')
+    data = json.loads(text[start:end + 1])
+    sections, seen = [], set()
+    for item in data.get('sections') or []:
+        if not isinstance(item, dict):
+            continue
+        before = item.get('before')
+        if isinstance(before, str) and before.strip().isdigit():
+            before = int(before)
+        if not isinstance(before, int) or isinstance(before, bool) or not 1 <= before <= paragraph_count or before in seen:
+            continue
+        options = []
+        for option in item.get('options') or []:
+            if not isinstance(option, str):
+                continue
+            option = ' '.join(BeautifulSoup(option, 'html.parser').get_text(' ').split()).strip(' "“”')
+            if option and len(option) <= MAX_HEADING_CHARS and option not in options:
+                options.append(option)
+        if options:
+            seen.add(before)
+            sections.append({'index': before - 1, 'options': options[:MAX_HEADING_OPTIONS]})
+    if not sections:
+        raise ValueError('The model suggested no usable headings.')
+    return sorted(sections, key=lambda section: section['index'])
+
+
+def heading_suggestions(uid):
+    """The suggestion job for a paraphrase: {'status': 'idle'|'running'|'done'|'failed', ...}."""
+    job = cache.get(HEADING_JOB_KEY.format(uid=uid)) or {'status': 'idle'}
+    if job.get('status') == 'running' and time.time() - job.get('started', 0) > HEADING_JOB_STALE_SECONDS:
+        job = {**job, 'status': 'failed', 'error': 'Interrupted: the server restarted before this finished. Try again.'}
+    return job
+
+
+def start_heading_suggestions(row, provider, model_name):
+    """Ask a model for heading suggestions for a paraphrase, in the background."""
+    key = HEADING_JOB_KEY.format(uid=row.uid)
+    if heading_suggestions(row.uid).get('status') == 'running':
+        return heading_suggestions(row.uid)
+    job = {'status': 'running', 'model': model_name, 'started': time.time()}
+    cache.set(key, job, HEADING_JOB_TTL)
+    threading.Thread(
+        target=_run_heading_suggestions, args=(row.pk, provider, model_name, key, job['started']),
+        name=f'paraphrase-headings-{row.uid}', daemon=True,
+    ).start()
+    return job
+
+
+def _run_heading_suggestions(pk, provider, model_name, key, started):
+    close_old_connections()
+    try:
+        row = ChapterParaphrase.objects.get(pk=pk)
+        system, user = heading_prompts(row.book, row.chapter, row.html)
+        raw, _usage = PROVIDERS[provider](model_name, system, user)
+        sections = parse_heading_suggestions(raw, len(paragraph_outline(row.html)))
+        cache.set(key, {'status': 'done', 'model': model_name, 'started': started, 'sections': sections,
+                        'duration_ms': int((time.time() - started) * 1000)}, HEADING_JOB_TTL)
+    except Exception as exc:
+        logger.exception('Heading suggestions for paraphrase %s failed', pk)
+        cache.set(key, {'status': 'failed', 'model': model_name, 'started': started,
+                        'error': f'{type(exc).__name__}: {exc}'[:500]}, HEADING_JOB_TTL)
+    finally:
+        close_old_connections()
+
+
 # ---------------------------------------------------------------------------
 # Providers
 
@@ -813,7 +1023,7 @@ PROVIDERS = {'gemini': _call_gemini, 'openai': _call_openai}
 # ---------------------------------------------------------------------------
 # Running generations
 
-def start_batch(book, chapter, models, instructions, word_guidance, include_glossary, prompt_name, username):
+def start_batch(book, chapter, models, instructions, word_guidance, include_glossary, prompt_name, username, headings=False):
     """Create one row per (provider, model) and generate them all in parallel threads."""
     verses = chapter_verses(book, chapter)
     if not verses:
@@ -823,8 +1033,8 @@ def start_batch(book, chapter, models, instructions, word_guidance, include_glos
     if not verse_numbers:
         raise ValueError(f'{book} {chapter} has no RBT Translation text to paraphrase yet.')
     source_text, media = prepare_source(verses)
-    user_prompt = build_user_prompt(book, chapter, source_text, media)
-    system_prompt = build_system_prompt(instructions, word_guidance, include_glossary)
+    user_prompt = build_user_prompt(book, chapter, source_text, media, section_notes(verses) if headings else None)
+    system_prompt = build_system_prompt(instructions, word_guidance, include_glossary, headings=headings)
     batch_id = uuid.uuid4()
 
     def start_threads():
