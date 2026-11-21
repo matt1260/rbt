@@ -10,12 +10,14 @@ from django.utils.html import escape
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.core.cache import cache
+from django.urls import reverse
 import subprocess
 from django.middleware.csrf import get_token
 import re
 import unicodedata
 from search.views import get_results, get_footnote
 from search.views.chapter_views_part1 import INTERLINEAR_CACHE_VERSION
+from search.seo_utils import book_to_slug
 from translate.translator import *
 import pythonbible as bible
 from datetime import datetime, timedelta
@@ -558,10 +560,18 @@ def get_context(book, chapter_num, verse_num):
             rbt_display = 'No verse found.'
         edit_result = ''
 
+        # Chapter links open the chapter page (word-for-word / paraphrase) with the inline
+        # chapter editor on; edit_nt_verse.html turns its edit mode on when one is clicked.
         chapters = ""
         if chapter_list is not None:
+            chapter_slug = book_to_slug(book) or book_to_slug(convert_book_name(book) or '')
             for number in chapter_list:
-                chapters += f'<a href="?book={book}&chapter={number}" style="text-decoration: none;">{number}</a> |'
+                if chapter_slug:
+                    href = reverse('chapter_seo_view', kwargs={'book_slug': chapter_slug, 'chapter': int(number)})
+                else:
+                    href = f'?book={book}&chapter={number}'
+                chapters += (f'<a class="chapter-edit-link" href="{href}" '
+                             f'style="text-decoration: none;">{number}</a> |')
 
         # add space
         book_abbrev = book_abbreviations.get(book, book)

@@ -206,7 +206,7 @@ def _maybe_disable_db_cache_from_exception(exc: Exception) -> bool:
 
 # Reader render cache keys end in this. The one definition: when the reader and the
 # invalidation code each had their own, clearing a chapter's cache missed the real key.
-INTERLINEAR_CACHE_VERSION = 'v7'
+INTERLINEAR_CACHE_VERSION = 'v8'
 
 # None would mean "forever" to Django, so a stale render that slipped past
 # invalidation would never leave.

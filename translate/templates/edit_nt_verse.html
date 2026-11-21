@@ -741,10 +741,18 @@
 
 
 
-<div style="padding-bottom: 20px;">
+<div style="padding-bottom: 20px;" id="chapter-edit-links">
     <strong>Select a Chapter:</strong>
     {{ chapters|safe }}
 </div>
+<script>
+    // The chapter links open the word-for-word / paraphrase chapter page; switch its inline
+    // editor's edit mode on first (chapter-editor/src/controller.ts reads this key).
+    document.getElementById('chapter-edit-links').addEventListener('click', function (e) {
+        if (!e.target.closest('a.chapter-edit-link')) return;
+        try { localStorage.setItem('rbtChapterEditMode', '1'); } catch (err) { /* private mode */ }
+    });
+</script>
 Cached: {{ cached_hit }}
 <div class="arrow-links">
 
