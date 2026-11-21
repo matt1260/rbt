@@ -298,7 +298,32 @@
         open(itemFrom(container), container);
     });
 
+    // ---- Videos stay still outside the pop-up ---------------------------------------
+    // Verse HTML stores each video as <video autoplay muted loop>, so every thumbnail (and every
+    // video in a hidden note) would decode its full-size MP4 in a loop for as long as the page is
+    // open: a few verses kept a laptop's media decoder near 100% CPU. Only the pop-up plays them.
+
+    function holdStill(video) {
+        if (video.closest('.pp-modal')) return;
+        video.autoplay = false;
+        video.removeAttribute('autoplay');
+        video.preload = 'metadata';
+        if (!video.paused) video.pause();
+    }
+
+    function holdAllStill(root) {
+        var videos = root.querySelectorAll('video');
+        for (var i = 0; i < videos.length; i++) holdStill(videos[i]);
+    }
+
+    // Capture phase: 'play' doesn't bubble. Catches autoplay that began before this deferred
+    // script ran, and videos in verses re-rendered later.
+    document.addEventListener('play', function (event) {
+        if (event.target && event.target.tagName === 'VIDEO') holdStill(event.target);
+    }, true);
+
     function start() {
+        holdAllStill(document.body);
         groupMedia(document.body);
         // Verses re-rendered later (translations arriving, the staff inline editor) get rows too.
         var pending = false;
@@ -312,6 +337,7 @@
             pending = true;
             window.requestAnimationFrame(function () {
                 pending = false;
+                holdAllStill(document.body);
                 groupMedia(document.body);
             });
         }).observe(document.body, { childList: true, subtree: true });
