@@ -231,14 +231,12 @@ def _clear_reader_cache(book: str | None, chapter: str | int | None, verse: str 
     for lang in all_languages:
         if verse not in (None, '', 'None'):
             verse_str = str(verse)
-            verse_key = f'{sanitized_book}_{chapter_str}_{verse_str}_{lang}_{INTERLINEAR_CACHE_VERSION}'
-            cache.delete(verse_key)
-            deleted_keys.append(verse_key)
+            deleted_keys.append(f'{sanitized_book}_{chapter_str}_{verse_str}_{lang}_{INTERLINEAR_CACHE_VERSION}')
+        deleted_keys.append(f'{sanitized_book}_{chapter_str}_None_{lang}_{INTERLINEAR_CACHE_VERSION}')
 
-        chapter_key = f'{sanitized_book}_{chapter_str}_None_{lang}_{INTERLINEAR_CACHE_VERSION}'
-        cache.delete(chapter_key)
-        deleted_keys.append(chapter_key)
-
+    # One DELETE for all languages: the cache lives in Postgres, and a query per key was
+    # ~80 round trips on every editor save.
+    cache.delete_many(deleted_keys)
     return deleted_keys
 
 
@@ -246,8 +244,10 @@ def _clear_storehouse_cache(chapter: str | int) -> None:
     """Remove the public Joseph and Aseneth chapter render in every language."""
     from search.translation_utils import SUPPORTED_LANGUAGES
 
-    for lang in ['en'] + list(SUPPORTED_LANGUAGES.keys()):
-        cache.delete(f'storehouse_{chapter}_{lang}_{INTERLINEAR_CACHE_VERSION}')
+    cache.delete_many([
+        f'storehouse_{chapter}_{lang}_{INTERLINEAR_CACHE_VERSION}'
+        for lang in ['en'] + list(SUPPORTED_LANGUAGES.keys())
+    ])
 
 
 def _safe_save_update(instance: 'TranslationUpdates') -> None:

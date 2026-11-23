@@ -552,9 +552,12 @@ def save_gloss(request):
         how = 'this word only' if scope == 'word' else 'a uniquely defined word'
     else:
         column, value = ('combined_heb_niqqud', pointed) if scope == 'niqqud' else ('combined_heb', consonantal)
+        # Rows already holding the gloss are skipped: a common word such as את spans
+        # thousands of rows, and rewriting them all made every save of it slow.
         updated = execute_query(
-            f"UPDATE old_testament.hebrewdata SET Eng = %s WHERE {column} = %s AND uniq = '0';",
-            (english, value),
+            f"UPDATE old_testament.hebrewdata SET Eng = %s WHERE {column} = %s AND uniq = '0' "
+            f"AND Eng IS DISTINCT FROM %s;",
+            (english, value, english),
         )
         verse_ids = _verse_token_ids(prefix, column, value)
         how = f'{updated} words {"with" if scope == "niqqud" else "without"} niqqud'
@@ -609,8 +612,9 @@ def save_gender(request):
         return JsonResponse({'error': 'Word not found.'}, status=404)
     _, ref, _, consonantal, _, _, _, _ = row
     updated = execute_query(
-        "UPDATE old_testament.hebrewdata SET color = %s WHERE combined_heb = %s AND uniq = '0';",
-        (gender, consonantal),
+        "UPDATE old_testament.hebrewdata SET color = %s WHERE combined_heb = %s AND uniq = '0' "
+        "AND color IS DISTINCT FROM %s;",
+        (gender, consonantal, gender),
     )
     execute_query("UPDATE old_testament.hebrewdata SET color = %s WHERE id = %s;", (gender, token_id))
     verse_ids = _verse_token_ids(_verse_prefix(ref), 'combined_heb', consonantal)
