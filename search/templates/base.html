@@ -2636,7 +2636,7 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 2rem;
-  max-width: 900px;
+  max-width: 1000px;
   margin: 0 auto 2rem;
   text-align: left;
 }
@@ -2657,6 +2657,16 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  font-family: 'Inter', sans-serif;
+  line-height: normal;
+}
+
+/* The reader's older theme CSS spaces list items and lines; the WordPress footer doesn't. */
+.sanctum-footer-nav li,
+.sanctum-footer-nav li a {
+  margin: 0;
+  padding: 0;
+  line-height: normal;
 }
 
 .sanctum-footer-nav li a {
@@ -2667,6 +2677,44 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
 
 .sanctum-footer-nav li a:hover {
   color: var(--sanctum-gold-light);
+}
+
+.sanctum-footer-languages {
+  background: rgba(0, 0, 0, 0.15);
+  border-top: 1px solid rgba(183, 133, 80, 0.15);
+  padding: 20px;
+  margin: 0 0 1.5rem;
+}
+
+.sanctum-footer-languages-title {
+  color: var(--sanctum-gold);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.sanctum-footer-languages-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  justify-content: center;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Gold like the WordPress footer's, where the footer link colour outranks its #999. */
+.sanctum-footer a.sanctum-footer-lang-btn {
+  font-size: 12px;
+  line-height: normal;
+  transition: color 0.2s ease;
+  white-space: nowrap;
+}
+
+.sanctum-footer a.sanctum-footer-lang-btn.active {
+  font-weight: 600;
 }
 
 .sanctum-footer-bottom {
@@ -2698,12 +2746,17 @@ html { scroll-behavior: smooth; }
 </style>
 
 <footer class="sanctum-footer" id="site-footer">
+  {# Matches the WordPress inner-page footer (rbt-sanctum/footer.php); labels translate via ui. #}
   <div class="sanctum-footer-logo">Real Bible Translation</div>
   <div class="sanctum-footer-grid">
     <div class="sanctum-footer-section">
       <h4>{{ ui.footer_about|default:"About" }}</h4>
       <ul class="sanctum-footer-nav">
-        <li><a href="https://www.realbible.tech/about/">{{ ui.footer_about_link|default:"About the Project" }}</a></li>
+        <li><a href="https://www.realbible.tech/about/">{{ ui.footer_about_link|default:"About RBT" }}</a></li>
+        {# English articles, not yet translated: the same links in every language. #}
+        <li><a href="https://www.realbible.tech/woe-to-the-rich/">Woe to the Rich</a></li>
+        <li><a href="https://www.realbible.tech/language-of-an-eternal-one/">Language of an Eternal One</a></li>
+        <li><a href="https://www.realbible.tech/do-ai-models-read-the-bible-or-remember-it/">Do AI Models Read the Bible?</a></li>
         <li><a href="https://www.realbible.tech/methodology/">{{ ui.footer_methodology|default:"Methodology" }}</a></li>
         <li><a href="https://www.realbible.tech/copyrights/">{{ ui.footer_copyrights|default:"Copyrights" }}</a></li>
       </ul>
@@ -2712,7 +2765,7 @@ html { scroll-behavior: smooth; }
       <h4>{{ ui.footer_resources|default:"Resources" }}</h4>
       <ul class="sanctum-footer-nav">
         <li><a href="https://read.realbible.tech/lexicon/hebrew/">{{ ui.footer_lexicon|default:"Hebrew Lexicon" }}</a></li>
-        <li><a href="https://www.realbible.tech/let-there-be-science/">{{ ui.footer_science|default:"Let There Be Science" }}</a></li>
+        <li><a href="https://www.realbible.tech/let-there-be-science/">{{ ui.footer_science|default:"Science" }}</a></li>
         <li><a href="https://read.realbible.tech/statistics/">{{ ui.footer_stats|default:"Statistics" }}</a></li>
         <li><a href="https://www.realbible.tech/notes/">{{ ui.footer_notes|default:"Notes" }}</a></li>
       </ul>
@@ -2722,22 +2775,34 @@ html { scroll-behavior: smooth; }
       <ul class="sanctum-footer-nav">
         <li><a href="https://www.realbible.tech/">{{ ui.footer_home|default:"Home" }}</a></li>
         <li><a href="https://read.realbible.tech/search/">{{ ui.footer_search|default:"Search" }}</a></li>
-        <li><a href="https://read.realbible.tech/updates/">{{ ui.footer_updates|default:"Recent Updates" }}</a></li>
+        <li><a href="https://read.realbible.tech/updates/">{{ ui.footer_updates|default:"Updates" }}</a></li>
       </ul>
     </div>
     <div class="sanctum-footer-section" id="support-this-work">
-      <h4>{{ ui.support|default:"Help the Cause" }}</h4>
+      <h4>{{ ui.support|default:"Support this Work" }}</h4>
       <ul class="sanctum-footer-nav">
-        <li><a href="https://www.paypal.com/donate/?hosted_button_id=6LHHSLKJCY4RY" target="_blank" rel="noopener">Help via PayPal</a></li>
+        <li><a href="https://www.paypal.com/donate/?hosted_button_id=6LHHSLKJCY4RY" target="_blank" rel="noopener">Donate via PayPal</a></li>
+        <li><a href="https://mempool.space/address/3QDFmrY14HoQbnDNk5GBey4NQUg9ZLpggc" target="_blank" rel="noopener">Donate Crypto (BTC)</a></li>
         <li><a href="https://x.com/intent/tweet?hashtags=LetMyPeopleGo&text=Reading+the+Real+Bible+Translation+Project" target="_blank" rel="noopener">Share on X #LetMyPeopleGo</a></li>
-        <li><a href="https://mempool.space/address/3QDFmrY14HoQbnDNk5GBey4NQUg9ZLpggc" target="_blank" rel="noopener">Help via Crypto (BTC)</a></li>
       </ul>
     </div>
   </div>
+
+  <div class="sanctum-footer-languages">
+    <div class="sanctum-footer-languages-title">Available Languages</div>
+    <div class="sanctum-footer-languages-grid">
+      {% with current=page_lang|default:"en" %}{% for lang in footer_languages %}
+      <a href="{{ lang.url }}" lang="{{ lang.code }}" class="sanctum-footer-lang-btn{% if lang.code == current %} active{% endif %}">{{ lang.name }}</a>
+      {% endfor %}{% endwith %}
+    </div>
+  </div>
+
   <div class="sanctum-footer-bottom" dir="ltr">
-    <span>© Now Real Bible Translation Project</span>
+    <a href="https://www.paypal.com/donate/?hosted_button_id=6LHHSLKJCY4RY">Donate</a>
     <span>·</span>
     <span>#LetMyPeopleGo</span>
+    <span>·</span>
+    <span>&copy; Now Real Bible Translation Project</span>
   </div>
 </footer>
 

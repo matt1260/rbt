@@ -39,6 +39,26 @@ def _alternates(route, base_kwargs, languages):
     return alternates
 
 
+# The footer's "Available Languages" row: the WordPress site's language homes, in the order and
+# with the names rbt-sanctum's footer uses (rbt_sanctum_get_languages in its functions.php).
+FOOTER_LANGUAGES = [
+    ('en', 'English'), ('es', 'Español'), ('fr', 'Français'), ('de', 'Deutsch'),
+    ('it', 'Italiano'), ('pt', 'Português'), ('ru', 'Русский'), ('ar', 'العربية'),
+    ('zh', '中文'), ('hi', 'हिन्दी'), ('pl', 'Polski'), ('uk', 'Українська'),
+    ('ro', 'Română'), ('nl', 'Nederlands'), ('sv', 'Svenska'), ('hu', 'Magyar'),
+    ('cs', 'Čeština'), ('tr', 'Türkçe'), ('ja', '日本語'), ('ko', '한국어'),
+    ('vi', 'Tiếng Việt'), ('th', 'ไทย'), ('id', 'Bahasa Indonesia'), ('bn', 'বাংলা'),
+    ('ur', 'اردو'), ('fa', 'فارسی'), ('pa', 'ਪੰਜਾਬੀ'), ('mr', 'मराठी'),
+    ('ta', 'தமிழ்'), ('sw', 'Kiswahili'), ('ha', 'Hausa'), ('yo', 'Yorùbá'),
+    ('ig', 'Igbo'), ('am', 'አማርኛ'), ('om', 'Afaan Oromoo'),
+]
+FOOTER_LANGUAGE_LINKS = [
+    {'code': code, 'name': name,
+     'url': 'https://www.realbible.tech/' + ('' if code == 'en' else f'{code}/')}
+    for code, name in FOOTER_LANGUAGES
+]
+
+
 def seo_context(request):
     """
     Context processor to inject dynamic SEO metadata based on the current page 
@@ -50,6 +70,7 @@ def seo_context(request):
         'meta_description': 'The Real Bible Translation Project focuses on precise, trustworthy translations of scripture using extensive tools and comprehensive linguistic workflows.',
         'meta_keywords': 'Bible, Translation, Hebrew, Greek, RBT, Real Bible Translation',
         'hreflang_alternates': [],
+        'footer_languages': FOOTER_LANGUAGE_LINKS,
     }
 
     book_slug = None
