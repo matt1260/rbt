@@ -2609,6 +2609,7 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
   color: rgba(250, 247, 242, 0.5);
   padding: 3rem 2rem 2rem;
   font-size: 0.78rem;
+  line-height: normal; /* the reader's body sets 1.6; the WordPress footer inherits normal */
   text-align: center;
   margin-top: 40px;
 }
@@ -2643,6 +2644,8 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
 
 .sanctum-footer-section h4 {
   font-family: 'Cormorant Garamond', serif;
+  font-weight: 700; /* the browser's h4 default, which WordPress keeps; the reader's theme sets 500 */
+  line-height: normal;
   font-size: 0.75rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -2683,7 +2686,7 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
   background: rgba(0, 0, 0, 0.15);
   border-top: 1px solid rgba(183, 133, 80, 0.15);
   padding: 20px;
-  margin: 0 0 1.5rem;
+  margin: 0;
 }
 
 .sanctum-footer-languages-title {
@@ -2727,18 +2730,11 @@ h4 { font-size: 1.2rem; line-height: 1.35; font-weight: 500; }
   color: rgba(250, 247, 242, 0.35);
 }
 
-@media (max-width: 720px) {
-  .sanctum-footer-grid {
-    grid-template-columns: repeat(2, 1fr);
-    text-align: center;
-  }
-  .sanctum-footer-section h4 {
-    margin-bottom: 0.4rem;
-  }
-}
-@media (max-width: 400px) {
+/* Same breakpoint as the WordPress footer: four columns, then one centred column. */
+@media (max-width: 900px) {
   .sanctum-footer-grid {
     grid-template-columns: 1fr;
+    text-align: center;
   }
 }
 
@@ -2756,7 +2752,8 @@ html { scroll-behavior: smooth; }
         {# English articles, not yet translated: the same links in every language. #}
         <li><a href="https://www.realbible.tech/woe-to-the-rich/">Woe to the Rich</a></li>
         <li><a href="https://www.realbible.tech/language-of-an-eternal-one/">Language of an Eternal One</a></li>
-        <li><a href="https://www.realbible.tech/do-ai-models-read-the-bible-or-remember-it/">Do AI Models Read the Bible?</a></li>
+        <li><a href="https://www.realbible.tech/can-you-trust-ai-to-interpret-the-bible/">Can You Trust AI to Interpret the Bible?</a></li>
+        <li><a href="https://www.realbible.tech/yehi-or-toward-an-aonic-grammar-of-becoming/">Toward an Aonic Grammar of Becoming</a></li>
         <li><a href="https://www.realbible.tech/methodology/">{{ ui.footer_methodology|default:"Methodology" }}</a></li>
         <li><a href="https://www.realbible.tech/copyrights/">{{ ui.footer_copyrights|default:"Copyrights" }}</a></li>
       </ul>
