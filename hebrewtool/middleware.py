@@ -161,7 +161,9 @@ class RateLimitMiddleware:
         # Paraphrase Studio polls while generating; both would trip the verse/API limits.
         # These endpoints are staff-only (403 otherwise),
         # and request.user isn't populated yet at this point in the middleware stack.
-        if '/api/chapter-editor/' in path or '/api/paraphrase/' in path:
+        # /api/agent/ is the token-authenticated API behind the WordPress rbt/ abilities; an agent
+        # working through a book makes many calls, and unauthorised ones are refused in the view.
+        if '/api/chapter-editor/' in path or '/api/paraphrase/' in path or path == '/api/agent/':
             return self.get_response(request)
         
         ip = self.get_client_ip(request)

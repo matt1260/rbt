@@ -27,6 +27,7 @@ from django.utils import timezone
 
 from search import paraphrase
 from search.models import ChapterParaphrase
+from search.agent_translation import api_enabled
 from search.translation_utils import SUPPORTED_LANGUAGES, translate_chapter_batch, translate_footnotes_batch
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,11 @@ def start(book, chapter, language):
             provider=PROVIDER, model_name=MODEL, prompt_name=PROMPT_NAME, created_by=CREATED_BY,
             source_hash=paraphrase.html_hash(english.html),
         )
+        if not api_enabled():
+            # Agent backend: the pending row is the request; an agent picks it up through the
+            # rbt/ abilities (search/agent_translation.py). Readers see it as running meanwhile.
+            logger.info('[PARAPHRASE] queued %s %s for the agent (%s)', book, chapter, language)
+            return {'status': 'running'}
         # The thread uses its own DB connection, so the row must be committed first.
         transaction.on_commit(lambda: threading.Thread(
             target=run, args=(job.pk, english.html), name=f'paraphrase-{language}-{job.uid}', daemon=True,
@@ -127,18 +133,7 @@ def run(pk, english_html):
         row = ChapterParaphrase.objects.get(pk=pk)
         ChapterParaphrase.objects.filter(pk=pk).update(status='running', started_at=timezone.now())
         html = translate_html(english_html, row.language_code, chapter=row.chapter)
-        with transaction.atomic():
-            ChapterParaphrase.objects.filter(
-                book=row.book, chapter=row.chapter, language_code=row.language_code, is_published=True,
-            ).update(is_published=False)
-            ChapterParaphrase.objects.filter(pk=pk).update(
-                status='done', html=html, is_published=True, published_at=timezone.now(),
-                duration_ms=int((time.monotonic() - started) * 1000), finished_at=timezone.now(),
-            )
-        # Earlier translations of this chapter are never shown again.
-        ChapterParaphrase.objects.filter(
-            book=row.book, chapter=row.chapter, language_code=row.language_code, is_published=False,
-        ).exclude(pk=pk).delete()
+        publish(pk, html, duration_ms=int((time.monotonic() - started) * 1000))
     except Exception as exc:
         logger.exception('Paraphrase translation %s failed', pk)
         ChapterParaphrase.objects.filter(pk=pk).update(
@@ -147,6 +142,32 @@ def run(pk, english_html):
         )
     finally:
         close_old_connections()
+
+
+def publish(pk, html, provider=None, model=None, duration_ms=None, publish=True):
+    """Store a finished translation; with publish=True it replaces the one readers see.
+
+    Shared by the Gemini thread (run) and the agent (search/agent_translation.py)."""
+    row = ChapterParaphrase.objects.get(pk=pk)
+    fields = {'status': 'done', 'html': html, 'finished_at': timezone.now()}
+    if provider:
+        fields['provider'] = provider
+    if model:
+        fields['model_name'] = model
+    if duration_ms is not None:
+        fields['duration_ms'] = duration_ms
+    with transaction.atomic():
+        if publish:
+            ChapterParaphrase.objects.filter(
+                book=row.book, chapter=row.chapter, language_code=row.language_code, is_published=True,
+            ).update(is_published=False)
+            fields.update(is_published=True, published_at=timezone.now())
+        ChapterParaphrase.objects.filter(pk=pk).update(**fields)
+    if publish:
+        # Earlier translations of this chapter are never shown again.
+        ChapterParaphrase.objects.filter(
+            book=row.book, chapter=row.chapter, language_code=row.language_code, is_published=False,
+        ).exclude(pk=pk).delete()
 
 
 # ---------------------------------------------------------------------------
@@ -210,37 +231,47 @@ def _translate_notes(sources, language):
     return done
 
 
-def translate_html(html, language, chapter=None):
-    """The paraphrase HTML with its paragraphs, headings and image notes translated."""
+def _parse_units(html):
+    """(soup, notes, blocks): the paraphrase parsed, its image notes {'N<n>': element} and its
+    translatable top-level blocks {1..: element}, numbered the same way every time."""
     soup = BeautifulSoup(html, 'html.parser')
-
-    # Notes first: cues are rebuilt from the stored media, and take their titles from them.
     notes = {}
     for template in soup.select('.pp-media-store template[data-media]'):
         note = paraphrase._note_element(template)
         # get_text() skips text inside a <template>, so the note is read from a copy.
         if note is not None and BeautifulSoup(note.decode_contents(), 'html.parser').get_text(strip=True):
             notes[f'N{template["data-media"]}'] = note
-    for key, text in _translate_notes({k: n.decode_contents() for k, n in notes.items()}, language).items():
-        clean = nh3.clean(
-            text, tags=paraphrase.NOTE_TAGS, attributes=paraphrase.NOTE_ATTRIBUTES,
-            strip_comments=True, link_rel=None, clean_content_tags={'script', 'style'},
-        )
-        notes[key].clear()
-        notes[key].append(BeautifulSoup(clean, 'html.parser'))
-
     # Keys from 1: translate_chapter_batch treats verse 0 as a book title.
     blocks = {
         i: block for i, block in enumerate(
             (node for node in soup.children if getattr(node, 'name', None) in TRANSLATABLE), start=1,
         ) if block.get_text(strip=True)
     }
-    translated = _translate_blocks({i: _block_source(b) for i, b in blocks.items()}, language, chapter)
+    return soup, notes, blocks
+
+
+def translation_units(html):
+    """What to translate: ({'N<n>': note HTML}, {i: block source with <rbt-media> markers})."""
+    _, notes, blocks = _parse_units(html)
+    return {k: n.decode_contents() for k, n in notes.items()}, {i: _block_source(b) for i, b in blocks.items()}
+
+
+def assemble_html(html, translated_notes, translated_blocks):
+    """The paraphrase rebuilt with translated notes and blocks, sanitised as the inline editor does."""
+    soup, notes, blocks = _parse_units(html)
+    # Notes first: cues are rebuilt from the stored media, and take their titles from them.
+    for key, text in translated_notes.items():
+        clean = nh3.clean(
+            text, tags=paraphrase.NOTE_TAGS, attributes=paraphrase.NOTE_ATTRIBUTES,
+            strip_comments=True, link_rel=None, clean_content_tags={'script', 'style'},
+        )
+        notes[key].clear()
+        notes[key].append(BeautifulSoup(clean, 'html.parser'))
     media = paraphrase.stored_media(soup)
     for i, block in blocks.items():
         cues = _cue_numbers(block)
         block.clear()
-        for node in paraphrase._clean_edit(soup, translated[i]):
+        for node in paraphrase._clean_edit(soup, translated_blocks[i]):
             block.append(node)
         # An image the translator dropped goes back at the end of its paragraph.
         for n in cues:
@@ -249,3 +280,10 @@ def translate_html(html, language, chapter=None):
         if block.get('data-v'):
             paraphrase._add_anchors(soup, block)
     return str(soup).strip()
+
+
+def translate_html(html, language, chapter=None):
+    """The paraphrase HTML with its paragraphs, headings and image notes translated (Gemini)."""
+    note_sources, block_sources = translation_units(html)
+    return assemble_html(
+        html, _translate_notes(note_sources, language), _translate_blocks(block_sources, language, chapter))

@@ -173,6 +173,22 @@ SUPPORTED_LANGUAGES = {
 # what migration 0013 seeds PromptRule with. Kept here so prompt building still
 # works if the table is missing, empty, or unreadable -- Gemini must never be sent
 # a prompt with no rules just because a migration has not run.
+# Fixed parts of the Gemini prompts, shared with the agent instructions (search/agent_translation.py)
+# so the two can never drift apart.
+CHAPTER_PROMPT_EXAMPLES = 'EXAMPLES OF WHAT TO TRANSLATE:\n✓ <h5><span style="color: blue;">The Twins</span></h5>\n  → <h5><span style="color: blue;">Los Gemelos</span></h5>\n  (Only "The Twins" becomes "Los Gemelos", all HTML stays identical)\n\n✓ <div class="tooltip"><b>The Seed</b><br>Movement slows...</div>\n  → <div class="tooltip"><b>La Semilla</b><br>El movimiento se ralentiza...</div>\n  (Only text content translated, class name stays "tooltip", <b> and <br> unchanged)\n\nEXAMPLES OF WHAT NEVER TO CHANGE:\n✗ class="tooltip-container" → NEVER translate to class="contenedor-de-información"\n✗ style="color: blue;" → NEVER translate to style="color: azul;"\n✗ href="?footnote=1-1-1" → NEVER modify URLs or parameters\n✗ src="http://www.realbible.tech/wp-content/uploads/2024/04/image.jpg" → NEVER change URLs\n✗ width="50%" → NEVER translate measurement units or values\n✗ <img>, <div>, <span>, <a> → NEVER translate tag names\n\nIf you are uncertain whether something should be translated, DO NOT translate it. Only translate obvious human-readable text between tags.'
+FOOTNOTE_PROMPT_EXAMPLES = 'EXAMPLES:\n✓ <p class="rbt_footnote"><span>The Greek <strong>Ἐν</strong> means "in"</span></p>\n  → <p class="rbt_footnote"><span>El griego <strong>Ἐν</strong> significa "en"</span></p>\n  (Only descriptive English translated, Greek term and HTML preserved)\n\n✗ NEVER change class="rbt_footnote" to class="nota_rbt"\n✗ NEVER translate Strong\'s #G5316 to Fuerte\'s #G5316\n✗ NEVER modify <strong>ἀρχή</strong> or Greek/Hebrew characters'
+TITLE_PROMPT_GUIDANCE = 'IMPORTANT: This is NOT a standard Bible book name. Translate the actual words/meaning, not the biblical book reference.\n\nExamples:\n- "He is Favored" → "Él es Favorecido" (Spanish)\n- "The Glory" → "La Gloria" (Spanish)\n- "The Twins" → "Los Gemelos" (Spanish)\n- "He Adds" → "Él Añade" (Spanish)\n\nReturn ONLY the translated phrase, no explanation or extra text.'
+
+
+def _require_translation_api():
+    """Refuse to call the API while translations are made by the agent (TRANSLATION_BACKEND=agent).
+
+    Raising (rather than returning a '[Translation error...]' string, as an API failure does) means
+    nothing can be saved as if it were a translation."""
+    from search.agent_translation import require_api
+    require_api('Gemini translation')
+
+
 FALLBACK_RULES = {
     'chapter': [       'NEVER modify, alter, or translate ANY HTML tags, attributes, or code',
         'NEVER change: <tag names>, class="...", style="...", href="...", src="...", '
@@ -457,6 +473,7 @@ def translate_chapter_batch(verses_dict, target_language_code, chapter=None):
     Returns:
         Dict of {verse_num: translated_text}
     """
+    _require_translation_api()
     print(f"[TRANSLATION DEBUG] batch starting for {len(verses_dict)} verses. Target: {target_language_code}")
     if not GEMINI_API_KEYS:
         print("[TRANSLATION DEBUG] No API key configured")
@@ -474,15 +491,7 @@ def translate_chapter_batch(verses_dict, target_language_code, chapter=None):
     if book_name:
         book_prompt = f"""Translate the literal meaning of this phrase to {language_name}: "{book_name}"
 
-IMPORTANT: This is NOT a standard Bible book name. Translate the actual words/meaning, not the biblical book reference.
-
-Examples:
-- "He is Favored" → "Él es Favorecido" (Spanish)
-- "The Glory" → "La Gloria" (Spanish)
-- "The Twins" → "Los Gemelos" (Spanish)
-- "He Adds" → "Él Añade" (Spanish)
-
-Return ONLY the translated phrase, no explanation or extra text."""
+{TITLE_PROMPT_GUIDANCE}"""
         
         # Try API keys for book name
         for api_key in GEMINI_API_KEYS:
@@ -528,24 +537,7 @@ CRITICAL INSTRUCTIONS - READ CAREFULLY:
 {rules_section}
 {glossary_section}
 {language_awareness_section}
-EXAMPLES OF WHAT TO TRANSLATE:
-✓ <h5><span style="color: blue;">The Twins</span></h5>
-  → <h5><span style="color: blue;">Los Gemelos</span></h5>
-  (Only "The Twins" becomes "Los Gemelos", all HTML stays identical)
-
-✓ <div class="tooltip"><b>The Seed</b><br>Movement slows...</div>
-  → <div class="tooltip"><b>La Semilla</b><br>El movimiento se ralentiza...</div>
-  (Only text content translated, class name stays "tooltip", <b> and <br> unchanged)
-
-EXAMPLES OF WHAT NEVER TO CHANGE:
-✗ class="tooltip-container" → NEVER translate to class="contenedor-de-información"
-✗ style="color: blue;" → NEVER translate to style="color: azul;"
-✗ href="?footnote=1-1-1" → NEVER modify URLs or parameters
-✗ src="http://www.realbible.tech/wp-content/uploads/2024/04/image.jpg" → NEVER change URLs
-✗ width="50%" → NEVER translate measurement units or values
-✗ <img>, <div>, <span>, <a> → NEVER translate tag names
-
-If you are uncertain whether something should be translated, DO NOT translate it. Only translate obvious human-readable text between tags.
+{CHAPTER_PROMPT_EXAMPLES}
 
 Chapter text:
 {chapter_text}
@@ -636,6 +628,7 @@ def translate_footnotes_batch(footnotes_dict, target_language_code):
     Returns:
         Dict of {footnote_id: translated_footnote_html}
     """
+    _require_translation_api()
     print(f"[TRANSLATION DEBUG] Footnote batch starting for {len(footnotes_dict)} footnotes. Target: {target_language_code}")
     if not GEMINI_API_KEYS:
         return {f_id: "[Translation unavailable - API key not configured]" for f_id in footnotes_dict}
@@ -658,14 +651,7 @@ def translate_footnotes_batch(footnotes_dict, target_language_code):
 CRITICAL RULES - NEVER BREAK THESE:
 {rules_section}
 {glossary_section}
-EXAMPLES:
-✓ <p class="rbt_footnote"><span>The Greek <strong>Ἐν</strong> means "in"</span></p>
-  → <p class="rbt_footnote"><span>El griego <strong>Ἐν</strong> significa "en"</span></p>
-  (Only descriptive English translated, Greek term and HTML preserved)
-
-✗ NEVER change class="rbt_footnote" to class="nota_rbt"
-✗ NEVER translate Strong's #G5316 to Fuerte's #G5316
-✗ NEVER modify <strong>ἀρχή</strong> or Greek/Hebrew characters
+{FOOTNOTE_PROMPT_EXAMPLES}
 
 Footnotes:
 {footnotes_text}
@@ -758,6 +744,7 @@ Return the translated footnotes with <<<FOOTNOTE_X>>> markers and ALL HTML prese
 
 def translate_verse_text(english_text, target_language_code):
     """Translate verse text to target language using Gemini API"""
+    _require_translation_api()
     if not GEMINI_API_KEYS:
         return f"[Translation unavailable - API key not configured]"
     
@@ -787,6 +774,7 @@ Return only the translated text with HTML tags preserved."""
 
 def translate_footnote_text(english_footnote, target_language_code):
     """Translate footnote text to target language using Gemini API"""
+    _require_translation_api()
     if not GEMINI_API_KEYS:
         return f"[Translation unavailable - API key not configured]"
     

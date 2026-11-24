@@ -52,6 +52,20 @@ COINBASE_API_PRIVATE_KEY = os.environ.get('COINBASE_API_PRIVATE_KEY')
 PAYPAL_CLIENT_ID = os.environ.get('PAYPAL_CLIENT_ID', '')
 PAYPAL_CLIENT_SECRET = os.environ.get('PAYPAL_CLIENT_SECRET', '')
 
+# Who translates chapters, paraphrases and titles into the site languages:
+#   'agent'  -> nothing calls the Gemini API; requests wait in the queue for an agent
+#               working through the WordPress rbt/ abilities (search/views/agent_api.py).
+#   'gemini' -> the background worker and the on-demand paths call Gemini as before.
+TRANSLATION_BACKEND = os.environ.get('TRANSLATION_BACKEND', 'agent').strip().lower()
+
+# SHA-256 hex digests of the bearer tokens accepted by the private agent API
+# (/api/agent/, called server-side by the WordPress rbt/ abilities). Comma-separated, so a
+# token can be rotated without downtime. Only digests are configured, never tokens.
+# Empty = the agent API is switched off.
+RBT_AGENT_TOKEN_SHA256 = [
+    h.strip().lower() for h in os.environ.get('RBT_AGENT_TOKEN_SHA256', '').split(',') if h.strip()
+]
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ENABLE_VERBOSE_DEBUG = os.environ.get('ENABLE_VERBOSE_DEBUG', 'False') == 'True'

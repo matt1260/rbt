@@ -16,6 +16,7 @@ from translate.translator import (
     nt_abbrev, convert_book_name
 )
 from search.rbt_titles import rbt_books
+from search import agent_translation
 from search.translation_utils import (
     translate_chapter_batch, translate_footnotes_batch, source_fingerprint,
     is_translation_current, needs_retranslation, TRANSLATION_ERROR_PREFIXES,
@@ -251,6 +252,16 @@ def translate_chapter_api(request):
 
     if not _valid_translation_target(book, chapter_num):
         return JsonResponse({'status': 'error', 'message': 'Unknown book or chapter'})
+
+    if not agent_translation.api_enabled():
+        # Agent backend: queue the chapter for the agent instead of calling Gemini here.
+        from search.translation_worker import TranslationQueueFull, create_translation_job
+        try:
+            job = create_translation_job(book, chapter_num, language)
+        except TranslationQueueFull as exc:
+            return JsonResponse({'status': 'error', 'message': str(exc)}, status=503)
+        return JsonResponse({'status': 'queued', 'job_id': job.job_id,
+                             'message': 'Translations are made by the agent; this chapter is queued for it.'})
 
     print(f"[API DEBUG] Starting translation for {book} ch{chapter_num} in {language}")
 
@@ -1616,6 +1627,11 @@ def title_translations_api(request):
 
     if not request.user.is_authenticated:
         return JsonResponse({'status': 'error', 'message': 'Sign in to manage title translations.'}, status=403)
+
+    if request.method == 'POST' and not agent_translation.api_enabled():
+        return JsonResponse({'status': 'ok', 'running': False,
+                             'message': 'Titles are translated by the agent (rbt/get-outdated kind=title); '
+                                        'nothing was sent to the API.'})
 
     if request.method == 'POST':
         # Shared lock (the cache is the database), so a double click or another app

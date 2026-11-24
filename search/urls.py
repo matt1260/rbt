@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from .views.agent_api import agent_api
 from translate import views as translate_views
 
 urlpatterns = [
@@ -33,6 +34,8 @@ urlpatterns = [
     path('translation/stats/', views.translation_stats_api, name='translation_stats_api'),
     path('translation/clean-failed/', views.clean_failed_translations, name='clean_failed_translations'),
     path('translation/dashboard/', views.translation_dashboard, name='translation_dashboard'),
+    # Private, token-authenticated API behind the WordPress rbt/ abilities (search/views/agent_api.py).
+    path('agent/', agent_api, name='agent_api'),
     path('translation/coverage/', views.translation_coverage_api, name='translation_coverage_api'),
     path('translation/prompt-config/', views.prompt_config_api, name='prompt_config_api'),
     path('translation/titles/', views.title_translations_api, name='title_translations_api'),

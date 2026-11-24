@@ -708,7 +708,11 @@ def get_worker():
 
 
 def ensure_worker_running():
-    """Ensure the background worker is running"""
+    """Ensure the background worker is running — unless translations are made by the agent
+    (TRANSLATION_BACKEND=agent), in which case pending jobs wait for it instead of Gemini."""
+    from search.agent_translation import api_enabled
+    if not api_enabled():
+        return
     worker = get_worker()
     worker.start()
 
