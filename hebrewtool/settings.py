@@ -57,6 +57,10 @@ PAYPAL_CLIENT_SECRET = os.environ.get('PAYPAL_CLIENT_SECRET', '')
 #               working through the WordPress rbt/ abilities (search/views/agent_api.py).
 #   'gemini' -> the background worker and the on-demand paths call Gemini as before.
 TRANSLATION_BACKEND = os.environ.get('TRANSLATION_BACKEND', 'agent').strip().lower()
+# Which reader chapters agents may take: 'nt' (default) holds Old Testament chapters back until
+# their own translation prompt exists (the installed prompt is tuned to the New Testament);
+# 'all' offers every book.
+AGENT_CHAPTER_SCOPE = os.environ.get('AGENT_CHAPTER_SCOPE', 'nt').strip().lower()
 
 # SHA-256 hex digests of the bearer tokens accepted by the private agent API
 # (/api/agent/, called server-side by the WordPress rbt/ abilities). Comma-separated, so a

@@ -441,3 +441,37 @@ class ScholarshipApiTests(TestCase):
         r = self.client.post('/api/agent/', json.dumps({'ability': 'get-lexeme', 'input': {'strongs': 'nonsense'}}),
                              content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {TOKEN}')
         self.assertEqual(r.status_code, 400)
+
+
+class HeldBooksTests(TestCase):
+    """AGENT_CHAPTER_SCOPE='nt' (the default) keeps Old Testament chapters away from agents."""
+
+    def setUp(self):
+        from search.models import TranslationJob
+        self.ot = TranslationJob.objects.create(job_id='ot-1', book='Isaiah', chapter=2, language_code='ta', status='pending')
+        self.gen = TranslationJob.objects.create(job_id='gen-1', book='Genesis', chapter=1, language_code='ta', status='pending')
+        self.nt = TranslationJob.objects.create(job_id='nt-1', book='Jude', chapter=1, language_code='sw', status='pending')
+
+    def test_candidates_skip_ot(self):
+        books = {j.book for j in at._chapter_candidates()}
+        self.assertIn('Jude', books)
+        self.assertNotIn('Isaiah', books)
+        self.assertNotIn('Genesis', books)
+
+    def test_named_ot_claims_are_refused(self):
+        with self.assertRaises(ValueError):
+            at._claim_chapter_job('ot-1', 'a')
+        with mock.patch.object(at, '_require_language'):
+            with self.assertRaises(ValueError):
+                at._claim_chapter_for('Genesis', 1, 'ta', 'a')
+
+    def test_untranslated_reports_held(self):
+        out = at.get_untranslated(kind='chapter')
+        self.assertEqual(out['chapter_held']['old_testament_chapters_waiting'], 2)
+        self.assertEqual([j['book'] for j in out['chapter']], ['Jude'])
+
+    @override_settings(AGENT_CHAPTER_SCOPE='all')
+    def test_scope_all_offers_everything(self):
+        books = {j.book for j in at._chapter_candidates()}
+        self.assertEqual(books, {'Isaiah', 'Genesis', 'Jude'})
+        self.assertNotIn('chapter_held', at.get_untranslated(kind='chapter'))

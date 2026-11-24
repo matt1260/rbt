@@ -374,6 +374,21 @@ def _take_job(job, agent, token=None):
     return token
 
 
+def held_books():
+    """Books whose chapters agents may not take (settings.AGENT_CHAPTER_SCOPE='nt': the Old Testament)."""
+    from django.conf import settings
+    if getattr(settings, 'AGENT_CHAPTER_SCOPE', 'nt') == 'all':
+        return frozenset()
+    from translate.translator import old_testament_books
+    return frozenset(old_testament_books) | {'Genesis', 'Joseph and Aseneth'}
+
+
+def _check_book_open(book):
+    if book in held_books():
+        raise ValueError(f'{book} is Old Testament: OT chapters are held back from agents until their own '
+                         'translation prompt exists (the current prompt is tuned to the New Testament).')
+
+
 def _chapter_candidates(language=None, limit=50):
     """Open chapter jobs in the order agents should take them, one per chapter+language:
     reader requests first, then runs nobody finished, then requests that failed under the
@@ -389,6 +404,9 @@ def _chapter_candidates(language=None, limit=50):
     if language:
         qs = qs.filter(language_code=language)
         active = active.filter(language_code=language)
+    held = held_books()
+    if held:
+        qs = qs.exclude(book__in=held)
     busy = set(active.values_list('book', 'chapter', 'language_code'))
     done = set(TranslationJob.objects.filter(status='completed').values_list('book', 'chapter', 'language_code')
                .order_by().distinct()) if qs.filter(status='failed').exists() else set()
@@ -409,6 +427,7 @@ def _claim_chapter_for(book, chapter, language, agent, token=None):
     """Claim the open job for one chapter+language (creating it if there is none)."""
     from search.models import TranslationJob
     _require_language(language)
+    _check_book_open(book)
     chapter = int(chapter)
     with transaction.atomic():
         _key_lock('chapter', book, chapter, language)
@@ -429,6 +448,7 @@ def _claim_chapter_job(job_id, agent, token=None):
         job = TranslationJob.objects.select_for_update().filter(job_id=job_id).first()
         if not job:
             raise ValueError(f'No chapter job {job_id}')
+        _check_book_open(job.book)
         _key_lock('chapter', job.book, job.chapter, job.language_code)
         other = TranslationJob.objects.filter(
             book=job.book, chapter=job.chapter, language_code=job.language_code, status=AGENT_STATUS,
@@ -608,6 +628,15 @@ def get_untranslated(kind=None, language=None, limit=50):
     out = {}
     if kind in (None, 'chapter'):
         out['chapter'] = [_job_dict(j) for j in _chapter_candidates(language, limit)]
+        held = held_books()
+        if held:
+            from search.models import TranslationJob
+            waiting = TranslationJob.objects.filter(book__in=held, status__in=('pending', 'failed'))
+            if language:
+                waiting = waiting.filter(language_code=language)
+            n = waiting.values('book', 'chapter', 'language_code').distinct().count()
+            out['chapter_held'] = {'old_testament_chapters_waiting': n,
+                                   'note': 'Old Testament chapters are held back until their own prompt exists.'}
     if kind in (None, 'paraphrase'):
         qs = ChapterParaphrase.objects.exclude(language_code='en').filter(status='pending')
         if language:
