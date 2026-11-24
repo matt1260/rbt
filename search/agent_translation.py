@@ -18,25 +18,33 @@ Kinds of content: 'chapter' (verses, footnotes, the book title, Judas extras), '
 Pages and posts on WordPress are the plugin's own business.
 
 A chapter job being worked has status 'agent' (the worker only takes 'pending' and stale
-'processing' jobs); a paraphrase being worked is 'running'. Claims older than CLAIM_TTL can
-be taken over, so a crashed agent never strands work. Saved with publish=False, chapter
+'processing' jobs); a paraphrase being worked is 'running'. Any number of agents can work at
+once: see "Claims" below. Claims older than CLAIM_TTL can be taken over, so a crashed agent
+never strands work. Saved with publish=False, chapter
 items get status DRAFT (the reader only shows 'completed') and paraphrases stay unpublished
 until publish_translation.
 """
+import hashlib
 import logging
 import re
+import secrets
+import uuid
 from datetime import timedelta
 from html.parser import HTMLParser
 
 from django.conf import settings
-from django.db import transaction
+from django.core.cache import cache
+from django.db import connection, transaction
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
 AGENT_STATUS = 'agent'
 DRAFT = 'agent_draft'
-CLAIM_TTL = timedelta(hours=6)
+CLAIM_TTL = timedelta(hours=2)
+CLAIM_MARK = 'claim:'
+# A 'processing' job older than this was left by the Gemini worker, which no longer runs.
+ORPHAN_AFTER = timedelta(minutes=10)
 KINDS = ('chapter', 'paraphrase', 'title')
 # Attribute values an agent may translate (visible or read-aloud text); every other
 # attribute must come back byte-for-byte.
@@ -142,7 +150,12 @@ AGENT_PREAMBLE = (
     'familiar wording of a Bible you know. Return each item under the key it was given. HTML must come back '
     'with the same tags and attributes in the same order (only text between tags, and alt/title attributes, '
     'are translated). Hebrew and Greek are copied exactly. A save that fails any check is rejected with the '
-    'reasons and nothing in it is stored; run validate-translation first if unsure.'
+    'reasons and nothing in it is stored; run validate-translation first if unsure.\n\n'
+    'When the English is ambiguous or grammatically unusual (a plural noun with a singular verb, a slash, an '
+    'odd tense, a word used in an unexpected sense), consult the read-only scholarship abilities: rbt/get-verse '
+    '(the Hebrew or Greek with each word\'s RBT gloss, Strong\'s number and parsing), rbt/get-lexeme and '
+    'rbt/get-occurrences (how the RBT glosses that word everywhere else). Use them to understand what the RBT '
+    'English means, never to replace it with the original or with a traditional reading.'
 )
 
 
@@ -276,35 +289,189 @@ def _work_size(work):
     return sum(len(work[k]) for k in ('verses', 'footnotes', 'titles', 'extras'))
 
 
+# ---------------------------------------------------------------------------
+# Claims: many agents at once
+#
+# Every claim carries a token. A chapter job's token is kept in its error_message as
+# "claim:<token>|<agent>" while its status is 'agent' (a paraphrase row's in its error
+# field while 'running'); titles are claimed per language in the cache. Saving and
+# releasing need the token, so an agent whose claim expired and was taken over can never
+# write into someone else's work. Claiming takes row locks with SKIP LOCKED plus a
+# transaction-scoped advisory lock per chapter+language, so two agents asking at the same
+# moment always get different work. Saves are idempotent (a repeated save of items already
+# stored with the same text succeeds), and claims accept a request_key so a claim whose
+# reply was lost can be asked for again without stranding the first one.
+
+class ClaimConflict(ValueError):
+    """Someone else holds a fresh claim on this item (HTTP 409 in the agent API)."""
+
+
+def _new_token():
+    return secrets.token_urlsafe(18)
+
+
+def _mark(token, agent):
+    return f'{CLAIM_MARK}{token}|{agent}'
+
+
+def _parse_mark(text):
+    if text and text.startswith(CLAIM_MARK):
+        token, _, agent = text[len(CLAIM_MARK):].partition('|')
+        return token, agent
+    return None, None
+
+
+def _key_lock(*key, wait=True):
+    """Transaction-scoped advisory lock on one item (Postgres); True if held."""
+    if connection.vendor != 'postgresql':
+        return True
+    number = int(hashlib.sha1('|'.join(map(str, key)).encode('utf-8')).hexdigest()[:15], 16)
+    with connection.cursor() as cursor:
+        if wait:
+            cursor.execute('SELECT pg_advisory_xact_lock(%s)', [number])
+            return True
+        cursor.execute('SELECT pg_try_advisory_xact_lock(%s)', [number])
+        return bool(cursor.fetchone()[0])
+
+
+def _remember(prefix, key, value):
+    if key:
+        cache.set(f'agent_{prefix}:{key}', value, int(CLAIM_TTL.total_seconds()))
+
+
+def _recall(prefix, key):
+    return cache.get(f'agent_{prefix}:{key}') if key else None
+
+
+def _fresh(started_at):
+    return bool(started_at) and started_at > timezone.now() - CLAIM_TTL
+
+
 def _job_dict(job):
+    token, holder = _parse_mark(job.error_message)
     return {
         'job_id': job.job_id, 'book': job.book, 'chapter': job.chapter, 'language': job.language_code,
         'status': job.status, 'created_at': job.created_at.isoformat() if job.created_at else None,
         'started_at': job.started_at.isoformat() if job.started_at else None,
         'verses': f'{job.translated_verses}/{job.total_verses}',
         'footnotes': f'{job.translated_footnotes}/{job.total_footnotes}',
-        'error': job.error_message or None,
+        'claimed_by': holder if token else None,
+        'error': None if token else (job.error_message or None),
     }
 
 
-def _claim_chapter(book, chapter, language, job_id=None):
-    """The chapter's job, created if need be and marked as being worked by the agent."""
+def _take_job(job, agent, token=None):
+    """Mark a locked TranslationJob as claimed by `agent`; returns the claim token."""
+    held, holder = _parse_mark(job.error_message) if job.status == AGENT_STATUS else (None, None)
+    if job.status == AGENT_STATUS and _fresh(job.started_at) and held and held != token:
+        raise ClaimConflict(f'{job.book} {job.chapter} ({job.language_code}) is being translated by '
+                            f'{holder or "another agent"} until {(job.started_at + CLAIM_TTL):%Y-%m-%d %H:%M} UTC')
+    if job.status in ('completed', 'failed'):
+        job.translated_verses = job.translated_footnotes = 0
+    token = held if (held and token == held) else _new_token()
+    job.status, job.started_at, job.error_message = AGENT_STATUS, timezone.now(), _mark(token, agent)
+    job.save()
+    return token
+
+
+def _chapter_candidates(language=None, limit=50):
+    """Open chapter jobs in the order agents should take them, one per chapter+language:
+    reader requests first, then runs nobody finished, then requests that failed under the
+    API backend — skipping chapters someone is working now or a later attempt completed."""
+    from django.db.models import Q
     from search.models import TranslationJob
-    from search.translation_worker import create_translation_job
     now = timezone.now()
-    if job_id:
-        job = TranslationJob.objects.filter(job_id=job_id).first()
+    qs = TranslationJob.objects.filter(
+        Q(status='pending') | Q(status='failed')
+        | Q(status=AGENT_STATUS, started_at__lt=now - CLAIM_TTL)
+        | Q(status='processing', started_at__lt=now - ORPHAN_AFTER))
+    active = TranslationJob.objects.filter(status=AGENT_STATUS, started_at__gte=now - CLAIM_TTL)
+    if language:
+        qs = qs.filter(language_code=language)
+        active = active.filter(language_code=language)
+    busy = set(active.values_list('book', 'chapter', 'language_code'))
+    done = set(TranslationJob.objects.filter(status='completed').values_list('book', 'chapter', 'language_code')
+               .order_by().distinct()) if qs.filter(status='failed').exists() else set()
+    rank = {'pending': 0, 'processing': 1, AGENT_STATUS: 1, 'failed': 2}
+    seen, out = set(), []
+    for job in sorted(qs.order_by('-created_at')[:5000], key=lambda j: (rank.get(j.status, 3), j.created_at)):
+        key = (job.book, job.chapter, job.language_code)
+        if key in seen or key in busy or (job.status == 'failed' and key in done):
+            continue
+        seen.add(key)
+        out.append(job)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _claim_chapter_for(book, chapter, language, agent, token=None):
+    """Claim the open job for one chapter+language (creating it if there is none)."""
+    from search.models import TranslationJob
+    _require_language(language)
+    chapter = int(chapter)
+    with transaction.atomic():
+        _key_lock('chapter', book, chapter, language)
+        jobs = list(TranslationJob.objects.select_for_update()
+                    .filter(book=book, chapter=chapter, language_code=language)
+                    .exclude(status='completed').order_by('-created_at'))
+        job = next((j for j in jobs if j.status == AGENT_STATUS), None) or (jobs[0] if jobs else None)
+        if job is None:
+            job = TranslationJob.objects.create(job_id=str(uuid.uuid4()), book=book, chapter=chapter,
+                                                language_code=language, status='pending')
+        token = _take_job(job, agent, token)
+    return job, token
+
+
+def _claim_chapter_job(job_id, agent, token=None):
+    from search.models import TranslationJob
+    with transaction.atomic():
+        job = TranslationJob.objects.select_for_update().filter(job_id=job_id).first()
         if not job:
             raise ValueError(f'No chapter job {job_id}')
-    else:
-        _require_language(language)
-        job = create_translation_job(book, int(chapter), language)
-    with transaction.atomic():
-        job = TranslationJob.objects.select_for_update().get(pk=job.pk)
-        if job.status in ('completed', 'failed'):
-            job.translated_verses = job.translated_footnotes = 0
-        job.status, job.started_at, job.error_message = AGENT_STATUS, now, None
-        job.save()
+        _key_lock('chapter', job.book, job.chapter, job.language_code)
+        other = TranslationJob.objects.filter(
+            book=job.book, chapter=job.chapter, language_code=job.language_code, status=AGENT_STATUS,
+            started_at__gte=timezone.now() - CLAIM_TTL).exclude(pk=job.pk).first()
+        if other:
+            raise ClaimConflict(f'{job.book} {job.chapter} ({job.language_code}) is already being translated '
+                                f'by {_parse_mark(other.error_message)[1] or "another agent"} (job {other.job_id})')
+        token = _take_job(job, agent, token)
+    return job, token
+
+
+def _claim_next_chapter(language, agent):
+    from search.models import TranslationJob
+    for candidate in _chapter_candidates(language, limit=200):
+        with transaction.atomic():
+            job = (TranslationJob.objects.select_for_update(skip_locked=True)
+                   .filter(job_id=candidate.job_id).first())
+            if not job or not _key_lock('chapter', job.book, job.chapter, job.language_code, wait=False):
+                continue  # another agent is taking it right now
+            now = timezone.now()
+            still_open = (job.status in ('pending', 'failed')
+                          or (job.status == AGENT_STATUS and not _fresh(job.started_at))
+                          or (job.status == 'processing' and job.started_at and job.started_at < now - ORPHAN_AFTER))
+            taken = TranslationJob.objects.filter(
+                book=job.book, chapter=job.chapter, language_code=job.language_code, status=AGENT_STATUS,
+                started_at__gte=now - CLAIM_TTL).exclude(pk=job.pk).exists()
+            if not still_open or taken:
+                continue
+            return job, _take_job(job, agent)
+    return None, None
+
+
+def _held_chapter(job_id, token):
+    """The job if `token` still holds it; raises ClaimConflict otherwise."""
+    from search.models import TranslationJob
+    job = TranslationJob.objects.filter(job_id=job_id).first()
+    if not job:
+        raise ValueError(f'No chapter job {job_id}')
+    held, holder = _parse_mark(job.error_message)
+    if job.status != AGENT_STATUS or not token or held != token:
+        raise ClaimConflict(f'You no longer hold chapter job {job_id} (it is {job.status}'
+                            + (f', claimed by {holder}' if held and held != token else '')
+                            + '); call get-source-content again')
     return job
 
 
@@ -312,79 +479,135 @@ def _claim_chapter(book, chapter, language, job_id=None):
 # Paraphrases
 
 def _paraphrase_dict(row):
+    token, holder = _parse_mark(row.error)
     return {
         'id': row.pk, 'book': row.book, 'chapter': row.chapter, 'language': row.language_code,
-        'status': row.status, 'published': row.is_published, 'error': row.error or None,
+        'status': row.status, 'published': row.is_published,
+        'claimed_by': holder if token else None, 'error': None if token else (row.error or None),
         'created_at': row.created_at.isoformat() if getattr(row, 'created_at', None) else None,
     }
 
 
-def _claim_paraphrase(book, chapter, language, job_id=None):
-    """The paraphrase row being translated, created (without a Gemini thread) if need be."""
+def _take_paraphrase(row, english, agent, token=None):
+    from search import paraphrase
+    held, holder = _parse_mark(row.error) if row.status == 'running' else (None, None)
+    if row.status == 'running' and _fresh(row.started_at) and held != token:
+        raise ClaimConflict(f'The {row.language_code} paraphrase of {row.book} {row.chapter} is being translated '
+                            f'by {holder or "another process"}')
+    token = held if (held and token == held) else _new_token()
+    row.status, row.started_at, row.error = 'running', timezone.now(), _mark(token, agent)
+    row.source_hash = paraphrase.html_hash(english.html)
+    row.save(update_fields=['status', 'started_at', 'error', 'source_hash'])
+    return token
+
+
+def _claim_paraphrase(book, chapter, language, job_id, agent, token=None):
+    """Claim a paraphrase translation: by id, by chapter+language (created without a Gemini
+    thread if need be), or the next one waiting. Returns (row, english, token) or (None, None, None)."""
     from search import paraphrase
     from search import paraphrase_translation as pt
     from search.models import ChapterParaphrase
-    if job_id:
-        row = ChapterParaphrase.objects.filter(pk=job_id).exclude(language_code='en').first()
-        if not row:
-            raise ValueError(f'No paraphrase job {job_id}')
-    else:
-        _require_language(language)
-        pt.start(book, int(chapter), language)
-        row = (ChapterParaphrase.objects.filter(book=book, chapter=int(chapter), language_code=language)
-               .exclude(status='done').order_by('-pk').first())
-        if not row:
-            english = paraphrase.published_for(book, int(chapter))
+    base = ChapterParaphrase.objects.exclude(language_code='en')
+    if job_id or book:
+        with transaction.atomic():
+            if job_id:
+                row = base.select_for_update().filter(pk=job_id).first()
+                if not row:
+                    raise ValueError(f'No paraphrase job {job_id}')
+                _key_lock('paraphrase', row.book, row.chapter, row.language_code)
+            else:
+                _require_language(language)
+                chapter = int(chapter)
+                _key_lock('paraphrase', book, chapter, language)
+                pt.start(book, chapter, language)  # agent mode: creates the pending row, no thread
+                row = (base.select_for_update().filter(book=book, chapter=chapter, language_code=language)
+                       .exclude(status='done').order_by('-pk').first())
+                if not row:
+                    english = paraphrase.published_for(book, chapter)
+                    if not english:
+                        raise ValueError(f'No English paraphrase published for {book} {chapter}')
+                    # Current already: retranslating on request means a fresh row.
+                    row = ChapterParaphrase.objects.create(
+                        batch_id=uuid.uuid4(), book=book, chapter=chapter, language_code=language,
+                        provider='agent', model_name='agent', prompt_name=pt.PROMPT_NAME, created_by=pt.CREATED_BY,
+                        source_hash=paraphrase.html_hash(english.html))
+            english = paraphrase.published_for(row.book, row.chapter)
             if not english:
-                raise ValueError(f'No English paraphrase published for {book} {chapter}')
-            # Current already: retranslating on request means a fresh row.
-            row = ChapterParaphrase.objects.create(
-                batch_id=__import__('uuid').uuid4(), book=book, chapter=int(chapter), language_code=language,
-                provider='agent', model_name='agent', prompt_name=pt.PROMPT_NAME, created_by=pt.CREATED_BY,
-                source_hash=paraphrase.html_hash(english.html),
-            )
-    english = paraphrase.published_for(row.book, row.chapter)
-    if not english:
-        raise ValueError(f'No English paraphrase published for {row.book} {row.chapter}')
-    row.status, row.started_at, row.error = 'running', timezone.now(), ''
-    row.source_hash = paraphrase.html_hash(english.html)
-    row.save(update_fields=['status', 'started_at', 'error', 'source_hash'])
-    return row, english
+                raise ValueError(f'No English paraphrase published for {row.book} {row.chapter}')
+            return row, english, _take_paraphrase(row, english, agent, token)
+    now = timezone.now()
+    from django.db.models import Q
+    ids = list(base.filter(Q(status='pending') | Q(status='running', started_at__lt=now - CLAIM_TTL))
+               .filter(**({'language_code': language} if language else {}))
+               .order_by('pk').values_list('pk', flat=True)[:200])
+    for pk in ids:
+        with transaction.atomic():
+            row = base.select_for_update(skip_locked=True).filter(pk=pk).first()
+            if not row or not _key_lock('paraphrase', row.book, row.chapter, row.language_code, wait=False):
+                continue
+            if not (row.status == 'pending' or (row.status == 'running' and not _fresh(row.started_at))):
+                continue
+            english = paraphrase.published_for(row.book, row.chapter)
+            if not english:
+                row.status, row.error = 'failed', 'No published English paraphrase'
+                row.save(update_fields=['status', 'error'])
+                continue
+            return row, english, _take_paraphrase(row, english, agent)
+    return None, None, None
+
+
+def _held_paraphrase(job_id, token):
+    from search.models import ChapterParaphrase
+    row = ChapterParaphrase.objects.filter(pk=job_id).exclude(language_code='en').first()
+    if not row:
+        raise ValueError(f'No paraphrase job {job_id}')
+    held, holder = _parse_mark(row.error)
+    if row.status != 'running' or not token or held != token:
+        raise ClaimConflict(f'You no longer hold paraphrase job {job_id} (it is {row.status}); '
+                            'call get-source-content again')
+    return row
+
+
+# ---------------------------------------------------------------------------
+# Titles (claimed per language, in the cache)
+
+def _title_lock_key(language):
+    return f'agent_title_claim:{language}'
+
+
+def _claim_titles(language, agent, token=None):
+    """Claim the stale titles of one language (or of the next language nobody is doing)."""
+    languages = [language] if language else sorted({i['language'] for i in stale_titles(limit=2000)})
+    for lang in languages:
+        key = _title_lock_key(lang)
+        mine = f'{token or _new_token()}|{agent}'
+        if cache.add(key, mine, int(CLAIM_TTL.total_seconds())):
+            return lang, mine.split('|', 1)[0]
+        held, _, holder = (cache.get(key) or '').partition('|')
+        if token and held == token:
+            cache.set(key, f'{token}|{agent}', int(CLAIM_TTL.total_seconds()))
+            return lang, token
+        if language:
+            raise ClaimConflict(f'The {lang} titles are being translated by {holder or "another agent"}')
+    return None, None
+
+
+def _held_titles(language, token):
+    held, _, holder = (cache.get(_title_lock_key(language)) or '').partition('|')
+    if not token or held != token:
+        raise ClaimConflict(f'You do not hold the {language} titles; call get-source-content kind=title again')
 
 
 # ---------------------------------------------------------------------------
 # Abilities
 
 def get_untranslated(kind=None, language=None, limit=50):
-    """Waiting work: chapter jobs and paraphrase translations nobody has done yet."""
-    from search.models import ChapterParaphrase, TranslationJob
+    """Waiting work: chapter jobs and paraphrase translations nobody is doing."""
+    from search.models import ChapterParaphrase
     limit = max(1, min(int(limit or 50), 500))
-    stale_claim = timezone.now() - CLAIM_TTL
     out = {}
     if kind in (None, 'chapter'):
-        # Pending requests first, then ones that failed under the API backend (quota errors
-        # left thousands) and claims/runs nobody finished; one entry per chapter and language.
-        from django.db.models import Q
-        orphaned = timezone.now() - timedelta(minutes=10)
-        qs = TranslationJob.objects.filter(
-            Q(status='pending') | Q(status='failed')
-            | Q(status=AGENT_STATUS, started_at__lt=stale_claim)
-            | Q(status='processing', started_at__lt=orphaned))
-        if language:
-            qs = qs.filter(language_code=language)
-        done = set(TranslationJob.objects.filter(status='completed').values_list('book', 'chapter', 'language_code')
-                   .order_by().distinct()) if qs.filter(status='failed').exists() else set()
-        rank = {'pending': 0, 'processing': 1, AGENT_STATUS: 1, 'failed': 2}
-        seen, rows = set(), []
-        for job in sorted(qs.order_by('-created_at')[:5000], key=lambda j: (rank.get(j.status, 3), j.created_at)):
-            key = (job.book, job.chapter, job.language_code)
-            if key in seen or (job.status == 'failed' and key in done):
-                continue  # duplicate, or a later attempt succeeded
-            seen.add(key)
-            rows.append(_job_dict(job))
-            if len(rows) >= limit:
-                break
-        out['chapter'] = rows
+        out['chapter'] = [_job_dict(j) for j in _chapter_candidates(language, limit)]
     if kind in (None, 'paraphrase'):
         qs = ChapterParaphrase.objects.exclude(language_code='en').filter(status='pending')
         if language:
@@ -397,7 +620,6 @@ def get_outdated(kind=None, language=None, limit=50):
     """Translations made from an older English text than the one now published."""
     from search import paraphrase
     from search.models import ChapterParaphrase, VerseTranslation
-    from search.translation_utils import source_fingerprint
     limit = max(1, min(int(limit or 50), 500))
     out = {}
     if kind in (None, 'title'):
@@ -438,77 +660,133 @@ def get_outdated(kind=None, language=None, limit=50):
     return out
 
 
-def get_source_content(kind, book=None, chapter=None, language=None, job_id=None, agent='agent'):
-    """Everything an agent needs to translate one item, claiming it so no one else does."""
+def _chapter_payload(job, token, agent):
+    work = chapter_work(job.book, job.chapter, job.language_code)
+    if not _work_size(work):
+        _complete_chapter(job)
+        return {'kind': 'chapter', 'job': _job_dict(job), 'message': 'Nothing left to translate; job completed.'}
+    from search.models import TranslationJob
+    TranslationJob.objects.filter(pk=job.pk).update(
+        total_verses=job.translated_verses + len(work['verses']),
+        total_footnotes=job.translated_footnotes + len(work['footnotes']))
+    job.refresh_from_db()
+    logger.info('[AGENT] %s holds chapter %s %s %s', agent, job.book, job.chapter, job.language_code)
+    return {
+        'kind': 'chapter', 'job': _job_dict(job), 'claim_token': token,
+        'claim_expires': (job.started_at + CLAIM_TTL).isoformat(),
+        'language_name': language_name(job.language_code), 'instructions': instructions(job.language_code),
+        'verses': {str(k): v for k, v in sorted(work['verses'].items())},
+        'footnotes': work['footnotes'], 'titles': work['titles'], 'extras': work['extras'],
+        'save_with': 'save-translation kind=chapter job_id claim_token, with verses/footnotes/titles/extras under '
+                     'the same keys; partial saves are fine and each save renews the claim.',
+    }
+
+
+def get_source_content(kind, book=None, chapter=None, language=None, job_id=None, agent='agent',
+                       claim_token=None, request_key=None):
+    """Claim one item and return everything needed to translate it.
+
+    Name the item (job_id, or book+chapter+language) or leave it out to be given the next
+    one waiting (optionally in `language`). Calling again with job_id + claim_token renews
+    the claim and returns what is still left; repeating a call with the same request_key
+    returns the claim already made instead of taking another item."""
+    if kind not in KINDS:
+        raise ValueError(f'kind must be one of {KINDS}')
+    remembered = _recall('request', request_key)
+    if remembered and remembered[0] == kind:
+        job_id, claim_token = remembered[1], remembered[2]
+        if kind == 'title':
+            language = job_id
+
     if kind == 'chapter':
-        job = _claim_chapter(book, chapter, language, job_id)
-        work = chapter_work(job.book, job.chapter, job.language_code)
-        if not _work_size(work):
-            job.status, job.completed_at = 'completed', timezone.now()
-            job.save()
-            return {'kind': 'chapter', 'job': _job_dict(job), 'message': 'Nothing left to translate.'}
-        job.total_verses = job.translated_verses + len(work['verses'])
-        job.total_footnotes = job.translated_footnotes + len(work['footnotes'])
-        job.save(update_fields=['total_verses', 'total_footnotes'])
-        logger.info('[AGENT] %s took chapter %s %s %s', agent, job.book, job.chapter, job.language_code)
-        return {
-            'kind': 'chapter', 'job': _job_dict(job), 'language_name': language_name(job.language_code),
-            'instructions': instructions(job.language_code),
-            'verses': {str(k): v for k, v in sorted(work['verses'].items())},
-            'footnotes': work['footnotes'], 'titles': work['titles'], 'extras': work['extras'],
-            'save_with': 'save-translation kind=chapter job_id=<this job> with verses/footnotes/titles/extras '
-                         'under the same keys; partial saves are fine.',
-            'claim_expires': (job.started_at + CLAIM_TTL).isoformat(),
-        }
+        if job_id:
+            job, token = _claim_chapter_job(job_id, agent, claim_token)
+        elif book:
+            job, token = _claim_chapter_for(book, chapter, language, agent, claim_token)
+        else:
+            job, token = _claim_next_chapter(language, agent)
+            if not job:
+                return {'kind': 'chapter', 'job': None, 'message': 'No chapter jobs are waiting.'}
+        _remember('request', request_key, ('chapter', job.job_id, token))
+        return _chapter_payload(job, token, agent)
+
     if kind == 'paraphrase':
         from search import paraphrase_translation as pt
-        row, english = _claim_paraphrase(book, chapter, language, job_id)
+        row, english, token = _claim_paraphrase(book, chapter, language, job_id, agent, claim_token)
+        if not row:
+            return {'kind': 'paraphrase', 'job': None, 'message': 'No paraphrase translations are waiting.'}
+        _remember('request', request_key, ('paraphrase', row.pk, token))
         notes, blocks = pt.translation_units(english.html)
         return {
-            'kind': 'paraphrase', 'job': _paraphrase_dict(row), 'language_name': language_name(row.language_code),
-            'instructions': instructions(row.language_code),
+            'kind': 'paraphrase', 'job': _paraphrase_dict(row), 'claim_token': token,
+            'claim_expires': (row.started_at + CLAIM_TTL).isoformat(),
+            'language_name': language_name(row.language_code), 'instructions': instructions(row.language_code),
             'blocks': {str(k): v for k, v in blocks.items()}, 'notes': notes,
-            'save_with': 'save-translation kind=paraphrase job_id=<id> with ALL blocks (verse rules; keep every '
+            'save_with': 'save-translation kind=paraphrase job_id claim_token with ALL blocks (verse rules; keep every '
                          '<rbt-media n="N"> marker) and ALL notes (footnote rules) in one call.',
         }
-    if kind == 'title':
-        items = stale_titles(language=language, limit=500)
-        return {'kind': 'title', 'titles': {i['key']: i['english'] for i in items},
-                'instructions': instructions(language or 'es')['titles'],
-                'save_with': 'save-translation kind=title titles={"<book>|<verse>|<language>": "..."}'}
-    raise ValueError(f'kind must be one of {KINDS}')
+
+    lang, token = _claim_titles(language, agent, claim_token)
+    if not lang:
+        return {'kind': 'title', 'titles': {}, 'message': 'No stale titles are waiting (or every language is taken).'}
+    _remember('request', request_key, ('title', lang, token))
+    items = stale_titles(language=lang, limit=500)
+    return {'kind': 'title', 'language': lang, 'claim_token': token,
+            'titles': {i['key']: i['english'] for i in items}, 'instructions': instructions(lang)['titles'],
+            'save_with': 'save-translation kind=title language claim_token titles={"<book>|<verse>|<language>": "..."}'}
+
+
+def _stored_text(book, chapter, language):
+    """{('verse', n) | ('footnote', id): text} already stored, for idempotent re-saves."""
+    from search.models import VerseTranslation
+    out = {}
+    for verse, fid, vt, ft in VerseTranslation.objects.filter(
+        book=book, chapter=chapter, language_code=language, status__in=['completed', DRAFT],
+    ).values_list('verse', 'footnote_id', 'verse_text', 'footnote_text'):
+        out[('footnote', fid) if fid else ('verse', int(verse))] = (ft if fid else vt) or ''
+    return out
 
 
 def _plan_chapter(job, verses, footnotes, titles, extras):
+    """(items to store, errors, items already stored with the same text)."""
     work = chapter_work(job.book, job.chapter, job.language_code)
-    lang, errors, plan = job.language_code, [], []
+    lang, errors, plan, already = job.language_code, [], [], 0
+    stored = None
     for key, text in (verses or {}).items():
         try:
             n = int(key)
         except (TypeError, ValueError):
             errors.append(f'verse {key!r}: not a verse number'); continue
         if n not in work['verses']:
+            stored = stored if stored is not None else _stored_text(job.book, job.chapter, lang)
+            if stored.get(('verse', n)) == text:
+                already += 1; continue
             errors.append(f'verse {n}: not awaiting translation (done already, or not in this chapter)'); continue
         errors += [f'verse {n}: {p}' for p in check_translation(work['verses'][n], text, lang)]
         plan.append(('verse', n, text, work['verses'][n]))
     for fid, text in (footnotes or {}).items():
         if fid not in work['footnotes']:
+            stored = stored if stored is not None else _stored_text(job.book, job.chapter, lang)
+            if stored.get(('footnote', fid)) == text:
+                already += 1; continue
             errors.append(f'footnote {fid}: not awaiting translation'); continue
         errors += [f'footnote {fid}: {p}' for p in check_translation(work['footnotes'][fid], text, lang)]
         plan.append(('footnote', fid, text, work['footnotes'][fid]))
     for key, text in (titles or {}).items():
         if key not in work['titles']:
-            errors.append(f'title {key}: not awaiting translation'); continue
+            already += 1  # current already (saved by this or an earlier call)
+            continue
         errors += [f'title {key}: {p}' for p in _check_title(text)]
         plan.append(('title', key, (text or '').strip(), work['titles'][key]))
     for key, text in (extras or {}).items():
         if key not in work['extras']:
-            errors.append(f'extra {key}: not awaiting translation'); continue
+            already += 1
+            continue
         errors += [f'extra {key}: {p}' for p in check_translation(work['extras'][key], text, lang)]
         plan.append(('extra', key, text, work['extras'][key]))
-    if not plan and not errors:
+    if not plan and not errors and not already:
         errors.append('nothing submitted')
-    return plan, errors
+    return plan, errors, already
 
 
 def _plan_paraphrase(row, blocks, notes):
@@ -533,58 +811,84 @@ def _plan_paraphrase(row, blocks, notes):
     return english, (blocks, notes), errors
 
 
-def _plan_titles(titles):
-    stale = {i['key'] for i in stale_titles(limit=2000)}
-    errors, plan = [], []
+def _plan_titles(titles, language=None):
+    from search.models import VerseTranslation
+    stale = {i['key'] for i in stale_titles(language=language, limit=2000)}
+    errors, plan, already = [], [], 0
     for key, text in (titles or {}).items():
         if key not in stale:
+            book, _, rest = key.rpartition('|')
+            book, _, verse = book.rpartition('|')
+            row = VerseTranslation.objects.filter(
+                book=book, chapter=0, verse=int(verse) if verse.isdigit() else -1, language_code=rest,
+                footnote_id__isnull=True).first() if book else None
+            if row and (row.verse_text or '').strip() == (text or '').strip():
+                already += 1; continue
             errors.append(f'{key}: not a stale title'); continue
+        if language and not key.endswith(f'|{language}'):
+            errors.append(f'{key}: not in the claimed language {language}'); continue
         errors += [f'{key}: {p}' for p in _check_title(text)]
         plan.append((key, (text or '').strip()))
-    if not plan and not errors:
+    if not plan and not errors and not already:
         errors.append('nothing submitted')
-    return plan, errors
+    return plan, errors, already
 
 
 def validate_translation(kind, job_id=None, verses=None, footnotes=None, titles=None, extras=None,
-                         blocks=None, notes=None):
-    """Run every check save_translation runs, without saving anything."""
+                         blocks=None, notes=None, language=None):
+    """Run every check save_translation runs, without saving anything (no claim needed)."""
     if kind == 'chapter':
         from search.models import TranslationJob
         job = TranslationJob.objects.filter(job_id=job_id).first()
         if not job:
             raise ValueError(f'No chapter job {job_id}')
-        plan, errors = _plan_chapter(job, verses, footnotes, titles, extras)
-        return {'valid': not errors, 'items': len(plan), 'errors': errors}
+        plan, errors, already = _plan_chapter(job, verses, footnotes, titles, extras)
+        return {'valid': not errors, 'items': len(plan), 'already_saved': already, 'errors': errors}
     if kind == 'paraphrase':
         from search.models import ChapterParaphrase
         row = ChapterParaphrase.objects.filter(pk=job_id).exclude(language_code='en').first()
         if not row:
             raise ValueError(f'No paraphrase job {job_id}')
-        _, units, errors = _plan_paraphrase(row, blocks, notes)
+        _, _, errors = _plan_paraphrase(row, blocks, notes)
         return {'valid': not errors, 'errors': errors}
     if kind == 'title':
-        plan, errors = _plan_titles(titles)
-        return {'valid': not errors, 'items': len(plan), 'errors': errors}
+        plan, errors, already = _plan_titles(titles, language)
+        return {'valid': not errors, 'items': len(plan), 'already_saved': already, 'errors': errors}
     raise ValueError(f'kind must be one of {KINDS}')
 
 
+def _complete_chapter(job):
+    """Mark the job, and any other open request for the same chapter+language, completed."""
+    from search.models import TranslationJob
+    now = timezone.now()
+    TranslationJob.objects.filter(pk=job.pk).update(status='completed', completed_at=now, error_message=None)
+    TranslationJob.objects.filter(
+        book=job.book, chapter=job.chapter, language_code=job.language_code,
+        status__in=['pending', 'failed', 'processing'],
+    ).exclude(pk=job.pk).update(status='completed', completed_at=now, error_message=None)
+    job.refresh_from_db()
+
+
 def save_translation(kind, job_id=None, verses=None, footnotes=None, titles=None, extras=None,
-                     blocks=None, notes=None, publish=True, agent='agent'):
-    """Check, then store. All-or-nothing per call: one failing item rejects the whole call."""
+                     blocks=None, notes=None, publish=True, agent='agent', claim_token=None, language=None):
+    """Check, then store, for an item this agent holds. All-or-nothing per call; repeating a
+    save whose reply was lost succeeds without storing anything twice."""
+    from django.db.models import F
     from search import title_translations as title_mod
     from search.models import ChapterParaphrase, TranslationJob, VerseTranslation
     from search.translation_utils import source_fingerprint
     made_by = f'agent:{agent}'[:50]
     status = 'completed' if publish else DRAFT
+    replay = _recall('saved', f'{kind}:{job_id or language}:{claim_token}')
 
     if kind == 'chapter':
-        job = TranslationJob.objects.filter(job_id=job_id).first()
-        if not job:
-            raise ValueError(f'No chapter job {job_id}')
-        if job.status != AGENT_STATUS:
-            raise ValueError(f'Chapter job {job_id} is {job.status}; fetch it with get-source-content first')
-        plan, errors = _plan_chapter(job, verses, footnotes, titles, extras)
+        try:
+            job = _held_chapter(job_id, claim_token)
+        except ClaimConflict:
+            if replay:
+                return replay  # the claim ended with this very save; answer as before
+            raise
+        plan, errors, already = _plan_chapter(job, verses, footnotes, titles, extras)
         if errors:
             return {'saved': 0, 'errors': errors}
         lang = job.language_code
@@ -611,35 +915,45 @@ def save_translation(kind, job_id=None, verses=None, footnotes=None, titles=None
                         book='Gospel of Judas', chapter=0, verse=2, language_code=lang, footnote_id=None,
                         defaults={'verse_text': text, 'status': status, 'generated_by': made_by,
                                   'source_hash': source_fingerprint(source)})
-            job.translated_verses += sum(1 for p in plan if p[0] == 'verse')
-            job.translated_footnotes += sum(1 for p in plan if p[0] == 'footnote')
-            job.started_at = timezone.now()  # saving keeps the claim alive
-            job.save()
+            TranslationJob.objects.filter(pk=job.pk).update(
+                translated_verses=F('translated_verses') + sum(1 for p in plan if p[0] == 'verse'),
+                translated_footnotes=F('translated_footnotes') + sum(1 for p in plan if p[0] == 'footnote'),
+                started_at=timezone.now())  # saving renews the claim
+        job.refresh_from_db()
         remaining = chapter_work(job.book, job.chapter, lang)
         left = _work_size(remaining)
         if not left:
-            job.status, job.completed_at = 'completed', timezone.now()
-            job.save()
+            _complete_chapter(job)
         logger.info('[AGENT] %s saved %d item(s) for %s (%d left)', agent, len(plan), job_id, left)
-        return {'saved': len(plan), 'published': publish, 'remaining': left, 'job': _job_dict(job),
-                'still_needed': {k: sorted(map(str, v)) for k, v in remaining.items() if v}}
+        result = {'saved': len(plan), 'already_saved': already, 'published': publish, 'remaining': left,
+                  'job': _job_dict(job), 'still_needed': {k: sorted(map(str, v)) for k, v in remaining.items() if v}}
+        if not left:
+            _remember('saved', f'chapter:{job_id}:{claim_token}', result)
+        return result
 
     if kind == 'paraphrase':
         from search import paraphrase_translation as pt
-        row = ChapterParaphrase.objects.filter(pk=job_id).exclude(language_code='en').first()
-        if not row:
-            raise ValueError(f'No paraphrase job {job_id}')
-        if row.status != 'running':
-            raise ValueError(f'Paraphrase job {job_id} is {row.status}; fetch it with get-source-content first')
+        try:
+            row = _held_paraphrase(job_id, claim_token)
+        except ClaimConflict:
+            if replay:
+                return replay
+            raise
         english, units, errors = _plan_paraphrase(row, blocks, notes)
         if errors:
             return {'saved': 0, 'errors': errors}
         html = pt.assemble_html(english.html, units[1], units[0])
+        ChapterParaphrase.objects.filter(pk=row.pk).update(error='')
         pt.publish(row.pk, html, provider='agent', model=made_by, publish=publish)
-        return {'saved': 1, 'published': publish, 'job': _paraphrase_dict(ChapterParaphrase.objects.get(pk=row.pk))}
+        result = {'saved': 1, 'published': publish, 'job': _paraphrase_dict(ChapterParaphrase.objects.get(pk=row.pk))}
+        _remember('saved', f'paraphrase:{job_id}:{claim_token}', result)
+        return result
 
     if kind == 'title':
-        plan, errors = _plan_titles(titles)
+        if not language:
+            raise ValueError('kind=title needs the language you claimed')
+        _held_titles(language, claim_token)
+        plan, errors, already = _plan_titles(titles, language)
         if errors:
             return {'saved': 0, 'errors': errors}
         with transaction.atomic():
@@ -649,30 +963,34 @@ def save_translation(kind, job_id=None, verses=None, footnotes=None, titles=None
                 VerseTranslation.objects.filter(
                     book=book, chapter=0, verse=int(verse), language_code=lang, footnote_id__isnull=True,
                 ).update(generated_by=made_by, status=status)
-        return {'saved': len(plan), 'published': publish}
+        left = len(stale_titles(language=language, limit=2000))
+        if not left:
+            cache.delete(_title_lock_key(language))
+        return {'saved': len(plan), 'already_saved': already, 'published': publish, 'remaining': left}
 
     raise ValueError(f'kind must be one of {KINDS}')
 
 
-def release(kind, job_id, reason='', failed=False):
-    """Give a claimed job back (or mark it failed) without saving anything."""
+def release(kind, job_id=None, reason='', failed=False, claim_token=None, language=None):
+    """Give a claimed item back (or mark it failed) without saving anything."""
     from search.models import ChapterParaphrase, TranslationJob
     if kind == 'chapter':
-        job = TranslationJob.objects.filter(job_id=job_id, status=AGENT_STATUS).first()
-        if not job:
-            raise ValueError(f'No claimed chapter job {job_id}')
-        job.status = 'failed' if failed else 'pending'
-        job.error_message = (reason or None) if failed else None
-        job.save()
+        job = _held_chapter(job_id, claim_token)
+        TranslationJob.objects.filter(pk=job.pk).update(
+            status='failed' if failed else 'pending', error_message=(reason or None) if failed else None)
+        job.refresh_from_db()
         return _job_dict(job)
     if kind == 'paraphrase':
-        row = ChapterParaphrase.objects.filter(pk=job_id, status='running').exclude(language_code='en').first()
-        if not row:
-            raise ValueError(f'No claimed paraphrase job {job_id}')
-        row.status, row.error = ('failed', reason) if failed else ('pending', '')
-        row.save(update_fields=['status', 'error'])
+        row = _held_paraphrase(job_id, claim_token)
+        ChapterParaphrase.objects.filter(pk=row.pk).update(
+            status='failed' if failed else 'pending', error=(reason or 'released') if failed else '')
+        row.refresh_from_db()
         return _paraphrase_dict(row)
-    raise ValueError('kind must be chapter or paraphrase')
+    if kind == 'title':
+        _held_titles(language, claim_token)
+        cache.delete(_title_lock_key(language))
+        return {'language': language, 'released': True}
+    raise ValueError(f'kind must be one of {KINDS}')
 
 
 def publish_translation(kind, book=None, chapter=None, language=None, job_id=None):

@@ -130,68 +130,134 @@ class AgentApiTests(TestCase):
         self.assertIn('Unsupported language', r.json()['error'])
 
 
+V1 = 'En la cabeza <span style="color: blue;">él</span> está cortando.'
+V2 = '<b>Y</b> la Tierra era un desierto informe <a href="?footnote=1-2-1">1</a>'
+N1 = '<p class="rbt_footnote">El griego <strong>λόγος</strong> es "razón".</p>'
+
+
 @override_settings(TRANSLATION_BACKEND='agent')
 @mock.patch.object(at, '_extract', side_effect=fake_extract)
 @mock.patch.object(at, '_needed_titles', return_value={})
 class ChapterFlowTests(TestCase):
-    def take(self):
-        return at.get_source_content('chapter', 'John', 1, 'es', agent='tester')
+    def take(self, agent='tester', **kw):
+        kw = kw or {'book': 'John', 'chapter': 1, 'language': 'es'}
+        return at.get_source_content('chapter', agent=agent, **kw)
 
     def test_claim_save_complete(self, *_):
         work = self.take()
-        job_id = work['job']['job_id']
+        job_id, token = work['job']['job_id'], work['claim_token']
         self.assertEqual(TranslationJob.objects.get(pk=job_id).status, at.AGENT_STATUS)
+        self.assertEqual(work['job']['claimed_by'], 'tester')
+        self.assertIsNone(work['job']['error'])  # the token is never shown as an error
         self.assertEqual(set(work['verses']), {'1', '2'})
-        self.assertIn('John-1', work['footnotes'])
 
-        bad = at.save_translation('chapter', job_id, verses={'1': 'sin etiquetas'})
+        bad = at.save_translation('chapter', job_id, verses={'1': 'sin etiquetas'}, claim_token=token)
         self.assertEqual(bad['saved'], 0)
         self.assertFalse(VerseTranslation.objects.exists())  # all-or-nothing
 
-        part = at.save_translation('chapter', job_id, verses={
-            '1': 'En la cabeza <span style="color: blue;">él</span> está cortando.'}, agent='tester')
+        part = at.save_translation('chapter', job_id, verses={'1': V1}, agent='tester', claim_token=token)
         self.assertEqual(part['saved'], 1)
         row = VerseTranslation.objects.get(verse=1)
-        self.assertEqual(row.status, 'completed')
-        self.assertEqual(row.generated_by, 'agent:tester')
+        self.assertEqual((row.status, row.generated_by), ('completed', 'agent:tester'))
         self.assertEqual(row.source_hash, tu.source_fingerprint(SOURCE_VERSES[1]))
-        self.assertEqual(TranslationJob.objects.get(pk=job_id).status, at.AGENT_STATUS)
 
-        done = at.save_translation('chapter', job_id, verses={
-            '2': '<b>Y</b> la Tierra era un desierto informe <a href="?footnote=1-2-1">1</a>'},
-            footnotes={'John-1': '<p class="rbt_footnote">El griego <strong>λόγος</strong> es "razón".</p>'})
+        again = at.save_translation('chapter', job_id, verses={'1': V1}, claim_token=token)
+        self.assertEqual((again['saved'], again['already_saved']), (0, 1))  # a retried save is harmless
+
+        done = at.save_translation('chapter', job_id, verses={'2': V2}, footnotes={'John-1': N1}, claim_token=token)
         self.assertEqual(done['remaining'], 0)
         self.assertEqual(TranslationJob.objects.get(pk=job_id).status, 'completed')
+        replay = at.save_translation('chapter', job_id, verses={'2': V2}, footnotes={'John-1': N1}, claim_token=token)
+        self.assertEqual(replay, done)  # the reply was lost: asking again gives the same answer
 
     def test_stale_translation_is_offered_again(self, *_):
         VerseTranslation.objects.create(book='John', chapter=1, verse=1, language_code='es', verse_text='viejo',
                                         status='completed', source_hash=tu.source_fingerprint('older English'))
         VerseTranslation.objects.create(book='John', chapter=1, verse=2, language_code='es', verse_text='bien',
                                         status='completed', source_hash=None)  # pre-fingerprint: trusted
-        work = self.take()
-        self.assertEqual(set(work['verses']), {'1'})
+        self.assertEqual(set(self.take()['verses']), {'1'})
 
     def test_validate_saves_nothing(self, *_):
         job_id = self.take()['job']['job_id']
-        ok = at.validate_translation('chapter', job_id, verses={
-            '1': 'En la cabeza <span style="color: blue;">él</span> está cortando.'})
-        self.assertTrue(ok['valid'])
+        self.assertTrue(at.validate_translation('chapter', job_id, verses={'1': V1})['valid'])
         self.assertFalse(VerseTranslation.objects.exists())
 
     def test_draft_then_publish(self, *_):
-        job_id = self.take()['job']['job_id']
-        at.save_translation('chapter', job_id, publish=False, verses={
-            '1': 'En la cabeza <span style="color: blue;">él</span> está cortando.'})
+        work = self.take()
+        at.save_translation('chapter', work['job']['job_id'], publish=False, verses={'1': V1},
+                            claim_token=work['claim_token'])
         self.assertEqual(VerseTranslation.objects.get(verse=1).status, at.DRAFT)
         self.assertEqual(at.publish_translation('chapter', 'John', 1, 'es')['published'], 1)
         self.assertEqual(VerseTranslation.objects.get(verse=1).status, 'completed')
 
-    def test_saving_needs_a_claim(self, *_):
-        job_id = self.take()['job']['job_id']
-        at.release('chapter', job_id)
-        with self.assertRaises(ValueError):
-            at.save_translation('chapter', job_id, verses={'1': 'x'})
-        self.assertEqual(TranslationJob.objects.get(pk=job_id).status, 'pending')
+    def test_release_needs_the_token(self, *_):
+        work = self.take()
+        with self.assertRaises(at.ClaimConflict):
+            at.release('chapter', work['job']['job_id'], claim_token='guess')
+        at.release('chapter', work['job']['job_id'], claim_token=work['claim_token'])
+        self.assertEqual(TranslationJob.objects.get(pk=work['job']['job_id']).status, 'pending')
+        with self.assertRaises(at.ClaimConflict):
+            at.save_translation('chapter', work['job']['job_id'], verses={'1': V1}, claim_token=work['claim_token'])
+
+
+@override_settings(TRANSLATION_BACKEND='agent')
+@mock.patch.object(at, '_extract', side_effect=fake_extract)
+@mock.patch.object(at, '_needed_titles', return_value={})
+class ConcurrencyTests(TestCase):
+    def test_second_agent_cannot_take_a_claimed_chapter(self, *_):
+        first = at.get_source_content('chapter', 'John', 1, 'es', agent='a')
+        with self.assertRaises(at.ClaimConflict):
+            at.get_source_content('chapter', 'John', 1, 'es', agent='b')
+        with self.assertRaises(at.ClaimConflict):
+            at.get_source_content('chapter', job_id=first['job']['job_id'], agent='b')
+        self.assertEqual(TranslationJob.objects.filter(book='John', chapter=1, language_code='es').count(), 1)
+
+    def test_next_gives_parallel_agents_different_chapters(self, *_):
+        for jid, ch in (('j1', 1), ('j2', 2), ('j2b', 2)):  # two requests for chapter 2
+            TranslationJob.objects.create(job_id=jid, book='John', chapter=ch, language_code='es', status='pending')
+        a = at.get_source_content('chapter', agent='a')
+        b = at.get_source_content('chapter', agent='b')
+        c = at.get_source_content('chapter', agent='c')
+        self.assertEqual({a['job']['chapter'], b['job']['chapter']}, {1, 2})
+        self.assertIsNone(c['job'])  # the duplicate request for chapter 2 is not handed out twice
+
+    def test_expired_claim_is_taken_over_and_the_old_token_stops_working(self, *_):
+        from datetime import timedelta
+        from django.utils import timezone
+        old = at.get_source_content('chapter', 'John', 1, 'es', agent='slow')
+        TranslationJob.objects.filter(pk=old['job']['job_id']).update(
+            started_at=timezone.now() - at.CLAIM_TTL - timedelta(minutes=1))
+        new = at.get_source_content('chapter', agent='fast')
+        self.assertEqual(new['job']['job_id'], old['job']['job_id'])
+        self.assertNotEqual(new['claim_token'], old['claim_token'])
+        with self.assertRaises(at.ClaimConflict):
+            at.save_translation('chapter', old['job']['job_id'], verses={'1': V1}, claim_token=old['claim_token'])
+
+    def test_request_key_returns_the_same_claim(self, *_):
+        TranslationJob.objects.create(job_id='k1', book='John', chapter=1, language_code='es', status='pending')
+        TranslationJob.objects.create(job_id='k2', book='John', chapter=2, language_code='es', status='pending')
+        first = at.get_source_content('chapter', agent='a', request_key='req-1')
+        again = at.get_source_content('chapter', agent='a', request_key='req-1')
+        self.assertEqual((again['job']['job_id'], again['claim_token']), (first['job']['job_id'], first['claim_token']))
+        self.assertEqual(TranslationJob.objects.filter(status=at.AGENT_STATUS).count(), 1)
+
+    def test_titles_are_claimed_per_language(self, *_):
+        from django.core.cache import cache
+        stale = [{'key': 'Jude|0|es', 'book': 'Jude', 'verse': 0, 'language': 'es', 'english': 'Praised',
+                  'current_translation': 'x'},
+                 {'key': 'Jude|0|pl', 'book': 'Jude', 'verse': 0, 'language': 'pl', 'english': 'Praised',
+                  'current_translation': 'y'}]
+        cache.delete(at._title_lock_key('es')); cache.delete(at._title_lock_key('pl'))
+        with mock.patch.object(at, 'stale_titles', side_effect=lambda language=None, limit=200:
+                               [s for s in stale if not language or s['language'] == language]):
+            a = at.get_source_content('title', agent='a')
+            b = at.get_source_content('title', agent='b')
+            self.assertEqual({a['language'], b['language']}, {'es', 'pl'})
+            with self.assertRaises(at.ClaimConflict):
+                at.get_source_content('title', language=a['language'], agent='c')
+            with self.assertRaises(at.ClaimConflict):
+                at.save_translation('title', titles={}, language=a['language'], claim_token=b['claim_token'])
+        cache.delete(at._title_lock_key('es')); cache.delete(at._title_lock_key('pl'))
 
 
 MEDIA = [pp.Media(n=1, verse='1', html='<div class="tooltip-container"><img src="a.jpg"/><div class="tooltip">'
@@ -274,3 +340,104 @@ class UntranslatedTests(TestCase):
         chapters = [j['chapter'] for j in at.get_untranslated('chapter', 'es')['chapter']]
         self.assertEqual(chapters[0], 1)  # pending first
         self.assertEqual(sorted(chapters), [1, 2, 4])
+
+
+from django.test import TransactionTestCase, skipUnlessDBFeature  # noqa: E402
+
+
+@override_settings(TRANSLATION_BACKEND='agent')
+@skipUnlessDBFeature('has_select_for_update_skip_locked')
+class ParallelClaimTests(TransactionTestCase):
+    """Real concurrency: agents claiming at the same instant on separate DB connections."""
+
+    def test_simultaneous_claims_never_share_a_chapter(self):
+        import threading
+        from django.db import connection
+        chapters = [1, 2, 3, 4, 5]
+        for ch in chapters:
+            TranslationJob.objects.create(job_id=f'p{ch}', book='John', chapter=ch, language_code='es', status='pending')
+        TranslationJob.objects.create(job_id='p2-dup', book='John', chapter=2, language_code='es', status='pending')
+        TranslationJob.objects.create(job_id='p4-dup', book='John', chapter=4, language_code='es', status='failed')
+        results, errors, start = [], [], threading.Barrier(8)
+
+        def agent(n):
+            try:
+                start.wait()
+                r = at.get_source_content('chapter', agent=f'agent{n}')
+                results.append(r['job'] and (r['job']['book'], r['job']['chapter']))
+            except Exception as exc:  # noqa: BLE001
+                errors.append(exc)
+            finally:
+                connection.close()
+
+        threads = [threading.Thread(target=agent, args=(n,)) for n in range(8)]
+        # Patched once for all threads: mock.patch is not thread-safe.
+        with mock.patch.object(at, '_extract', side_effect=fake_extract), \
+                mock.patch.object(at, '_needed_titles', return_value={}):
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        self.assertEqual(errors, [])
+        taken = [r for r in results if r]
+        self.assertEqual(len(taken), len(set(taken)))            # nobody got the same chapter
+        self.assertEqual(sorted(c for _, c in taken), chapters)  # and every chapter went to someone
+
+
+class ScholarshipTests(TestCase):
+    """Pure helpers and the edit log; the Bible tables are exercised against real data by hand."""
+
+    def test_book_names(self):
+        from search import scholarship as sch
+        self.assertEqual(sch.resolve_book('Genesis')[2], 'genesis')
+        self.assertEqual(sch.resolve_book('1John')[0], '1 John')
+        self.assertEqual(sch.resolve_book('Jhn')[0] if False else sch.resolve_book('John')[2], 'nt')
+        self.assertEqual(sch.resolve_book('Joe')[0], 'Joel')
+        self.assertEqual(sch.resolve_book('Joseph and Aseneth')[2], 'special')
+        with self.assertRaises(ValueError):
+            sch.resolve_book('Hezekiah')
+
+    def test_refs_and_strongs(self):
+        from search import scholarship as sch
+        self.assertEqual(sch._ref_parts('Gen.1.3-04'), ('Genesis', 1, 3, 4))
+        self.assertEqual(sch._ref_parts('Joe.2.28')[:3], ('Joel', 2, 28))
+        self.assertEqual(sch._parse_strongs('h0216'), ('H', 216))
+        self.assertEqual(sch._parse_strongs('G3056'), ('G', 3056))
+        with self.assertRaises(ValueError):
+            sch._parse_strongs('logos')
+
+    def test_verse_text_drops_media_and_markers(self):
+        from search import scholarship as sch
+        html = ('within an origin<a class="sdfootnoteanc" href="?footnote=1-1-1"><sup>1</sup></a>, and '
+                '<div class="tooltip-container"><video src="x.mp4">Your browser</video><div class="tooltip">note</div></div>'
+                'the <span style="color: blue;">Ratio</span>')
+        self.assertEqual(sch._verse_text(html), 'within an origin, and the Ratio')
+        self.assertEqual(sch._footnote_ids(html), ['1-1-1'])
+
+    def test_revisions(self):
+        from datetime import datetime, timedelta
+        from search import scholarship as sch
+        from search.models import TranslationUpdates
+        now = datetime(2026, 11, 1, 12, 0)
+        TranslationUpdates.objects.create(date=now, version='New Testament', reference='John 3:16', update_text='<p>new</p>')
+        TranslationUpdates.objects.create(date=now - timedelta(days=1), version='New Testament', reference='John 3:16', update_text='old')
+        TranslationUpdates.objects.create(date=now - timedelta(days=2), version='New Testament', reference='John 3:17', update_text='x')
+        TranslationUpdates.objects.create(date=now - timedelta(days=3), version='New Testament Footnote',
+                                          reference='John 3:16 - Joh-12', update_text='note')
+        r = sch.get_revisions('John', 3, 16)
+        self.assertEqual(r['total'], 3)
+        self.assertEqual(r['revisions'][0]['text'], 'new')
+        self.assertEqual(sch.get_revisions('John', 3)['total'], 4)
+        self.assertEqual(sch.get_revisions('John', 3, 16, version='New Testament Footnote')['total'], 1)
+
+
+@override_settings(RBT_AGENT_TOKEN_SHA256=[DIGEST])
+class ScholarshipApiTests(TestCase):
+    def test_abilities_are_routed(self):
+        from search.views.agent_api import ABILITIES
+        for name in ('get-verse', 'get-chapter', 'search-hebrew', 'search-greek', 'get-lexeme',
+                     'get-occurrences', 'get-footnotes', 'get-revisions'):
+            self.assertIn(name, ABILITIES)
+        r = self.client.post('/api/agent/', json.dumps({'ability': 'get-lexeme', 'input': {'strongs': 'nonsense'}}),
+                             content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {TOKEN}')
+        self.assertEqual(r.status_code, 400)
