@@ -256,3 +256,21 @@ class BookSyncTests(TestCase):
             result = at.book_sync('Jude', 'de')
         de = result['languages'][0]
         self.assertEqual((de['synchronized_pct'], de['outdated_pct'], de['remaining_pct']), (50.0, 25.0, 25.0))
+
+
+class UntranslatedTests(TestCase):
+    def test_failed_and_orphaned_jobs_are_listed_once(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        old = timezone.now() - timedelta(hours=1)
+        mk = lambda jid, ch, status, **kw: TranslationJob.objects.create(
+            job_id=jid, book='John', chapter=ch, language_code='es', status=status, **kw)
+        mk('p1', 1, 'pending')
+        mk('f1', 2, 'failed')
+        mk('f2', 2, 'failed')            # duplicate of chapter 2
+        mk('f3', 3, 'failed')
+        mk('c3', 3, 'completed')         # chapter 3 succeeded later
+        mk('o4', 4, 'processing', started_at=old)
+        chapters = [j['chapter'] for j in at.get_untranslated('chapter', 'es')['chapter']]
+        self.assertEqual(chapters[0], 1)  # pending first
+        self.assertEqual(sorted(chapters), [1, 2, 4])

@@ -362,11 +362,29 @@ def get_untranslated(kind=None, language=None, limit=50):
     stale_claim = timezone.now() - CLAIM_TTL
     out = {}
     if kind in (None, 'chapter'):
-        qs = TranslationJob.objects.filter(status='pending') | TranslationJob.objects.filter(
-            status=AGENT_STATUS, started_at__lt=stale_claim)
+        # Pending requests first, then ones that failed under the API backend (quota errors
+        # left thousands) and claims/runs nobody finished; one entry per chapter and language.
+        from django.db.models import Q
+        orphaned = timezone.now() - timedelta(minutes=10)
+        qs = TranslationJob.objects.filter(
+            Q(status='pending') | Q(status='failed')
+            | Q(status=AGENT_STATUS, started_at__lt=stale_claim)
+            | Q(status='processing', started_at__lt=orphaned))
         if language:
             qs = qs.filter(language_code=language)
-        out['chapter'] = [_job_dict(j) for j in qs.order_by('created_at')[:limit]]
+        done = set(TranslationJob.objects.filter(status='completed').values_list('book', 'chapter', 'language_code')
+                   .order_by().distinct()) if qs.filter(status='failed').exists() else set()
+        rank = {'pending': 0, 'processing': 1, AGENT_STATUS: 1, 'failed': 2}
+        seen, rows = set(), []
+        for job in sorted(qs.order_by('-created_at')[:5000], key=lambda j: (rank.get(j.status, 3), j.created_at)):
+            key = (job.book, job.chapter, job.language_code)
+            if key in seen or (job.status == 'failed' and key in done):
+                continue  # duplicate, or a later attempt succeeded
+            seen.add(key)
+            rows.append(_job_dict(job))
+            if len(rows) >= limit:
+                break
+        out['chapter'] = rows
     if kind in (None, 'paraphrase'):
         qs = ChapterParaphrase.objects.exclude(language_code='en').filter(status='pending')
         if language:
