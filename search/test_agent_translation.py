@@ -190,6 +190,27 @@ class ChapterFlowTests(TestCase):
         self.assertEqual(at.publish_translation('chapter', 'John', 1, 'es')['published'], 1)
         self.assertEqual(VerseTranslation.objects.get(verse=1).status, 'completed')
 
+    def test_saved_drafts_are_not_offered_again(self, *_):
+        work = self.take()
+        job_id, token = work['job']['job_id'], work['claim_token']
+        part = at.save_translation('chapter', job_id, publish=False, verses={'1': V1}, claim_token=token)
+        self.assertEqual(part['remaining'], 2)  # verse 2 and the footnote; not the draft
+        self.assertNotIn('1', part['still_needed'].get('verses', []))
+        self.assertEqual(set(self.take(job_id=job_id, claim_token=token)['verses']), {'2'})
+
+        done = at.save_translation('chapter', job_id, publish=False, verses={'2': V2}, footnotes={'John-1': N1},
+                                   claim_token=token)
+        self.assertEqual(done['remaining'], 0)
+        self.assertEqual(TranslationJob.objects.get(pk=job_id).status, 'completed')
+        self.assertEqual(VerseTranslation.objects.filter(status=at.DRAFT).count(), 3)  # still drafts, unpublished
+
+    def test_draft_of_older_english_is_offered_again(self, *_):
+        VerseTranslation.objects.create(book='John', chapter=1, verse=1, language_code='es', verse_text='viejo',
+                                        status=at.DRAFT, source_hash=tu.source_fingerprint('older English'))
+        VerseTranslation.objects.create(book='John', chapter=1, verse=2, language_code='es', verse_text='bien',
+                                        status=at.DRAFT, source_hash=tu.source_fingerprint(SOURCE_VERSES[2]))
+        self.assertEqual(set(self.take()['verses']), {'1'})
+
     def test_release_needs_the_token(self, *_):
         work = self.take()
         with self.assertRaises(at.ClaimConflict):

@@ -229,7 +229,7 @@ def _needed_titles(book, language):
     for b, verse in wanted:
         row = VerseTranslation.objects.filter(
             book=b, chapter=0, verse=verse, language_code=language,
-            status='completed', footnote_id__isnull=True,
+            status__in=['completed', DRAFT], footnote_id__isnull=True,
         ).first()
         if not (row and titles.is_current(row)):
             out[f'{b}|{verse}'] = titles.title_source(b, verse)
@@ -242,7 +242,7 @@ def _judas_commentary(language):
     from search.models import VerseTranslation
     if VerseTranslation.objects.filter(
         book='Gospel of Judas', chapter=0, verse=2, language_code=language,
-        footnote_id__isnull=True, status='completed',
+        footnote_id__isnull=True, status__in=['completed', DRAFT],
     ).exists():
         return None
     with get_db_connection() as conn:
@@ -277,6 +277,21 @@ def chapter_work(book, chapter, language):
             src = every_verse.get(int(verse))
             if src and stored_hash != source_fingerprint(src):
                 verses[int(verse)] = src
+    # The extractors count only 'completed' rows, so drafts saved with publish=False look
+    # missing. A draft of the current English is done work waiting for publish-translation;
+    # only a draft made from an older English still needs translating.
+    drafts = VerseTranslation.objects.filter(
+        book=book, chapter=chapter, language_code=language, status=DRAFT,
+    ).values_list('verse', 'footnote_id', 'source_hash')
+    for verse, footnote_id, stored_hash in drafts:
+        if footnote_id:
+            src = every_note.get(footnote_id)
+            if footnote_id in footnotes and src and stored_hash == source_fingerprint(src):
+                del footnotes[footnote_id]
+        elif verse:
+            src = every_verse.get(int(verse))
+            if int(verse) in verses and src and stored_hash == source_fingerprint(src):
+                del verses[int(verse)]
     extras = {}
     if book == 'Gospel of Judas':
         commentary = _judas_commentary(language)
