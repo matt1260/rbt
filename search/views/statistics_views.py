@@ -17,7 +17,7 @@ from dateutil.relativedelta import relativedelta
 
 logger = logging.getLogger(__name__)
 
-from search.models import TranslationUpdates, GenesisFootnotes
+from search.models import TranslationUpdates
 from search.db_utils import execute_query
 from search.seo_utils import _get_verse_url
 from translate.translator import convert_book_name
@@ -30,6 +30,58 @@ def _cors_json(data, status=200):
     response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
     response["Access-Control-Allow-Headers"] = "Content-Type"
     return response
+
+
+# A note counts when it has visible text: empty rows and bare tags/&nbsp; are left out.
+_VISIBLE_TEXT = "coalesce(btrim(regexp_replace({col}, '<[^>]*>|&nbsp;', '', 'g')), '') <> ''"
+FOOTNOTE_COUNTS_CACHE_KEY = 'landing_footnote_counts_v1'
+
+
+def footnote_counts():
+    """(Hebrew, Greek) footnote counts for the statistics summary and the landing page.
+
+    Hebrew = Genesis notes (their own table) + word notes in the other OT books
+    (old_testament.hebrewdata.footnote; its Gen rows are an old unused copy).
+    Greek = every NT book's <book>_footnotes table, one per footnote id.
+    Cached for 10 minutes: the landing page asks for these on every visit.
+    """
+    from django.core.cache import cache
+
+    cached = cache.get(FOOTNOTE_COUNTS_CACHE_KEY)
+    if cached:
+        return tuple(cached)
+
+    genesis = execute_query(
+        "SELECT COUNT(DISTINCT footnote_id) FROM public.genesis_footnotes "
+        "WHERE footnote_id IS NOT NULL AND " + _VISIBLE_TEXT.format(col='footnote_html'),
+        fetch='one',
+    )
+    other_ot = execute_query(
+        "SELECT COUNT(*) FROM old_testament.hebrewdata "
+        "WHERE footnote IS NOT NULL AND footnote <> '' AND Ref NOT LIKE 'Gen.%' AND "
+        + _VISIBLE_TEXT.format(col='footnote'),
+        fetch='one',
+    )
+    ot_count = (genesis[0] if genesis else 0) + (other_ot[0] if other_ot else 0)
+
+    tables = execute_query(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = 'new_testament' AND table_name LIKE '%\\_footnotes'",
+        fetch='all',
+    ) or []
+    nt_count = 0
+    for (table_name,) in tables:
+        if not re.fullmatch(r'[a-z0-9_]+', table_name):
+            continue
+        row = execute_query(
+            f"SELECT COUNT(DISTINCT footnote_id) FROM new_testament.{table_name} "
+            "WHERE footnote_id IS NOT NULL AND " + _VISIBLE_TEXT.format(col='footnote_html'),
+            fetch='one',
+        )
+        nt_count += row[0] if row else 0
+
+    cache.set(FOOTNOTE_COUNTS_CACHE_KEY, [ot_count, nt_count], 600)
+    return ot_count, nt_count
 
 
 @csrf_exempt
@@ -219,34 +271,8 @@ def update_statistics_api(request):
         # 8. Most active day
         most_active_day = max(complete_daily_data, key=lambda x: x['count']) if complete_daily_data else None
 
-        # 9. Count unique OT references (pattern: e.g., '2-16-86')
-        ot_footnote_pattern = re.compile(r'^\d+-\d+-\d+$')
-        ot_footnote_references = set()
-        for ref in base_queryset.exclude(reference__isnull=True).exclude(reference__exact='').values_list('reference', flat=True):
-            if ot_footnote_pattern.match(ref.strip()):
-                ot_footnote_references.add(ref.strip())
-        ot_footnote_count = len(ot_footnote_references)
-        # add the Genesis footnote count
-        ot_footnote_count = ot_footnote_count + GenesisFootnotes.objects.filter(footnote_id__isnull=False).count()
-
-        # Get all footnote tables
-        footnote_tables = execute_query("""
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'new_testament' 
-            AND table_name LIKE '%_footnotes'
-        """, fetch='all')
-
-        nt_footnote_count = 0
-
-        for table_row in footnote_tables:
-            table_name = table_row[0]
-            count_result = execute_query(
-                f"SELECT COUNT(*) FROM new_testament.{table_name} WHERE footnote_id IS NOT NULL",
-                fetch='one'
-            )
-            if count_result:
-                nt_footnote_count += count_result[0]
+        # 9. Footnote counts (counted from the notes themselves, cached briefly)
+        ot_footnote_count, nt_footnote_count = footnote_counts()
 
         return JsonResponse({
             'summary': {
